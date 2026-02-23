@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   App,
   Button,
   Card,
+  Divider,
   Form,
   Input,
   Modal,
   Popconfirm,
+  Select,
   Space,
   Switch,
   Table,
@@ -23,7 +26,14 @@ import {
   UploadOutlined,
 } from "@ant-design/icons";
 import { employeeService } from "@/services/employeeService";
+import settingsService from "@/services/settingsService";
 import { FileViewer } from "@/shared/ui/FileViewer";
+import { useReferencesStore } from "@/store/referencesStore";
+import {
+  normalizeDocumentProfilesConfig,
+  profileCodes,
+  profileLabels,
+} from "@/modules/employees/lib/documentTypeProfiles";
 
 const ACCEPTED_SAMPLE_EXTENSIONS = ".pdf,.jpg,.jpeg,.png,.webp";
 const SUPPORTED_SAMPLE_MIME_TYPES = new Set([
@@ -234,18 +244,84 @@ const DocumentTypeSamplesSettingsSection = () => {
     viewerVisible: false,
     viewerFile: null,
   });
+  const [profilesState, setProfilesState] = useState({
+    config: normalizeDocumentProfilesConfig(),
+    savedConfig: normalizeDocumentProfilesConfig(),
+    saving: false,
+  });
   const [form] = Form.useForm();
   const { items, loading, uploadingId, savingId, deletingId } = dataState;
   const { editModalOpen, editingRecord, viewerVisible, viewerFile } = uiState;
+  const {
+    config: profilesConfig,
+    savedConfig: savedProfilesConfig,
+    saving,
+  } = profilesState;
+
+  const activeDocumentTypeCodes = useMemo(
+    () =>
+      items
+        .filter((item) => Boolean(item.isActive))
+        .map((item) => String(item.code || item.value || "").trim())
+        .filter(Boolean),
+    [items],
+  );
+
+  const activeDocumentTypeOptions = useMemo(
+    () =>
+      items
+        .filter((item) => Boolean(item.isActive))
+        .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
+        .map((item) => ({
+          value: item.code || item.value,
+          label: item.label || item.name || item.code || item.value,
+        })),
+    [items],
+  );
+
+  const normalizedProfilesForSave = useMemo(
+    () =>
+      normalizeDocumentProfilesConfig({
+        profilesConfig,
+        availableDocumentTypeCodes: activeDocumentTypeCodes,
+      }),
+    [activeDocumentTypeCodes, profilesConfig],
+  );
+
+  const hasProfileChanges = useMemo(
+    () =>
+      JSON.stringify(normalizedProfilesForSave) !==
+      JSON.stringify(savedProfilesConfig),
+    [normalizedProfilesForSave, savedProfilesConfig],
+  );
 
   const loadDocumentTypes = useCallback(async () => {
     try {
       setDataState((prev) => ({ ...prev, loading: true }));
-      const response = await employeeService.getDocumentTypesForAdmin();
-      const list = response?.data || response || [];
+      const [typesResponse, settingsResponse] = await Promise.all([
+        employeeService.getDocumentTypesForAdmin(),
+        settingsService.getPublicSettings(),
+      ]);
+      const list = typesResponse?.data || typesResponse || [];
+      const settingsData = settingsResponse?.data || {};
+      const profileConfigFromSettings = settingsData.employeeDocumentProfiles;
+      const activeCodes = (Array.isArray(list) ? list : [])
+        .filter((item) => Boolean(item.isActive))
+        .map((item) => String(item.code || item.value || "").trim())
+        .filter(Boolean);
+      const normalizedProfiles = normalizeDocumentProfilesConfig({
+        profilesConfig: profileConfigFromSettings,
+        availableDocumentTypeCodes: activeCodes,
+      });
+
       setDataState((prev) => ({
         ...prev,
         items: Array.isArray(list) ? list : [],
+      }));
+      setProfilesState((prev) => ({
+        ...prev,
+        config: normalizedProfiles,
+        savedConfig: normalizedProfiles,
       }));
     } catch (error) {
       console.error("Error loading employee document types for admin:", error);
@@ -253,6 +329,12 @@ const DocumentTypeSamplesSettingsSection = () => {
         error?.response?.data?.message ||
           "Ошибка загрузки типов документов для админки",
       );
+      const fallbackProfiles = normalizeDocumentProfilesConfig();
+      setProfilesState((prev) => ({
+        ...prev,
+        config: fallbackProfiles,
+        savedConfig: fallbackProfiles,
+      }));
     } finally {
       setDataState((prev) => ({ ...prev, loading: false }));
     }
@@ -421,9 +503,101 @@ const DocumentTypeSamplesSettingsSection = () => {
     ],
   );
 
+  const handleProfileCodesChange = useCallback((profileCode, values) => {
+    setProfilesState((prev) => ({
+      ...prev,
+      config: {
+        ...prev.config,
+        [profileCode]: Array.isArray(values) ? values : [],
+      },
+    }));
+  }, []);
+
+  const handleResetProfiles = useCallback(() => {
+    const resetConfig = normalizeDocumentProfilesConfig({
+      availableDocumentTypeCodes: activeDocumentTypeCodes,
+    });
+    setProfilesState((prev) => ({
+      ...prev,
+      config: resetConfig,
+    }));
+  }, [activeDocumentTypeCodes]);
+
+  const handleSaveProfiles = useCallback(async () => {
+    try {
+      setProfilesState((prev) => ({ ...prev, saving: true }));
+      await settingsService.updateSetting(
+        "employee_document_profiles",
+        JSON.stringify(normalizedProfilesForSave),
+      );
+      setProfilesState((prev) => ({
+        ...prev,
+        config: normalizedProfilesForSave,
+        savedConfig: normalizedProfilesForSave,
+      }));
+      useReferencesStore.getState().invalidateSettings();
+      message.success("Профили документов сохранены");
+    } catch (error) {
+      console.error("Error saving employee document profiles:", error);
+      message.error(
+        error?.response?.data?.message ||
+          "Ошибка сохранения профилей документов",
+      );
+    } finally {
+      setProfilesState((prev) => ({ ...prev, saving: false }));
+    }
+  }, [message, normalizedProfilesForSave]);
+
   return (
     <Card size="small">
       <Space direction="vertical" size={16} style={{ width: "100%" }}>
+        <div>
+          <Typography.Title level={5} style={{ marginBottom: 8 }}>
+            Конструктор наборов документов
+          </Typography.Title>
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message="Настройте состав документов для сотрудников контрагентов, сотрудников дефолтного контрагента РФ/РБ и сотрудников дефолтного контрагента с остальным гражданством."
+          />
+
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            {Object.values(profileCodes).map((profileCode) => (
+              <div key={profileCode}>
+                <Typography.Text strong>
+                  {profileLabels[profileCode] || profileCode}
+                </Typography.Text>
+                <Select
+                  mode="multiple"
+                  style={{ width: "100%", marginTop: 6 }}
+                  placeholder="Выберите типы документов"
+                  value={profilesConfig?.[profileCode] || []}
+                  options={activeDocumentTypeOptions}
+                  onChange={(values) =>
+                    handleProfileCodesChange(profileCode, values)
+                  }
+                  optionFilterProp="label"
+                />
+              </div>
+            ))}
+          </Space>
+
+          <Space style={{ marginTop: 12 }}>
+            <Button onClick={handleResetProfiles}>Сбросить к дефолту</Button>
+            <Button
+              type="primary"
+              loading={saving}
+              disabled={!hasProfileChanges}
+              onClick={handleSaveProfiles}
+            >
+              Сохранить профили
+            </Button>
+          </Space>
+        </div>
+
+        <Divider style={{ margin: "4px 0 0" }} />
+
         <Table
           rowKey="id"
           loading={loading}

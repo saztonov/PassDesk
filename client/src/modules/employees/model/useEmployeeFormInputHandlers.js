@@ -10,7 +10,6 @@ export const useEmployeeFormInputHandlers = ({
   setPassportType,
   scheduleValidation,
   scheduleAutoSaveDraft,
-  setOcrConflictByField,
   isFormResetRef,
   filterCyrillicOnly,
   capitalizeFirstLetter,
@@ -23,27 +22,6 @@ export const useEmployeeFormInputHandlers = ({
     (changedFields) => {
       if (!dataLoaded) {
         return;
-      }
-
-      if (Array.isArray(changedFields) && changedFields.length > 0) {
-        setOcrConflictByField((prev) => {
-          if (!prev || Object.keys(prev).length === 0) {
-            return prev;
-          }
-
-          const next = { ...prev };
-          let changed = false;
-
-          changedFields.forEach((item) => {
-            const fieldName = Array.isArray(item?.name) ? item.name[0] : null;
-            if (fieldName && next[fieldName]) {
-              delete next[fieldName];
-              changed = true;
-            }
-          });
-
-          return changed ? next : prev;
-        });
       }
 
       const currentPassportType = form.getFieldValue("passportType");
@@ -69,7 +47,6 @@ export const useEmployeeFormInputHandlers = ({
       passportType,
       scheduleAutoSaveDraft,
       scheduleValidation,
-      setOcrConflictByField,
       setPassportType,
     ],
   );

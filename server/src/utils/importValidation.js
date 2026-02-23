@@ -2,8 +2,14 @@
  * Утилиты для валидации при импорте сотрудников из Excel
  */
 
-import { Counterparty, Citizenship, CitizenshipSynonym, Position, Employee } from '../models/index.js';
-import { Op } from 'sequelize';
+import {
+  Counterparty,
+  Citizenship,
+  CitizenshipSynonym,
+  Position,
+  Employee,
+} from "../models/index.js";
+import { Op } from "sequelize";
 
 /**
  * Валидирует ИНН (10 или 12 цифр)
@@ -11,15 +17,18 @@ import { Op } from 'sequelize';
  * Автоматически убирает точки, пробелы, тире
  */
 export const validateInn = (inn) => {
-  if (!inn) return { valid: false, error: 'ИНН обязателен' };
-  
+  if (!inn) return { valid: false, error: "ИНН обязателен" };
+
   // Убираем ВСЕ нецифровые символы (включая точки, пробелы, тире)
-  const cleaned = String(inn).trim().replace(/[^\d]/g, '');
-  
+  const cleaned = String(inn).trim().replace(/[^\d]/g, "");
+
   if (cleaned.length !== 10 && cleaned.length !== 12) {
-    return { valid: false, error: `ИНН: должен быть 10 или 12 цифр, получено ${cleaned.length}` };
+    return {
+      valid: false,
+      error: `ИНН: должен быть 10 или 12 цифр, получено ${cleaned.length}`,
+    };
   }
-  
+
   return { valid: true, normalizedInn: cleaned };
 };
 
@@ -29,26 +38,29 @@ export const validateInn = (inn) => {
  * Автоматически убирает точки, пробелы, тире
  */
 export const validateSnils = (snils) => {
-  if (!snils) return { valid: false, error: 'СНИЛС обязателен' };
-  
+  if (!snils) return { valid: false, error: "СНИЛС обязателен" };
+
   // Убираем ВСЕ нецифровые символы (включая точки, пробелы, тире)
-  const cleaned = String(snils).trim().replace(/[^\d]/g, '');
-  
+  const cleaned = String(snils).trim().replace(/[^\d]/g, "");
+
   if (cleaned.length !== 11) {
-    return { valid: false, error: `СНИЛС: должен быть 11 цифр, получено ${cleaned.length}` };
+    return {
+      valid: false,
+      error: `СНИЛС: должен быть 11 цифр, получено ${cleaned.length}`,
+    };
   }
-  
+
   return { valid: true, normalizedSnils: cleaned };
 };
 
 /**
  * Валидирует дату (формат YYYY-MM-DD или DD.MM.YYYY)
  */
-export const validateDate = (dateString, fieldName = 'Дата') => {
+export const validateDate = (dateString, fieldName = "Дата") => {
   if (!dateString) return { valid: true, normalizedDate: null };
-  
+
   const str = String(dateString).trim();
-  
+
   // Проверяем формат YYYY-MM-DD
   const isoRegex = /^\d{4}-\d{2}-\d{2}$/;
   if (isoRegex.test(str)) {
@@ -57,7 +69,7 @@ export const validateDate = (dateString, fieldName = 'Дата') => {
       return { valid: true, normalizedDate: str };
     }
   }
-  
+
   // Проверяем формат DD.MM.YYYY
   const ruRegex = /^(\d{2})\.(\d{2})\.(\d{4})$/;
   const match = str.match(ruRegex);
@@ -69,45 +81,55 @@ export const validateDate = (dateString, fieldName = 'Дата') => {
       return { valid: true, normalizedDate: isoDate };
     }
   }
-  
-  return { valid: false, error: `${fieldName}: неверный формат даты (ожидается YYYY-MM-DD или DD.MM.YYYY)` };
+
+  return {
+    valid: false,
+    error: `${fieldName}: неверный формат даты (ожидается YYYY-MM-DD или DD.MM.YYYY)`,
+  };
 };
 
 /**
  * Валидирует ФИО (кириллица, первая буква заглавная)
  */
 export const validateFio = (firstName, lastName, middleName) => {
-  const cyrillicRegex = /^[А-ЯЁ][а-яё]*$/;
+  const cyrillicRegex = /^[А-ЯЁ][а-яё]*(?:\s+[А-ЯЁ][а-яё]*)*$/;
   const errors = [];
-  
-  if (!lastName || String(lastName).trim() === '') {
-    errors.push('Фамилия обязательна');
-  } else if (!cyrillicRegex.test(String(lastName).trim())) {
-    errors.push('Фамилия должна быть кириллицей с заглавной буквой');
+  const normalizeFioPart = (value) =>
+    String(value || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  const normalizedLastName = normalizeFioPart(lastName);
+  const normalizedFirstName = normalizeFioPart(firstName);
+  const normalizedMiddleName = normalizeFioPart(middleName);
+
+  if (!normalizedLastName) {
+    errors.push("Фамилия обязательна");
+  } else if (!cyrillicRegex.test(normalizedLastName)) {
+    errors.push("Фамилия должна быть кириллицей с заглавной буквой");
   }
-  
-  if (!firstName || String(firstName).trim() === '') {
-    errors.push('Имя обязательно');
-  } else if (!cyrillicRegex.test(String(firstName).trim())) {
-    errors.push('Имя должно быть кириллицей с заглавной буквой');
+
+  if (!normalizedFirstName) {
+    errors.push("Имя обязательно");
+  } else if (!cyrillicRegex.test(normalizedFirstName)) {
+    errors.push("Имя должно быть кириллицей с заглавной буквой");
   }
-  
+
   // Отчество необязательно, но если указано - проверяем формат
-  if (middleName && String(middleName).trim() !== '') {
-    if (!cyrillicRegex.test(String(middleName).trim())) {
-      errors.push('Отчество должно быть кириллицей с заглавной буквой');
+  if (normalizedMiddleName) {
+    if (!cyrillicRegex.test(normalizedMiddleName)) {
+      errors.push("Отчество должно быть кириллицей с заглавной буквой");
     }
   }
-  
+
   if (errors.length > 0) {
     return { valid: false, errors };
   }
-  
+
   return {
     valid: true,
-    lastName: String(lastName).trim(),
-    firstName: String(firstName).trim(),
-    middleName: middleName ? String(middleName).trim() : null
+    lastName: normalizedLastName,
+    firstName: normalizedFirstName,
+    middleName: normalizedMiddleName || null,
   };
 };
 
@@ -116,31 +138,32 @@ export const validateFio = (firstName, lastName, middleName) => {
  * Автоматически убирает пробелы и лишние символы
  */
 export const validateKig = (kig) => {
-  if (!kig) return { valid: false, error: 'КИГ обязателен' };
-  
+  if (!kig) return { valid: false, error: "КИГ обязателен" };
+
   const original = String(kig).trim();
-  
+
   // Проверяем наличие кириллицы
   const hasCyrillic = /[А-Яа-яЁё]/.test(original);
   if (hasCyrillic) {
-    return { 
-      valid: false, 
-      error: 'КИГ: в КИГ кириллица - КИГ должен быть в формате: АА1234567 (2 латинские буквы + 7 цифр)' 
+    return {
+      valid: false,
+      error:
+        "КИГ: в КИГ кириллица - КИГ должен быть в формате: АА1234567 (2 латинские буквы + 7 цифр)",
     };
   }
-  
+
   // Убираем все кроме латинских букв и цифр
-  const cleaned = original.replace(/[^\dA-Za-z]/g, '').toUpperCase();
-  const letters = cleaned.replace(/[^A-Z]/g, '');
-  const numbers = cleaned.replace(/[^0-9]/g, '');
-  
+  const cleaned = original.replace(/[^\dA-Za-z]/g, "").toUpperCase();
+  const letters = cleaned.replace(/[^A-Z]/g, "");
+  const numbers = cleaned.replace(/[^0-9]/g, "");
+
   if (letters.length !== 2 || numbers.length !== 7) {
-    return { 
-      valid: false, 
-      error: `КИГ: должен быть в формате АА1234567 (2 латинские буквы + 7 цифр), получено ${letters.length} букв и ${numbers.length} цифр` 
+    return {
+      valid: false,
+      error: `КИГ: должен быть в формате АА1234567 (2 латинские буквы + 7 цифр), получено ${letters.length} букв и ${numbers.length} цифр`,
     };
   }
-  
+
   return { valid: true, normalizedKig: `${letters}${numbers}` };
 };
 
@@ -149,47 +172,55 @@ export const validateKig = (kig) => {
  */
 export const findCitizenshipByName = async (citizenshipName) => {
   if (!citizenshipName) return null;
-  
+
   const name = String(citizenshipName).trim();
-  
+
   // Сначала ищем точное совпадение
   let citizenship = await Citizenship.findOne({
-    where: { name: { [Op.iLike]: name } }
+    where: { name: { [Op.iLike]: name } },
   });
-  
+
   if (!citizenship) {
     // Ищем через синонимы
     const synonym = await CitizenshipSynonym.findOne({
-      where: { synonym: { [Op.iLike]: name } }
+      where: { synonym: { [Op.iLike]: name } },
     });
-    
+
     if (synonym) {
       citizenship = await Citizenship.findByPk(synonym.citizenshipId);
     }
   }
-  
+
   return citizenship;
 };
 
 /**
  * Находит гражданство из загруженных справочников (оптимизированная версия)
  */
-export const findCitizenshipByNameFromCache = (citizenshipName, citizenshipsCache, synonymsCache) => {
+export const findCitizenshipByNameFromCache = (
+  citizenshipName,
+  citizenshipsCache,
+  synonymsCache,
+) => {
   if (!citizenshipName) return null;
-  
+
   const name = String(citizenshipName).trim().toLowerCase();
-  
+
   // Ищем точное совпадение
-  let citizenship = citizenshipsCache.find(c => c.name.toLowerCase() === name);
-  
+  let citizenship = citizenshipsCache.find(
+    (c) => c.name.toLowerCase() === name,
+  );
+
   if (!citizenship) {
     // Ищем через синонимы
-    const synonym = synonymsCache.find(s => s.synonym.toLowerCase() === name);
+    const synonym = synonymsCache.find((s) => s.synonym.toLowerCase() === name);
     if (synonym) {
-      citizenship = citizenshipsCache.find(c => c.id === synonym.citizenshipId);
+      citizenship = citizenshipsCache.find(
+        (c) => c.id === synonym.citizenshipId,
+      );
     }
   }
-  
+
   return citizenship || null;
 };
 
@@ -198,24 +229,25 @@ export const findCitizenshipByNameFromCache = (citizenshipName, citizenshipsCach
  */
 export const findOrCreatePosition = async (positionName, userId) => {
   if (!positionName) return null;
-  
+
   const name = String(positionName).trim();
-  
+
   // Капитализуем первую букву
-  const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
-  
+  const capitalizedName =
+    name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+
   let position = await Position.findOne({
-    where: { name: { [Op.iLike]: capitalizedName } }
+    where: { name: { [Op.iLike]: capitalizedName } },
   });
-  
+
   if (!position) {
     // Создаем новую должность
     position = await Position.create({
       name: capitalizedName,
-      createdBy: userId
+      createdBy: userId,
     });
   }
-  
+
   return position;
 };
 
@@ -224,80 +256,100 @@ export const findOrCreatePosition = async (positionName, userId) => {
  */
 export const findPositionFromCache = (positionName, positionsCache) => {
   if (!positionName) return null;
-  
+
   const name = String(positionName).trim();
-  const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
-  
-  return positionsCache.find(p => p.name.toLowerCase() === capitalizedName.toLowerCase()) || null;
+  const capitalizedName =
+    name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+
+  return (
+    positionsCache.find(
+      (p) => p.name.toLowerCase() === capitalizedName.toLowerCase(),
+    ) || null
+  );
 };
 
 /**
  * Проверяет контрагента и КПП
  */
-export const validateCounterpartyAndKpp = async (innOrganization, kppOrganization) => {
+export const validateCounterpartyAndKpp = async (
+  innOrganization,
+  kppOrganization,
+) => {
   const errors = [];
-  
+
   if (!innOrganization) {
-    errors.push('ИНН организации обязателен');
+    errors.push("ИНН организации обязателен");
     return { valid: false, errors };
   }
-  
-  const innCleaned = String(innOrganization).replace(/[^\d]/g, '');
+
+  const innCleaned = String(innOrganization).replace(/[^\d]/g, "");
   const counterparty = await Counterparty.findOne({
-    where: { inn: innCleaned }
+    where: { inn: innCleaned },
   });
-  
+
   if (!counterparty) {
     errors.push(`Контрагент с ИНН ${innOrganization} не найден`);
     return { valid: false, errors };
   }
-  
+
   // Проверяем КПП
-  const kppCleaned = kppOrganization ? String(kppOrganization).replace(/[^\d]/g, '') : null;
-  
+  const kppCleaned = kppOrganization
+    ? String(kppOrganization).replace(/[^\d]/g, "")
+    : null;
+
   if (kppCleaned && counterparty.kpp && counterparty.kpp !== kppCleaned) {
-    errors.push(`КПП не совпадает. В базе: ${counterparty.kpp}, в файле: ${kppCleaned}`);
+    errors.push(
+      `КПП не совпадает. В базе: ${counterparty.kpp}, в файле: ${kppCleaned}`,
+    );
     return { valid: false, errors };
   }
-  
+
   return {
     valid: true,
     counterparty,
-    kppToUpdate: kppCleaned && !counterparty.kpp ? kppCleaned : null
+    kppToUpdate: kppCleaned && !counterparty.kpp ? kppCleaned : null,
   };
 };
 
 /**
  * Проверяет контрагента из загруженных справочников (оптимизированная версия)
  */
-export const validateCounterpartyAndKppFromCache = (innOrganization, kppOrganization, counterpartiesCache) => {
+export const validateCounterpartyAndKppFromCache = (
+  innOrganization,
+  kppOrganization,
+  counterpartiesCache,
+) => {
   const errors = [];
-  
+
   if (!innOrganization) {
-    errors.push('ИНН организации обязателен');
+    errors.push("ИНН организации обязателен");
     return { valid: false, errors };
   }
-  
-  const innCleaned = String(innOrganization).replace(/[^\d]/g, '');
-  const counterparty = counterpartiesCache.find(c => c.inn === innCleaned);
-  
+
+  const innCleaned = String(innOrganization).replace(/[^\d]/g, "");
+  const counterparty = counterpartiesCache.find((c) => c.inn === innCleaned);
+
   if (!counterparty) {
     errors.push(`Контрагент с ИНН ${innOrganization} не найден`);
     return { valid: false, errors };
   }
-  
+
   // Проверяем КПП
-  const kppCleaned = kppOrganization ? String(kppOrganization).replace(/[^\d]/g, '') : null;
-  
+  const kppCleaned = kppOrganization
+    ? String(kppOrganization).replace(/[^\d]/g, "")
+    : null;
+
   if (kppCleaned && counterparty.kpp && counterparty.kpp !== kppCleaned) {
-    errors.push(`КПП не совпадает. В базе: ${counterparty.kpp}, в файле: ${kppCleaned}`);
+    errors.push(
+      `КПП не совпадает. В базе: ${counterparty.kpp}, в файле: ${kppCleaned}`,
+    );
     return { valid: false, errors };
   }
-  
+
   return {
     valid: true,
     counterparty,
-    kppToUpdate: kppCleaned && !counterparty.kpp ? kppCleaned : null
+    kppToUpdate: kppCleaned && !counterparty.kpp ? kppCleaned : null,
   };
 };
 
@@ -307,14 +359,14 @@ export const validateCounterpartyAndKppFromCache = (innOrganization, kppOrganiza
 export const validateEmployeeForImport = async (employeeData, rowIndex) => {
   const errors = [];
   const warnings = [];
-  
+
   // ФИО
   const fioValidation = validateFio(
     employeeData.firstName,
     employeeData.lastName,
-    employeeData.middleName
+    employeeData.middleName,
   );
-  
+
   if (!fioValidation.valid) {
     errors.push(...fioValidation.errors);
   } else {
@@ -323,7 +375,7 @@ export const validateEmployeeForImport = async (employeeData, rowIndex) => {
     employeeData.lastName = fioValidation.lastName;
     employeeData.middleName = fioValidation.middleName;
   }
-  
+
   // ИНН сотрудника
   let innNormalized = null;
   if (employeeData.inn) {
@@ -334,9 +386,9 @@ export const validateEmployeeForImport = async (employeeData, rowIndex) => {
       innNormalized = innValidation.normalizedInn;
     }
   } else {
-    warnings.push('ИНН сотрудника не указан');
+    warnings.push("ИНН сотрудника не указан");
   }
-  
+
   // СНИЛС
   let snilsNormalized = null;
   if (employeeData.snils) {
@@ -347,13 +399,13 @@ export const validateEmployeeForImport = async (employeeData, rowIndex) => {
       snilsNormalized = snilsValidation.normalizedSnils;
     }
   } else {
-    warnings.push('СНИЛС не указан');
+    warnings.push("СНИЛС не указан");
   }
-  
+
   // КИГ и гражданство
   let kigNormalized = null;
   let citizenship = null;
-  
+
   if (employeeData.citizenship) {
     citizenship = await findCitizenshipByName(employeeData.citizenship);
     if (!citizenship) {
@@ -372,48 +424,57 @@ export const validateEmployeeForImport = async (employeeData, rowIndex) => {
       }
     }
   }
-  
+
   // Контрагент и КПП
   const counterpartyValidation = await validateCounterpartyAndKpp(
     employeeData.counterpartyInn,
-    employeeData.counterpartyKpp
+    employeeData.counterpartyKpp,
   );
-  
+
   if (!counterpartyValidation.valid) {
     errors.push(...counterpartyValidation.errors);
   }
-  
+
   // Должность
   let position = null;
   if (employeeData.position) {
-    position = await findOrCreatePosition(employeeData.position, employeeData.userId);
+    position = await findOrCreatePosition(
+      employeeData.position,
+      employeeData.userId,
+    );
     if (!position) {
-      errors.push('Ошибка при создании должности');
+      errors.push("Ошибка при создании должности");
     }
   }
-  
+
   // Дата рождения
   let birthDateNormalized = null;
   if (employeeData.birthDate) {
-    const birthDateValidation = validateDate(employeeData.birthDate, 'Дата рождения');
+    const birthDateValidation = validateDate(
+      employeeData.birthDate,
+      "Дата рождения",
+    );
     if (!birthDateValidation.valid) {
       errors.push(birthDateValidation.error);
     } else {
       birthDateNormalized = birthDateValidation.normalizedDate;
     }
   }
-  
+
   // Срок окончания КИГ
   let kigEndDateNormalized = null;
   if (employeeData.kigEndDate) {
-    const kigEndDateValidation = validateDate(employeeData.kigEndDate, 'Срок окончания КИГ');
+    const kigEndDateValidation = validateDate(
+      employeeData.kigEndDate,
+      "Срок окончания КИГ",
+    );
     if (!kigEndDateValidation.valid) {
       errors.push(kigEndDateValidation.error);
     } else {
       kigEndDateNormalized = kigEndDateValidation.normalizedDate;
     }
   }
-  
+
   return {
     valid: errors.length === 0,
     errors,
@@ -430,25 +491,30 @@ export const validateEmployeeForImport = async (employeeData, rowIndex) => {
       citizenship,
       counterparty: counterpartyValidation.counterparty,
       kppToUpdate: counterpartyValidation.kppToUpdate,
-      position
-    }
+      position,
+    },
   };
 };
 
 /**
  * Валидирует все поля сотрудника для импорта (оптимизированная версия со справочниками)
  */
-export const validateEmployeeForImportOptimized = async (employeeData, userId, caches, newPositionsMap) => {
+export const validateEmployeeForImportOptimized = async (
+  employeeData,
+  userId,
+  caches,
+  newPositionsMap,
+) => {
   const errors = [];
   const warnings = [];
-  
+
   // ФИО
   const fioValidation = validateFio(
     employeeData.firstName,
     employeeData.lastName,
-    employeeData.middleName
+    employeeData.middleName,
   );
-  
+
   if (!fioValidation.valid) {
     errors.push(...fioValidation.errors);
   } else {
@@ -457,7 +523,7 @@ export const validateEmployeeForImportOptimized = async (employeeData, userId, c
     employeeData.lastName = fioValidation.lastName;
     employeeData.middleName = fioValidation.middleName;
   }
-  
+
   // ИНН сотрудника
   let innNormalized = null;
   if (employeeData.inn) {
@@ -468,9 +534,9 @@ export const validateEmployeeForImportOptimized = async (employeeData, userId, c
       innNormalized = innValidation.normalizedInn;
     }
   } else {
-    warnings.push('ИНН сотрудника не указан');
+    warnings.push("ИНН сотрудника не указан");
   }
-  
+
   // СНИЛС
   let snilsNormalized = null;
   if (employeeData.snils) {
@@ -481,20 +547,20 @@ export const validateEmployeeForImportOptimized = async (employeeData, userId, c
       snilsNormalized = snilsValidation.normalizedSnils;
     }
   } else {
-    warnings.push('СНИЛС не указан');
+    warnings.push("СНИЛС не указан");
   }
-  
+
   // КИГ и гражданство
   let kigNormalized = null;
   let citizenship = null;
-  
+
   if (employeeData.citizenship) {
     citizenship = findCitizenshipByNameFromCache(
       employeeData.citizenship,
       caches.citizenships,
-      caches.citizenshipSynonyms
+      caches.citizenshipSynonyms,
     );
-    
+
     if (!citizenship) {
       errors.push(`Гражданство "${employeeData.citizenship}" не найдено`);
     } else if (citizenship.requiresPatent !== false) {
@@ -511,71 +577,79 @@ export const validateEmployeeForImportOptimized = async (employeeData, userId, c
       }
     }
   }
-  
+
   // Контрагент и КПП
   const counterpartyValidation = validateCounterpartyAndKppFromCache(
     employeeData.counterpartyInn,
     employeeData.counterpartyKpp,
-    caches.counterparties
+    caches.counterparties,
   );
-  
+
   if (!counterpartyValidation.valid) {
     errors.push(...counterpartyValidation.errors);
   }
-  
+
   // Должность - сначала ищем в кэше, потом создаем если нужно
   let position = null;
   if (employeeData.position) {
     const positionName = String(employeeData.position).trim();
-    const capitalizedName = positionName.charAt(0).toUpperCase() + positionName.slice(1).toLowerCase();
-    
+    const capitalizedName =
+      positionName.charAt(0).toUpperCase() +
+      positionName.slice(1).toLowerCase();
+
     // Ищем в загруженных должностях
     position = findPositionFromCache(positionName, caches.positions);
-    
+
     // Если не найдено - проверяем в мапе новых должностей
     if (!position && newPositionsMap.has(capitalizedName)) {
       position = newPositionsMap.get(capitalizedName);
     }
-    
+
     // Если все еще не найдено - создаем новую
     if (!position) {
       try {
         position = await Position.create({
           name: capitalizedName,
-          createdBy: userId
+          createdBy: userId,
         });
         // Сохраняем в мапу для последующих записей
         newPositionsMap.set(capitalizedName, position);
         console.log(`   ✨ Создана новая должность: ${capitalizedName}`);
       } catch (error) {
         console.error(`   ❌ Ошибка при создании должности: ${error.message}`);
-        errors.push('Ошибка при создании должности');
+        errors.push("Ошибка при создании должности");
       }
     }
   }
-  
+
   // Дата рождения
   let birthDateNormalized = null;
   if (employeeData.birthDate) {
-    const birthDateValidation = validateDate(employeeData.birthDate, 'Дата рождения');
+    const birthDateValidation = validateDate(
+      employeeData.birthDate,
+      "Дата рождения",
+    );
     if (!birthDateValidation.valid) {
       errors.push(birthDateValidation.error);
     } else {
       birthDateNormalized = birthDateValidation.normalizedDate;
     }
   }
-  
+
   // Срок окончания КИГ
   let kigEndDateNormalized = null;
   if (employeeData.kigEndDate) {
-    const kigEndDateValidation = validateDate(employeeData.kigEndDate, 'Срок окончания КИГ');
+    const kigEndDateValidation = validateDate(
+      employeeData.kigEndDate,
+      "Срок окончания КИГ",
+    );
     if (!kigEndDateValidation.valid) {
       errors.push(kigEndDateValidation.error);
     } else {
       kigEndDateNormalized = kigEndDateValidation.normalizedDate;
     }
   }
-  
+
   return {
     valid: errors.length === 0,
     errors,
@@ -592,8 +666,8 @@ export const validateEmployeeForImportOptimized = async (employeeData, userId, c
       citizenship,
       counterparty: counterpartyValidation.counterparty,
       kppToUpdate: counterpartyValidation.kppToUpdate,
-      position
-    }
+      position,
+    },
   };
 };
 
@@ -602,105 +676,113 @@ export const validateEmployeeForImportOptimized = async (employeeData, userId, c
  */
 export const checkEmployeeConflict = async (validatedEmployee) => {
   const conflicts = [];
-  
+
   // Проверяем ИНН
   if (validatedEmployee.inn) {
     const existing = await Employee.findOne({
       where: { inn: validatedEmployee.inn },
-      attributes: ['id', 'firstName', 'lastName', 'middleName', 'inn', 'snils']
+      attributes: ["id", "firstName", "lastName", "middleName", "inn", "snils"],
     });
-    
+
     if (existing) {
       conflicts.push({
-        type: 'inn',
+        type: "inn",
         existingEmployee: existing,
-        newEmployee: validatedEmployee
+        newEmployee: validatedEmployee,
       });
     }
   }
-  
+
   // Проверяем СНИЛС
   if (validatedEmployee.snils) {
     const existing = await Employee.findOne({
       where: { snils: validatedEmployee.snils },
-      attributes: ['id', 'firstName', 'lastName', 'middleName', 'inn', 'snils']
+      attributes: ["id", "firstName", "lastName", "middleName", "inn", "snils"],
     });
-    
+
     if (existing) {
       conflicts.push({
-        type: 'snils',
+        type: "snils",
         existingEmployee: existing,
-        newEmployee: validatedEmployee
+        newEmployee: validatedEmployee,
       });
     }
   }
-  
+
   // Проверяем ФИО (точное совпадение)
   const existingByFio = await Employee.findOne({
     where: {
       firstName: validatedEmployee.firstName,
       lastName: validatedEmployee.lastName,
-      middleName: validatedEmployee.middleName
+      middleName: validatedEmployee.middleName,
     },
-    attributes: ['id', 'firstName', 'lastName', 'middleName', 'inn', 'snils']
+    attributes: ["id", "firstName", "lastName", "middleName", "inn", "snils"],
   });
-  
+
   if (existingByFio) {
     conflicts.push({
-      type: 'fio',
+      type: "fio",
       existingEmployee: existingByFio,
-      newEmployee: validatedEmployee
+      newEmployee: validatedEmployee,
     });
   }
-  
+
   return conflicts;
 };
 
 /**
  * Проверяет конфликты для сотрудника из загруженных данных (оптимизированная версия)
  */
-export const checkEmployeeConflictFromCache = (validatedEmployee, existingEmployeesCache) => {
+export const checkEmployeeConflictFromCache = (
+  validatedEmployee,
+  existingEmployeesCache,
+) => {
   const conflicts = [];
-  
+
   // Проверяем ИНН
   if (validatedEmployee.inn) {
-    const existing = existingEmployeesCache.find(e => e.inn === validatedEmployee.inn);
+    const existing = existingEmployeesCache.find(
+      (e) => e.inn === validatedEmployee.inn,
+    );
     if (existing) {
       conflicts.push({
-        type: 'inn',
+        type: "inn",
         existingEmployee: existing,
-        newEmployee: validatedEmployee
+        newEmployee: validatedEmployee,
       });
     }
   }
-  
+
   // Проверяем СНИЛС
   if (validatedEmployee.snils) {
-    const existing = existingEmployeesCache.find(e => e.snils === validatedEmployee.snils);
+    const existing = existingEmployeesCache.find(
+      (e) => e.snils === validatedEmployee.snils,
+    );
     if (existing) {
       conflicts.push({
-        type: 'snils',
+        type: "snils",
         existingEmployee: existing,
-        newEmployee: validatedEmployee
+        newEmployee: validatedEmployee,
       });
     }
   }
-  
+
   // Проверяем ФИО (точное совпадение)
-  const existingByFio = existingEmployeesCache.find(e => 
-    e.firstName === validatedEmployee.firstName &&
-    e.lastName === validatedEmployee.lastName &&
-    e.middleName === validatedEmployee.middleName
+  const existingByFio = existingEmployeesCache.find(
+    (e) =>
+      e.firstName === validatedEmployee.firstName &&
+      e.lastName === validatedEmployee.lastName &&
+      e.middleName === validatedEmployee.middleName,
   );
-  
+
   if (existingByFio) {
     conflicts.push({
-      type: 'fio',
+      type: "fio",
       existingEmployee: existingByFio,
-      newEmployee: validatedEmployee
+      newEmployee: validatedEmployee,
     });
   }
-  
+
   return conflicts;
 };
 
@@ -710,21 +792,20 @@ export const checkEmployeeConflictFromCache = (validatedEmployee, existingEmploy
 export const validateKppConsistency = (employees) => {
   const kppByInn = {};
   const errors = [];
-  
+
   employees.forEach((emp, index) => {
     const inn = emp.counterpartyInn;
     const kpp = emp.counterpartyKpp;
-    
+
     if (!kppByInn[inn]) {
       kppByInn[inn] = kpp;
     } else if (kppByInn[inn] !== kpp) {
       errors.push({
         rowIndex: index + 1,
-        error: `Разные КПП для одного ИНН организации ${inn}: "${kppByInn[inn]}" и "${kpp}"`
+        error: `Разные КПП для одного ИНН организации ${inn}: "${kppByInn[inn]}" и "${kpp}"`,
       });
     }
   });
-  
+
   return errors;
 };
-

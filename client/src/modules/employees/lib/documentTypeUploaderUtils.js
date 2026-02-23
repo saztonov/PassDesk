@@ -1,20 +1,20 @@
 export const DEFAULT_DOCUMENT_TYPES = [
   { value: "passport", label: "Паспорт" },
+  { value: "passport_translation", label: "Перевод паспорта" },
   { value: "bank_details", label: "Реквизиты счета" },
-  { value: "kig", label: "КИГ" },
-  { value: "patent_front", label: "Патент (лиц.)" },
-  { value: "patent_back", label: "Патент (спин.)" },
+  { value: "consent", label: "Согласие на перс.дан. Подрядчик" },
   { value: "biometric_consent", label: "Согласие на перс.дан. Генподряд" },
   {
     value: "biometric_consent_developer",
     label: "Согласие на перс.дан. Застройщ",
   },
   { value: "diploma", label: "Диплом" },
-  { value: "med_book", label: "Мед.книжка" },
-  { value: "migration_card", label: "Миграционная карта" },
+  { value: "snils_card", label: "СНИЛС" },
+  { value: "patent_front", label: "Патент (лиц.)" },
+  { value: "patent_back", label: "Патент (спин.)" },
+  { value: "visa", label: "Виза" },
   { value: "arrival_notice", label: "Уведомление о прибытии" },
   { value: "patent_payment_receipt", label: "Чек оплаты патента" },
-  { value: "mvd_notification", label: "Уведомление МВД" },
 ];
 
 export const splitIntoColumns = (items, columnsCount = 3) => {

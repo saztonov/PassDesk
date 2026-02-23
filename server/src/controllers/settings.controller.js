@@ -1,5 +1,5 @@
-import { Setting } from '../models/index.js';
-import { AppError } from '../middleware/errorHandler.js';
+import { Setting } from "../models/index.js";
+import { AppError } from "../middleware/errorHandler.js";
 
 /**
  * Получить все настройки (только для администратора)
@@ -7,15 +7,15 @@ import { AppError } from '../middleware/errorHandler.js';
 export const getSettings = async (req, res, next) => {
   try {
     const settings = await Setting.findAll({
-      order: [['key', 'ASC']]
+      order: [["key", "ASC"]],
     });
 
     res.json({
       success: true,
-      data: settings
+      data: settings,
     });
   } catch (error) {
-    console.error('Error getting settings:', error);
+    console.error("Error getting settings:", error);
     next(error);
   }
 };
@@ -29,16 +29,19 @@ export const getPublicSettings = async (req, res, next) => {
     const [
       defaultCounterpartyId,
       employeeFormConfigDefault,
-      employeeFormConfigExternal
+      employeeFormConfigExternal,
+      employeeDocumentProfiles,
     ] = await Promise.all([
-      Setting.getSetting('default_counterparty_id'),
-      Setting.getSetting('employee_form_config_default'),
-      Setting.getSetting('employee_form_config_external')
+      Setting.getSetting("default_counterparty_id"),
+      Setting.getSetting("employee_form_config_default"),
+      Setting.getSetting("employee_form_config_external"),
+      Setting.getSetting("employee_document_profiles"),
     ]);
 
     // Парсим JSON конфиги, если они есть
     let formConfigDefault = null;
     let formConfigExternal = null;
+    let documentProfiles = null;
 
     try {
       if (employeeFormConfigDefault) {
@@ -47,8 +50,11 @@ export const getPublicSettings = async (req, res, next) => {
       if (employeeFormConfigExternal) {
         formConfigExternal = JSON.parse(employeeFormConfigExternal);
       }
+      if (employeeDocumentProfiles) {
+        documentProfiles = JSON.parse(employeeDocumentProfiles);
+      }
     } catch (e) {
-      console.error('Error parsing form configs:', e);
+      console.error("Error parsing form configs:", e);
     }
 
     res.json({
@@ -56,11 +62,12 @@ export const getPublicSettings = async (req, res, next) => {
       data: {
         defaultCounterpartyId: defaultCounterpartyId || null,
         employeeFormConfigDefault: formConfigDefault,
-        employeeFormConfigExternal: formConfigExternal
-      }
+        employeeFormConfigExternal: formConfigExternal,
+        employeeDocumentProfiles: documentProfiles,
+      },
     });
   } catch (error) {
-    console.error('Error getting public settings:', error);
+    console.error("Error getting public settings:", error);
     next(error);
   }
 };
@@ -73,20 +80,19 @@ export const updateSetting = async (req, res, next) => {
     const { key } = req.params;
     const { value, description } = req.body;
 
-    if (!value) {
-      throw new AppError('Значение настройки обязательно', 400);
+    if (value === undefined) {
+      throw new AppError("Значение настройки обязательно", 400);
     }
 
     const setting = await Setting.setSetting(key, value, description);
 
     res.json({
       success: true,
-      message: 'Настройка обновлена',
-      data: setting
+      message: "Настройка обновлена",
+      data: setting,
     });
   } catch (error) {
-    console.error('Error updating setting:', error);
+    console.error("Error updating setting:", error);
     next(error);
   }
 };
-

@@ -2,7 +2,6 @@ import crypto from "crypto";
 import { Op } from "sequelize";
 import {
   Employee,
-  SkudAccessState,
   TelegramAccount,
   TelegramCommandLog,
   TelegramLinkCode,
@@ -10,20 +9,13 @@ import {
   UserEmployeeMapping,
 } from "../models/index.js";
 import { AppError } from "../middleware/errorHandler.js";
-import { generateSkudQrToken } from "./skudAccessService.js";
-import {
-  normalizeTelegramLanguage,
-  tTelegram,
-} from "./telegramI18n.js";
+import { normalizeTelegramLanguage, tTelegram } from "./telegramI18n.js";
 import { getTelegramBotInstance } from "./telegramBotRuntime.js";
 
 const LINK_CODE_TTL_MINUTES = Math.max(
-  Number.parseInt(process.env.TELEGRAM_LINK_CODE_TTL_MINUTES || "10", 10) ||
-    10,
+  Number.parseInt(process.env.TELEGRAM_LINK_CODE_TTL_MINUTES || "10", 10) || 10,
   1,
 );
-
-const TELEGRAM_QR_TTL_SECONDS = 5 * 60;
 
 const DOCUMENT_LABELS = {
   passport: "Паспорт",
@@ -93,58 +85,6 @@ const generateUniqueLinkCode = async () => {
   }
 
   throw new AppError("Не удалось сгенерировать код привязки", 500);
-};
-
-const resolveStatusDescriptor = (state, language) => {
-  if (!state) {
-    return {
-      text: tTelegram(language, "statusMissing"),
-      statusCode: "missing",
-      reason: null,
-    };
-  }
-
-  if (state.status === "allowed") {
-    return {
-      text: tTelegram(language, "statusAllowed"),
-      statusCode: state.status,
-      reason: null,
-    };
-  }
-
-  if (state.status === "blocked") {
-    return {
-      text: tTelegram(language, "statusBlocked", {
-        reason: state.statusReason || "Доступ запрещен",
-      }),
-      statusCode: state.status,
-      reason: state.statusReason || "Доступ запрещен",
-    };
-  }
-
-  if (state.status === "revoked") {
-    return {
-      text: tTelegram(language, "statusRevoked", {
-        reason: state.statusReason || "Доступ отозван",
-      }),
-      statusCode: state.status,
-      reason: state.statusReason || "Доступ отозван",
-    };
-  }
-
-  if (state.status === "pending") {
-    return {
-      text: tTelegram(language, "statusPending"),
-      statusCode: state.status,
-      reason: state.statusReason || null,
-    };
-  }
-
-  return {
-    text: tTelegram(language, "statusMissing"),
-    statusCode: state.status,
-    reason: state.statusReason || null,
-  };
 };
 
 export const logTelegramCommand = async ({
@@ -290,7 +230,9 @@ export const bindTelegramAccountByCode = async ({
   telegramLastName,
   telegramLanguageCode,
 }) => {
-  const normalizedCode = String(code || "").trim().toUpperCase();
+  const normalizedCode = String(code || "")
+    .trim()
+    .toUpperCase();
   if (!normalizedCode) {
     throw new AppError("Код привязки не указан", 400);
   }
@@ -327,7 +269,10 @@ export const bindTelegramAccountByCode = async ({
     },
   });
 
-  if (existingByTelegram && existingByTelegram.employeeId !== linkCode.employeeId) {
+  if (
+    existingByTelegram &&
+    existingByTelegram.employeeId !== linkCode.employeeId
+  ) {
     throw new AppError("Telegram уже привязан к другому сотруднику", 409);
   }
 
@@ -425,90 +370,6 @@ export const setTelegramLanguage = async ({ telegramUserId, language }) => {
   return account;
 };
 
-export const getAccessStatusByTelegramUser = async (telegramUserId) => {
-  const account = await TelegramAccount.findOne({
-    where: {
-      telegramUserId: String(telegramUserId),
-      isActive: true,
-    },
-    include: [
-      {
-        model: Employee,
-        as: "employee",
-        attributes: ["id", "firstName", "lastName", "middleName", "isActive"],
-      },
-    ],
-  });
-
-  if (!account || !account.employee) {
-    throw new AppError("Telegram не привязан к сотруднику", 404);
-  }
-
-  const state = await SkudAccessState.findOne({
-    where: {
-      employeeId: account.employeeId,
-      externalSystem: "sigur",
-    },
-    order: [["updatedAt", "DESC"]],
-  });
-
-  const status = resolveStatusDescriptor(state, account.language);
-
-  await account.update({
-    lastSeenAt: new Date(),
-  });
-
-  return {
-    account,
-    employee: account.employee,
-    state,
-    status,
-  };
-};
-
-export const generateTelegramQrForUser = async (telegramUserId) => {
-  const account = await TelegramAccount.findOne({
-    where: {
-      telegramUserId: String(telegramUserId),
-      isActive: true,
-    },
-    include: [
-      {
-        model: Employee,
-        as: "employee",
-        attributes: ["id", "firstName", "lastName", "middleName", "isActive"],
-      },
-    ],
-  });
-
-  if (!account || !account.employee) {
-    throw new AppError("Telegram не привязан к сотруднику", 404);
-  }
-
-  const generated = await generateSkudQrToken({
-    employeeId: account.employeeId,
-    tokenType: "one_time",
-    ttlSeconds: TELEGRAM_QR_TTL_SECONDS,
-    metadata: {
-      source: "telegram_bot",
-      telegramUserId: String(telegramUserId),
-    },
-    userId: null,
-  });
-
-  await account.update({
-    lastSeenAt: new Date(),
-  });
-
-  return {
-    account,
-    employee: account.employee,
-    token: generated.token,
-    expiresAt: generated.expiresAt,
-    ttlSeconds: generated.ttlSeconds,
-  };
-};
-
 const sendTelegramText = async ({ chatId, text, extra = {} }) => {
   const bot = getTelegramBotInstance();
   if (!bot) {
@@ -527,7 +388,12 @@ const sendTelegramText = async ({ chatId, text, extra = {} }) => {
   }
 };
 
-const saveNotificationOnce = async ({ employeeId, eventType, eventKey, payload }) => {
+const saveNotificationOnce = async ({
+  employeeId,
+  eventType,
+  eventKey,
+  payload,
+}) => {
   try {
     await TelegramNotificationLog.create({
       employeeId,
@@ -543,63 +409,6 @@ const saveNotificationOnce = async ({ employeeId, eventType, eventKey, payload }
     }
     throw error;
   }
-};
-
-export const notifyTelegramAccessStatusChanged = async ({
-  employeeId,
-  status,
-  statusReason,
-  reasonCode,
-  eventKey,
-}) => {
-  const account = await TelegramAccount.findOne({
-    where: {
-      employeeId,
-      isActive: true,
-    },
-  });
-
-  if (!account) {
-    return false;
-  }
-
-  const language = normalizeTelegramLanguage(account.language);
-  let text;
-
-  if (status === "allowed") {
-    text = tTelegram(language, "notifyStatusAllowed");
-  } else if (status === "blocked") {
-    text = tTelegram(language, "notifyStatusBlocked", {
-      reason: statusReason || "Доступ запрещен",
-    });
-  } else {
-    text = tTelegram(language, "notifyStatusOther", {
-      status,
-      reason: statusReason || reasonCode || "",
-    });
-  }
-
-  const notificationEventKey = eventKey || `${status}:${reasonCode || ""}:${Date.now()}`;
-
-  const canSend = await saveNotificationOnce({
-    employeeId,
-    eventType: "skud_status",
-    eventKey: notificationEventKey,
-    payload: {
-      status,
-      statusReason,
-      reasonCode,
-    },
-  });
-
-  if (!canSend) {
-    return false;
-  }
-
-  return sendTelegramText({
-    chatId: account.telegramChatId,
-    text,
-  });
 };
 
 export const runTelegramDocumentExpiryCheck = async () => {
@@ -712,17 +521,8 @@ export const buildTelegramHelpText = (language) => tTelegram(language, "help");
 export const buildStartNeedCodeText = (language) =>
   tTelegram(language, "startNeedCode");
 
-export const buildNotLinkedText = (language) => tTelegram(language, "notLinked");
-
-export const buildQrCaptionText = (language) => tTelegram(language, "qrCaption");
-
-export const buildStatusText = (statusData, language) => {
-  if (!statusData?.state) {
-    return tTelegram(language, "statusMissing");
-  }
-
-  return resolveStatusDescriptor(statusData.state, language).text;
-};
+export const buildNotLinkedText = (language) =>
+  tTelegram(language, "notLinked");
 
 export const mapLinkErrorToMessage = (error, language) => {
   if (error instanceof AppError && error.statusCode === 409) {

@@ -1,8 +1,12 @@
 import express from "express";
-import { body } from "express-validator";
+import { body, param } from "express-validator";
 import { validate } from "../middleware/validator.js";
 import { authenticate, authorize } from "../middleware/auth.js";
-import upload, { fixFilenameEncoding } from "../middleware/upload.js";
+import upload, {
+  fixFilenameEncoding,
+  validateUploadedFiles,
+  cleanupUploadedTempFiles,
+} from "../middleware/upload.js";
 import rateLimit from "express-rate-limit";
 import * as employeeController from "../controllers/employee.controller.js";
 import * as employeeFileController from "../controllers/employeeFile.controller.js";
@@ -34,6 +38,16 @@ const checkInnRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 минута
   max: 30,
   message: "Слишком много проверок ИНН. Попробуйте снова через минуту.",
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || req.ip,
+});
+
+// Rate limiter для upload-эндпоинтов
+const uploadRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 минута
+  max: 12,
+  message: "Слишком много загрузок. Попробуйте снова через минуту.",
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.user?.id || req.ip,
@@ -103,6 +117,30 @@ const updateMyProfileValidation = [
   body("notes").optional().trim(),
 ];
 
+const idParamValidation = [
+  param("id").isUUID().withMessage("id должен быть UUID"),
+  validate,
+];
+
+const employeeIdParamValidation = [
+  param("employeeId").isUUID().withMessage("employeeId должен быть UUID"),
+  validate,
+];
+
+const employeeFileParamsValidation = [
+  param("employeeId").isUUID().withMessage("employeeId должен быть UUID"),
+  param("fileId").isUUID().withMessage("fileId должен быть UUID"),
+  validate,
+];
+
+const employeeStatusMappingParamsValidation = [
+  param("employeeId").isUUID().withMessage("employeeId должен быть UUID"),
+  param("statusMappingId")
+    .isUUID()
+    .withMessage("statusMappingId должен быть UUID"),
+  validate,
+];
+
 // Employee routes
 // ⚠️ Специфичные маршруты ДОЛЖНЫ быть перед параметризованными (/:id)
 router.get("/my-profile", employeeController.getMyProfile); // Получить свой профиль
@@ -142,18 +180,24 @@ router.get(
 router.put(
   "/document-types/:id",
   authorize("admin"),
+  idParamValidation,
   employeeDocumentTypeController.updateEmployeeDocumentType,
 ); // Обновление метаданных типа документа
 router.post(
   "/document-types/:id/sample",
   authorize("admin"),
+  idParamValidation,
+  uploadRateLimiter,
   upload.single("sample"),
+  validateUploadedFiles,
   fixFilenameEncoding,
+  cleanupUploadedTempFiles,
   employeeDocumentTypeController.uploadEmployeeDocumentTypeSample,
 ); // Загрузка образца документа
 router.delete(
   "/document-types/:id/sample",
   authorize("admin"),
+  idParamValidation,
   employeeDocumentTypeController.deleteEmployeeDocumentTypeSample,
 ); // Удаление образца документа
 
@@ -213,80 +257,124 @@ router.get(
 );
 router.post(
   "/:id/restore",
+  idParamValidation,
   authorize("admin"),
   employeeController.restoreEmployee,
 );
 router.post(
   "/:id/mark-for-deletion",
+  idParamValidation,
   authorize("user", "admin"),
   employeeController.markEmployeeForDeletion,
 );
 router.post(
   "/:id/unmark-for-deletion",
+  idParamValidation,
   authorize("admin"),
   employeeController.unmarkEmployeeForDeletion,
 );
 
 // Маршруты с параметрами (/:id должны быть в конце)
-router.get("/:id", employeeController.getEmployeeById);
+router.get("/:id", idParamValidation, employeeController.getEmployeeById);
 router.put(
   "/:id/draft",
+  idParamValidation,
   updateEmployeeDraftValidation,
   validate,
   employeeController.updateEmployee,
 ); // Обновление черновика - мягкая валидация
 router.put(
   "/:id",
+  idParamValidation,
   updateEmployeeValidation,
   validate,
   employeeController.updateEmployee,
 ); // Полное обновление - строгая валидация
 router.put(
   "/:id/construction-sites",
+  idParamValidation,
   employeeController.updateEmployeeConstructionSites,
 ); // Убрали authorize('admin')
-router.put("/:id/department", employeeController.updateEmployeeDepartment); // Убрали authorize('admin')
+router.put(
+  "/:id/department",
+  idParamValidation,
+  employeeController.updateEmployeeDepartment,
+); // Убрали authorize('admin')
 router.put(
   "/:employeeId/status/:statusMappingId/upload",
+  employeeStatusMappingParamsValidation,
   employeeController.updateStatusUploadFlag,
 ); // Обновить флаг is_upload для статуса
 router.put(
   "/:employeeId/statuses/upload",
+  employeeIdParamValidation,
   employeeController.updateAllStatusesUploadFlag,
 ); // Обновить флаг is_upload для всех активных статусов
-router.post("/:employeeId/status/edited", employeeController.setEditedStatus); // Установить статус "Редактирован" с is_upload
-router.post("/:id/action/fire", employeeController.fireEmployee); // Уволить сотрудника
-router.post("/:id/action/reinstate", employeeController.reinstateEmployee); // Принять уволенного сотрудника
-router.post("/:id/action/deactivate", employeeController.deactivateEmployee); // Деактивировать сотрудника
-router.post("/:id/action/activate", employeeController.activateEmployee); // Активировать сотрудника
+router.post(
+  "/:employeeId/status/edited",
+  employeeIdParamValidation,
+  employeeController.setEditedStatus,
+); // Установить статус "Редактирован" с is_upload
+router.post(
+  "/:id/action/fire",
+  idParamValidation,
+  employeeController.fireEmployee,
+); // Уволить сотрудника
+router.post(
+  "/:id/action/reinstate",
+  idParamValidation,
+  employeeController.reinstateEmployee,
+); // Принять уволенного сотрудника
+router.post(
+  "/:id/action/deactivate",
+  idParamValidation,
+  employeeController.deactivateEmployee,
+); // Деактивировать сотрудника
+router.post(
+  "/:id/action/activate",
+  idParamValidation,
+  employeeController.activateEmployee,
+); // Активировать сотрудника
 router.post(
   "/:id/transfer",
+  idParamValidation,
   authorize("admin"),
   employeeController.transferEmployeeToCounterparty,
 ); // Перевести сотрудника в другую компанию (только admin)
-router.delete("/:id", employeeController.deleteEmployee); // Проверка прав в контроллере
+router.delete("/:id", idParamValidation, employeeController.deleteEmployee); // Проверка прав в контроллере
 
 // Employee files routes
 // Пользователи (user) могут загружать файлы только для своего профиля
 router.post(
   "/:employeeId/files",
+  employeeIdParamValidation,
+  uploadRateLimiter,
   upload.array("files", 10), // максимум 10 файлов за раз
+  validateUploadedFiles,
   fixFilenameEncoding,
+  cleanupUploadedTempFiles,
   employeeFileController.uploadEmployeeFiles,
 );
-router.get("/:employeeId/files", employeeFileController.getEmployeeFiles);
+router.get(
+  "/:employeeId/files",
+  employeeIdParamValidation,
+  employeeFileController.getEmployeeFiles,
+);
 router.delete(
   "/:employeeId/files/:fileId",
+  employeeFileParamsValidation,
   employeeFileController.deleteEmployeeFile,
 );
 router.get(
   "/:employeeId/files/:fileId/download",
+  employeeFileParamsValidation,
   employeeFileController.getEmployeeFileDownloadLink,
 );
 
 // Get employee file view link
 router.get(
   "/:employeeId/files/:fileId/view",
+  employeeFileParamsValidation,
   employeeFileController.getEmployeeFileViewLink,
 );
 

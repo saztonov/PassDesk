@@ -140,7 +140,9 @@ export const buildMobileEmployeePersonalSection = ({
           required={getFieldProps("lastName").required}
           rules={getFieldProps("lastName").rules}
           validateStatus={latinInputError === "lastName" ? "error" : ""}
-          help={latinInputError === "lastName" ? "Ввод только на кириллице" : ""}
+          help={
+            latinInputError === "lastName" ? "Ввод только на кириллице" : ""
+          }
         >
           <Input
             id={antiAutofillIds.lastName}
@@ -160,7 +162,9 @@ export const buildMobileEmployeePersonalSection = ({
           required={getFieldProps("firstName").required}
           rules={getFieldProps("firstName").rules}
           validateStatus={latinInputError === "firstName" ? "error" : ""}
-          help={latinInputError === "firstName" ? "Ввод только на кириллице" : ""}
+          help={
+            latinInputError === "firstName" ? "Ввод только на кириллице" : ""
+          }
         >
           <Input
             id={antiAutofillIds.firstName}
@@ -180,7 +184,9 @@ export const buildMobileEmployeePersonalSection = ({
           required={getFieldProps("middleName").required}
           rules={getFieldProps("middleName").rules}
           validateStatus={latinInputError === "middleName" ? "error" : ""}
-          help={latinInputError === "middleName" ? "Ввод только на кириллице" : ""}
+          help={
+            latinInputError === "middleName" ? "Ввод только на кириллице" : ""
+          }
         >
           <Input
             id={antiAutofillIds.middleName}
@@ -325,7 +331,9 @@ export const buildMobileEmployeePersonalSection = ({
                 if (!value) return Promise.resolve();
                 const digits = value.replace(/[^\d]/g, "");
                 if (digits.length === 11) return Promise.resolve();
-                return Promise.reject(new Error("Телефон должен содержать 11 цифр"));
+                return Promise.reject(
+                  new Error("Телефон должен содержать 11 цифр"),
+                );
               },
             },
           ]}
@@ -335,22 +343,6 @@ export const buildMobileEmployeePersonalSection = ({
             id={antiAutofillIds.phone}
             name={antiAutofillIds.phone}
             placeholder="+7 (___) ___-__-__"
-            size="large"
-            {...noAutoFillProps}
-          />
-        </Form.Item>
-      )}
-
-      {!getFieldProps("notes").hidden && (
-        <Form.Item
-          label="Примечание"
-          name="notes"
-          required={getFieldProps("notes").required}
-          rules={getFieldProps("notes").rules}
-        >
-          <TextArea
-            rows={2}
-            placeholder="Дополнительная информация"
             size="large"
             {...noAutoFillProps}
           />

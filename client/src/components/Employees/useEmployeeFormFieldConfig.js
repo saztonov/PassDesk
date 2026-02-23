@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { DEFAULT_FORM_CONFIG } from "../../shared/config/employeeFields";
 
+const TEMP_HIDDEN_FIELDS = new Set([
+  "birthCountryId",
+  "passportType",
+  "passportExpiryDate",
+  "kig",
+  "kigEndDate",
+]);
+
 export const useEmployeeFormFieldConfig = ({
   userCounterpartyId,
   defaultCounterpartyId,
@@ -24,6 +32,14 @@ export const useEmployeeFormFieldConfig = ({
 
   const getFieldProps = useCallback(
     (fieldName) => {
+      if (TEMP_HIDDEN_FIELDS.has(fieldName)) {
+        return {
+          hidden: true,
+          required: false,
+          rules: [],
+        };
+      }
+
       const fieldConfig = activeConfig[fieldName] || {
         visible: true,
         required: false,

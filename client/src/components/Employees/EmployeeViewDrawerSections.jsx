@@ -25,7 +25,6 @@ export const buildEmployeeViewDrawerFormData = (employee) => {
     note: employee.note,
     inn: employee.inn,
     snils: employee.snils,
-    kig: employee.kig,
     passportNumber: employee.passportNumber,
     passportDate: employee.passportDate
       ? dayjs(employee.passportDate).format(DATE_FORMAT)
@@ -150,17 +149,6 @@ export const buildEmployeeViewDrawerItems = ({
               disabled
             />
           </Form.Item>
-
-          {requiresPatent ? (
-            <Form.Item label="КИГ (Карта иностранного гражданина)" name="kig">
-              <Input
-                placeholder={employee?.kig ? undefined : ""}
-                size="large"
-                maxLength={10}
-                disabled
-              />
-            </Form.Item>
-          ) : null}
 
           <Form.Item label="Паспорт (серия и номер)" name="passportNumber">
             <Input

@@ -1,24 +1,9 @@
-import { ExclamationCircleOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { Col, Form, Input, Radio, Row, Select, Tooltip } from "antd";
+import { Col, Form, Input, Radio, Row, Select } from "antd";
 import { formatInn, noAutoFillProps } from "./employeeFormUtils";
 import MaskedDatePicker from "../../shared/ui/MaskedDatePicker";
 
 const { Option } = Select;
-
-const withOcrWarningIcon = (label, warningText) => {
-  if (!warningText) return label;
-  return (
-    <span>
-      {label}
-      <Tooltip title={warningText}>
-        <ExclamationCircleOutlined
-          style={{ color: "#faad14", marginInlineStart: 6 }}
-        />
-      </Tooltip>
-    </span>
-  );
-};
 
 const EmployeeBasicInfoPrimaryRows = ({
   getFieldProps,
@@ -30,7 +15,6 @@ const EmployeeBasicInfoPrimaryRows = ({
   handleFullNameChange,
   handleInnBlur,
   dateFormat,
-  ocrConflictByField,
 }) => (
   <>
     <Row gutter={16}>
@@ -63,11 +47,9 @@ const EmployeeBasicInfoPrimaryRows = ({
         <Col xs={24} sm={3} md={3} lg={3}>
           <Form.Item
             name="gender"
-            label={withOcrWarningIcon("Пол", ocrConflictByField.gender)}
+            label="Пол"
             required={getFieldProps("gender").required}
             rules={getFieldProps("gender").rules}
-            validateStatus={ocrConflictByField.gender ? "warning" : undefined}
-            help={ocrConflictByField.gender || undefined}
           >
             <Radio.Group style={{ display: "flex", gap: "8px" }}>
               <Radio value="male">Муж</Radio>
@@ -80,20 +62,12 @@ const EmployeeBasicInfoPrimaryRows = ({
         <Col xs={24} sm={6} md={6} lg={6}>
           <Form.Item
             name="lastName"
-            label={withOcrWarningIcon("Фамилия", ocrConflictByField.lastName)}
+            label="Фамилия"
             required={getFieldProps("lastName").required}
             rules={getFieldProps("lastName").rules}
-            validateStatus={
-              latinInputError === "lastName"
-                ? "error"
-                : ocrConflictByField.lastName
-                  ? "warning"
-                  : ""
-            }
+            validateStatus={latinInputError === "lastName" ? "error" : ""}
             help={
-              latinInputError === "lastName"
-                ? "Ввод только на кириллице"
-                : ocrConflictByField.lastName || ""
+              latinInputError === "lastName" ? "Ввод только на кириллице" : ""
             }
           >
             <Input
@@ -111,20 +85,12 @@ const EmployeeBasicInfoPrimaryRows = ({
         <Col xs={24} sm={6} md={6} lg={6}>
           <Form.Item
             name="firstName"
-            label={withOcrWarningIcon("Имя", ocrConflictByField.firstName)}
+            label="Имя"
             required={getFieldProps("firstName").required}
             rules={getFieldProps("firstName").rules}
-            validateStatus={
-              latinInputError === "firstName"
-                ? "error"
-                : ocrConflictByField.firstName
-                  ? "warning"
-                  : ""
-            }
+            validateStatus={latinInputError === "firstName" ? "error" : ""}
             help={
-              latinInputError === "firstName"
-                ? "Ввод только на кириллице"
-                : ocrConflictByField.firstName || ""
+              latinInputError === "firstName" ? "Ввод только на кириллице" : ""
             }
           >
             <Input
@@ -142,23 +108,12 @@ const EmployeeBasicInfoPrimaryRows = ({
         <Col xs={24} sm={6} md={6} lg={6}>
           <Form.Item
             name="middleName"
-            label={withOcrWarningIcon(
-              "Отчество",
-              ocrConflictByField.middleName,
-            )}
+            label="Отчество"
             required={getFieldProps("middleName").required}
             rules={getFieldProps("middleName").rules}
-            validateStatus={
-              latinInputError === "middleName"
-                ? "error"
-                : ocrConflictByField.middleName
-                  ? "warning"
-                  : ""
-            }
+            validateStatus={latinInputError === "middleName" ? "error" : ""}
             help={
-              latinInputError === "middleName"
-                ? "Ввод только на кириллице"
-                : ocrConflictByField.middleName || ""
+              latinInputError === "middleName" ? "Ввод только на кириллице" : ""
             }
           >
             <Input
@@ -210,16 +165,9 @@ const EmployeeBasicInfoPrimaryRows = ({
         <Col xs={24} sm={8} md={8} lg={8}>
           <Form.Item
             name="citizenshipId"
-            label={withOcrWarningIcon(
-              "Гражданство",
-              ocrConflictByField.citizenshipId,
-            )}
+            label="Гражданство"
             required={getFieldProps("citizenshipId").required}
             rules={getFieldProps("citizenshipId").rules}
-            validateStatus={
-              ocrConflictByField.citizenshipId ? "warning" : undefined
-            }
-            help={ocrConflictByField.citizenshipId || undefined}
           >
             <Select
               placeholder="Выберите гражданство"
@@ -243,10 +191,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         <Col xs={24} sm={8} md={8} lg={8}>
           <Form.Item
             name="birthDate"
-            label={withOcrWarningIcon(
-              "Дата рождения",
-              ocrConflictByField.birthDate,
-            )}
+            label="Дата рождения"
             required={getFieldProps("birthDate").required}
             rules={[
               ...getFieldProps("birthDate").rules,
@@ -275,10 +220,6 @@ const EmployeeBasicInfoPrimaryRows = ({
                 },
               },
             ]}
-            validateStatus={
-              ocrConflictByField.birthDate ? "warning" : undefined
-            }
-            help={ocrConflictByField.birthDate || undefined}
           >
             <MaskedDatePicker format={dateFormat} />
           </Form.Item>

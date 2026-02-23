@@ -1,35 +1,49 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import fs from "fs";
 
-const DEFAULT_BASE_PATH = '';
+const DEFAULT_BASE_PATH = "";
 const DEFAULT_DOWNLOAD_TTL = 3600;
 
-const normalizeRelativePath = (value = '') =>
-  value.replace(/^\/+/, '').replace(/\/{2,}/g, '/');
+const normalizeRelativePath = (value = "") =>
+  value.replace(/^\/+/, "").replace(/\/{2,}/g, "/");
 
-const sanitizeKey = (value = '') => {
+const sanitizeKey = (value = "") => {
   if (!value) {
-    return '';
+    return "";
   }
 
-  return value.replace(/^\/+/, '').replace(/\/{2,}/g, '/');
+  return value.replace(/^\/+/, "").replace(/\/{2,}/g, "/");
 };
 
 export const createS3Provider = (config = {}) => {
   if (!config.accessKeyId || !config.secretAccessKey) {
-    throw new Error(`Отсутствуют ключи доступа для провайдера ${config.providerName || 'S3'}`);
+    throw new Error(
+      `Отсутствуют ключи доступа для провайдера ${config.providerName || "S3"}`,
+    );
   }
 
   if (!config.bucketName) {
-    throw new Error(`Не указано имя бакета для провайдера ${config.providerName || 'S3'}`);
+    throw new Error(
+      `Не указано имя бакета для провайдера ${config.providerName || "S3"}`,
+    );
   }
 
   if (!config.region) {
-    throw new Error(`Не указан регион для провайдера ${config.providerName || 'S3'}`);
+    throw new Error(
+      `Не указан регион для провайдера ${config.providerName || "S3"}`,
+    );
   }
 
   if (!config.endpoint) {
-    throw new Error(`Не указан endpoint для провайдера ${config.providerName || 'S3'}`);
+    throw new Error(
+      `Не указан endpoint для провайдера ${config.providerName || "S3"}`,
+    );
   }
 
   const basePath = config.basePath
@@ -47,15 +61,15 @@ export const createS3Provider = (config = {}) => {
     tls: true,
   });
 
-  const resolvePath = (relativePath = '') => {
+  const resolvePath = (relativePath = "") => {
     const normalized = normalizeRelativePath(relativePath);
     if (!basePath) {
       return sanitizeKey(normalized);
     }
-    return sanitizeKey([basePath, normalized].filter(Boolean).join('/'));
+    return sanitizeKey([basePath, normalized].filter(Boolean).join("/"));
   };
 
-  const normalizePath = (pathValue = '') => {
+  const normalizePath = (pathValue = "") => {
     if (!pathValue) {
       return basePath;
     }
@@ -73,18 +87,30 @@ export const createS3Provider = (config = {}) => {
     return resolvePath(key);
   };
 
-  const uploadFile = async ({ fileBuffer, mimeType, originalName, filePath }) => {
+  const uploadFile = async ({
+    fileBuffer,
+    fileLocalPath,
+    mimeType,
+    originalName,
+    filePath,
+  }) => {
     const objectKey = normalizePath(filePath);
+    const fileBody =
+      fileBuffer || (fileLocalPath ? fs.createReadStream(fileLocalPath) : null);
+
+    if (!fileBody) {
+      throw new Error("Отсутствуют данные файла для загрузки");
+    }
 
     const putParams = {
       Bucket: config.bucketName,
       Key: objectKey,
-      Body: fileBuffer,
+      Body: fileBody,
       ContentType: mimeType,
     };
 
     if (config.kmsKeyId) {
-      putParams.ServerSideEncryption = 'aws:kms';
+      putParams.ServerSideEncryption = "aws:kms";
       putParams.SSEKMSKeyId = config.kmsKeyId;
     }
 
@@ -92,9 +118,10 @@ export const createS3Provider = (config = {}) => {
 
     await client.send(putCommand);
 
-    const fileKey = basePath && objectKey.startsWith(`${basePath}/`)
-      ? objectKey.slice(basePath.length + 1)
-      : objectKey;
+    const fileKey =
+      basePath && objectKey.startsWith(`${basePath}/`)
+        ? objectKey.slice(basePath.length + 1)
+        : objectKey;
 
     return {
       filePath: objectKey,
@@ -114,7 +141,7 @@ export const createS3Provider = (config = {}) => {
 
   const getDownloadUrl = async (filePath, options = {}) => {
     const objectKey = normalizePath(filePath);
-    
+
     // Строим параметры команды GetObject
     const getCommandParams = {
       Bucket: config.bucketName,
@@ -124,7 +151,10 @@ export const createS3Provider = (config = {}) => {
     // Если передано имя файла, добавляем заголовок Content-Disposition для скачивания
     if (options.fileName) {
       // Экранируем имя файла для заголовка Content-Disposition
-      const encodedFileName = encodeURIComponent(options.fileName).replace(/'/g, "%27");
+      const encodedFileName = encodeURIComponent(options.fileName).replace(
+        /'/g,
+        "%27",
+      );
       getCommandParams.ResponseContentDisposition = `attachment; filename="${encodedFileName}"; filename*=UTF-8''${encodedFileName}`;
     }
 
@@ -148,8 +178,8 @@ export const createS3Provider = (config = {}) => {
   };
 
   return {
-    type: 's3',
-    name: config.providerName || 's3',
+    type: "s3",
+    name: config.providerName || "s3",
     basePath,
     bucketName: config.bucketName,
     resolvePath,
@@ -160,5 +190,3 @@ export const createS3Provider = (config = {}) => {
     getPublicUrl,
   };
 };
-
-

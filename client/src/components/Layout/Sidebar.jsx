@@ -103,11 +103,6 @@ const Sidebar = () => {
       label: t("menu.ot"),
     },
     {
-      key: "/skud",
-      icon: <SafetyCertificateOutlined />,
-      label: t("menu.skud"),
-    },
-    {
       key: "/directories",
       icon: <BankOutlined />,
       label: "Справочники",
@@ -124,11 +119,6 @@ const Sidebar = () => {
       key: "/ot",
       icon: <SafetyCertificateOutlined />,
       label: t("menu.ot"),
-    },
-    {
-      key: "/skud",
-      icon: <SafetyCertificateOutlined />,
-      label: t("menu.skud"),
     },
   ];
 

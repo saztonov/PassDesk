@@ -1,6 +1,6 @@
-import storageProvider from '../config/storage.js';
-import { AppError } from '../middleware/errorHandler.js';
-import { checkEmployeeAccess } from '../utils/permissionUtils.js';
+import storageProvider from "../config/storage.js";
+import { AppError } from "../middleware/errorHandler.js";
+import { checkEmployeeAccess } from "../utils/permissionUtils.js";
 
 /**
  * Проверка прав доступа к файлу
@@ -8,29 +8,42 @@ import { checkEmployeeAccess } from '../utils/permissionUtils.js';
  */
 const checkFileAccess = async (file, user) => {
   // Админ имеет доступ ко всем файлам
-  if (user.role === 'admin') {
+  if (user.role === "admin") {
     return true;
   }
 
-  const { File, Employee, Application, EmployeeCounterpartyMapping, Counterparty } = await import('../models/index.js');
+  const {
+    File,
+    Employee,
+    Application,
+    EmployeeCounterpartyMapping,
+    Counterparty,
+  } = await import("../models/index.js");
 
   // Проверка по типу сущности
-  if (file.entityType === 'employee') {
+  if (file.entityType === "employee") {
     // Загружаем сотрудника с маппингами
     const employee = await Employee.findByPk(file.entityId, {
-      include: [{
-        model: EmployeeCounterpartyMapping,
-        as: 'employeeCounterpartyMappings',
-        include: [{
-          model: Counterparty,
-          as: 'counterparty',
-          attributes: ['id']
-        }]
-      }]
+      include: [
+        {
+          model: EmployeeCounterpartyMapping,
+          as: "employeeCounterpartyMappings",
+          include: [
+            {
+              model: Counterparty,
+              as: "counterparty",
+              attributes: ["id"],
+            },
+          ],
+        },
+      ],
     });
 
     if (!employee) {
-      throw new AppError('Сотрудник, которому принадлежит файл, не найден', 404);
+      throw new AppError(
+        "Сотрудник, которому принадлежит файл, не найден",
+        404,
+      );
     }
 
     // Используем стандартную проверку доступа к сотруднику
@@ -38,24 +51,24 @@ const checkFileAccess = async (file, user) => {
     return true;
   }
 
-  if (file.entityType === 'application') {
+  if (file.entityType === "application") {
     // Загружаем заявку
     const application = await Application.findByPk(file.entityId);
 
     if (!application) {
-      throw new AppError('Заявка, которой принадлежит файл, не найдена', 404);
+      throw new AppError("Заявка, которой принадлежит файл, не найдена", 404);
     }
 
     // Пользователь может видеть только свои заявки
     if (application.createdBy !== user.id) {
-      throw new AppError('Нет доступа к этому файлу', 403);
+      throw new AppError("Нет доступа к этому файлу", 403);
     }
 
     return true;
   }
 
   // Для других типов сущностей - запрещаем доступ обычным пользователям
-  throw new AppError('Нет доступа к этому файлу', 403);
+  throw new AppError("Нет доступа к этому файлу", 403);
 };
 
 /**
@@ -65,12 +78,15 @@ const checkFileAccess = async (file, user) => {
 export const uploadFile = async (req, res, next) => {
   try {
     // Только админы могут загружать файлы напрямую (без привязки к сущности)
-    if (req.user.role !== 'admin') {
-      throw new AppError('Загрузка файлов напрямую доступна только администраторам. Используйте загрузку через /employees/:id/files', 403);
+    if (req.user.role !== "admin") {
+      throw new AppError(
+        "Загрузка файлов напрямую доступна только администраторам. Используйте загрузку через /employees/:id/files",
+        403,
+      );
     }
 
     if (!req.file) {
-      throw new AppError('No file provided', 400);
+      throw new AppError("No file provided", 400);
     }
 
     const file = req.file;
@@ -80,6 +96,7 @@ export const uploadFile = async (req, res, next) => {
 
     await storageProvider.uploadFile({
       fileBuffer: file.buffer,
+      fileLocalPath: file.path,
       mimeType: file.mimetype,
       originalName: file.originalname,
       filePath,
@@ -87,14 +104,14 @@ export const uploadFile = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: 'File uploaded successfully',
+      message: "File uploaded successfully",
       data: {
         fileKey: fileName,
         fileName: file.originalname,
         fileSize: file.size,
         mimeType: file.mimetype,
-        path: filePath
-      }
+        path: filePath,
+      },
     });
   } catch (error) {
     next(error);
@@ -108,12 +125,15 @@ export const uploadFile = async (req, res, next) => {
 export const uploadMultipleFiles = async (req, res, next) => {
   try {
     // Только админы могут загружать файлы напрямую (без привязки к сущности)
-    if (req.user.role !== 'admin') {
-      throw new AppError('Загрузка файлов напрямую доступна только администраторам', 403);
+    if (req.user.role !== "admin") {
+      throw new AppError(
+        "Загрузка файлов напрямую доступна только администраторам",
+        403,
+      );
     }
 
     if (!req.files || req.files.length === 0) {
-      throw new AppError('No files provided', 400);
+      throw new AppError("No files provided", 400);
     }
 
     const uploadPromises = req.files.map(async (file) => {
@@ -123,6 +143,7 @@ export const uploadMultipleFiles = async (req, res, next) => {
 
       await storageProvider.uploadFile({
         fileBuffer: file.buffer,
+        fileLocalPath: file.path,
         mimeType: file.mimetype,
         originalName: file.originalname,
         filePath,
@@ -133,7 +154,7 @@ export const uploadMultipleFiles = async (req, res, next) => {
         fileName: file.originalname,
         fileSize: file.size,
         mimeType: file.mimetype,
-        path: filePath
+        path: filePath,
       };
     });
 
@@ -141,10 +162,10 @@ export const uploadMultipleFiles = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: 'Files uploaded successfully',
+      message: "Files uploaded successfully",
       data: {
-        files: uploadedFiles
-      }
+        files: uploadedFiles,
+      },
     });
   } catch (error) {
     next(error);
@@ -158,36 +179,36 @@ export const uploadMultipleFiles = async (req, res, next) => {
 export const getFileById = async (req, res, next) => {
   try {
     const { fileId } = req.params;
-    
+
     // Импортируем модель File
-    const { File } = await import('../models/index.js');
-    
+    const { File } = await import("../models/index.js");
+
     // Находим файл по ID
     const file = await File.findOne({
       where: {
         id: fileId,
-        isDeleted: false
-      }
+        isDeleted: false,
+      },
     });
-    
+
     if (!file) {
-      throw new AppError('Файл не найден', 404);
+      throw new AppError("Файл не найден", 404);
     }
 
     // ПРОВЕРКА ПРАВ ДОСТУПА
     await checkFileAccess(file, req.user);
-    
-    const downloadData = await storageProvider.getDownloadUrl(file.filePath, { 
+
+    const downloadData = await storageProvider.getDownloadUrl(file.filePath, {
       expiresIn: 3600,
-      fileName: file.originalName || file.fileName
+      fileName: file.originalName || file.fileName,
     });
 
     res.json({
       success: true,
       data: {
         url: downloadData.url,
-        fileName: file.originalName || file.fileName
-      }
+        fileName: file.originalName || file.fileName,
+      },
     });
   } catch (error) {
     next(error);
@@ -201,40 +222,40 @@ export const getFileById = async (req, res, next) => {
 export const getFile = async (req, res, next) => {
   try {
     const { fileKey } = req.params;
-    
+
     // Импортируем модель File
-    const { File } = await import('../models/index.js');
-    
+    const { File } = await import("../models/index.js");
+
     // Ищем файл по fileKey в БД для проверки прав
     const file = await File.findOne({
       where: {
         fileKey: fileKey,
-        isDeleted: false
-      }
+        isDeleted: false,
+      },
     });
-    
+
     // Если файл найден в БД - проверяем права
     if (file) {
       await checkFileAccess(file, req.user);
     } else {
       // Файл не в БД - только админы могут получить доступ
-      if (req.user.role !== 'admin') {
-        throw new AppError('Файл не найден или нет прав доступа', 404);
+      if (req.user.role !== "admin") {
+        throw new AppError("Файл не найден или нет прав доступа", 404);
       }
     }
 
     const filePath = storageProvider.resolvePath(fileKey);
-    const downloadData = await storageProvider.getDownloadUrl(filePath, { 
+    const downloadData = await storageProvider.getDownloadUrl(filePath, {
       expiresIn: 3600,
-      fileName: fileKey
+      fileName: fileKey,
     });
 
     res.json({
       success: true,
       data: {
         url: downloadData.url,
-        fileName: fileKey
-      }
+        fileName: fileKey,
+      },
     });
   } catch (error) {
     next(error);
@@ -248,37 +269,39 @@ export const getFile = async (req, res, next) => {
 export const getPublicLink = async (req, res, next) => {
   try {
     const { fileKey } = req.params;
-    
+
     // Импортируем модель File
-    const { File } = await import('../models/index.js');
-    
+    const { File } = await import("../models/index.js");
+
     // Ищем файл по fileKey в БД для проверки прав
     const file = await File.findOne({
       where: {
         fileKey: fileKey,
-        isDeleted: false
-      }
+        isDeleted: false,
+      },
     });
-    
+
     // Если файл найден в БД - проверяем права
     if (file) {
       await checkFileAccess(file, req.user);
     } else {
       // Файл не в БД - только админы могут получить доступ
-      if (req.user.role !== 'admin') {
-        throw new AppError('Файл не найден или нет прав доступа', 404);
+      if (req.user.role !== "admin") {
+        throw new AppError("Файл не найден или нет прав доступа", 404);
       }
     }
 
     const filePath = storageProvider.resolvePath(fileKey);
-    const publicLink = await storageProvider.getPublicUrl(filePath, { expiresIn: 86400 });
+    const publicLink = await storageProvider.getPublicUrl(filePath, {
+      expiresIn: 86400,
+    });
 
     res.json({
       success: true,
       data: {
         publicUrl: publicLink.url,
-        fileName: fileKey
-      }
+        fileName: fileKey,
+      },
     });
   } catch (error) {
     next(error);
@@ -293,8 +316,11 @@ export const deleteFile = async (req, res, next) => {
   try {
     // Только админы могут удалять файлы напрямую по ключу
     // Обычные пользователи должны использовать /employees/:id/files/:fileId
-    if (req.user.role !== 'admin') {
-      throw new AppError('Удаление файлов напрямую доступно только администраторам', 403);
+    if (req.user.role !== "admin") {
+      throw new AppError(
+        "Удаление файлов напрямую доступно только администраторам",
+        403,
+      );
     }
 
     const { fileKey } = req.params;
@@ -303,10 +329,9 @@ export const deleteFile = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: 'File deleted successfully'
+      message: "File deleted successfully",
     });
   } catch (error) {
     next(error);
   }
 };
-

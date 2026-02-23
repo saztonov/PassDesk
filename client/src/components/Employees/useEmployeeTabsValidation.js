@@ -20,18 +20,16 @@ const getRequiredFieldsByTab = (
       "email",
       "phone",
       "notes",
-    ],
-    2: [
       "snils",
-      "kig",
-      "kigEndDate",
       "passportType",
       "passportNumber",
       "passportDate",
       "passportIssuer",
       "passportExpiryDate",
+      "patentNumber",
+      "patentIssueDate",
+      "blankNumber",
     ],
-    3: ["patentNumber", "patentIssueDate", "blankNumber"],
   };
 
   const requiredFields = {};
@@ -44,7 +42,9 @@ const getRequiredFieldsByTab = (
         return false;
       }
 
-      if (fieldName === "kig" || fieldName === "kigEndDate") {
+      if (
+        ["patentNumber", "patentIssueDate", "blankNumber"].includes(fieldName)
+      ) {
         if (!requiresPatent) return false;
       }
 
@@ -55,10 +55,6 @@ const getRequiredFieldsByTab = (
       return true;
     });
   });
-
-  if (!requiresPatent) {
-    delete requiredFields["3"];
-  }
 
   return requiredFields;
 };

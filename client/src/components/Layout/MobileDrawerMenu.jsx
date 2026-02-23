@@ -48,14 +48,6 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
     });
   }
 
-  if (isOtEngineer || isOtAdmin || user?.role === "admin") {
-    topMenuItems.push({
-      key: "/skud",
-      icon: <SafetyCertificateOutlined />,
-      label: t("menu.skud"),
-    });
-  }
-
   // Администирование только для админов
   if (user?.role === "admin") {
     topMenuItems.push({

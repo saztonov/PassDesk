@@ -8,19 +8,26 @@ const EmployeeFormModalFooter = ({
   onSaveDraft,
   onSave,
   onNext,
+  allowTabNavigation = true,
 }) => {
+  const canSaveDirectly = allTabsValid() || !allowTabNavigation;
+
   return (
     <Space>
       <Button onClick={onCancel}>{employee ? "Закрыть" : "Отмена"}</Button>
       <Button onClick={onSaveDraft} loading={loading}>
         Сохранить черновик
       </Button>
-      {allTabsValid() ? (
+      {canSaveDirectly ? (
         <Button
           type="primary"
           onClick={onSave}
           loading={loading}
-          style={{ backgroundColor: "#52c41a", borderColor: "#52c41a" }}
+          style={
+            allTabsValid()
+              ? { backgroundColor: "#52c41a", borderColor: "#52c41a" }
+              : undefined
+          }
         >
           Сохранить
         </Button>

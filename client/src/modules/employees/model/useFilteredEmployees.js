@@ -6,6 +6,15 @@ const normalizeDocSearch = (value) =>
     .toUpperCase()
     .replace(/[^0-9A-ZА-ЯЁ]/g, "");
 
+const normalizeTextSearch = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+const normalizeDigitsSearch = (value) =>
+  String(value || "").replace(/[^\d]/g, "");
+
 export const useFilteredEmployees = ({
   employees,
   searchText,
@@ -59,30 +68,69 @@ export const useFilteredEmployees = ({
 
     if (!searchText) return filtered;
 
-    const searchLower = searchText.toLowerCase();
+    const normalizedSearchText = normalizeTextSearch(searchText);
+    const searchTokens = normalizedSearchText
+      ? normalizedSearchText.split(" ").filter(Boolean)
+      : [];
+    const normalizedDigitsSearchValue = normalizeDigitsSearch(searchText);
     const normalizedDocSearchValue = normalizeDocSearch(searchText);
+    const hasTextQuery = normalizedSearchText.length > 0;
+    const hasDigitsQuery = normalizedDigitsSearchValue.length > 0;
+    const hasDocQuery = normalizedDocSearchValue.length > 0;
+
+    if (!hasTextQuery && !hasDigitsQuery && !hasDocQuery) {
+      return filtered;
+    }
 
     return filtered.filter((employee) => {
       const normalizedPassport = normalizeDocSearch(employee.passportNumber);
       const normalizedKig = normalizeDocSearch(employee.kig);
       const normalizedPatent = normalizeDocSearch(employee.patentNumber);
-      const isLastNameExact =
-        employee.lastName?.toLowerCase().trim() === searchLower;
+      const fullName = normalizeTextSearch(
+        `${employee.lastName || ""} ${employee.firstName || ""} ${employee.middleName || ""}`,
+      );
+      const positionName = normalizeTextSearch(employee.position?.name);
+      const firstName = normalizeTextSearch(employee.firstName);
+      const lastName = normalizeTextSearch(employee.lastName);
+      const middleName = normalizeTextSearch(employee.middleName);
+
+      const isTextMatch =
+        hasTextQuery &&
+        (firstName.includes(normalizedSearchText) ||
+          lastName.includes(normalizedSearchText) ||
+          middleName.includes(normalizedSearchText) ||
+          fullName.includes(normalizedSearchText) ||
+          positionName.includes(normalizedSearchText) ||
+          searchTokens.every((token) => fullName.includes(token)));
+
+      const isDigitsMatch =
+        hasDigitsQuery &&
+        (normalizeDigitsSearch(employee.inn).includes(
+          normalizedDigitsSearchValue,
+        ) ||
+          normalizeDigitsSearch(employee.snils).includes(
+            normalizedDigitsSearchValue,
+          ) ||
+          normalizeDigitsSearch(employee.phone).includes(
+            normalizedDigitsSearchValue,
+          ) ||
+          normalizeDigitsSearch(employee.passportNumber).includes(
+            normalizedDigitsSearchValue,
+          ) ||
+          normalizeDigitsSearch(employee.patentNumber).includes(
+            normalizedDigitsSearchValue,
+          ) ||
+          normalizeDigitsSearch(employee.kig).includes(
+            normalizedDigitsSearchValue,
+          ));
+
       const isDocumentExact =
-        normalizedDocSearchValue.length > 0 &&
+        hasDocQuery &&
         (normalizedPassport === normalizedDocSearchValue ||
           normalizedKig === normalizedDocSearchValue ||
           normalizedPatent === normalizedDocSearchValue);
 
-      return (
-        employee.firstName?.toLowerCase().includes(searchLower) ||
-        employee.middleName?.toLowerCase().includes(searchLower) ||
-        employee.position?.name?.toLowerCase().includes(searchLower) ||
-        employee.inn?.toLowerCase().includes(searchLower) ||
-        employee.snils?.toLowerCase().includes(searchLower) ||
-        isLastNameExact ||
-        isDocumentExact
-      );
+      return isTextMatch || isDigitsMatch || isDocumentExact;
     });
   }, [employees, searchText, statusFilter]);
 

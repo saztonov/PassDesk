@@ -57,6 +57,7 @@ export const useSettingsReference = (autoLoad = true) => {
   return {
     settings: settings || {},
     defaultCounterpartyId: settings?.defaultCounterpartyId,
+    employeeDocumentProfiles: settings?.employeeDocumentProfiles || null,
     loading: settingsLoading,
     error: settingsError,
     refetch: () => fetchSettings(true), // force reload

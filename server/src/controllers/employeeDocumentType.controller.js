@@ -262,6 +262,7 @@ export const uploadEmployeeDocumentTypeSample = async (req, res, next) => {
 
     await storageProvider.uploadFile({
       fileBuffer: file.buffer,
+      fileLocalPath: file.path,
       mimeType: file.mimetype,
       originalName: file.originalname,
       filePath: targetPath,

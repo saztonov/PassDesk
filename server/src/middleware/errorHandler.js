@@ -63,6 +63,20 @@ export const errorHandler = (err, req, res, next) => {
     });
   }
 
+  // PostgreSQL invalid input syntax (e.g. malformed UUID)
+  if (err.name === "SequelizeDatabaseError" && err.parent?.code === "22P02") {
+    return res.status(400).json({
+      success: false,
+      message: "Validation error",
+      errors: [
+        {
+          field: "id",
+          message: "Некорректный формат идентификатора",
+        },
+      ],
+    });
+  }
+
   // JWT errors
   if (err.name === "JsonWebTokenError") {
     logUnauthorizedAccess(err, req, 401);

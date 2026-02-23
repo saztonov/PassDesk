@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Divider, Typography } from "antd";
 import { CheckCircleFilled, CheckCircleOutlined } from "@ant-design/icons";
 import EmployeeBasicInfoTab from "./EmployeeBasicInfoTab.jsx";
 import EmployeeDocumentsTab from "./EmployeeDocumentsTab.jsx";
@@ -6,8 +7,11 @@ import EmployeePatentTab from "./EmployeePatentTab.jsx";
 import EmployeeCounterpartyTab from "./EmployeeCounterpartyTab.jsx";
 import EmployeeFilesTab from "./EmployeeFilesTab.jsx";
 
+const { Text } = Typography;
+
 export const useEmployeeFormModalTabs = ({
   employee,
+  selectedCitizenship,
   message,
   onCancel,
   user,
@@ -21,18 +25,16 @@ export const useEmployeeFormModalTabs = ({
   latinInputError,
   handleFullNameChange,
   handleInnBlur,
-  ocrConflictByField,
   requiresPatent,
   checkingCitizenship,
   passportType,
   setPassportType,
   dateFormat,
-  ocrSection,
-  mvdSection,
   availableCounterparties,
   loadingCounterparties,
   handleFilesChange,
   tabsValidation,
+  documentProfilesConfig,
 }) => {
   return useMemo(() => {
     const getTabIcon = (tabKey) => {
@@ -60,90 +62,91 @@ export const useEmployeeFormModalTabs = ({
           </span>
         ),
         children: (
-          <EmployeeBasicInfoTab
-            employee={employee}
-            messageApi={message}
-            onCancel={onCancel}
-            user={user}
-            defaultCounterpartyId={defaultCounterpartyId}
-            onTransfer={() => setTransferModalVisible(true)}
-            getFieldProps={getFieldProps}
-            positions={positions}
-            citizenships={citizenships}
-            handleCitizenshipChange={handleCitizenshipChange}
-            antiAutofillIds={antiAutofillIds}
-            latinInputError={latinInputError}
-            handleFullNameChange={handleFullNameChange}
-            handleInnBlur={handleInnBlur}
-            dateFormat={dateFormat}
-            ocrConflictByField={ocrConflictByField}
-          />
-        ),
-      },
-      {
-        key: "2",
-        label: (
-          <span>
-            {getTabIcon("2")}
-            Документы
-          </span>
-        ),
-        children: (
-          <EmployeeDocumentsTab
-            getFieldProps={getFieldProps}
-            requiresPatent={requiresPatent}
-            passportType={passportType}
-            setPassportType={setPassportType}
-            dateFormat={dateFormat}
-            ocrSection={ocrSection}
-            mvdSection={mvdSection}
-            ocrConflictByField={ocrConflictByField}
-          />
+          <>
+            <EmployeeBasicInfoTab
+              employee={employee}
+              messageApi={message}
+              onCancel={onCancel}
+              user={user}
+              defaultCounterpartyId={defaultCounterpartyId}
+              onTransfer={() => setTransferModalVisible(true)}
+              getFieldProps={getFieldProps}
+              positions={positions}
+              citizenships={citizenships}
+              handleCitizenshipChange={handleCitizenshipChange}
+              antiAutofillIds={antiAutofillIds}
+              latinInputError={latinInputError}
+              handleFullNameChange={handleFullNameChange}
+              handleInnBlur={handleInnBlur}
+              dateFormat={dateFormat}
+            />
+
+            <Divider style={{ margin: "12px 0" }} />
+            <Text strong style={{ display: "block", marginBottom: 12 }}>
+              Документы
+            </Text>
+            <EmployeeDocumentsTab
+              getFieldProps={getFieldProps}
+              passportType={passportType}
+              setPassportType={setPassportType}
+              dateFormat={dateFormat}
+            />
+
+            {(requiresPatent || checkingCitizenship) && (
+              <>
+                <Divider style={{ margin: "12px 0" }} />
+                <Text strong style={{ display: "block", marginBottom: 12 }}>
+                  Патент
+                  {checkingCitizenship ? " (проверка...)" : ""}
+                </Text>
+                {checkingCitizenship ? (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      padding: "24px 0",
+                      color: "#999",
+                    }}
+                  >
+                    Проверка необходимости патента...
+                  </div>
+                ) : (
+                  <EmployeePatentTab
+                    getFieldProps={getFieldProps}
+                    dateFormat={dateFormat}
+                  />
+                )}
+              </>
+            )}
+
+            <Divider style={{ margin: "12px 0" }} />
+            <Text strong style={{ display: "block", marginBottom: 12 }}>
+              Контрагент
+            </Text>
+            <EmployeeCounterpartyTab
+              availableCounterparties={availableCounterparties}
+              loadingCounterparties={loadingCounterparties}
+            />
+          </>
         ),
       },
     ];
-
-    if (requiresPatent || checkingCitizenship) {
-      items.push({
-        key: "3",
-        label: (
-          <span>
-            {getTabIcon("3")}
-            Патент
-            {checkingCitizenship && " (проверка...)"}
-          </span>
-        ),
-        disabled: checkingCitizenship,
-        children: checkingCitizenship ? (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "#999" }}>
-            Проверка необходимости патента...
-          </div>
-        ) : (
-          <EmployeePatentTab getFieldProps={getFieldProps} dateFormat={dateFormat} />
-        ),
-      });
-    }
 
     if (employee?.id) {
       items.push({
         key: "4",
         label: "Файлы",
         children: (
-          <EmployeeFilesTab employeeId={employee.id} onFilesUpdated={handleFilesChange} />
+          <EmployeeFilesTab
+            employee={employee}
+            selectedCitizenship={selectedCitizenship}
+            defaultCounterpartyId={defaultCounterpartyId}
+            userCounterpartyId={user?.counterpartyId || null}
+            onFilesUpdated={handleFilesChange}
+            documentProfilesConfig={documentProfilesConfig}
+          />
         ),
       });
     }
-
-    items.push({
-      key: "5",
-      label: "🏢 Контрагент",
-      children: (
-        <EmployeeCounterpartyTab
-          availableCounterparties={availableCounterparties}
-          loadingCounterparties={loadingCounterparties}
-        />
-      ),
-    });
 
     return items;
   }, [
@@ -151,6 +154,7 @@ export const useEmployeeFormModalTabs = ({
     availableCounterparties,
     checkingCitizenship,
     citizenships,
+    selectedCitizenship,
     dateFormat,
     defaultCounterpartyId,
     employee,
@@ -162,9 +166,6 @@ export const useEmployeeFormModalTabs = ({
     latinInputError,
     loadingCounterparties,
     message,
-    mvdSection,
-    ocrConflictByField,
-    ocrSection,
     onCancel,
     passportType,
     positions,
@@ -173,5 +174,6 @@ export const useEmployeeFormModalTabs = ({
     setTransferModalVisible,
     tabsValidation,
     user,
+    documentProfilesConfig,
   ]);
 };

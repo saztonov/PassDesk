@@ -1,17 +1,25 @@
-import { Modal, Descriptions, Button, Tabs, Row, Col, Space, Checkbox } from 'antd';
-import { EditOutlined } from '@ant-design/icons';
-import EmployeeFileUpload from './EmployeeFileUpload';
-import dayjs from 'dayjs';
-import { 
-  formatPhone, 
-  formatSnils, 
-  formatKig, 
-  formatInn, 
-  formatPatentNumber, 
-  formatBlankNumber 
-} from '../../utils/formatters';
+import {
+  Modal,
+  Descriptions,
+  Button,
+  Tabs,
+  Row,
+  Col,
+  Space,
+  Checkbox,
+} from "antd";
+import { EditOutlined } from "@ant-design/icons";
+import EmployeeFileUpload from "./EmployeeFileUpload";
+import dayjs from "dayjs";
+import {
+  formatPhone,
+  formatSnils,
+  formatInn,
+  formatPatentNumber,
+  formatBlankNumber,
+} from "../../utils/formatters";
 
-const DATE_FORMAT = 'DD.MM.YYYY';
+const DATE_FORMAT = "DD.MM.YYYY";
 
 const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
   if (!employee) return null;
@@ -22,33 +30,44 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
   // Построение элементов вкладок новым API
   const tabItems = [
     {
-      key: '1',
-      label: 'Основная информация',
+      key: "1",
+      label: "Основная информация",
       children: (
         <>
           {/* Чекбоксы статусов */}
           <Row gutter={16} style={{ marginBottom: 16 }}>
             <Col span={24}>
               <Space size="large">
-                <Checkbox 
+                <Checkbox
                   checked={(() => {
-                    const statusMapping = employee.statusMappings?.find(m => m.statusGroup === 'status_active' || m.status_group === 'status_active');
+                    const statusMapping = employee.statusMappings?.find(
+                      (m) =>
+                        m.statusGroup === "status_active" ||
+                        m.status_group === "status_active",
+                    );
                     const statusName = statusMapping?.status?.name;
-                    return statusName === 'status_active_fired' || statusName === 'status_active_fired_compl';
-                  })()} 
+                    return (
+                      statusName === "status_active_fired" ||
+                      statusName === "status_active_fired_compl"
+                    );
+                  })()}
                   disabled
                 >
-                  <span style={{ color: '#ff4d4f' }}>Уволен</span>
+                  <span style={{ color: "#ff4d4f" }}>Уволен</span>
                 </Checkbox>
-                <Checkbox 
+                <Checkbox
                   checked={(() => {
-                    const statusMapping = employee.statusMappings?.find(m => m.statusGroup === 'status_active' || m.status_group === 'status_active');
+                    const statusMapping = employee.statusMappings?.find(
+                      (m) =>
+                        m.statusGroup === "status_active" ||
+                        m.status_group === "status_active",
+                    );
                     const statusName = statusMapping?.status?.name;
-                    return statusName === 'status_active_inactive';
-                  })()} 
+                    return statusName === "status_active_inactive";
+                  })()}
                   disabled
                 >
-                  <span style={{ color: '#1890ff' }}>Неактивный</span>
+                  <span style={{ color: "#1890ff" }}>Неактивный</span>
                 </Checkbox>
               </Space>
             </Col>
@@ -62,42 +81,45 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
               {employee.firstName}
             </Descriptions.Item>
             <Descriptions.Item label="Отчество" span={1}>
-              {employee.middleName || '-'}
+              {employee.middleName || "-"}
             </Descriptions.Item>
             <Descriptions.Item label="Пол" span={1}>
-              {employee.gender === 'male' ? 'Мужской' : employee.gender === 'female' ? 'Женский' : '-'}
+              {employee.gender === "male"
+                ? "Мужской"
+                : employee.gender === "female"
+                  ? "Женский"
+                  : "-"}
             </Descriptions.Item>
             <Descriptions.Item label="Должность" span={1}>
-              {employee.position?.name || '-'}
+              {employee.position?.name || "-"}
             </Descriptions.Item>
             <Descriptions.Item label="Гражданство" span={1}>
-              {employee.citizenship?.name || '-'}
+              {employee.citizenship?.name || "-"}
             </Descriptions.Item>
             <Descriptions.Item label="Дата рождения" span={1}>
-              {employee.birthDate ? dayjs(employee.birthDate).format(DATE_FORMAT) : '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Страна рождения" span={1}>
-              {employee.birthCountry?.name || '-'}
+              {employee.birthDate
+                ? dayjs(employee.birthDate).format(DATE_FORMAT)
+                : "-"}
             </Descriptions.Item>
             <Descriptions.Item label="Адрес регистрации" span={1}>
-              {employee.registrationAddress || '-'}
+              {employee.registrationAddress || "-"}
             </Descriptions.Item>
             <Descriptions.Item label="Email" span={1}>
-              {employee.email || '-'}
+              {employee.email || "-"}
             </Descriptions.Item>
             <Descriptions.Item label="Телефон" span={1}>
               {formatPhone(employee.phone)}
             </Descriptions.Item>
             <Descriptions.Item label="Примечания" span={1}>
-              {employee.notes || '-'}
+              {employee.notes || "-"}
             </Descriptions.Item>
           </Descriptions>
         </>
-      )
+      ),
     },
     {
-      key: '2',
-      label: 'Документы',
+      key: "2",
+      label: "Документы",
       children: (
         <Descriptions bordered column={2} size="small">
           <Descriptions.Item label="ИНН" span={1}>
@@ -106,64 +128,50 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
           <Descriptions.Item label="СНИЛС" span={1}>
             {formatSnils(employee.snils)}
           </Descriptions.Item>
-          {requiresPatent && (
-            <Descriptions.Item label="КИГ" span={1}>
-              {formatKig(employee.kig)}
-            </Descriptions.Item>
-          )}
-          {requiresPatent && (
-            <Descriptions.Item label="Дата окончания КИГ" span={1}>
-              {employee.kigEndDate ? dayjs(employee.kigEndDate).format(DATE_FORMAT) : '-'}
-            </Descriptions.Item>
-          )}
-          <Descriptions.Item label="Тип паспорта" span={1}>
-            {employee.passportType === 'russian' ? 'Российский' : employee.passportType === 'foreign' ? 'Иностранного гражданина' : '-'}
-          </Descriptions.Item>
           <Descriptions.Item label="№ паспорта" span={1}>
-            {employee.passportNumber || '-'}
+            {employee.passportNumber || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="Дата выдачи паспорта" span={1}>
-            {employee.passportDate ? dayjs(employee.passportDate).format(DATE_FORMAT) : '-'}
+            {employee.passportDate
+              ? dayjs(employee.passportDate).format(DATE_FORMAT)
+              : "-"}
           </Descriptions.Item>
-          {employee.passportType === 'foreign' && (
-            <Descriptions.Item label="Дата окончания паспорта" span={1}>
-              {employee.passportExpiryDate ? dayjs(employee.passportExpiryDate).format(DATE_FORMAT) : '-'}
-            </Descriptions.Item>
-          )}
           <Descriptions.Item label="Кем выдан паспорт" span={1}>
-            {employee.passportIssuer || '-'}
+            {employee.passportIssuer || "-"}
           </Descriptions.Item>
         </Descriptions>
-      )
-    }
+      ),
+    },
   ];
 
   // Добавляем вкладку Патент если требуется
   if (requiresPatent) {
     tabItems.push({
-      key: '3',
-      label: 'Патент',
+      key: "3",
+      label: "Патент",
       children: (
         <Descriptions bordered column={3} size="small">
           <Descriptions.Item label="Номер патента" span={1}>
             {formatPatentNumber(employee.patentNumber)}
           </Descriptions.Item>
           <Descriptions.Item label="Дата выдачи патента" span={1}>
-            {employee.patentIssueDate ? dayjs(employee.patentIssueDate).format(DATE_FORMAT) : '-'}
+            {employee.patentIssueDate
+              ? dayjs(employee.patentIssueDate).format(DATE_FORMAT)
+              : "-"}
           </Descriptions.Item>
           <Descriptions.Item label="Номер бланка" span={1}>
             {formatBlankNumber(employee.blankNumber)}
           </Descriptions.Item>
         </Descriptions>
-      )
+      ),
     });
   }
 
   // Добавляем вкладку Файлы
   tabItems.push({
-    key: '4',
-    label: 'Файлы',
-    children: <EmployeeFileUpload employeeId={employee.id} readonly={true} />
+    key: "4",
+    label: "Файлы",
+    children: <EmployeeFileUpload employeeId={employee.id} readonly={true} />,
   });
 
   return (
@@ -176,7 +184,12 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
         <Button key="cancel" onClick={onCancel}>
           Закрыть
         </Button>,
-        <Button key="edit" type="primary" icon={<EditOutlined />} onClick={onEdit}>
+        <Button
+          key="edit"
+          type="primary"
+          icon={<EditOutlined />}
+          onClick={onEdit}
+        >
           Редактировать
         </Button>,
       ]}
@@ -187,4 +200,3 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
 };
 
 export default EmployeeViewModal;
-

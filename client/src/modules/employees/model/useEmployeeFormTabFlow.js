@@ -23,12 +23,19 @@ export const useEmployeeFormTabFlow = ({
   }, [requiredFieldsByTab, tabsValidation]);
 
   const handleNext = useCallback(() => {
-    const tabOrder = requiresPatent ? ["1", "2", "3"] : ["1", "2"];
+    const tabOrder = Object.keys(requiredFieldsByTab).sort((a, b) => {
+      const left = Number(a);
+      const right = Number(b);
+      if (Number.isNaN(left) || Number.isNaN(right)) {
+        return a.localeCompare(b);
+      }
+      return left - right;
+    });
     const currentIndex = tabOrder.indexOf(activeTab);
     if (currentIndex < tabOrder.length - 1) {
       setActiveTab(tabOrder[currentIndex + 1]);
     }
-  }, [activeTab, requiresPatent, setActiveTab]);
+  }, [activeTab, requiredFieldsByTab, setActiveTab]);
 
   return {
     allTabsValid,

@@ -1,14 +1,9 @@
 import { Markup, Telegraf } from "telegraf";
-import QRCode from "qrcode";
 import {
   bindTelegramAccountByCode,
   buildNotLinkedText,
-  buildQrCaptionText,
   buildStartNeedCodeText,
-  buildStatusText,
   buildTelegramHelpText,
-  generateTelegramQrForUser,
-  getAccessStatusByTelegramUser,
   getTelegramAccountByUser,
   logTelegramCommand,
   mapLinkErrorToMessage,
@@ -127,67 +122,6 @@ const registerBotHandlers = (bot) => {
           responsePayload: { linked: false, reason: error.message },
         };
       }
-    }),
-  );
-
-  bot.command(
-    "qr",
-    withCommandLog("qr", async (ctx) => {
-      const fallbackLang = normalizeTelegramLanguage(ctx.from?.language_code);
-      const account = await getTelegramAccountByUser(ctx.from?.id);
-
-      if (!account) {
-        await ctx.reply(buildNotLinkedText(fallbackLang));
-        return { responsePayload: { linked: false } };
-      }
-
-      const generated = await generateTelegramQrForUser(ctx.from?.id);
-      const imageBuffer = await QRCode.toBuffer(generated.token, {
-        type: "png",
-        width: 640,
-        margin: 2,
-      });
-
-      await ctx.replyWithPhoto(
-        { source: imageBuffer, filename: "passdesk_qr.png" },
-        {
-          caption: buildQrCaptionText(account.language),
-        },
-      );
-
-      return {
-        employeeId: generated.employee?.id,
-        responsePayload: {
-          linked: true,
-          expiresAt: generated.expiresAt,
-        },
-      };
-    }),
-  );
-
-  bot.command(
-    "status",
-    withCommandLog("status", async (ctx) => {
-      const fallbackLang = normalizeTelegramLanguage(ctx.from?.language_code);
-      const account = await getTelegramAccountByUser(ctx.from?.id);
-
-      if (!account) {
-        await ctx.reply(buildNotLinkedText(fallbackLang));
-        return { responsePayload: { linked: false } };
-      }
-
-      const statusData = await getAccessStatusByTelegramUser(ctx.from?.id);
-      const message = buildStatusText(statusData, account.language);
-      await ctx.reply(message);
-
-      return {
-        employeeId: statusData.employee?.id,
-        responsePayload: {
-          linked: true,
-          status: statusData.state?.status || "missing",
-          reason: statusData.state?.statusReason || null,
-        },
-      };
     }),
   );
 
@@ -347,8 +281,6 @@ export const startTelegramBot = async () => {
 
   try {
     await bot.telegram.setMyCommands([
-      { command: "qr", description: "Получить QR-код" },
-      { command: "status", description: "Проверить статус допуска" },
       { command: "language", description: "Выбрать язык" },
       { command: "help", description: "Помощь" },
     ]);

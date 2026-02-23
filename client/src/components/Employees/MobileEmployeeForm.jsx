@@ -6,26 +6,16 @@ import {
   capitalizeFirstLetter,
   filterCyrillicOnly,
 } from "../../utils/formatters";
-import {
-  OCR_DOC_TYPE_LABELS,
-  formatRussianPassportNumber,
-  normalizeString,
-  isEmptyFormValue,
-  toDisplayName,
-  mapOcrSexToFormGender,
-  resolveCitizenshipIdByOcrCode,
-  parseOcrRawJson,
-  resolvePassportNumberPartsFromOcr,
-  formatDateForMobileForm,
-  formatPassportNumberForMobileForm,
-  getOcrSourceDocumentType,
-} from "./mobileEmployeeOcrUtils";
+import { formatRussianPassportNumber } from "./employeeFormUtils";
 import { useEmployeeStatusActions } from "@/modules/employees/model/useEmployeeStatusActions";
-import { useMobileEmployeeOcrFlow } from "@/modules/employees/model/useMobileEmployeeOcrFlow";
 import { useMobileEmployeeFormInteractions } from "@/modules/employees/model/useMobileEmployeeFormInteractions";
 import { useMobileEmployeeFormInitialization } from "@/modules/employees/model/useMobileEmployeeFormInitialization";
 import { useMobileEmployeeCancelConfirm } from "@/modules/employees/model/useMobileEmployeeCancelConfirm";
 import { useMobileEmployeeFormSections } from "./useMobileEmployeeFormSections";
+import {
+  resolveEmployeeCounterpartyId,
+  resolveEmployeeDocumentProfile,
+} from "@/modules/employees/lib/documentTypeProfiles";
 import BrowserAutofillTrap from "@/modules/employees/ui/form/BrowserAutofillTrap";
 import MobileEmployeeFormActions from "@/modules/employees/ui/form/MobileEmployeeFormActions";
 
@@ -68,8 +58,10 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     loadingReferences,
     citizenships,
     positions,
+    selectedCitizenship,
     requiresPatent,
     defaultCounterpartyId,
+    documentProfilesConfig,
     user,
     handleCitizenshipChange,
     handleSave,
@@ -77,7 +69,6 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     initializeEmployeeData,
     formatPhoneNumber,
     formatSnils,
-    formatKig,
     formatInn,
     formatPatentNumber,
     formatBlankNumber,
@@ -147,36 +138,6 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     setLoadingCounterparties,
   });
 
-  const ocrUtils = useMemo(
-    () => ({
-      OCR_DOC_TYPE_LABELS,
-      normalizeString,
-      isEmptyFormValue,
-      toDisplayName,
-      mapOcrSexToFormGender,
-      resolveCitizenshipIdByOcrCode,
-      parseOcrRawJson,
-      resolvePassportNumberPartsFromOcr,
-      formatDateForMobileForm,
-      formatPassportNumberForMobileForm,
-      getOcrSourceDocumentType,
-    }),
-    [],
-  );
-
-  const { mobileOcrState, handleDocumentUploadComplete } =
-    useMobileEmployeeOcrFlow({
-      form,
-      messageApi,
-      citizenships,
-      passportType,
-      setPassportType,
-      handleCitizenshipChange,
-      formatKig,
-      formatPatentNumber,
-      ocrUtils,
-    });
-
   const {
     canSave,
     latinInputError,
@@ -229,13 +190,20 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     formatPhoneNumber,
     requiresPatent,
     formatSnils,
-    formatKig,
     passportType,
     setPassportType,
     formatRussianPassportNumber,
-    mobileOcrState,
+    documentProfileCode: resolveEmployeeDocumentProfile({
+      counterpartyId: resolveEmployeeCounterpartyId({
+        employee,
+        fallbackCounterpartyId:
+          form.getFieldValue("counterpartyId") || user?.counterpartyId || null,
+      }),
+      defaultCounterpartyId,
+      citizenship: selectedCitizenship || employee?.citizenship || null,
+    }),
+    documentProfilesConfig,
     ensureEmployeeId,
-    handleDocumentUploadComplete,
     formatPatentNumber,
     formatBlankNumber,
     loadingCounterparties,
@@ -258,9 +226,6 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
           minHeight: 0,
           overflow: "auto",
           paddingBottom: 80,
-          paddingLeft: 16,
-          paddingRight: 16,
-          paddingTop: 16,
         }}
       >
         <BrowserAutofillTrap />

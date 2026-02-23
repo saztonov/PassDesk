@@ -239,6 +239,7 @@ export const useReferencesStore = create((set, get) => ({
           defaultCounterpartyId: null,
           employeeFormConfigDefault: null,
           employeeFormConfigExternal: null,
+          employeeDocumentProfiles: null,
         };
 
         set({

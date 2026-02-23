@@ -12,28 +12,38 @@ import {
   EmployeeCounterpartyMapping,
   EmployeeStatusMapping,
   Setting,
-  CounterpartySubcounterpartyMapping
-} from '../models/index.js';
+  CounterpartySubcounterpartyMapping,
+} from "../models/index.js";
 import {
   validateEmployeeForImport,
   validateEmployeeForImportOptimized,
   checkEmployeeConflict,
   checkEmployeeConflictFromCache,
-  validateKppConsistency
-} from '../utils/importValidation.js';
-import { AppError } from '../middleware/errorHandler.js';
-import { Op } from 'sequelize';
-import { getImportStatuses, updateEmployeeStatusesByCompleteness } from '../utils/employeeStatusUpdater.js';
-import { DEFAULT_FORM_CONFIG } from '../utils/employeeFieldsConfig.js';
+  validateKppConsistency,
+} from "../utils/importValidation.js";
+import { AppError } from "../middleware/errorHandler.js";
+import { Op } from "sequelize";
+import {
+  getImportStatuses,
+  updateEmployeeStatusesByCompleteness,
+} from "../utils/employeeStatusUpdater.js";
+import { DEFAULT_FORM_CONFIG } from "../utils/employeeFieldsConfig.js";
 
 /**
  * Валидирует данные для импорта сотрудников (ОПТИМИЗИРОВАННАЯ ВЕРСИЯ 2.1)
  */
-export const validateEmployeesImport = async (employees, userId, userCounterpartyId) => {
-  console.log('📥 validateEmployeesImport - количество записей:', employees?.length || 0);
+export const validateEmployeesImport = async (
+  employees,
+  userId,
+  userCounterpartyId,
+) => {
+  console.log(
+    "📥 validateEmployeesImport - количество записей:",
+    employees?.length || 0,
+  );
 
   if (!Array.isArray(employees) || employees.length === 0) {
-    throw new AppError('Данные сотрудников не предоставлены', 400);
+    throw new AppError("Данные сотрудников не предоставлены", 400);
   }
 
   // 🔒 ЗАЩИТА ОТ DoS: Ограничение на количество записей
@@ -41,15 +51,15 @@ export const validateEmployeesImport = async (employees, userId, userCounterpart
   if (employees.length > MAX_RECORDS) {
     throw new AppError(
       `Превышен лимит записей. Максимум ${MAX_RECORDS} записей за один импорт. В файле: ${employees.length}`,
-      400
+      400,
     );
   }
 
   if (!userCounterpartyId) {
-    throw new AppError('У пользователя не указан контрагент', 403);
+    throw new AppError("У пользователя не указан контрагент", 403);
   }
 
-  console.log('⚡ ОПТИМИЗАЦИЯ: Загружаем все справочники одним запросом...');
+  console.log("⚡ ОПТИМИЗАЦИЯ: Загружаем все справочники одним запросом...");
   const startTime = Date.now();
 
   // 🚀 ШАГ 1: Загружаем все справочники ОДИН РАЗ
@@ -59,86 +69,102 @@ export const validateEmployeesImport = async (employees, userId, userCounterpart
     allCounterparties,
     allCitizenships,
     allCitizenshipSynonyms,
-    allPositions
+    allPositions,
   ] = await Promise.all([
     // Статусы
     Status.findAll({
-      where: { name: ['status_draft', 'status_card_draft'] }
+      where: { name: ["status_draft", "status_card_draft"] },
     }),
     // Субподрядчики
     CounterpartySubcounterpartyMapping.findAll({
       where: { parentCounterpartyId: userCounterpartyId },
-      attributes: ['childCounterpartyId']
+      attributes: ["childCounterpartyId"],
     }),
     // ВСЕ контрагенты (300 записей)
     Counterparty.findAll({
-      attributes: ['id', 'inn', 'kpp', 'name']
+      attributes: ["id", "inn", "kpp", "name"],
     }),
     // ВСЕ гражданства (~200 записей)
     Citizenship.findAll({
-      attributes: ['id', 'name', 'requiresPatent']
+      attributes: ["id", "name", "requiresPatent"],
     }),
     // ВСЕ синонимы гражданств
     CitizenshipSynonym.findAll({
-      attributes: ['id', 'citizenshipId', 'synonym']
+      attributes: ["id", "citizenshipId", "synonym"],
     }),
     // ВСЕ должности (~100 записей)
     Position.findAll({
-      attributes: ['id', 'name']
-    })
+      attributes: ["id", "name"],
+    }),
   ]);
 
   console.log(`✅ Справочники загружены за ${Date.now() - startTime}ms:`, {
     counterparties: allCounterparties.length,
     citizenships: allCitizenships.length,
     positions: allPositions.length,
-    synonyms: allCitizenshipSynonyms.length
+    synonyms: allCitizenshipSynonyms.length,
   });
 
   // Проверяем требуемые статусы
-  const foundStatusNames = requiredStatuses.map(s => s.name);
-  const missingStatuses = ['status_draft', 'status_card_draft'].filter(s => !foundStatusNames.includes(s));
+  const foundStatusNames = requiredStatuses.map((s) => s.name);
+  const missingStatuses = ["status_draft", "status_card_draft"].filter(
+    (s) => !foundStatusNames.includes(s),
+  );
 
   if (missingStatuses.length > 0) {
-    console.error('❌ Отсутствуют статусы:', missingStatuses);
+    console.error("❌ Отсутствуют статусы:", missingStatuses);
     throw new AppError(
-      `Ошибка системы: не найдены статусы: ${missingStatuses.join(', ')}`,
-      500
+      `Ошибка системы: не найдены статусы: ${missingStatuses.join(", ")}`,
+      500,
     );
   }
 
   // 🔒 Разрешенные контрагенты
   const allowedCounterpartyIds = [
     userCounterpartyId,
-    ...subcontractors.map(s => s.childCounterpartyId)
+    ...subcontractors.map((s) => s.childCounterpartyId),
   ];
-  console.log(`🔒 Разрешенные контрагенты для импорта: ${allowedCounterpartyIds.length} (свой + ${subcontractors.length} субподрядчиков)`);
+  console.log(
+    `🔒 Разрешенные контрагенты для импорта: ${allowedCounterpartyIds.length} (свой + ${subcontractors.length} субподрядчиков)`,
+  );
 
   // 🚀 ШАГ 2: Загружаем существующих сотрудников ТОЛЬКО по ИНН из файла
   const innsFromFile = employees
-    .map(emp => emp.inn)
-    .filter(inn => inn && String(inn).trim() !== '')
-    .map(inn => String(inn).replace(/[^\d]/g, ''));
+    .map((emp) => emp.inn)
+    .filter((inn) => inn && String(inn).trim() !== "")
+    .map((inn) => String(inn).replace(/[^\d]/g, ""));
 
   const uniqueInns = [...new Set(innsFromFile)];
-  console.log(`⚡ ОПТИМИЗАЦИЯ: Загружаем существующих сотрудников по ${uniqueInns.length} уникальным ИНН из файла...`);
+  console.log(
+    `⚡ ОПТИМИЗАЦИЯ: Загружаем существующих сотрудников по ${uniqueInns.length} уникальным ИНН из файла...`,
+  );
 
-  const existingEmployees = uniqueInns.length > 0
-    ? await Employee.findAll({
-        where: { inn: { [Op.in]: uniqueInns } },
-        attributes: ['id', 'firstName', 'lastName', 'middleName', 'inn', 'snils']
-      })
-    : [];
+  const existingEmployees =
+    uniqueInns.length > 0
+      ? await Employee.findAll({
+          where: { inn: { [Op.in]: uniqueInns } },
+          attributes: [
+            "id",
+            "firstName",
+            "lastName",
+            "middleName",
+            "inn",
+            "snils",
+          ],
+        })
+      : [];
 
-  console.log(`✅ Найдено ${existingEmployees.length} существующих сотрудников за ${Date.now() - startTime}ms`);
+  console.log(
+    `✅ Найдено ${existingEmployees.length} существующих сотрудников за ${Date.now() - startTime}ms`,
+  );
 
   // Создаем кэши для быстрого поиска
   const caches = {
-    counterparties: allCounterparties.map(c => c.toJSON()),
-    citizenships: allCitizenships.map(c => c.toJSON()),
-    citizenshipSynonyms: allCitizenshipSynonyms.map(s => s.toJSON()),
-    positions: allPositions.map(p => p.toJSON()),
-    existingEmployees: existingEmployees.map(e => e.toJSON())
+    counterparties: allCounterparties.map((c) => c.toJSON()),
+    citizenships: allCitizenships.map((c) => c.toJSON()),
+    citizenshipSynonyms: allCitizenshipSynonyms.map((s) => s.toJSON()),
+    positions: allPositions.map((p) => p.toJSON()),
+    existingEmployees: existingEmployees.map((e) => e.toJSON()),
   };
 
   // Мапа для новых должностей, созданных во время валидации
@@ -146,12 +172,12 @@ export const validateEmployeesImport = async (employees, userId, userCounterpart
 
   // Проверяем консистентность КПП для одного ИНН
   const kppErrors = validateKppConsistency(employees);
-  const validationErrors = kppErrors.map(err => ({
+  const validationErrors = kppErrors.map((err) => ({
     rowIndex: err.rowIndex,
-    lastName: employees[err.rowIndex - 1]?.lastName || '',
-    firstName: employees[err.rowIndex - 1]?.firstName || '',
-    inn: employees[err.rowIndex - 1]?.inn || '',
-    errors: [err.error]
+    lastName: employees[err.rowIndex - 1]?.lastName || "",
+    firstName: employees[err.rowIndex - 1]?.firstName || "",
+    inn: employees[err.rowIndex - 1]?.inn || "",
+    errors: [err.error],
   }));
 
   // 🚀 ШАГ 3: Валидируем каждого сотрудника используя кэши
@@ -159,27 +185,34 @@ export const validateEmployeesImport = async (employees, userId, userCounterpart
   const conflictingInns = [];
   const existingEmployeesMap = {};
 
-  console.log(`⚡ ОПТИМИЗАЦИЯ: Начинаем валидацию ${employees.length} сотрудников...`);
+  console.log(
+    `⚡ ОПТИМИЗАЦИЯ: Начинаем валидацию ${employees.length} сотрудников...`,
+  );
 
   for (let index = 0; index < employees.length; index++) {
     const emp = employees[index];
 
     // Пропускаем строки с ошибками КПП
-    if (kppErrors.some(e => e.rowIndex === index + 1)) {
+    if (kppErrors.some((e) => e.rowIndex === index + 1)) {
       continue;
     }
 
     try {
       // Используем оптимизированную функцию валидации
-      const validation = await validateEmployeeForImportOptimized(emp, userId, caches, newPositionsMap);
+      const validation = await validateEmployeeForImportOptimized(
+        emp,
+        userId,
+        caches,
+        newPositionsMap,
+      );
 
       if (!validation.valid) {
         validationErrors.push({
           rowIndex: index + 1,
-          lastName: emp.lastName || '',
-          firstName: emp.firstName || '',
-          inn: emp.inn || '',
-          errors: validation.errors
+          lastName: emp.lastName || "",
+          firstName: emp.firstName || "",
+          inn: emp.inn || "",
+          errors: validation.errors,
         });
         continue;
       }
@@ -188,34 +221,49 @@ export const validateEmployeesImport = async (employees, userId, userCounterpart
       validated.rowIndex = index + 1;
 
       // 🔒 ПРОВЕРКА БЕЗОПАСНОСТИ: Контрагент должен быть разрешен для импорта
-      if (validated.counterparty && !allowedCounterpartyIds.includes(validated.counterparty.id)) {
+      if (
+        validated.counterparty &&
+        !allowedCounterpartyIds.includes(validated.counterparty.id)
+      ) {
         validationErrors.push({
           rowIndex: index + 1,
-          lastName: emp.lastName || '',
-          firstName: emp.firstName || '',
-          inn: emp.inn || '',
-          errors: [`Контрагент создан другой организацией. Вы не можете вносить данные о его сотрудниках.`]
+          lastName: emp.lastName || "",
+          firstName: emp.firstName || "",
+          inn: emp.inn || "",
+          errors: [
+            `Контрагент создан другой организацией. Вы не можете вносить данные о его сотрудниках.`,
+          ],
         });
         continue;
       }
 
-      if (!validated.counterparty && (emp.counterpartyInn || emp.counterpartyKpp)) {
+      if (
+        !validated.counterparty &&
+        (emp.counterpartyInn || emp.counterpartyKpp)
+      ) {
         validationErrors.push({
           rowIndex: index + 1,
-          lastName: emp.lastName || '',
-          firstName: emp.firstName || '',
-          inn: emp.inn || '',
-          errors: [`Контрагент не найден в базе данных. Добавьте его в справочнике Контрагенты.`]
+          lastName: emp.lastName || "",
+          firstName: emp.firstName || "",
+          inn: emp.inn || "",
+          errors: [
+            `Контрагент не найден в базе данных. Добавьте его в справочнике Контрагенты.`,
+          ],
         });
         continue;
       }
 
       // Проверяем конфликты используя кэш
-      const conflicts = checkEmployeeConflictFromCache(validated, caches.existingEmployees);
+      const conflicts = checkEmployeeConflictFromCache(
+        validated,
+        caches.existingEmployees,
+      );
 
       if (conflicts.length > 0 && validated.inn) {
         // Есть конфликты по ИНН, СНИЛС или ФИО
-        const existingByInn = caches.existingEmployees.find(e => e.inn === validated.inn);
+        const existingByInn = caches.existingEmployees.find(
+          (e) => e.inn === validated.inn,
+        );
 
         if (existingByInn && !existingEmployeesMap[validated.inn]) {
           conflictingInns.push({
@@ -231,7 +279,7 @@ export const validateEmployeesImport = async (employees, userId, userCounterpart
               kigEndDate: validated.kigEndDate,
               position: validated.position,
               citizenship: validated.citizenship,
-              counterparty: validated.counterparty
+              counterparty: validated.counterparty,
             },
             existingEmployee: {
               id: existingByInn.id,
@@ -239,8 +287,8 @@ export const validateEmployeesImport = async (employees, userId, userCounterpart
               lastName: existingByInn.lastName,
               middleName: existingByInn.middleName,
               inn: existingByInn.inn,
-              snils: existingByInn.snils
-            }
+              snils: existingByInn.snils,
+            },
           });
           existingEmployeesMap[validated.inn] = existingByInn;
           continue;
@@ -252,10 +300,10 @@ export const validateEmployeesImport = async (employees, userId, userCounterpart
       console.error(`⚠️ Ошибка валидации строки ${index + 1}:`, error.message);
       validationErrors.push({
         rowIndex: index + 1,
-        lastName: emp.lastName || '',
-        firstName: emp.firstName || '',
-        inn: emp.inn || '',
-        errors: [error.message]
+        lastName: emp.lastName || "",
+        firstName: emp.firstName || "",
+        inn: emp.inn || "",
+        errors: [error.message],
       });
     }
   }
@@ -265,7 +313,7 @@ export const validateEmployeesImport = async (employees, userId, userCounterpart
     validEmployeesCount: validatedEmployees.length,
     validationErrorsCount: validationErrors.length,
     conflictingInnsCount: conflictingInns.length,
-    newPositionsCreated: newPositionsMap.size
+    newPositionsCreated: newPositionsMap.size,
   });
 
   return {
@@ -273,45 +321,52 @@ export const validateEmployeesImport = async (employees, userId, userCounterpart
     validationErrors,
     conflictingInns,
     hasErrors: validationErrors.length > 0,
-    hasConflicts: conflictingInns.length > 0
+    hasConflicts: conflictingInns.length > 0,
   };
 };
 
 /**
  * Импортирует сотрудников с разрешением конфликтов
  */
-export const importEmployees = async (validatedEmployees, conflictResolutions, userId, userCounterpartyId) => {
-  console.log('📥 importEmployees - начало импорта:', {
+export const importEmployees = async (
+  validatedEmployees,
+  conflictResolutions,
+  userId,
+  userCounterpartyId,
+) => {
+  console.log("📥 importEmployees - начало импорта:", {
     count: validatedEmployees?.length || 0,
     resolutions: Object.keys(conflictResolutions || {}).length,
-    userCounterpartyId
+    userCounterpartyId,
   });
 
   if (!Array.isArray(validatedEmployees) || validatedEmployees.length === 0) {
-    throw new AppError('Нет данных для импорта', 400);
+    throw new AppError("Нет данных для импорта", 400);
   }
 
   if (!userCounterpartyId) {
-    throw new AppError('У пользователя не указан контрагент', 403);
+    throw new AppError("У пользователя не указан контрагент", 403);
   }
 
   // 🔒 КРИТИЧЕСКАЯ ПРОВЕРКА: Загружаем контрагент пользователя
   const userCounterparty = await Counterparty.findByPk(userCounterpartyId);
   if (!userCounterparty) {
-    throw new AppError('Контрагент пользователя не найден', 403);
+    throw new AppError("Контрагент пользователя не найден", 403);
   }
   console.log(`🏢 Контрагент пользователя: ${userCounterparty.name}`);
 
   // 🔒 Загружаем список разрешенных контрагентов (пользователь + его субподрядчики)
   const subcontractors = await CounterpartySubcounterpartyMapping.findAll({
     where: { parentCounterpartyId: userCounterpartyId },
-    attributes: ['childCounterpartyId']
+    attributes: ["childCounterpartyId"],
   });
   const allowedCounterpartyIds = [
     userCounterpartyId,
-    ...subcontractors.map(s => s.childCounterpartyId)
+    ...subcontractors.map((s) => s.childCounterpartyId),
   ];
-  console.log(`🔒 Разрешенные контрагенты для импорта: ${allowedCounterpartyIds.length} (свой + ${subcontractors.length} субподрядчиков)`);
+  console.log(
+    `🔒 Разрешенные контрагенты для импорта: ${allowedCounterpartyIds.length} (свой + ${subcontractors.length} субподрядчиков)`,
+  );
 
   // 🔒 БЕЗОПАСНОСТЬ: Проверяем что все контрагенты разрешены
   validatedEmployees.forEach((emp) => {
@@ -319,44 +374,53 @@ export const importEmployees = async (validatedEmployees, conflictResolutions, u
     if (!allowedCounterpartyIds.includes(targetCounterpartyId)) {
       throw new AppError(
         `Строка ${emp.rowIndex}: Контрагент "${emp.counterparty?.name}" не является вашим субподрядчиком`,
-        403
+        403,
       );
     }
   });
 
-  console.log(`✅ Все ${validatedEmployees.length} сотрудников относятся к разрешенным контрагентам`);
+  console.log(
+    `✅ Все ${validatedEmployees.length} сотрудников относятся к разрешенным контрагентам`,
+  );
 
   // Получаем все необходимые статусы (включая для полных карточек)
   const statusMap = await getImportStatuses();
 
   // Загружаем конфигурацию полей для контрагента пользователя
-  const defaultCounterpartyId = await Setting.getSetting('default_counterparty_id');
+  const defaultCounterpartyId = await Setting.getSetting(
+    "default_counterparty_id",
+  );
   const isDefaultCounterparty = userCounterparty.id === defaultCounterpartyId;
 
   let formConfig = DEFAULT_FORM_CONFIG;
 
   try {
-    const configKey = isDefaultCounterparty 
-      ? 'employee_form_config_default' 
-      : 'employee_form_config_external';
-    
+    const configKey = isDefaultCounterparty
+      ? "employee_form_config_default"
+      : "employee_form_config_external";
+
     const configStr = await Setting.getSetting(configKey);
-    
+
     if (configStr) {
       formConfig = JSON.parse(configStr);
       console.log(`✅ Загружена конфигурация полей: ${configKey}`);
     } else {
-      console.log(`⚠️  Конфигурация ${configKey} не найдена, используется дефолтная`);
+      console.log(
+        `⚠️  Конфигурация ${configKey} не найдена, используется дефолтная`,
+      );
     }
   } catch (error) {
-    console.warn('⚠️  Ошибка загрузки конфигурации полей, используется дефолтная:', error.message);
+    console.warn(
+      "⚠️  Ошибка загрузки конфигурации полей, используется дефолтная:",
+      error.message,
+    );
   }
 
   const results = {
     created: 0,
     updated: 0,
     skipped: 0,
-    errors: []
+    errors: [],
   };
 
   const batchSize = 100;
@@ -368,7 +432,9 @@ export const importEmployees = async (validatedEmployees, conflictResolutions, u
       batch.map(async (emp) => {
         try {
           console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-          console.log(`📝 ИМПОРТ СОТРУДНИКА: ${emp.lastName} ${emp.firstName} ${emp.middleName || ''}`);
+          console.log(
+            `📝 ИМПОРТ СОТРУДНИКА: ${emp.lastName} ${emp.firstName} ${emp.middleName || ""}`,
+          );
           // ⚠️ ПДН не выводятся в логи (ИНН, СНИЛС, КИГ удалены для безопасности)
           console.log(`   📋 Данные из файла:`, {
             hasInn: !!emp.inn,
@@ -378,7 +444,7 @@ export const importEmployees = async (validatedEmployees, conflictResolutions, u
             kigEndDate: emp.kigEndDate,
             citizenship: emp.citizenship?.name,
             position: emp.position?.name,
-            hasCounterparty: !!emp.counterparty
+            hasCounterparty: !!emp.counterparty,
           });
 
           // Проверяем конфликт по ИНН
@@ -392,7 +458,7 @@ export const importEmployees = async (validatedEmployees, conflictResolutions, u
           if (emp.inn) {
             console.log(`   🔍 Ищем по ИНН`);
             existingEmployee = await Employee.findOne({
-              where: { inn: emp.inn }
+              where: { inn: emp.inn },
             });
 
             if (existingEmployee) {
@@ -400,10 +466,10 @@ export const importEmployees = async (validatedEmployees, conflictResolutions, u
                 id: existingEmployee.id,
                 uuid: existingEmployee.id,
                 idAll: existingEmployee.idAll,
-                fio: `${existingEmployee.lastName} ${existingEmployee.firstName} ${existingEmployee.middleName || ''}`,
+                fio: `${existingEmployee.lastName} ${existingEmployee.firstName} ${existingEmployee.middleName || ""}`,
                 hasInn: !!existingEmployee.inn,
                 hasSnils: !!existingEmployee.snils,
-                hasCitizenship: !!existingEmployee.citizenshipId
+                hasCitizenship: !!existingEmployee.citizenshipId,
               });
             } else {
               console.log(`   ⚠️  По ИНН не найден, ищем по ФИО...`);
@@ -412,52 +478,64 @@ export const importEmployees = async (validatedEmployees, conflictResolutions, u
 
           // ШАГ 2: Если не нашли по ИНН - ищем по ФИО среди сотрудников ЭТОГО контрагента
           if (!existingEmployee && emp.firstName && emp.lastName) {
-            console.log(`   🔍 Ищем по ФИО среди сотрудников контрагента: ${emp.lastName} ${emp.firstName} ${emp.middleName || ''}`);
-            
+            console.log(
+              `   🔍 Ищем по ФИО среди сотрудников контрагента: ${emp.lastName} ${emp.firstName} ${emp.middleName || ""}`,
+            );
+
             // Сначала ищем всех сотрудников с таким ФИО
             const candidateEmployees = await Employee.findAll({
               where: {
                 firstName: emp.firstName,
                 lastName: emp.lastName,
-                middleName: emp.middleName || null
-              }
+                middleName: emp.middleName || null,
+              },
             });
 
-            console.log(`   📊 Найдено кандидатов с таким ФИО: ${candidateEmployees.length}`);
+            console.log(
+              `   📊 Найдено кандидатов с таким ФИО: ${candidateEmployees.length}`,
+            );
 
             if (candidateEmployees.length > 0) {
               // Вместо запроса в цикле делаем один батч-запрос маппингов.
-              const candidateEmployeeIds = candidateEmployees.map((candidate) => candidate.id);
-              const candidateMappings = await EmployeeCounterpartyMapping.findAll({
-                where: {
-                  employeeId: { [Op.in]: candidateEmployeeIds },
-                  counterpartyId: userCounterparty.id
-                },
-                attributes: ['employeeId']
-              });
+              const candidateEmployeeIds = candidateEmployees.map(
+                (candidate) => candidate.id,
+              );
+              const candidateMappings =
+                await EmployeeCounterpartyMapping.findAll({
+                  where: {
+                    employeeId: { [Op.in]: candidateEmployeeIds },
+                    counterpartyId: userCounterparty.id,
+                  },
+                  attributes: ["employeeId"],
+                });
 
               const mappedEmployeeIds = new Set(
-                candidateMappings.map((mapping) => String(mapping.employeeId))
+                candidateMappings.map((mapping) => String(mapping.employeeId)),
               );
               const matchedCandidate = candidateEmployees.find((candidate) =>
-                mappedEmployeeIds.has(String(candidate.id))
+                mappedEmployeeIds.has(String(candidate.id)),
               );
 
               if (matchedCandidate) {
                 existingEmployee = matchedCandidate;
-                console.log(`   ✅ Найден сотрудник по ФИО (у этого контрагента):`, {
-                  id: existingEmployee.id,
-                  uuid: existingEmployee.id,
-                  idAll: existingEmployee.idAll,
-                  hasInn: !!existingEmployee.inn,
-                  hasSnils: !!existingEmployee.snils,
-                  hasCitizenship: !!existingEmployee.citizenshipId
-                });
+                console.log(
+                  `   ✅ Найден сотрудник по ФИО (у этого контрагента):`,
+                  {
+                    id: existingEmployee.id,
+                    uuid: existingEmployee.id,
+                    idAll: existingEmployee.idAll,
+                    hasInn: !!existingEmployee.inn,
+                    hasSnils: !!existingEmployee.snils,
+                    hasCitizenship: !!existingEmployee.citizenshipId,
+                  },
+                );
               }
             }
 
             if (!existingEmployee) {
-              console.log(`   ⚠️  По ФИО не найден среди сотрудников этого контрагента`);
+              console.log(
+                `   ⚠️  По ФИО не найден среди сотрудников этого контрагента`,
+              );
             }
           }
 
@@ -465,9 +543,9 @@ export const importEmployees = async (validatedEmployees, conflictResolutions, u
           if (existingEmployee) {
             // Сотрудник найден - обновляем
             console.log(`   🔄 ОБНОВЛЕНИЕ существующего сотрудника`);
-            
+
             // Проверяем разрешение конфликта
-            if (resolution === 'skip') {
+            if (resolution === "skip") {
               console.log(`   ⏭️  Пользователь выбрал "Пропустить"`);
               results.skipped++;
               return;
@@ -479,56 +557,90 @@ export const importEmployees = async (validatedEmployees, conflictResolutions, u
 
             if (emp.firstName && emp.firstName !== existingEmployee.firstName) {
               updateData.firstName = emp.firstName;
-              changes.push(`firstName: ${existingEmployee.firstName} → ${emp.firstName}`);
+              changes.push(
+                `firstName: ${existingEmployee.firstName} → ${emp.firstName}`,
+              );
             }
             if (emp.lastName && emp.lastName !== existingEmployee.lastName) {
               updateData.lastName = emp.lastName;
-              changes.push(`lastName: ${existingEmployee.lastName} → ${emp.lastName}`);
+              changes.push(
+                `lastName: ${existingEmployee.lastName} → ${emp.lastName}`,
+              );
             }
-            if (emp.middleName && emp.middleName !== existingEmployee.middleName) {
+            if (
+              emp.middleName &&
+              emp.middleName !== existingEmployee.middleName
+            ) {
               updateData.middleName = emp.middleName;
-              changes.push(`middleName: ${existingEmployee.middleName} → ${emp.middleName}`);
+              changes.push(
+                `middleName: ${existingEmployee.middleName} → ${emp.middleName}`,
+              );
             }
             if (emp.inn && emp.inn !== existingEmployee.inn) {
               updateData.inn = emp.inn;
-              changes.push(`inn: ${existingEmployee.inn || 'пусто'} → ${emp.inn}`);
+              changes.push(
+                `inn: ${existingEmployee.inn || "пусто"} → ${emp.inn}`,
+              );
             }
             if (emp.snils && emp.snils !== existingEmployee.snils) {
               updateData.snils = emp.snils;
-              changes.push(`snils: ${existingEmployee.snils || 'пусто'} → ${emp.snils}`);
+              changes.push(
+                `snils: ${existingEmployee.snils || "пусто"} → ${emp.snils}`,
+              );
             }
             if (emp.kig && emp.kig !== existingEmployee.kig) {
               updateData.kig = emp.kig;
-              changes.push(`kig: ${existingEmployee.kig || 'пусто'} → ${emp.kig}`);
+              changes.push(
+                `kig: ${existingEmployee.kig || "пусто"} → ${emp.kig}`,
+              );
             }
             if (emp.birthDate && emp.birthDate !== existingEmployee.birthDate) {
               updateData.birthDate = emp.birthDate;
-              changes.push(`birthDate: ${existingEmployee.birthDate || 'пусто'} → ${emp.birthDate}`);
+              changes.push(
+                `birthDate: ${existingEmployee.birthDate || "пусто"} → ${emp.birthDate}`,
+              );
             }
-            if (emp.kigEndDate && emp.kigEndDate !== existingEmployee.kigEndDate) {
+            if (
+              emp.kigEndDate &&
+              emp.kigEndDate !== existingEmployee.kigEndDate
+            ) {
               updateData.kigEndDate = emp.kigEndDate;
-              changes.push(`kigEndDate: ${existingEmployee.kigEndDate || 'пусто'} → ${emp.kigEndDate}`);
+              changes.push(
+                `kigEndDate: ${existingEmployee.kigEndDate || "пусто"} → ${emp.kigEndDate}`,
+              );
             }
-            if (emp.position?.id && emp.position.id !== existingEmployee.positionId) {
+            if (
+              emp.position?.id &&
+              emp.position.id !== existingEmployee.positionId
+            ) {
               updateData.positionId = emp.position.id;
-              changes.push(`positionId: ${existingEmployee.positionId || 'пусто'} → ${emp.position.id}`);
+              changes.push(
+                `positionId: ${existingEmployee.positionId || "пусто"} → ${emp.position.id}`,
+              );
             }
-            if (emp.citizenship?.id && emp.citizenship.id !== existingEmployee.citizenshipId) {
+            if (
+              emp.citizenship?.id &&
+              emp.citizenship.id !== existingEmployee.citizenshipId
+            ) {
               updateData.citizenshipId = emp.citizenship.id;
-              changes.push(`citizenshipId: ${existingEmployee.citizenshipId || 'пусто'} → ${emp.citizenship.id}`);
+              changes.push(
+                `citizenshipId: ${existingEmployee.citizenshipId || "пусто"} → ${emp.citizenship.id}`,
+              );
             }
 
             if (Object.keys(updateData).length > 0) {
               updateData.updatedBy = userId;
               await existingEmployee.update(updateData);
-              console.log(`   ✅ ОБНОВЛЕНО полей: ${Object.keys(updateData).length - 1}`);
+              console.log(
+                `   ✅ ОБНОВЛЕНО полей: ${Object.keys(updateData).length - 1}`,
+              );
               console.log(`   📝 Изменения:`, changes);
               results.updated++;
             } else {
               console.log(`   ℹ️  Нет изменений - данные совпадают`);
               results.skipped++;
             }
-            
+
             employee = existingEmployee;
           } else {
             // Сотрудник не найден - создаем нового
@@ -544,77 +656,99 @@ export const importEmployees = async (validatedEmployees, conflictResolutions, u
               kigEndDate: emp.kigEndDate,
               positionId: emp.position?.id,
               citizenshipId: emp.citizenship?.id,
-              createdBy: userId
+              createdBy: userId,
             });
             isCreated = true;
             console.log(`   ✅ СОЗДАН новый сотрудник:`, {
               id: employee.id,
               uuid: employee.id,
               inn: employee.inn,
-              snils: employee.snils
+              snils: employee.snils,
             });
             results.created++;
           }
 
           // 🔗 КРИТИЧЕСКИ ВАЖНО: Создаем маппинг сотрудник-контрагент
           // Определяем целевого контрагента: из validated или пользователя
-          const targetCounterpartyId = emp.counterparty?.id || userCounterpartyId;
+          const targetCounterpartyId =
+            emp.counterparty?.id || userCounterpartyId;
           const targetCounterparty = emp.counterparty || userCounterparty;
-          
-          console.log(`   🔗 Проверка маппинга с контрагентом ${targetCounterparty.name}`);
+
+          console.log(
+            `   🔗 Проверка маппинга с контрагентом ${targetCounterparty.name}`,
+          );
           const existingMapping = await EmployeeCounterpartyMapping.findOne({
             where: {
               employeeId: employee.id,
-              counterpartyId: targetCounterpartyId
-            }
+              counterpartyId: targetCounterpartyId,
+            },
           });
 
           if (!existingMapping) {
             await EmployeeCounterpartyMapping.create({
               employeeId: employee.id,
               counterpartyId: targetCounterpartyId,
-              createdBy: userId
+              createdBy: userId,
             });
-            console.log(`   ✅ СОЗДАН маппинг сотрудник → контрагент (ID: ${targetCounterpartyId}, ${targetCounterparty.name})`);
+            console.log(
+              `   ✅ СОЗДАН маппинг сотрудник → контрагент (ID: ${targetCounterpartyId}, ${targetCounterparty.name})`,
+            );
           } else {
-            console.log(`   ℹ️  Маппинг уже существует (ID: ${existingMapping.id})`);
+            console.log(
+              `   ℹ️  Маппинг уже существует (ID: ${existingMapping.id})`,
+            );
           }
 
           // 🎯 АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ СТАТУСОВ в зависимости от полноты данных
           try {
             // Перезагружаем сотрудника с включенным citizenship для проверки полноты
             await employee.reload({
-              include: [{
-                model: Citizenship,
-                as: 'citizenship'
-              }]
+              include: [
+                {
+                  model: Citizenship,
+                  as: "citizenship",
+                },
+              ],
             });
 
             // Обновляем статусы на основе полноты карточки
-            const { isComplete, statusNames, missingFields } = await updateEmployeeStatusesByCompleteness(
-              employee,
-              formConfig,
-              statusMap,
-              userId
-            );
+            const { isComplete, statusNames, missingFields } =
+              await updateEmployeeStatusesByCompleteness(
+                employee,
+                formConfig,
+                statusMap,
+                userId,
+              );
 
             // Логируем результаты проверки полноты
             if (isComplete) {
               if (isCreated) {
-                console.log(`   🎉 НОВЫЙ сотрудник с ПОЛНЫМИ данными → активен!`);
+                console.log(
+                  `   🎉 НОВЫЙ сотрудник с ПОЛНЫМИ данными → активен!`,
+                );
               } else {
-                console.log(`   🎉 Сотрудник ОБНОВЛЕН и имеет ПОЛНЫЕ данные → активен!`);
+                console.log(
+                  `   🎉 Сотрудник ОБНОВЛЕН и имеет ПОЛНЫЕ данные → активен!`,
+                );
               }
             } else {
               if (isCreated) {
-                console.log(`   📝 Новый сотрудник в статусе ЧЕРНОВИК (не хватает ${missingFields.length} полей)`);
+                console.log(
+                  `   📝 Новый сотрудник в статусе ЧЕРНОВИК (не хватает ${missingFields.length} полей)`,
+                );
               } else {
-                console.log(`   📝 Сотрудник обновлен, статус ЧЕРНОВИК сохранен (не хватает ${missingFields.length} полей)`);
+                console.log(
+                  `   📝 Сотрудник обновлен, статус ЧЕРНОВИК сохранен (не хватает ${missingFields.length} полей)`,
+                );
               }
             }
           } catch (statusError) {
-            console.error(`   ⚠️  Ошибка при обновлении статусов: ${statusError.message}`);
-            console.error(`   ℹ️  Сотрудник импортирован, но статусы не обновлены`);
+            console.error(
+              `   ⚠️  Ошибка при обновлении статусов: ${statusError.message}`,
+            );
+            console.error(
+              `   ℹ️  Сотрудник импортирован, но статусы не обновлены`,
+            );
             // Не останавливаем импорт, продолжаем
           }
 
@@ -624,27 +758,36 @@ export const importEmployees = async (validatedEmployees, conflictResolutions, u
               await userCounterparty.update({ kpp: emp.kppToUpdate });
               console.log(`   ✅ Обновлен КПП контрагента: ${emp.kppToUpdate}`);
             } catch (kppError) {
-              console.warn(`   ⚠️  Не удалось обновить КПП контрагента: ${kppError.message}`);
+              console.warn(
+                `   ⚠️  Не удалось обновить КПП контрагента: ${kppError.message}`,
+              );
               // Не добавляем в errors, т.к. сотрудник успешно создан
             }
           }
 
-          console.log(`✅ ЗАВЕРШЕНО: ${emp.lastName} ${emp.firstName} - ${isCreated ? 'СОЗДАН' : 'ОБНОВЛЕН'}`);
+          console.log(
+            `✅ ЗАВЕРШЕНО: ${emp.lastName} ${emp.firstName} - ${isCreated ? "СОЗДАН" : "ОБНОВЛЕН"}`,
+          );
           console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
         } catch (error) {
-          console.error(`❌ ОШИБКА при импорте сотрудника ${emp.lastName} ${emp.firstName}:`, error.message);
+          console.error(
+            `❌ ОШИБКА при импорте сотрудника ${emp.lastName} ${emp.firstName}:`,
+            error.message,
+          );
           console.error(`   Stack:`, error.stack);
           results.errors.push({
             rowIndex: emp.rowIndex,
             lastName: emp.lastName,
-            error: error.message
+            error:
+              process.env.NODE_ENV === "development"
+                ? error.message
+                : "Внутренняя ошибка при обработке записи",
           });
         }
-      })
+      }),
     );
   }
 
-  console.log('✅ Импорт завершен:', results);
+  console.log("✅ Импорт завершен:", results);
   return results;
 };
-

@@ -35,13 +35,6 @@ import OtContractorDocumentHistory from "./OtContractorDocumentHistory.js";
 import OtContractorStatus from "./OtContractorStatus.js";
 import OtContractorStatusHistory from "./OtContractorStatusHistory.js";
 import OtComment from "./OtComment.js";
-import SkudPersonBinding from "./SkudPersonBinding.js";
-import SkudAccessState from "./SkudAccessState.js";
-import SkudCard from "./SkudCard.js";
-import SkudAccessEvent from "./SkudAccessEvent.js";
-import SkudSyncJob from "./SkudSyncJob.js";
-import SkudQrToken from "./SkudQrToken.js";
-import OcrMvdTestRun from "./OcrMvdTestRun.js";
 import TelegramAccount from "./TelegramAccount.js";
 import TelegramLinkCode from "./TelegramLinkCode.js";
 import TelegramCommandLog from "./TelegramCommandLog.js";
@@ -65,25 +58,6 @@ User.hasMany(UnauthorizedAccessLog, {
   as: "unauthorizedAccessLogs",
 });
 UnauthorizedAccessLog.belongsTo(User, { foreignKey: "user_id", as: "user" });
-
-// User -> OCR/MVD debug runs
-User.hasMany(OcrMvdTestRun, {
-  foreignKey: "user_id",
-  as: "ocrMvdTestRuns",
-});
-OcrMvdTestRun.belongsTo(User, {
-  foreignKey: "user_id",
-  as: "user",
-});
-
-Employee.hasMany(OcrMvdTestRun, {
-  foreignKey: "employee_id",
-  as: "ocrMvdTestRuns",
-});
-OcrMvdTestRun.belongsTo(Employee, {
-  foreignKey: "employee_id",
-  as: "employee",
-});
 
 // User -> RefreshToken (сессии)
 User.hasMany(RefreshToken, { foreignKey: "user_id", as: "refreshTokens" });
@@ -214,61 +188,6 @@ Counterparty.belongsTo(User, { foreignKey: "updated_by", as: "updater" });
 Employee.hasMany(Pass, { foreignKey: "employee_id", as: "passes" });
 Pass.belongsTo(Employee, { foreignKey: "employee_id", as: "employee" });
 
-// Employee -> SKUD entities
-Employee.hasMany(SkudPersonBinding, {
-  foreignKey: "employee_id",
-  as: "skudBindings",
-});
-SkudPersonBinding.belongsTo(Employee, {
-  foreignKey: "employee_id",
-  as: "employee",
-});
-
-Employee.hasMany(SkudAccessState, {
-  foreignKey: "employee_id",
-  as: "skudAccessStates",
-});
-SkudAccessState.belongsTo(Employee, {
-  foreignKey: "employee_id",
-  as: "employee",
-});
-
-Employee.hasMany(SkudCard, {
-  foreignKey: "employee_id",
-  as: "skudCards",
-});
-SkudCard.belongsTo(Employee, {
-  foreignKey: "employee_id",
-  as: "employee",
-});
-
-Employee.hasMany(SkudAccessEvent, {
-  foreignKey: "employee_id",
-  as: "skudAccessEvents",
-});
-SkudAccessEvent.belongsTo(Employee, {
-  foreignKey: "employee_id",
-  as: "employee",
-});
-
-Employee.hasMany(SkudSyncJob, {
-  foreignKey: "employee_id",
-  as: "skudSyncJobs",
-});
-SkudSyncJob.belongsTo(Employee, {
-  foreignKey: "employee_id",
-  as: "employee",
-});
-
-Employee.hasMany(SkudQrToken, {
-  foreignKey: "employee_id",
-  as: "skudQrTokens",
-});
-SkudQrToken.belongsTo(Employee, {
-  foreignKey: "employee_id",
-  as: "employee",
-});
-
 // Employee -> Telegram entities
 Employee.hasOne(TelegramAccount, {
   foreignKey: "employee_id",
@@ -311,56 +230,6 @@ User.hasMany(Pass, { foreignKey: "issued_by", as: "issuedPasses" });
 User.hasMany(Pass, { foreignKey: "revoked_by", as: "revokedPasses" });
 Pass.belongsTo(User, { foreignKey: "issued_by", as: "issuer" });
 Pass.belongsTo(User, { foreignKey: "revoked_by", as: "revoker" });
-
-// User -> SKUD entities (audit links)
-User.hasMany(SkudPersonBinding, {
-  foreignKey: "created_by",
-  as: "createdSkudBindings",
-});
-User.hasMany(SkudPersonBinding, {
-  foreignKey: "updated_by",
-  as: "updatedSkudBindings",
-});
-SkudPersonBinding.belongsTo(User, {
-  foreignKey: "created_by",
-  as: "creator",
-});
-SkudPersonBinding.belongsTo(User, {
-  foreignKey: "updated_by",
-  as: "updater",
-});
-
-User.hasMany(SkudAccessState, {
-  foreignKey: "changed_by",
-  as: "changedSkudAccessStates",
-});
-SkudAccessState.belongsTo(User, {
-  foreignKey: "changed_by",
-  as: "changedByUser",
-});
-
-User.hasMany(SkudCard, { foreignKey: "created_by", as: "createdSkudCards" });
-User.hasMany(SkudCard, { foreignKey: "updated_by", as: "updatedSkudCards" });
-SkudCard.belongsTo(User, { foreignKey: "created_by", as: "creator" });
-SkudCard.belongsTo(User, { foreignKey: "updated_by", as: "updater" });
-
-User.hasMany(SkudSyncJob, {
-  foreignKey: "created_by",
-  as: "createdSkudSyncJobs",
-});
-SkudSyncJob.belongsTo(User, {
-  foreignKey: "created_by",
-  as: "creator",
-});
-
-User.hasMany(SkudQrToken, {
-  foreignKey: "issued_by",
-  as: "issuedSkudQrTokens",
-});
-SkudQrToken.belongsTo(User, {
-  foreignKey: "issued_by",
-  as: "issuer",
-});
 
 User.hasMany(TelegramLinkCode, {
   foreignKey: "created_by",
@@ -886,15 +755,8 @@ export {
   OtContractorStatus,
   OtContractorStatusHistory,
   OtComment,
-  SkudPersonBinding,
-  SkudAccessState,
-  SkudCard,
-  SkudAccessEvent,
-  SkudSyncJob,
-  SkudQrToken,
   TelegramAccount,
   TelegramLinkCode,
   TelegramCommandLog,
   TelegramNotificationLog,
-  OcrMvdTestRun,
 };

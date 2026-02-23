@@ -2,8 +2,6 @@ import EmployeeBasicInfoHeader from "./EmployeeBasicInfoHeader.jsx";
 import EmployeeBasicInfoPrimaryRows from "./EmployeeBasicInfoPrimaryRows.jsx";
 import EmployeeBasicInfoSecondaryRows from "./EmployeeBasicInfoSecondaryRows.jsx";
 
-const EMPTY_OCR_CONFLICTS = {};
-
 const EmployeeBasicInfoTab = ({
   employee,
   messageApi,
@@ -20,7 +18,6 @@ const EmployeeBasicInfoTab = ({
   handleFullNameChange,
   handleInnBlur,
   dateFormat,
-  ocrConflictByField = EMPTY_OCR_CONFLICTS,
 }) => (
   <>
     <EmployeeBasicInfoHeader
@@ -42,7 +39,6 @@ const EmployeeBasicInfoTab = ({
       handleFullNameChange={handleFullNameChange}
       handleInnBlur={handleInnBlur}
       dateFormat={dateFormat}
-      ocrConflictByField={ocrConflictByField}
     />
 
     <EmployeeBasicInfoSecondaryRows

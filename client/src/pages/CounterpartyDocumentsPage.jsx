@@ -33,21 +33,18 @@ const { useBreakpoint } = Grid;
 const STATUS_OPTIONS = [
   { value: "uploaded", label: "Загружен" },
   { value: "not_uploaded", label: "Не загружен" },
-  { value: "ocr_verified", label: "Проверен OCR" },
   { value: "expiring", label: "Срок истекает" },
 ];
 
 const statusColorMap = {
   uploaded: "blue",
   not_uploaded: "default",
-  ocr_verified: "green",
   expiring: "orange",
 };
 
 const statusLabelMap = {
   uploaded: "Загружен",
   not_uploaded: "Не загружен",
-  ocr_verified: "Проверен OCR",
   expiring: "Срок истекает",
 };
 
@@ -159,7 +156,6 @@ const CounterpartyDocumentsPage = () => {
           byStatus: {
             uploaded: 0,
             not_uploaded: 0,
-            ocr_verified: 0,
             expiring: 0,
           },
         },
@@ -379,7 +375,6 @@ const CounterpartyDocumentsPage = () => {
       render: (_, row) => (
         <Space size={[4, 8]} wrap>
           <Tag color="blue">Всего: {row.stats.total}</Tag>
-          <Tag color="green">OCR: {row.stats.byStatus.ocr_verified || 0}</Tag>
           <Tag color="orange">Истекает: {row.stats.byStatus.expiring || 0}</Tag>
           <Tag>Не загружено: {row.stats.byStatus.not_uploaded || 0}</Tag>
         </Space>

@@ -26,20 +26,8 @@ import {
 } from "./useEmployeeLinkingMode";
 import useEmployeeReferences from "./useEmployeeReferences";
 import useEmployeeTabsValidation from "./useEmployeeTabsValidation";
-import {
-  DATE_FORMAT,
-  OCR_FILE_TYPE_LABELS,
-  MVD_TYPE_LABELS,
-  MVD_PARAM_LABELS,
-  MVD_PARAM_PLACEHOLDERS,
-  formatFieldValueForDisplay,
-} from "./employeeFormModalUtils";
-import EmployeeFormOcrSection from "@/modules/employees/ui/form/EmployeeFormOcrSection";
-import EmployeeFormMvdSection from "@/modules/employees/ui/form/EmployeeFormMvdSection";
-import EmployeeOcrConflictsModal from "@/modules/employees/ui/form/EmployeeOcrConflictsModal";
-import EmployeeMvdCheckModal from "@/modules/employees/ui/form/EmployeeMvdCheckModal";
+import { DATE_FORMAT } from "./employeeFormModalUtils";
 import BrowserAutofillTrap from "@/modules/employees/ui/form/BrowserAutofillTrap";
-import { useEmployeeFormOcrMvd } from "@/modules/employees/model/useEmployeeFormOcrMvd";
 import { useEmployeeFormInitialization } from "@/modules/employees/model/useEmployeeFormInitialization";
 import { useEmployeeFormSaveHandlers } from "@/modules/employees/model/useEmployeeFormSaveHandlers";
 import { useEmployeeFormInputHandlers } from "@/modules/employees/model/useEmployeeFormInputHandlers";
@@ -55,7 +43,6 @@ const EmployeeFormModal = ({
 }) => {
   const { message } = App.useApp();
   const [form] = Form.useForm();
-  const [mvdForm] = Form.useForm();
   const antiAutofillIds = useMemo(() => createAntiAutofillIds(), []);
   const [citizenships, setCitizenships] = useState([]);
   const [positions, setPositions] = useState([]);
@@ -65,15 +52,14 @@ const EmployeeFormModal = ({
   const [activeTab, setActiveTab] = useState("1");
   const [tabsValidation, setTabsValidation] = useState({
     1: false, // Личная информация
-    2: false, // Документы
-    3: false, // Патент
   });
   const [selectedCitizenship, setSelectedCitizenship] = useState(null);
   const [defaultCounterpartyId, setDefaultCounterpartyId] = useState(null);
   const [passportType, setPassportType] = useState(null); // Состояние для типа паспорта
   const [linkingMode, setLinkingMode] = useState(false); // 🎯 Режим привязки существующего сотрудника
   const { user } = useAuthStore();
-  const { formConfigDefault, formConfigExternal } = useReferencesStore();
+  const { formConfigDefault, formConfigExternal, settings } =
+    useReferencesStore();
   const [transferModalVisible, setTransferModalVisible] = useState(false); // Модальное окно перевода сотрудника
   const [availableCounterparties, setAvailableCounterparties] = useState([]); // Доступные контрагенты
   const [loadingCounterparties, setLoadingCounterparties] = useState(false); // Загрузка контрагентов
@@ -176,53 +162,7 @@ const EmployeeFormModal = ({
     tabsValidation,
   });
 
-  const {
-    ocrFiles,
-    loadingOcrFiles,
-    selectedOcrFileId,
-    setSelectedOcrFileId,
-    ocrRunning,
-    ocrConflicts,
-    ocrModalVisible,
-    ocrConflictByField,
-    setOcrConflictByField,
-    mvdModalVisible,
-    mvdMetaLoading,
-    mvdCheckLoading,
-    mvdSupportedTypes,
-    mvdSelectedType,
-    mvdResult,
-    mvdErrorText,
-    selectedOcrDocumentType,
-    selectedOcrDocumentLabel,
-    selectedMvdParams,
-    fetchOcrFiles,
-    handleStartDocumentOcr,
-    handleResolveConflictDecision,
-    handleApplyOcrConflicts,
-    handleCancelOcrConflictModal,
-    handleMvdTypeChange,
-    handleOpenMvdModal,
-    handleRunMvdCheck,
-    handleCloseMvdModal,
-  } = useEmployeeFormOcrMvd({
-    visible,
-    employeeId: employee?.id || null,
-    form,
-    mvdForm,
-    message,
-    passportType,
-    setPassportType,
-    citizenships,
-    updateSelectedCitizenship,
-  });
-
-  // Обработчик для обновления при изменении файлов
-  const handleFilesChange = () => {
-    if (employee?.id) {
-      fetchOcrFiles();
-    }
-  };
+  const handleFilesChange = useCallback(() => {}, []);
 
   const { isFormResetRef, handleSave, handleSaveDraft, scheduleAutoSaveDraft } =
     useEmployeeFormSaveHandlers({
@@ -258,7 +198,6 @@ const EmployeeFormModal = ({
     setPassportType,
     scheduleValidation,
     scheduleAutoSaveDraft,
-    setOcrConflictByField,
     isFormResetRef,
     filterCyrillicOnly,
     capitalizeFirstLetter,
@@ -269,32 +208,9 @@ const EmployeeFormModal = ({
     onCancel();
   };
 
-  const ocrSection = (
-    <EmployeeFormOcrSection
-      employeeId={employee?.id}
-      selectedOcrFileId={selectedOcrFileId}
-      loadingOcrFiles={loadingOcrFiles}
-      ocrRunning={ocrRunning}
-      onSelectFile={setSelectedOcrFileId}
-      onStartOcr={handleStartDocumentOcr}
-      onRefreshFiles={fetchOcrFiles}
-      selectedOcrDocumentType={selectedOcrDocumentType}
-      selectedOcrDocumentLabel={selectedOcrDocumentLabel}
-      ocrFiles={ocrFiles}
-      ocrFileTypeLabels={OCR_FILE_TYPE_LABELS}
-    />
-  );
-
-  const mvdSection = (
-    <EmployeeFormMvdSection
-      mvdMetaLoading={mvdMetaLoading}
-      mvdCheckLoading={mvdCheckLoading}
-      onOpenMvdModal={handleOpenMvdModal}
-    />
-  );
-
   const tabsItems = useEmployeeFormModalTabs({
     employee,
+    selectedCitizenship,
     message,
     onCancel,
     user,
@@ -308,18 +224,16 @@ const EmployeeFormModal = ({
     latinInputError,
     handleFullNameChange,
     handleInnBlur,
-    ocrConflictByField,
     requiresPatent,
     checkingCitizenship,
     passportType,
     setPassportType,
     dateFormat: DATE_FORMAT,
-    ocrSection,
-    mvdSection,
     availableCounterparties,
     loadingCounterparties,
     handleFilesChange,
     tabsValidation,
+    documentProfilesConfig: settings?.employeeDocumentProfiles || null,
   });
 
   // Контент формы
@@ -365,6 +279,7 @@ const EmployeeFormModal = ({
       onSaveDraft={handleSaveDraft}
       onSave={handleSave}
       onNext={handleNext}
+      allowTabNavigation={false}
     />
   );
 
@@ -384,35 +299,6 @@ const EmployeeFormModal = ({
       >
         {formContent}
       </Modal>
-
-      <EmployeeOcrConflictsModal
-        open={ocrModalVisible}
-        conflicts={ocrConflicts}
-        onCancel={handleCancelOcrConflictModal}
-        onApply={handleApplyOcrConflicts}
-        onDecisionChange={handleResolveConflictDecision}
-        formatFieldValue={(fieldName, value) =>
-          formatFieldValueForDisplay(fieldName, value, citizenships)
-        }
-      />
-
-      <EmployeeMvdCheckModal
-        open={mvdModalVisible}
-        onCancel={handleCloseMvdModal}
-        onRunCheck={handleRunMvdCheck}
-        confirmLoading={mvdCheckLoading}
-        mvdForm={mvdForm}
-        mvdSelectedType={mvdSelectedType}
-        mvdMetaLoading={mvdMetaLoading}
-        onTypeChange={handleMvdTypeChange}
-        mvdSupportedTypes={mvdSupportedTypes}
-        selectedMvdParams={selectedMvdParams}
-        mvdErrorText={mvdErrorText}
-        mvdResult={mvdResult}
-        mvdTypeLabels={MVD_TYPE_LABELS}
-        mvdParamLabels={MVD_PARAM_LABELS}
-        mvdParamPlaceholders={MVD_PARAM_PLACEHOLDERS}
-      />
 
       {/* Модальное окно перевода сотрудника в другую компанию */}
       <TransferEmployeeModal

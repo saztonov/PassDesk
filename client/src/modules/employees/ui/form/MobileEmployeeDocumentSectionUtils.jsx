@@ -1,5 +1,9 @@
 import dayjs from "dayjs";
 import EmployeeDocumentUpload from "@/components/Employees/EmployeeDocumentUpload";
+import {
+  getDocumentTypeCodesForProfile,
+  profileDocumentTypeLabels,
+} from "@/modules/employees/lib/documentTypeProfiles";
 
 const DATE_FORMAT = "DD.MM.YYYY";
 
@@ -34,73 +38,17 @@ export const createDateInputRules = (rules = []) => [
   },
 ];
 
-export const COMMON_UPLOADS = [
-  { documentType: "passport", label: "Паспорт", multiple: true, ocrRefresh: true },
-  {
-    documentType: "consent",
-    label: "Согласие на обработку персональных данных",
-    multiple: true,
-  },
-  {
-    documentType: "biometric_consent",
-    label: "Согласие на перс.дан. Генподряд",
-    multiple: true,
-  },
-  {
-    documentType: "biometric_consent_developer",
-    label: "Согласие на перс.дан. Застройщ",
-    multiple: true,
-  },
-  { documentType: "bank_details", label: "Реквизиты счета", multiple: true },
-  {
-    documentType: "diploma",
-    label: "Диплом / Документ об образовании",
-    multiple: true,
-  },
-  { documentType: "med_book", label: "Мед.книжка", multiple: true },
-  {
-    documentType: "migration_card",
-    label: "Миграционная карта",
-    multiple: true,
-  },
-  {
-    documentType: "arrival_notice",
-    label: "Уведомление о прибытии (регистрация)",
-    multiple: true,
-  },
-  {
-    documentType: "mvd_notification",
-    label: "Уведомление МВД",
-    multiple: true,
-  },
-];
-
-export const PATENT_UPLOADS = [
-  {
-    documentType: "kig",
-    label: "КИГ (Карта иностранного гражданина)",
-    multiple: true,
-    ocrRefresh: true,
-  },
-  { documentType: "visa", label: "Виза", multiple: true, ocrRefresh: true },
-  {
-    documentType: "patent_front",
-    label: "Патент лицевая сторона (с фото)",
-    multiple: false,
-    ocrRefresh: true,
-  },
-  {
-    documentType: "patent_back",
-    label: "Патент задняя сторона",
-    multiple: false,
-    ocrRefresh: true,
-  },
-  {
-    documentType: "patent_payment_receipt",
-    label: "Чек об оплате патента",
-    multiple: true,
-  },
-];
+export const getUploadsForDocumentProfile = (
+  profileCode,
+  profilesConfig = null,
+) =>
+  getDocumentTypeCodesForProfile(profileCode, profilesConfig).map(
+    (documentType) => ({
+      documentType,
+      label: profileDocumentTypeLabels[documentType] || documentType,
+      multiple: true,
+    }),
+  );
 
 export const renderUploads = ({
   uploads,
@@ -117,6 +65,6 @@ export const renderUploads = ({
       label={upload.label}
       readonly={false}
       multiple={upload.multiple}
-      onUploadComplete={upload.ocrRefresh ? handleDocumentUploadComplete : undefined}
+      onUploadComplete={handleDocumentUploadComplete}
     />
   ));

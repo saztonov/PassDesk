@@ -15,23 +15,44 @@ export const EmployeeActions = ({
   onImport,
   onSecurity,
   canExport,
+  compact = false,
 }) => {
   const { t } = useTranslation();
 
   return (
-    <Space size="middle">
-      <Button type="primary" icon={<FileExcelOutlined />} onClick={onRequest}>
+    <Space size={compact ? "small" : "middle"} wrap>
+      <Button
+        type="primary"
+        icon={<FileExcelOutlined />}
+        onClick={onRequest}
+        size={compact ? "middle" : "middle"}
+      >
         {t("employees.requestExcel")}
       </Button>
-      <Button type="default" icon={<FileExcelOutlined />} onClick={onImport}>
+      <Button
+        type="default"
+        icon={<FileExcelOutlined />}
+        onClick={onImport}
+        size={compact ? "middle" : "middle"}
+      >
         {t("employees.importExcel")}
       </Button>
       {canExport && (
-        <Button type="default" icon={<LockOutlined />} onClick={onSecurity}>
+        <Button
+          type="default"
+          icon={<LockOutlined />}
+          onClick={onSecurity}
+          size={compact ? "middle" : "middle"}
+        >
           {t("employees.security")}
         </Button>
       )}
-      <Button type="default" icon={<PlusOutlined />} onClick={onAdd}>
+      <Button
+        type="default"
+        icon={<PlusOutlined />}
+        onClick={onAdd}
+        size={compact ? "middle" : "middle"}
+      >
         {t("employees.addEmployee")}
       </Button>
     </Space>

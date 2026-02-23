@@ -3,6 +3,10 @@ import { body } from 'express-validator';
 import { validate } from '../middleware/validator.js';
 import * as authController from '../controllers/auth.controller.js';
 import { authenticate, authenticateForLogout } from '../middleware/auth.js';
+import {
+  PASSWORD_MIN_LENGTH,
+  getPasswordMinLengthMessage,
+} from '../utils/passwordPolicy.js';
 
 const router = express.Router();
 
@@ -14,7 +18,9 @@ const loginValidation = [
 
 const registerValidation = [
   body('email').isEmail().normalizeEmail().withMessage('Введите корректный email'),
-  body('password').isLength({ min: 8 }).withMessage('Пароль должен содержать минимум 8 символов'),
+  body('password')
+    .isLength({ min: PASSWORD_MIN_LENGTH })
+    .withMessage(getPasswordMinLengthMessage('Пароль')),
   body('fullName').notEmpty().trim().withMessage('ФИО обязательно')
 ];
 
@@ -27,4 +33,3 @@ router.post('/refresh', authController.refreshToken);
 router.get('/me', authenticate, authController.getCurrentUser);
 
 export default router;
-

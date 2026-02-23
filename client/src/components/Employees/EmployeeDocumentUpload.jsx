@@ -19,7 +19,7 @@ import {
  * Используется для мобильной версии формы
  *
  * @param {string} employeeId - ID сотрудника
- * @param {string} documentType - Тип документа (passport, consent, biometric_consent, biometric_consent_developer, bank_details, kig, patent_front, patent_back, diploma, med_book, migration_card, arrival_notice, patent_payment_receipt, mvd_notification)
+ * @param {string} documentType - Тип документа (passport, passport_translation, consent, biometric_consent, biometric_consent_developer, bank_details, snils_card, patent_front, patent_back, visa, diploma, arrival_notice, patent_payment_receipt)
  * @param {string} label - Название поля для отображения
  * @param {boolean} readonly - Режим только для чтения
  * @param {boolean} multiple - Разрешить загрузку нескольких файлов

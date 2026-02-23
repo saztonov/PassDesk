@@ -1,9 +1,8 @@
-import { Alert, Form, Input, Select, Typography } from "antd";
+import { Form, Input, Select, Typography } from "antd";
 import {
-  COMMON_UPLOADS,
-  PATENT_UPLOADS,
   createDateInputRules,
   formatDateInputValue,
+  getUploadsForDocumentProfile,
 } from "./MobileEmployeeDocumentSectionUtils";
 import MobileEmployeeUploadsSection from "./MobileEmployeeUploadsSection";
 
@@ -13,17 +12,15 @@ const { Option } = Select;
 
 export const buildMobileEmployeeDocumentsSection = ({
   getFieldProps,
-  requiresPatent,
   formatSnils,
-  formatKig,
   passportType,
   setPassportType,
   formatRussianPassportNumber,
   noAutoFillProps,
-  mobileOcrState,
   employee,
   ensureEmployeeId,
-  handleDocumentUploadComplete,
+  profileCode,
+  profilesConfig,
 }) => ({
   key: "documents",
   label: (
@@ -58,41 +55,6 @@ export const buildMobileEmployeeDocumentsSection = ({
             size="large"
             {...noAutoFillProps}
           />
-        </Form.Item>
-      )}
-
-      {requiresPatent && !getFieldProps("kig").hidden && (
-        <Form.Item
-          label="КИГ (Карта иностранного гражданина)"
-          name="kig"
-          required={getFieldProps("kig").required}
-          rules={[
-            ...getFieldProps("kig").rules,
-            {
-              pattern: /^[A-Z]{2}\s?\d{7}$/i,
-              message: "КИГ должен быть в формате: AF 1234567",
-            },
-          ]}
-          getValueFromEvent={(e) => formatKig(e.target.value)}
-        >
-          <Input
-            placeholder="AF 1234567"
-            size="large"
-            maxLength={10}
-            {...noAutoFillProps}
-          />
-        </Form.Item>
-      )}
-
-      {requiresPatent && !getFieldProps("kigEndDate").hidden && (
-        <Form.Item
-          label="Дата окончания КИГ"
-          name="kigEndDate"
-          required={getFieldProps("kigEndDate").required}
-          rules={createDateInputRules(getFieldProps("kigEndDate").rules)}
-          normalize={formatDateInputValue}
-        >
-          <Input placeholder="ДД.ММ.ГГГГ" size="large" {...noAutoFillProps} />
         </Form.Item>
       )}
 
@@ -183,47 +145,11 @@ export const buildMobileEmployeeDocumentsSection = ({
         <Text strong>Фото и файлы документов</Text>
       </div>
 
-      {mobileOcrState.status !== "idle" && (
-        <Alert
-          showIcon
-          type={
-            mobileOcrState.status === "running"
-              ? "info"
-              : mobileOcrState.status === "success"
-                ? "success"
-                : mobileOcrState.status === "warning"
-                  ? "warning"
-                  : "error"
-          }
-          style={{ marginBottom: 12 }}
-          message={mobileOcrState.message}
-          description={
-            <>
-              <div>{mobileOcrState.details}</div>
-              {mobileOcrState.appliedFields.length > 0 && (
-                <div>
-                  Применены поля: {mobileOcrState.appliedFields.join(", ")}
-                </div>
-              )}
-            </>
-          }
-        />
-      )}
-
       <MobileEmployeeUploadsSection
-        uploads={COMMON_UPLOADS}
+        uploads={getUploadsForDocumentProfile(profileCode, profilesConfig)}
         employee={employee}
         ensureEmployeeId={ensureEmployeeId}
-        handleDocumentUploadComplete={handleDocumentUploadComplete}
       />
-      {requiresPatent && (
-        <MobileEmployeeUploadsSection
-          uploads={PATENT_UPLOADS}
-          employee={employee}
-          ensureEmployeeId={ensureEmployeeId}
-          handleDocumentUploadComplete={handleDocumentUploadComplete}
-        />
-      )}
     </>
   ),
 });

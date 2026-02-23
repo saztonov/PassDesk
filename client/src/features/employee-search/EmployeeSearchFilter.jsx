@@ -16,9 +16,11 @@ export const EmployeeSearchFilter = ({
   onSearchChange,
   statusFilter,
   onStatusFilterChange,
+  compact = false,
 }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const useCompactLayout = isMobile || compact;
 
   // Нормализация значения: удаление черточек, тире, минусов и пробелов на конце/начале
   const handleSearchChange = (value) => {
@@ -140,8 +142,8 @@ export const EmployeeSearchFilter = ({
         display: "flex",
         gap: 8,
         alignItems: "center",
-        width: isMobile ? "100%" : "auto",
-        flex: isMobile ? 1 : "auto",
+        width: useCompactLayout ? "100%" : "auto",
+        flex: useCompactLayout ? 1 : "auto",
       }}
     >
       <Input
@@ -149,7 +151,10 @@ export const EmployeeSearchFilter = ({
         prefix={<SearchOutlined />}
         value={searchText}
         onChange={(e) => handleSearchChange(e.target.value)}
-        style={{ width: isMobile ? "100%" : 350, flex: isMobile ? 1 : "auto" }}
+        style={{
+          width: useCompactLayout ? "100%" : 350,
+          flex: useCompactLayout ? 1 : "auto",
+        }}
         allowClear
       />
 

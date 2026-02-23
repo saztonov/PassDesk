@@ -25,6 +25,14 @@ import {
   stripStatusFlags,
 } from "./employeeFormModelUtils";
 
+const TEMP_HIDDEN_FIELDS = new Set([
+  "birthCountryId",
+  "passportType",
+  "passportExpiryDate",
+  "kig",
+  "kigEndDate",
+]);
+
 /**
  * Хук для управления формой сотрудника
  * Содержит общую логику для десктопной и мобильной версий
@@ -55,6 +63,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
   const [loadingReferences, setLoadingReferences] = useState(false);
   const [selectedCitizenship, setSelectedCitizenship] = useState(null);
   const [defaultCounterpartyId, setDefaultCounterpartyId] = useState(null);
+  const [documentProfilesConfig, setDocumentProfilesConfig] = useState(null);
   const [activeConfig, setActiveConfig] = useState(DEFAULT_FORM_CONFIG);
 
   // Определяем, требуется ли патент для выбранного гражданства
@@ -73,6 +82,14 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
 
   // Хелпер для получения настроек поля
   const getFieldProps = (fieldName) => {
+    if (TEMP_HIDDEN_FIELDS.has(fieldName)) {
+      return {
+        hidden: true,
+        rules: [],
+        required: false,
+      };
+    }
+
     const fieldConfig = activeConfig[fieldName] || {
       visible: true,
       required: false,
@@ -104,6 +121,9 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
   useEffect(() => {
     if (cachedSettings) {
       setDefaultCounterpartyId(cachedSettings.defaultCounterpartyId);
+      setDocumentProfilesConfig(
+        cachedSettings.employeeDocumentProfiles || null,
+      );
     }
   }, [cachedSettings]);
 
@@ -131,6 +151,9 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
 
         const dcId = settingsData?.defaultCounterpartyId;
         setDefaultCounterpartyId(dcId);
+        setDocumentProfilesConfig(
+          settingsData?.employeeDocumentProfiles || null,
+        );
 
         // Загружаем объекты строительства с учетом контрагента
         // (Объекты строительства не кэшируем глобально, т.к. они зависят от counterpartyId)
@@ -298,6 +321,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
     selectedCitizenship,
     requiresPatent,
     defaultCounterpartyId,
+    documentProfilesConfig,
     user,
     handleCitizenshipChange,
     handleSave,

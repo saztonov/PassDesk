@@ -16,11 +16,8 @@ import UserProfilePage from "./pages/UserProfilePage";
 import AdministrationPage from "./pages/AdministrationPage";
 import DirectoriesPage from "./pages/DirectoriesPage";
 import DebugPage from "./pages/DebugPage";
-import OcrMvdTestPage from "./pages/OcrMvdTestPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import OccupationalSafetyPage from "./pages/OccupationalSafetyPage";
-import SkudAdministrationPage from "./pages/SkudAdministrationPage";
-import AnalyticsPage from "./pages/AnalyticsPage";
 import ProtectedRoute from "./components/Auth/ProtectedRoute";
 import { useTokenRefresh } from "./hooks/useTokenRefresh";
 import { useAuthBootstrap } from "./hooks/useAuthBootstrap";
@@ -53,7 +50,6 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/blocked" element={<BlockedAccountPage />} />
           <Route path="/debug" element={<DebugPage />} />
-          <Route path="/debug/ocr-mvd" element={<OcrMvdTestPage />} />
 
           {/* Protected routes с Layout */}
           <Route
@@ -146,23 +142,6 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="analytics"
-              element={
-                <ProtectedRoute
-                  allowedRoles={[
-                    "admin",
-                    "manager",
-                    "user",
-                    "ot_engineer",
-                    "ot_admin",
-                  ]}
-                >
-                  <AnalyticsPage />
-                </ProtectedRoute>
-              }
-            />
-
             {/* Route for directories (admin only) */}
             <Route
               path="directories"
@@ -189,16 +168,6 @@ function App() {
                   allowedRoles={["admin", "user", "ot_engineer", "ot_admin"]}
                 >
                   <OccupationalSafetyPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="skud"
-              element={
-                <ProtectedRoute
-                  allowedRoles={["admin", "ot_engineer", "ot_admin"]}
-                >
-                  <SkudAdministrationPage />
                 </ProtectedRoute>
               }
             />

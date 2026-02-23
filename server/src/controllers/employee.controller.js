@@ -2838,13 +2838,20 @@ export const searchEmployees = async (req, res, next) => {
 
     // Переопределяем логику поиска
 
-    const include = [
-      {
-        model: Counterparty,
-        as: "counterparty",
-        attributes: ["id", "name"],
-      },
-    ];
+    const counterpartyMappingInclude = {
+      model: EmployeeCounterpartyMapping,
+      as: "employeeCounterpartyMappings",
+      required: false,
+      attributes: ["counterpartyId"],
+      include: [
+        {
+          model: Counterparty,
+          as: "counterparty",
+          attributes: ["id", "name"],
+        },
+      ],
+    };
+    const include = [counterpartyMappingInclude];
 
     // Если пользователь не админ, добавляем фильтр по маппингу или createdBy
     if (req.user.role !== "admin") {
@@ -2856,23 +2863,15 @@ export const searchEmployees = async (req, res, next) => {
         where.createdBy = userId;
       } else {
         // Фильтруем через маппинг
-        include.push({
-          model: EmployeeCounterpartyMapping,
-          as: "employeeCounterpartyMappings",
-          where: { counterpartyId: req.user.counterpartyId },
-          required: true,
-          attributes: [],
-        });
+        counterpartyMappingInclude.where = {
+          counterpartyId: req.user.counterpartyId,
+        };
+        counterpartyMappingInclude.required = true;
       }
     } else if (counterpartyId) {
       // Админ может фильтровать по переданному counterpartyId
-      include.push({
-        model: EmployeeCounterpartyMapping,
-        as: "employeeCounterpartyMappings",
-        where: { counterpartyId: counterpartyId },
-        required: true,
-        attributes: [],
-      });
+      counterpartyMappingInclude.where = { counterpartyId };
+      counterpartyMappingInclude.required = true;
     }
 
     if (position) {
@@ -2920,9 +2919,20 @@ export const getMyProfile = async (req, res, next) => {
           as: "employee",
           include: [
             {
-              model: Counterparty,
-              as: "counterparty",
-              attributes: ["id", "name", "type"],
+              model: EmployeeCounterpartyMapping,
+              as: "employeeCounterpartyMappings",
+              attributes: [
+                "counterpartyId",
+                "departmentId",
+                "constructionSiteId",
+              ],
+              include: [
+                {
+                  model: Counterparty,
+                  as: "counterparty",
+                  attributes: ["id", "name", "type"],
+                },
+              ],
             },
             {
               model: Citizenship,
@@ -2946,10 +2956,20 @@ export const getMyProfile = async (req, res, next) => {
       throw new AppError("Профиль сотрудника не найден", 404);
     }
 
+    const employeeData = mapping.employee.toJSON();
+    if (
+      !employeeData.counterparty &&
+      Array.isArray(employeeData.employeeCounterpartyMappings) &&
+      employeeData.employeeCounterpartyMappings.length > 0
+    ) {
+      employeeData.counterparty =
+        employeeData.employeeCounterpartyMappings[0].counterparty || null;
+    }
+
     res.json({
       success: true,
       data: {
-        employee: mapping.employee,
+        employee: employeeData,
       },
     });
   } catch (error) {

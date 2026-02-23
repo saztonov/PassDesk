@@ -2,6 +2,7 @@ import axios from "axios";
 import archiver from "archiver";
 import * as XLSX from "xlsx";
 import { QueryTypes } from "sequelize";
+import path from "path";
 import {
   sequelize,
   CounterpartySubcounterpartyMapping,
@@ -16,18 +17,96 @@ const MAX_LIMIT = 200;
 const MAX_EXPORT_ROWS = 10000;
 const EXPIRY_SOON_DAYS = 30;
 
-const DOCUMENT_STATUSES = new Set([
-  "uploaded",
-  "not_uploaded",
-  "ocr_verified",
-  "expiring",
-]);
+const DOCUMENT_STATUSES = new Set(["uploaded", "not_uploaded", "expiring"]);
 
 const STATUS_LABELS = {
   uploaded: "Загружен",
   not_uploaded: "Не загружен",
-  ocr_verified: "Проверен OCR",
   expiring: "Срок истекает",
+};
+
+const PROFILE_CODES = {
+  EXTERNAL: "external",
+  DEFAULT_RU_BY: "default_ru_by",
+  DEFAULT_FOREIGN: "default_foreign",
+};
+
+const BASE_CONSENTS = [
+  "consent",
+  "biometric_consent",
+  "biometric_consent_developer",
+];
+
+const DEFAULT_DOCUMENT_PROFILES = {
+  [PROFILE_CODES.EXTERNAL]: [...BASE_CONSENTS],
+  [PROFILE_CODES.DEFAULT_RU_BY]: [
+    "passport",
+    "bank_details",
+    ...BASE_CONSENTS,
+    "diploma",
+    "snils_card",
+  ],
+  [PROFILE_CODES.DEFAULT_FOREIGN]: [
+    "passport",
+    "passport_translation",
+    "patent_front",
+    "patent_back",
+    "bank_details",
+    ...BASE_CONSENTS,
+    "snils_card",
+    "visa",
+    "arrival_notice",
+    "patent_payment_receipt",
+  ],
+};
+
+const toUniqueCodes = (values = []) => {
+  const unique = [];
+  const seen = new Set();
+
+  (Array.isArray(values) ? values : []).forEach((item) => {
+    const normalized = String(item || "").trim();
+    if (!normalized || seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    unique.push(normalized);
+  });
+
+  return unique;
+};
+
+const normalizeDocumentProfilesConfig = (rawConfig) => {
+  const input =
+    rawConfig && typeof rawConfig === "object" && !Array.isArray(rawConfig)
+      ? rawConfig
+      : {};
+
+  return Object.values(PROFILE_CODES).reduce((acc, profileCode) => {
+    const inputCodes = toUniqueCodes(input[profileCode]);
+    const fallbackCodes = toUniqueCodes(
+      DEFAULT_DOCUMENT_PROFILES[profileCode] || [],
+    );
+    acc[profileCode] = inputCodes.length > 0 ? inputCodes : fallbackCodes;
+    return acc;
+  }, {});
+};
+
+const loadDocumentProfilesConfig = async () => {
+  try {
+    const rawSetting = await Setting.getSetting("employee_document_profiles");
+    if (!rawSetting) {
+      return normalizeDocumentProfilesConfig(null);
+    }
+    const parsed = JSON.parse(rawSetting);
+    return normalizeDocumentProfilesConfig(parsed);
+  } catch (error) {
+    console.warn(
+      "Failed to load employee_document_profiles setting, using defaults:",
+      error.message,
+    );
+    return normalizeDocumentProfilesConfig(null);
+  }
 };
 
 let hasDocumentTypeRequiredColumnCache = null;
@@ -37,7 +116,25 @@ const sanitizeZipSegment = (value) =>
     .trim()
     .replace(/[\\/:*?"<>|]/g, "_")
     .replace(/\s+/g, " ")
-    .slice(0, 120) || "Без_названия";
+    .replace(/\.\.+/g, "_")
+    .replace(/^\.+/, "")
+    .slice(0, 120)
+    .trim() || "Без_названия";
+
+const buildSafeZipEntryName = (...segments) => {
+  const safeSegments = segments.map((segment) => sanitizeZipSegment(segment));
+  const normalized = path.posix.normalize(safeSegments.join("/"));
+
+  if (
+    normalized.startsWith("../") ||
+    normalized.includes("/../") ||
+    normalized === ".."
+  ) {
+    throw new AppError("Небезопасное имя файла в архиве", 400);
+  }
+
+  return normalized.replace(/^\/+/, "");
+};
 
 const normalizePositiveInt = (value, fallback) => {
   const numeric = Number.parseInt(value, 10);
@@ -128,7 +225,24 @@ const buildDocumentCte = async ({ user, filters }) => {
   const replacements = {
     expiringDays: EXPIRY_SOON_DAYS,
   };
-  const hasRequiredColumn = await hasDocumentTypeRequiredColumn();
+  const [hasRequiredColumn, documentProfiles, defaultCounterpartyId] =
+    await Promise.all([
+      hasDocumentTypeRequiredColumn(),
+      loadDocumentProfilesConfig(),
+      Setting.getSetting("default_counterparty_id"),
+    ]);
+
+  replacements.profileExternalDocTypes =
+    documentProfiles[PROFILE_CODES.EXTERNAL];
+  replacements.profileDefaultRuByDocTypes =
+    documentProfiles[PROFILE_CODES.DEFAULT_RU_BY];
+  replacements.profileDefaultForeignDocTypes =
+    documentProfiles[PROFILE_CODES.DEFAULT_FOREIGN];
+
+  const hasDefaultCounterparty = Boolean(defaultCounterpartyId);
+  if (hasDefaultCounterparty) {
+    replacements.defaultCounterpartyId = defaultCounterpartyId;
+  }
 
   const allowedCounterpartyIds = await getAllowedCounterpartyIds(user);
   if (allowedCounterpartyIds && allowedCounterpartyIds.length === 0) {
@@ -188,6 +302,16 @@ const buildDocumentCte = async ({ user, filters }) => {
       ELSE NULL
     END`;
 
+  const profileConditionSql = hasDefaultCounterparty
+    ? `(
+        CASE
+          WHEN fe.counterparty_id::text <> :defaultCounterpartyId::text THEN dt.code IN (:profileExternalDocTypes)
+          WHEN fe.is_ru_by_citizenship = TRUE THEN dt.code IN (:profileDefaultRuByDocTypes)
+          ELSE dt.code IN (:profileDefaultForeignDocTypes)
+        END
+      )`
+    : "dt.code IN (:profileExternalDocTypes)";
+
   const cte = `
     WITH filtered_employees AS (
       SELECT DISTINCT
@@ -204,12 +328,22 @@ const buildDocumentCte = async ({ user, filters }) => {
         e.patent_issue_date,
         e.blank_number,
         c.id AS counterparty_id,
-        c.name AS counterparty_name
+        c.name AS counterparty_name,
+        CASE
+          WHEN LOWER(COALESCE(ctz.code, '')) IN ('ru', 'rus', '643', 'by', 'blr', '112', 'rb') THEN TRUE
+          WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%рос%' THEN TRUE
+          WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%russia%' THEN TRUE
+          WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%беларус%' THEN TRUE
+          WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%belarus%' THEN TRUE
+          ELSE FALSE
+        END AS is_ru_by_citizenship
       FROM employees e
       INNER JOIN employee_counterparty_mapping ecm
         ON ecm.employee_id = e.id
       INNER JOIN counterparties c
         ON c.id = ecm.counterparty_id
+      LEFT JOIN citizenships ctz
+        ON ctz.id = e.citizenship_id
       WHERE ${employeeWhere.join(" AND ")}
     ),
     base_raw AS (
@@ -243,8 +377,7 @@ const buildDocumentCte = async ({ user, filters }) => {
         lf.original_name,
         lf.file_path,
         lf.mime_type,
-        lf.created_at AS uploaded_at,
-        COALESCE(lf.ocr_verified, FALSE) AS ocr_verified
+        lf.created_at AS uploaded_at
       FROM filtered_employees fe
       CROSS JOIN document_types dt
       LEFT JOIN LATERAL (
@@ -254,8 +387,7 @@ const buildDocumentCte = async ({ user, filters }) => {
           f.original_name,
           f.file_path,
           f.mime_type,
-          f.created_at,
-          COALESCE(f.ocr_verified, FALSE) AS ocr_verified
+          f.created_at
         FROM files f
         WHERE f.employee_id = fe.employee_id
           AND f.entity_type = 'employee'
@@ -265,6 +397,7 @@ const buildDocumentCte = async ({ user, filters }) => {
         LIMIT 1
       ) lf ON TRUE
       WHERE ${documentWhere.join(" AND ")}
+        AND ${profileConditionSql}
     ),
     base_data AS (
       SELECT
@@ -274,7 +407,6 @@ const buildDocumentCte = async ({ user, filters }) => {
           WHEN br.expiry_date IS NOT NULL
             AND br.expiry_date <= (CURRENT_DATE + (:expiringDays || ' days')::interval)::date
             THEN 'expiring'
-          WHEN br.ocr_verified THEN 'ocr_verified'
           ELSE 'uploaded'
         END AS doc_status
       FROM base_raw br
@@ -304,7 +436,6 @@ const mapRow = (row) => ({
   filePath: row.file_path || null,
   mimeType: row.mime_type || null,
   uploadedAt: row.uploaded_at || null,
-  ocrVerified: Boolean(row.ocr_verified),
 });
 
 const fetchDocumentRows = async ({ req, withPagination }) => {
@@ -419,7 +550,6 @@ export const exportCounterpartyDocumentsExcel = async (req, res, next) => {
       "Дата выдачи": item.issueDate || "-",
       "Срок действия": item.expiryDate || "-",
       Статус: item.statusLabel,
-      "Проверен OCR": item.ocrVerified ? "Да" : "Нет",
       "Обязательный тип": item.isRequired ? "Да" : "Нет",
       "Файл загружен": item.fileId ? "Да" : "Нет",
       "Имя файла": item.fileName || "-",
@@ -489,7 +619,11 @@ export const downloadCounterpartyDocumentsZip = async (req, res, next) => {
         const fileLabel = sanitizeZipSegment(
           row.originalName || row.fileName || `${row.fileId}.bin`,
         );
-        const entryName = `${sanitizeZipSegment(row.counterpartyName)}/${sanitizeZipSegment(row.employeeFullName)}/${sanitizeZipSegment(row.documentTypeName)}_${fileLabel}`;
+        const entryName = buildSafeZipEntryName(
+          row.counterpartyName,
+          row.employeeFullName,
+          `${sanitizeZipSegment(row.documentTypeName)}_${fileLabel}`,
+        );
         archive.append(fileResponse.data, { name: entryName });
       } catch (error) {
         console.error(`Error adding file ${row.fileId} to zip:`, error.message);

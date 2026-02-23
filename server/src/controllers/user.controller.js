@@ -5,6 +5,10 @@ import {
   isPasswordAllowed,
   getForbiddenPasswordMessage,
 } from "../utils/forbiddenPasswords.js";
+import {
+  PASSWORD_MIN_LENGTH,
+  getPasswordMinLengthMessage,
+} from "../utils/passwordPolicy.js";
 
 /**
  * Генерация уникального УИН (6-значный)
@@ -192,7 +196,7 @@ export const deleteUser = async (req, res, next) => {
     const { id } = req.params;
 
     // Проверяем, что это не попытка удалить самого себя
-    if (parseInt(id) === req.user.id) {
+    if (id === req.user.id) {
       throw new AppError("Вы не можете удалить собственный аккаунт", 400);
     }
 
@@ -311,7 +315,7 @@ export const updatePassword = async (req, res, next) => {
     const { currentPassword, newPassword } = req.body;
 
     // Только сам пользователь или admin может менять пароль
-    if (req.user.id !== parseInt(id) && req.user.role !== "admin") {
+    if (req.user.id !== id && req.user.role !== "admin") {
       throw new AppError("Недостаточно прав для изменения пароля", 403);
     }
 
@@ -335,11 +339,8 @@ export const updatePassword = async (req, res, next) => {
     }
 
     // Проверяем длину нового пароля
-    if (newPassword.length < 8) {
-      throw new AppError(
-        "Новый пароль должен содержать минимум 8 символов",
-        400,
-      );
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
+      throw new AppError(getPasswordMinLengthMessage("Новый пароль"), 400);
     }
 
     // Проверяем, не является ли новый пароль запрещенным
@@ -373,7 +374,7 @@ export const toggleUserStatus = async (req, res, next) => {
     }
 
     // Не разрешаем деактивировать самого себя
-    if (parseInt(id) === req.user.id) {
+    if (id === req.user.id) {
       throw new AppError(
         "Вы не можете деактивировать собственный аккаунт",
         400,
@@ -474,11 +475,8 @@ export const changeMyPassword = async (req, res, next) => {
       throw new AppError("Необходимо указать текущий и новый пароль", 400);
     }
 
-    if (newPassword.length < 8) {
-      throw new AppError(
-        "Новый пароль должен содержать минимум 8 символов",
-        400,
-      );
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
+      throw new AppError(getPasswordMinLengthMessage("Новый пароль"), 400);
     }
 
     // Проверяем, не является ли новый пароль запрещенным

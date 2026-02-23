@@ -10,6 +10,7 @@ import {
   normalizeDocumentTypes,
   splitIntoColumns,
 } from "@/modules/employees/lib/documentTypeUploaderUtils";
+import { applyDocumentTypeProfile } from "@/modules/employees/lib/documentTypeProfiles";
 import { SUPPORTED_FORMATS } from "@/shared/constants/fileTypes";
 
 /**
@@ -20,6 +21,8 @@ const DocumentTypeUploader = ({
   employeeId,
   onFilesUpdated,
   readonly = false,
+  profileCode,
+  profilesConfig,
 }) => {
   const { message } = App.useApp();
   const [dataState, setDataState] = useState({
@@ -43,6 +46,15 @@ const DocumentTypeUploader = ({
     sampleModalVisible,
     selectedSampleDocType,
   } = uiState;
+  const profileDocumentTypes = useMemo(
+    () =>
+      applyDocumentTypeProfile({
+        documentTypes,
+        profileCode,
+        profilesConfig,
+      }),
+    [documentTypes, profileCode, profilesConfig],
+  );
 
   const fetchAllFiles = useCallback(async () => {
     try {
@@ -98,9 +110,9 @@ const DocumentTypeUploader = ({
 
   const getDocumentTypeLabel = useCallback(
     (documentTypeValue) =>
-      documentTypes.find((item) => item.value === documentTypeValue)?.label ||
-      documentTypeValue,
-    [documentTypes],
+      profileDocumentTypes.find((item) => item.value === documentTypeValue)
+        ?.label || documentTypeValue,
+    [profileDocumentTypes],
   );
 
   const handleOpenSample = useCallback((docType) => {
@@ -224,8 +236,8 @@ const DocumentTypeUploader = ({
   };
 
   const documentTypeColumns = useMemo(
-    () => splitIntoColumns(documentTypes, 3),
-    [documentTypes],
+    () => splitIntoColumns(profileDocumentTypes, 3),
+    [profileDocumentTypes],
   );
 
   return (

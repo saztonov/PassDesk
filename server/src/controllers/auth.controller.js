@@ -8,6 +8,10 @@ import {
   isPasswordAllowed,
   getForbiddenPasswordMessage,
 } from "../utils/forbiddenPasswords.js";
+import {
+  PASSWORD_MIN_LENGTH,
+  getPasswordMinLengthMessage,
+} from "../utils/passwordPolicy.js";
 
 // Генерация JWT токена
 const generateToken = (userId, role) => {
@@ -156,8 +160,8 @@ export const register = async (req, res, next) => {
       throw new AppError("Все обязательные поля должны быть заполнены", 400);
     }
 
-    if (password.length < 8) {
-      throw new AppError("Пароль должен содержать минимум 8 символов", 400);
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      throw new AppError(getPasswordMinLengthMessage("Пароль"), 400);
     }
 
     // Проверяем, не является ли пароль запрещенным

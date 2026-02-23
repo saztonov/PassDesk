@@ -35,21 +35,21 @@ const { Option } = Select;
 // Типы документов
 const DOCUMENT_TYPES = [
   { value: "passport", label: "Паспорт" },
+  { value: "passport_translation", label: "Перевод паспорта" },
   { value: "bank_details", label: "Реквизиты счета" },
-  { value: "kig", label: "КИГ (Карта иностранного гражданина)" },
+  { value: "consent", label: "Согласие на перс.дан. Подрядчик" },
   { value: "patent_front", label: "Лицевая сторона патента (с фото)" },
   { value: "patent_back", label: "Задняя сторона патента" },
+  { value: "visa", label: "Виза" },
   { value: "biometric_consent", label: "Согласие на перс.дан. Генподряд" },
   {
     value: "biometric_consent_developer",
     label: "Согласие на перс.дан. Застройщ",
   },
   { value: "diploma", label: "Диплом / Документ об образовании" },
-  { value: "med_book", label: "Мед.книжка" },
-  { value: "migration_card", label: "Миграционная карта" },
+  { value: "snils_card", label: "СНИЛС" },
   { value: "arrival_notice", label: "Уведомление о прибытии (регистрация)" },
   { value: "patent_payment_receipt", label: "Чек об оплате патента" },
-  { value: "mvd_notification", label: "Уведомление МВД" },
 ];
 
 const EmployeeFileUpload = ({
