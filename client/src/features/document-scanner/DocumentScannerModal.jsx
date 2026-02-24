@@ -59,8 +59,8 @@ export const DocumentScannerModal = ({
       if (isPassportMode) {
         const targetAspect =
           isMobileViewport && isPortraitViewport ? 1.45 : 1.9;
-        const maxWidth = isMobileViewport ? width * 0.92 : width * 0.88;
-        const maxHeight = isMobileViewport ? height * 0.5 : height * 0.62;
+        const maxWidth = isMobileViewport ? width * 0.82 : width * 0.88;
+        const maxHeight = isMobileViewport ? height * 0.42 : height * 0.62;
         let guideWidth = maxWidth;
         let guideHeight = guideWidth / targetAspect;
 
@@ -686,7 +686,7 @@ export const DocumentScannerModal = ({
             drawLabel("Серия и номер", frameLeft + frameWidth * 0.75);
           }
 
-          if (contourToDraw) {
+          if (contourToDraw && !isPassportMode) {
             const scaleX = overlayCanvas.width / width;
             const scaleY = overlayCanvas.height / height;
 
@@ -992,12 +992,17 @@ export const DocumentScannerModal = ({
           ? { top: 0, paddingBottom: 0, maxWidth: "100vw" }
           : undefined
       }
-      styles={{ body: { padding: 0 } }}
+      styles={{
+        body: {
+          padding: 0,
+          height: isMobileViewport ? "calc(100vh - 56px)" : undefined,
+        },
+      }}
       destroyOnHidden
     >
       <div
         style={{
-          minHeight: isMobileViewport ? "100vh" : 400,
+          minHeight: isMobileViewport ? "calc(100vh - 56px)" : 400,
           background: "#000",
           position: "relative",
           display: "flex",
@@ -1060,8 +1065,8 @@ export const DocumentScannerModal = ({
               style={{
                 width: "100%",
                 height: "100%",
-                objectFit: "contain",
-                maxHeight: isMobileViewport ? "100vh" : "70vh",
+                objectFit: isMobileViewport ? "cover" : "contain",
+                maxHeight: isMobileViewport ? "calc(100vh - 56px)" : "70vh",
               }}
             />
 
@@ -1098,7 +1103,8 @@ export const DocumentScannerModal = ({
                   alignItems: "center",
                   justifyContent: "center",
                   boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-                  border: isStable ? "4px solid #52c41a" : "none",
+                  border:
+                    !isPassportMode && isStable ? "4px solid #52c41a" : "none",
                 }}
                 onClick={handleCapture}
                 loading={processing}
