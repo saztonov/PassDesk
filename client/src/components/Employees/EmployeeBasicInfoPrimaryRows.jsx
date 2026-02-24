@@ -1,6 +1,10 @@
 import dayjs from "dayjs";
 import { Col, Form, Input, Row, Select } from "antd";
-import { formatPhoneNumber, noAutoFillProps } from "./employeeFormUtils";
+import {
+  formatPhoneNumber,
+  formatRussianPassportNumber,
+  noAutoFillProps,
+} from "./employeeFormUtils";
 import MaskedDatePicker from "../../shared/ui/MaskedDatePicker";
 
 const { Option } = Select;
@@ -14,6 +18,8 @@ const EmployeeBasicInfoPrimaryRows = ({
   latinInputError,
   handleFullNameChange,
   dateFormat,
+  passportType,
+  setPassportType,
 }) => (
   <>
     <Row gutter={16}>
@@ -121,7 +127,7 @@ const EmployeeBasicInfoPrimaryRows = ({
 
     <Row gutter={16}>
       {!getFieldProps("citizenshipId").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
+        <Col xs={24} sm={12} md={4} lg={6}>
           <Form.Item
             name="citizenshipId"
             label="Гражданство"
@@ -147,7 +153,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("birthDate").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
+        <Col xs={24} sm={12} md={4} lg={3}>
           <Form.Item
             name="birthDate"
             label="Дата рождения"
@@ -185,7 +191,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("phone").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
+        <Col xs={24} sm={12} md={4} lg={3}>
           <Form.Item
             name="phone"
             label="Телефон"
@@ -204,6 +210,110 @@ const EmployeeBasicInfoPrimaryRows = ({
               name={antiAutofillIds.phone}
               placeholder="+7 (999) 123-45-67"
               maxLength={18}
+              {...noAutoFillProps}
+            />
+          </Form.Item>
+        </Col>
+      )}
+      {!getFieldProps("registrationAddress").hidden && (
+        <Col xs={24} sm={24} md={12} lg={12}>
+          <Form.Item
+            name="registrationAddress"
+            label="Адрес регистрации"
+            required={getFieldProps("registrationAddress").required}
+            rules={getFieldProps("registrationAddress").rules}
+          >
+            <Input
+              id={antiAutofillIds.registrationAddress}
+              name={antiAutofillIds.registrationAddress}
+              placeholder="г. Москва, ул. Тверская, д.21, кв.11"
+              {...noAutoFillProps}
+            />
+          </Form.Item>
+        </Col>
+      )}
+    </Row>
+
+    <Row gutter={16}>
+      {!getFieldProps("passportType").hidden && (
+        <Col xs={24} sm={12} md={6} lg={6}>
+          <Form.Item
+            name="passportType"
+            label="Тип паспорта"
+            required={getFieldProps("passportType").required}
+            rules={getFieldProps("passportType").rules}
+          >
+            <Select
+              placeholder="Выберите тип паспорта"
+              allowClear
+              autoComplete="off"
+              onChange={(value) => setPassportType(value)}
+            >
+              <Option value="russian">Российский</Option>
+              <Option value="foreign">Иностранного гражданина</Option>
+            </Select>
+          </Form.Item>
+        </Col>
+      )}
+      {!getFieldProps("passportNumber").hidden && (
+        <Col xs={24} sm={12} md={6} lg={6}>
+          <Form.Item
+            name="passportNumber"
+            label="№ паспорта"
+            required={getFieldProps("passportNumber").required}
+            rules={getFieldProps("passportNumber").rules}
+            getValueFromEvent={(e) => {
+              if (passportType === "russian") {
+                return formatRussianPassportNumber(e.target.value);
+              }
+              return e.target.value;
+            }}
+          >
+            <Input
+              {...noAutoFillProps}
+              placeholder={
+                passportType === "russian" ? "1234 №123456" : "Номер паспорта"
+              }
+              maxLength={passportType === "russian" ? 13 : undefined}
+            />
+          </Form.Item>
+        </Col>
+      )}
+      {!getFieldProps("passportDate").hidden && (
+        <Col xs={24} sm={12} md={6} lg={6}>
+          <Form.Item
+            name="passportDate"
+            label="Дата выдачи паспорта"
+            required={getFieldProps("passportDate").required}
+            rules={getFieldProps("passportDate").rules}
+          >
+            <MaskedDatePicker format={dateFormat} />
+          </Form.Item>
+        </Col>
+      )}
+      {passportType === "foreign" &&
+        !getFieldProps("passportExpiryDate").hidden && (
+          <Col xs={24} sm={12} md={6} lg={6}>
+            <Form.Item
+              name="passportExpiryDate"
+              label="Дата окончания паспорта"
+              required={getFieldProps("passportExpiryDate").required}
+              rules={getFieldProps("passportExpiryDate").rules}
+            >
+              <MaskedDatePicker format={dateFormat} />
+            </Form.Item>
+          </Col>
+        )}
+      {!getFieldProps("passportIssuer").hidden && (
+        <Col xs={24} sm={24} md={12} lg={12}>
+          <Form.Item
+            name="passportIssuer"
+            label="Кем выдан паспорт"
+            required={getFieldProps("passportIssuer").required}
+            rules={getFieldProps("passportIssuer").rules}
+          >
+            <Input
+              placeholder="ГУ МВД России, г.Москва, ул. Тверская, д.20"
               {...noAutoFillProps}
             />
           </Form.Item>

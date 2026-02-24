@@ -1,6 +1,13 @@
 import { Form, Input, Radio, Select, Typography } from "antd";
 import dayjs from "dayjs";
 import MaskedDateInput from "@/shared/ui/MaskedDateInput";
+import EmployeeDocumentUpload from "@/components/Employees/EmployeeDocumentUpload";
+import { profileDocumentTypeLabels } from "@/modules/employees/lib/documentTypeProfiles";
+import {
+  createDateInputRules,
+  formatDateInputValue,
+  getUploadsForDocumentProfile,
+} from "./MobileEmployeeDocumentSectionUtils";
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -52,6 +59,16 @@ const normalizeDateInputValue = (value) => {
   return value;
 };
 
+const renderRequiredLabel = (label, showRequiredMark) =>
+  showRequiredMark ? (
+    <>
+      {label}
+      <span style={{ color: "#ff4d4f", marginLeft: 4 }}>*</span>
+    </>
+  ) : (
+    label
+  );
+
 export const buildMobileEmployeePersonalSection = ({
   getFieldProps,
   noAutoFillProps,
@@ -59,11 +76,26 @@ export const buildMobileEmployeePersonalSection = ({
   antiAutofillIds,
   handleFullNameChange,
   loadingReferences,
-  positions,
   citizenships,
   handleCitizenshipChange,
   formatPhoneNumber,
-}) => ({
+  employee,
+  ensureEmployeeId,
+  profileCode,
+  profilesConfig,
+}) => {
+  const uploads = getUploadsForDocumentProfile(profileCode, profilesConfig);
+  const uploadsByType = new Map(
+    uploads.map((upload) => [upload.documentType, upload]),
+  );
+  const getInlineUploadMeta = (documentType) =>
+    uploadsByType.get(documentType) || {
+      documentType,
+      label: profileDocumentTypeLabels[documentType] || documentType,
+      multiple: true,
+    };
+
+  return {
   key: "personal",
   label: (
     <Title level={5} style={{ margin: 0 }}>
@@ -82,10 +114,7 @@ export const buildMobileEmployeePersonalSection = ({
           }}
         >
           <label style={{ marginBottom: 0, minWidth: "70px", fontWeight: 500 }}>
-            Пол{" "}
-            {getFieldProps("gender").required && (
-              <span style={{ color: "#ff4d4f" }}>*</span>
-            )}
+            Пол
           </label>
           <Form.Item
             name="gender"
@@ -102,7 +131,10 @@ export const buildMobileEmployeePersonalSection = ({
 
       {!getFieldProps("lastName").hidden && (
         <Form.Item
-          label="Фамилия"
+          label={renderRequiredLabel(
+            "Фамилия",
+            getFieldProps("lastName").required,
+          )}
           name="lastName"
           required={getFieldProps("lastName").required}
           rules={getFieldProps("lastName").rules}
@@ -124,7 +156,7 @@ export const buildMobileEmployeePersonalSection = ({
 
       {!getFieldProps("firstName").hidden && (
         <Form.Item
-          label="Имя"
+          label={renderRequiredLabel("Имя", getFieldProps("firstName").required)}
           name="firstName"
           required={getFieldProps("firstName").required}
           rules={getFieldProps("firstName").rules}
@@ -166,39 +198,12 @@ export const buildMobileEmployeePersonalSection = ({
         </Form.Item>
       )}
 
-      {!getFieldProps("positionId").hidden && (
-        <Form.Item
-          label="Должность"
-          name="positionId"
-          required={getFieldProps("positionId").required}
-          rules={getFieldProps("positionId").rules}
-        >
-          <Select
-            placeholder="Выберите должность"
-            size="large"
-            showSearch
-            optionFilterProp="children"
-            filterOption={(input, option) =>
-              option.children.toLowerCase().includes(input.toLowerCase())
-            }
-            virtual={false}
-            listHeight={400}
-            loading={loadingReferences}
-            disabled={loadingReferences || positions.length === 0}
-            autoComplete="off"
-          >
-            {positions.map((position) => (
-              <Option key={position.id} value={position.id}>
-                {position.name}
-              </Option>
-            ))}
-          </Select>
-        </Form.Item>
-      )}
-
       {!getFieldProps("citizenshipId").hidden && (
         <Form.Item
-          label="Гражданство"
+          label={renderRequiredLabel(
+            "Гражданство",
+            getFieldProps("citizenshipId").required,
+          )}
           name="citizenshipId"
           required={getFieldProps("citizenshipId").required}
           rules={getFieldProps("citizenshipId").rules}
@@ -228,43 +233,16 @@ export const buildMobileEmployeePersonalSection = ({
 
       {!getFieldProps("birthDate").hidden && (
         <Form.Item
-          label="Дата рождения"
+          label={renderRequiredLabel(
+            "Дата рождения",
+            getFieldProps("birthDate").required,
+          )}
           name="birthDate"
           required={getFieldProps("birthDate").required}
           rules={createBirthDateRules(getFieldProps("birthDate").rules)}
           normalize={normalizeDateInputValue}
         >
           <MaskedDateInput format={DATE_FORMAT} size="large" />
-        </Form.Item>
-      )}
-
-      {!getFieldProps("birthCountryId").hidden && (
-        <Form.Item
-          label="Страна рождения"
-          name="birthCountryId"
-          required={getFieldProps("birthCountryId").required}
-          rules={getFieldProps("birthCountryId").rules}
-        >
-          <Select
-            popupMatchSelectWidth
-            placeholder="Выберите страну рождения"
-            size="large"
-            showSearch
-            optionFilterProp="children"
-            filterOption={(input, option) =>
-              option.children.toLowerCase().includes(input.toLowerCase())
-            }
-            virtual={false}
-            loading={loadingReferences}
-            disabled={loadingReferences || citizenships.length === 0}
-            autoComplete="off"
-          >
-            {citizenships.map((citizenship) => (
-              <Option key={citizenship.id} value={citizenship.id}>
-                {citizenship.name}
-              </Option>
-            ))}
-          </Select>
         </Form.Item>
       )}
 
@@ -315,6 +293,88 @@ export const buildMobileEmployeePersonalSection = ({
           />
         </Form.Item>
       )}
+
+      {!getFieldProps("passportNumber").hidden && (
+        <>
+          <Form.Item
+            label={renderRequiredLabel(
+              "Паспорт (серия и номер)",
+              getFieldProps("passportNumber").required,
+            )}
+            name="passportNumber"
+            required={getFieldProps("passportNumber").required}
+            rules={getFieldProps("passportNumber").rules}
+          >
+            <Input
+              placeholder="Номер паспорта"
+              size="large"
+              {...noAutoFillProps}
+            />
+          </Form.Item>
+          <EmployeeDocumentUpload
+            employeeId={employee?.id}
+            ensureEmployeeId={ensureEmployeeId}
+            documentType="passport"
+            label={getInlineUploadMeta("passport").label}
+            readonly={false}
+            multiple={getInlineUploadMeta("passport").multiple}
+          />
+          <EmployeeDocumentUpload
+            employeeId={employee?.id}
+            ensureEmployeeId={ensureEmployeeId}
+            documentType="passport_translation"
+            label={getInlineUploadMeta("passport_translation").label}
+            readonly={false}
+            multiple={getInlineUploadMeta("passport_translation").multiple}
+          />
+        </>
+      )}
+
+      {!getFieldProps("passportDate").hidden && (
+        <Form.Item
+          label={renderRequiredLabel(
+            "Дата выдачи паспорта",
+            getFieldProps("passportDate").required,
+          )}
+          name="passportDate"
+          required={getFieldProps("passportDate").required}
+          rules={createDateInputRules(getFieldProps("passportDate").rules)}
+          normalize={formatDateInputValue}
+        >
+          <Input placeholder="ДД.ММ.ГГГГ" size="large" {...noAutoFillProps} />
+        </Form.Item>
+      )}
+
+      {!getFieldProps("passportExpiryDate").hidden && (
+        <Form.Item
+          label="Дата окончания паспорта"
+          name="passportExpiryDate"
+          required={getFieldProps("passportExpiryDate").required}
+          rules={getFieldProps("passportExpiryDate").rules}
+        >
+          <Input placeholder="ДД.ММ.ГГГГ" size="large" {...noAutoFillProps} />
+        </Form.Item>
+      )}
+
+      {!getFieldProps("passportIssuer").hidden && (
+        <Form.Item
+          label={renderRequiredLabel(
+            "Кем выдан паспорт",
+            getFieldProps("passportIssuer").required,
+          )}
+          name="passportIssuer"
+          required={getFieldProps("passportIssuer").required}
+          rules={getFieldProps("passportIssuer").rules}
+        >
+          <TextArea
+            placeholder="Наименование органа выдачи"
+            rows={3}
+            size="large"
+            {...noAutoFillProps}
+          />
+        </Form.Item>
+      )}
     </>
   ),
-});
+  };
+};

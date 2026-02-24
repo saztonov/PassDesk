@@ -1,17 +1,13 @@
-import { Form, Input, Select, Typography } from "antd";
+import { Form, Input, Typography } from "antd";
 import EmployeeDocumentUpload from "@/components/Employees/EmployeeDocumentUpload";
 import { profileDocumentTypeLabels } from "@/modules/employees/lib/documentTypeProfiles";
 import {
-  createDateInputRules,
-  formatDateInputValue,
   getUploadsForDocumentProfile,
   splitUploadsByConsent,
 } from "./MobileEmployeeDocumentSectionUtils";
 import MobileEmployeeUploadsSection from "./MobileEmployeeUploadsSection";
 
 const { Title, Text } = Typography;
-const { TextArea } = Input;
-const { Option } = Select;
 const INLINE_UPLOAD_TYPES = new Set([
   "passport",
   "passport_translation",
@@ -24,14 +20,12 @@ export const buildMobileEmployeeDocumentsSection = ({
   handleInnBlur,
   formatSnils,
   formatBankAccountNumber,
-  passportType,
-  setPassportType,
-  formatRussianPassportNumber,
   noAutoFillProps,
   employee,
   ensureEmployeeId,
   profileCode,
   profilesConfig,
+  patentFields,
 }) => {
   const uploads = getUploadsForDocumentProfile(profileCode, profilesConfig);
   const { documentUploads, consentUploads } = splitUploadsByConsent(uploads);
@@ -125,130 +119,30 @@ export const buildMobileEmployeeDocumentsSection = ({
           </>
         )}
 
-      {!getFieldProps("bankAccountNumber").hidden && (
-        <Form.Item
-          label="Номер банковского счета"
-          name="bankAccountNumber"
-          required={getFieldProps("bankAccountNumber").required}
-          rules={[
-            ...getFieldProps("bankAccountNumber").rules,
-            {
-              pattern: /^\d{20}$/,
-              message: "Номер банковского счета должен содержать 20 цифр",
-            },
-          ]}
-          getValueFromEvent={(e) => formatBankAccountNumber(e.target.value)}
-        >
-          <Input
-            placeholder="40702810900000000000"
-            size="large"
-            maxLength={20}
-            {...noAutoFillProps}
-          />
-        </Form.Item>
-      )}
-
-      {!getFieldProps("passportType").hidden && (
-        <Form.Item
-          label="Тип паспорта"
-          name="passportType"
-          required={getFieldProps("passportType").required}
-          rules={getFieldProps("passportType").rules}
-        >
-          <Select
-            placeholder="Выберите тип паспорта"
-            size="large"
-            onChange={(value) => setPassportType(value)}
-            autoComplete="off"
-          >
-            <Option value="russian">Российский</Option>
-            <Option value="foreign">Иностранного гражданина</Option>
-          </Select>
-        </Form.Item>
-      )}
-
-        {!getFieldProps("passportNumber").hidden && (
-          <>
-            <Form.Item
-              label="Паспорт (серия и номер)"
-              name="passportNumber"
-              required={getFieldProps("passportNumber").required}
-              rules={getFieldProps("passportNumber").rules}
-              getValueFromEvent={(e) => {
-                if (passportType === "russian") {
-                  return formatRussianPassportNumber(e.target.value);
-                }
-                return e.target.value;
-              }}
-            >
-              <Input
-                placeholder={
-                  passportType === "russian" ? "1234 №123456" : "Номер паспорта"
-                }
-                size="large"
-                maxLength={passportType === "russian" ? 13 : undefined}
-                {...noAutoFillProps}
-              />
-            </Form.Item>
-
-            <EmployeeDocumentUpload
-              employeeId={employee?.id}
-              ensureEmployeeId={ensureEmployeeId}
-              documentType="passport"
-              label={getInlineUploadMeta("passport").label}
-              readonly={false}
-              multiple={getInlineUploadMeta("passport").multiple}
-            />
-            <EmployeeDocumentUpload
-              employeeId={employee?.id}
-              ensureEmployeeId={ensureEmployeeId}
-              documentType="passport_translation"
-              label={getInlineUploadMeta("passport_translation").label}
-              readonly={false}
-              multiple={getInlineUploadMeta("passport_translation").multiple}
-            />
-          </>
-        )}
-
-      {!getFieldProps("passportDate").hidden && (
-        <Form.Item
-          label="Дата выдачи паспорта"
-          name="passportDate"
-          required={getFieldProps("passportDate").required}
-          rules={createDateInputRules(getFieldProps("passportDate").rules)}
-          normalize={formatDateInputValue}
-        >
-          <Input placeholder="ДД.ММ.ГГГГ" size="large" {...noAutoFillProps} />
-        </Form.Item>
-      )}
-
-      {passportType === "foreign" &&
-        !getFieldProps("passportExpiryDate").hidden && (
+        {!getFieldProps("bankAccountNumber").hidden && (
           <Form.Item
-            label="Дата окончания паспорта"
-            name="passportExpiryDate"
-            required={getFieldProps("passportExpiryDate").required}
-            rules={getFieldProps("passportExpiryDate").rules}
+            label="Номер банковского счета"
+            name="bankAccountNumber"
+            required={getFieldProps("bankAccountNumber").required}
+            rules={[
+              ...getFieldProps("bankAccountNumber").rules,
+              {
+                pattern: /^\d{20}$/,
+                message: "Номер банковского счета должен содержать 20 цифр",
+              },
+            ]}
+            getValueFromEvent={(e) => formatBankAccountNumber(e.target.value)}
           >
-            <Input placeholder="ДД.ММ.ГГГГ" size="large" {...noAutoFillProps} />
+            <Input
+              placeholder="40702810900000000000"
+              size="large"
+              maxLength={20}
+              {...noAutoFillProps}
+            />
           </Form.Item>
         )}
 
-      {!getFieldProps("passportIssuer").hidden && (
-        <Form.Item
-          label="Кем выдан паспорт"
-          name="passportIssuer"
-          required={getFieldProps("passportIssuer").required}
-          rules={getFieldProps("passportIssuer").rules}
-        >
-          <TextArea
-            placeholder="Наименование органа выдачи"
-            rows={3}
-            size="large"
-            {...noAutoFillProps}
-          />
-        </Form.Item>
-      )}
+        {patentFields}
 
         {remainingDocumentUploads.length > 0 && (
           <>

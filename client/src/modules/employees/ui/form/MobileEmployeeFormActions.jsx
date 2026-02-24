@@ -15,18 +15,21 @@ const MobileEmployeeFormActions = ({
       bottom: inline ? "auto" : 0,
       left: inline ? "auto" : 0,
       right: inline ? "auto" : 0,
-      padding: inline ? "8px 0 0 0" : "8px 12px",
+      padding: inline
+        ? "12px 0 0 0"
+        : "12px 12px calc(12px + env(safe-area-inset-bottom, 0px))",
       background: inline ? "transparent" : "#fff",
       borderTop: inline ? "none" : "1px solid #f0f0f0",
       zIndex: inline ? "auto" : 1000,
       maxWidth: inline ? "100%" : "100vw",
       display: "flex",
       flexDirection: "column",
-      gap: 6,
+      gap: 10,
     }}
   >
     <Button
-      size="small"
+      size="large"
+      style={{ minHeight: 46, fontSize: 16 }}
       block
       icon={<FileOutlined />}
       onClick={onSaveDraft}
@@ -35,11 +38,11 @@ const MobileEmployeeFormActions = ({
       Сохранить
     </Button>
 
-    <div style={{ display: "flex", gap: 6 }}>
+    <div style={{ display: "flex", gap: 10 }}>
       <Button
         type="primary"
-        size="small"
-        style={{ flex: 1 }}
+        size="large"
+        style={{ flex: 1, minHeight: 46, fontSize: 16 }}
         icon={<SaveOutlined />}
         onClick={onSave}
         loading={loading}
@@ -48,9 +51,11 @@ const MobileEmployeeFormActions = ({
         Отправить
       </Button>
       <Button
-        size="small"
+        size="large"
         style={{
           flex: 1,
+          minHeight: 46,
+          fontSize: 16,
           borderColor: "#ff4d4f",
           color: "#ff4d4f",
         }}

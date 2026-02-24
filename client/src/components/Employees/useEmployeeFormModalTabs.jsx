@@ -3,7 +3,6 @@ import { Divider, Typography } from "antd";
 import { CheckCircleFilled, CheckCircleOutlined } from "@ant-design/icons";
 import EmployeeBasicInfoTab from "./EmployeeBasicInfoTab.jsx";
 import EmployeeDocumentsTab from "./EmployeeDocumentsTab.jsx";
-import EmployeePatentTab from "./EmployeePatentTab.jsx";
 import EmployeeCounterpartyTab from "./EmployeeCounterpartyTab.jsx";
 import EmployeeFilesTab from "./EmployeeFilesTab.jsx";
 
@@ -81,6 +80,8 @@ export const useEmployeeFormModalTabs = ({
               latinInputError={latinInputError}
               handleFullNameChange={handleFullNameChange}
               dateFormat={dateFormat}
+              passportType={passportType}
+              setPassportType={setPassportType}
             />
 
             <Divider style={{ margin: "12px 0" }} />
@@ -90,36 +91,10 @@ export const useEmployeeFormModalTabs = ({
             <EmployeeDocumentsTab
               getFieldProps={getFieldProps}
               handleInnBlur={handleInnBlur}
-              passportType={passportType}
-              setPassportType={setPassportType}
+              requiresPatent={requiresPatent}
+              checkingCitizenship={checkingCitizenship}
               dateFormat={dateFormat}
             />
-
-            {(requiresPatent || checkingCitizenship) && (
-              <>
-                <Divider style={{ margin: "12px 0" }} />
-                <Text strong style={{ display: "block", marginBottom: 12 }}>
-                  Патент
-                  {checkingCitizenship ? " (проверка...)" : ""}
-                </Text>
-                {checkingCitizenship ? (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      padding: "24px 0",
-                      color: "#999",
-                    }}
-                  >
-                    Проверка необходимости патента...
-                  </div>
-                ) : (
-                  <EmployeePatentTab
-                    getFieldProps={getFieldProps}
-                    dateFormat={dateFormat}
-                  />
-                )}
-              </>
-            )}
 
             {showCounterpartySection && (
               <>

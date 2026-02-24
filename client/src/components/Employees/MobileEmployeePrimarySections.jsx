@@ -3,6 +3,9 @@ import { buildMobileEmployeeStatusSection } from "@/modules/employees/ui/form/Mo
 
 export const buildMobilePrimarySections = ({
   employee,
+  ensureEmployeeId,
+  documentProfileCode,
+  documentProfilesConfig,
   user,
   defaultCounterpartyId,
   fireLoading,
@@ -17,7 +20,6 @@ export const buildMobilePrimarySections = ({
   antiAutofillIds,
   handleFullNameChange,
   loadingReferences,
-  positions,
   citizenships,
   handleCitizenshipChange,
   formatPhoneNumber,
@@ -48,10 +50,13 @@ export const buildMobilePrimarySections = ({
       antiAutofillIds,
       handleFullNameChange,
       loadingReferences,
-      positions,
       citizenships,
       handleCitizenshipChange,
       formatPhoneNumber,
+      employee,
+      ensureEmployeeId,
+      profileCode: documentProfileCode,
+      profilesConfig: documentProfilesConfig,
     }),
   );
 

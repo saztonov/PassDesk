@@ -6,7 +6,6 @@ import {
   capitalizeFirstLetter,
   filterCyrillicOnly,
 } from "../../utils/formatters";
-import { formatRussianPassportNumber } from "./employeeFormUtils";
 import { useEmployeeStatusActions } from "@/modules/employees/model/useEmployeeStatusActions";
 import { useMobileEmployeeFormInteractions } from "@/modules/employees/model/useMobileEmployeeFormInteractions";
 import { useMobileEmployeeFormInitialization } from "@/modules/employees/model/useMobileEmployeeFormInitialization";
@@ -57,7 +56,6 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     loading,
     loadingReferences,
     citizenships,
-    positions,
     selectedCitizenship,
     requiresPatent,
     defaultCounterpartyId,
@@ -82,11 +80,9 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
   const [activeKeys, setActiveKeys] = useState([
     "personal",
     "documents",
-    "patent",
     "statuses",
   ]);
   const [employeeIdOnLoad, setEmployeeIdOnLoad] = useState(null); // Отслеживаем id сотрудника при загрузке
-  const [passportType, setPassportType] = useState(null); // Отслеживаем тип паспорта
   const lastSavedSnapshotRef = useRef(null); // Снимок формы после последнего сохранения
   const [counterpartyState, setCounterpartyState] = useState({
     availableCounterparties: [],
@@ -128,10 +124,8 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     employeeIdOnLoad,
     setEmployeeIdOnLoad,
     citizenshipsLength: citizenships.length,
-    positionsLength: positions.length,
     initializeEmployeeData,
     form,
-    setPassportType,
     lastSavedSnapshotRef,
     handleCitizenshipChange,
     userCounterpartyId: user?.counterpartyId,
@@ -185,7 +179,6 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     antiAutofillIds,
     handleFullNameChange,
     loadingReferences,
-    positions,
     citizenships,
     handleCitizenshipChange,
     formatPhoneNumber,
@@ -193,9 +186,6 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     formatSnils,
     formatBankAccountNumber,
     formatKig,
-    passportType,
-    setPassportType,
-    formatRussianPassportNumber,
     documentProfileCode: resolveEmployeeDocumentProfile({
       counterpartyId: resolveEmployeeCounterpartyId({
         employee,
@@ -213,40 +203,6 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     availableCounterparties,
   });
 
-  const collapseItemsWithDocumentActions = useMemo(
-    () =>
-      collapseItems.map((item) => {
-        if (item.key !== "documents") {
-          return item;
-        }
-
-        return {
-          ...item,
-          children: (
-            <>
-              {item.children}
-              <MobileEmployeeFormActions
-                inline
-                loading={loading}
-                canSave={canSave}
-                onSaveDraft={handleSaveDraftWithReset}
-                onSave={handleSaveWithReset}
-                onCancel={handleCancelWithConfirm}
-              />
-            </>
-          ),
-        };
-      }),
-    [
-      canSave,
-      collapseItems,
-      handleCancelWithConfirm,
-      handleSaveDraftWithReset,
-      handleSaveWithReset,
-      loading,
-    ],
-  );
-
   return (
     <div
       style={{
@@ -262,7 +218,7 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
           flex: 1,
           minHeight: 0,
           overflow: "auto",
-          paddingBottom: 16,
+          paddingBottom: 156,
         }}
       >
         <BrowserAutofillTrap />
@@ -272,14 +228,7 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
           initialValues={{ gender: "male" }}
           autoComplete="off"
           onFieldsChange={handleFormFieldsChange}
-          requiredMark={(label, { required }) => (
-            <>
-              {label}
-              {required && (
-                <span style={{ color: "#ff4d4f", marginLeft: 4 }}>*</span>
-              )}
-            </>
-          )}
+          requiredMark={false}
         >
           <Collapse
             activeKey={activeKeys}
@@ -289,10 +238,18 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
             )}
             expandIconPosition="start"
             ghost
-            items={collapseItemsWithDocumentActions}
+            items={collapseItems}
           />
         </Form>
       </div>
+
+      <MobileEmployeeFormActions
+        loading={loading}
+        canSave={canSave}
+        onSaveDraft={handleSaveDraftWithReset}
+        onSave={handleSaveWithReset}
+        onCancel={handleCancelWithConfirm}
+      />
     </div>
   );
 };

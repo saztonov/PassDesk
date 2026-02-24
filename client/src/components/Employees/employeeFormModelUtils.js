@@ -118,7 +118,9 @@ export const buildEmployeeInitialFormData = ({
       ? formatBlankNumber(employee.blankNumber)
       : null,
     passportNumber:
-      employee.passportType === "russian" && employee.passportNumber
+      !isMobile &&
+      employee.passportType === "russian" &&
+      employee.passportNumber
         ? formatRussianPassportNumber(employee.passportNumber)
         : employee.passportNumber,
   };

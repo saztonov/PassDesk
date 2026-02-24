@@ -14,7 +14,6 @@ const getRequiredFieldsByTab = (
       "gender",
       "positionId",
       "citizenshipId",
-      "birthCountryId",
       "birthDate",
       "registrationAddress",
       "email",

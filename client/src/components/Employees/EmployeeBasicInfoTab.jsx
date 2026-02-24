@@ -17,6 +17,8 @@ const EmployeeBasicInfoTab = ({
   latinInputError,
   handleFullNameChange,
   dateFormat,
+  passportType,
+  setPassportType,
 }) => (
   <>
     <EmployeeBasicInfoHeader
@@ -37,12 +39,12 @@ const EmployeeBasicInfoTab = ({
       latinInputError={latinInputError}
       handleFullNameChange={handleFullNameChange}
       dateFormat={dateFormat}
+      passportType={passportType}
+      setPassportType={setPassportType}
     />
 
     <EmployeeBasicInfoSecondaryRows
       getFieldProps={getFieldProps}
-      citizenships={citizenships}
-      antiAutofillIds={antiAutofillIds}
       userRole={user?.role}
     />
   </>

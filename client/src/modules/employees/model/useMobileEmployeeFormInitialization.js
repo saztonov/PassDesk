@@ -6,10 +6,8 @@ export const useMobileEmployeeFormInitialization = ({
   employeeIdOnLoad,
   setEmployeeIdOnLoad,
   citizenshipsLength,
-  positionsLength,
   initializeEmployeeData,
   form,
-  setPassportType,
   lastSavedSnapshotRef,
   handleCitizenshipChange,
   userCounterpartyId,
@@ -17,23 +15,22 @@ export const useMobileEmployeeFormInitialization = ({
   setLoadingCounterparties,
 }) => {
   useEffect(() => {
-    if (citizenshipsLength && positionsLength) {
+    if (citizenshipsLength) {
       if (employee?.id !== employeeIdOnLoad) {
         const formData = initializeEmployeeData(true);
         if (formData) {
-          form.setFieldsValue(formData);
+          form.setFieldsValue({
+            passportType: formData.passportType || "foreign",
+            ...formData,
+          });
           lastSavedSnapshotRef.current = JSON.stringify(form.getFieldsValue(true));
-
-          if (formData.passportType) {
-            setPassportType(formData.passportType);
-          }
 
           if (employee?.citizenshipId) {
             handleCitizenshipChange(employee.citizenshipId);
           }
         } else {
           form.resetFields();
-          setPassportType(null);
+          form.setFieldsValue({ passportType: "foreign" });
           lastSavedSnapshotRef.current = JSON.stringify(form.getFieldsValue(true));
         }
         setEmployeeIdOnLoad(employee?.id);
@@ -48,9 +45,7 @@ export const useMobileEmployeeFormInitialization = ({
     handleCitizenshipChange,
     initializeEmployeeData,
     lastSavedSnapshotRef,
-    positionsLength,
     setEmployeeIdOnLoad,
-    setPassportType,
   ]);
 
   useEffect(() => {

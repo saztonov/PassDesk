@@ -1,20 +1,17 @@
-import { Row, Col, Form, Input, Select } from "antd";
+import { Divider, Row, Col, Form, Input } from "antd";
 import {
   formatBankAccountNumber,
   formatInn,
-  formatRussianPassportNumber,
   formatSnils,
   noAutoFillProps,
 } from "./employeeFormUtils";
-import MaskedDatePicker from "../../shared/ui/MaskedDatePicker";
-
-const { Option } = Select;
+import EmployeePatentTab from "./EmployeePatentTab";
 
 const EmployeeDocumentsTab = ({
   getFieldProps,
   handleInnBlur,
-  passportType,
-  setPassportType,
+  requiresPatent,
+  checkingCitizenship,
   dateFormat,
 }) => (
   <>
@@ -90,95 +87,26 @@ const EmployeeDocumentsTab = ({
           </Form.Item>
         </Col>
       )}
+    </Row>
 
-      {!getFieldProps("passportType").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
-          <Form.Item
-            name="passportType"
-            label="Тип паспорта"
-            required={getFieldProps("passportType").required}
-            rules={getFieldProps("passportType").rules}
-          >
-            <Select
-              placeholder="Выберите тип паспорта"
-              allowClear
-              autoComplete="off"
-              onChange={(value) => setPassportType(value)}
-            >
-              <Option value="russian">Российский</Option>
-              <Option value="foreign">Иностранного гражданина</Option>
-            </Select>
-          </Form.Item>
-        </Col>
-      )}
-
-      {!getFieldProps("passportNumber").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
-          <Form.Item
-            name="passportNumber"
-            label="№ паспорта"
-            required={getFieldProps("passportNumber").required}
-            rules={getFieldProps("passportNumber").rules}
-            getValueFromEvent={(e) => {
-              if (passportType === "russian") {
-                return formatRussianPassportNumber(e.target.value);
-              }
-              return e.target.value;
+    {(requiresPatent || checkingCitizenship) && (
+      <>
+        <Divider style={{ margin: "12px 0" }} />
+        {checkingCitizenship ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "24px 0",
+              color: "#999",
             }}
           >
-            <Input
-              {...noAutoFillProps}
-              placeholder={
-                passportType === "russian" ? "1234 №123456" : "Номер паспорта"
-              }
-              maxLength={passportType === "russian" ? 13 : undefined}
-            />
-          </Form.Item>
-        </Col>
-      )}
-
-      {!getFieldProps("passportDate").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
-          <Form.Item
-            name="passportDate"
-            label="Дата выдачи паспорта"
-            required={getFieldProps("passportDate").required}
-            rules={getFieldProps("passportDate").rules}
-          >
-            <MaskedDatePicker format={dateFormat} />
-          </Form.Item>
-        </Col>
-      )}
-
-      {passportType === "foreign" && !getFieldProps("passportExpiryDate").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
-          <Form.Item
-            name="passportExpiryDate"
-            label="Дата окончания паспорта"
-            required={getFieldProps("passportExpiryDate").required}
-            rules={getFieldProps("passportExpiryDate").rules}
-          >
-            <MaskedDatePicker format={dateFormat} />
-          </Form.Item>
-        </Col>
-      )}
-
-      {!getFieldProps("passportIssuer").hidden && (
-        <Col xs={24} sm={24} md={12} lg={12}>
-          <Form.Item
-            name="passportIssuer"
-            label="Кем выдан паспорт"
-            required={getFieldProps("passportIssuer").required}
-            rules={getFieldProps("passportIssuer").rules}
-          >
-            <Input
-              placeholder="ГУ МВД России, г.Москва, ул. Тверская, д.20"
-              {...noAutoFillProps}
-            />
-          </Form.Item>
-        </Col>
-      )}
-    </Row>
+            Проверка необходимости патента...
+          </div>
+        ) : (
+          <EmployeePatentTab getFieldProps={getFieldProps} dateFormat={dateFormat} />
+        )}
+      </>
+    )}
   </>
 );
 
