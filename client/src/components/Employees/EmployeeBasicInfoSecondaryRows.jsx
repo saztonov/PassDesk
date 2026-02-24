@@ -14,11 +14,13 @@ const EmployeeBasicInfoSecondaryRows = ({
   userRole,
 }) => {
   const canEditNotes = userRole === "admin" || userRole === "manager";
+  const showBirthCountry = !getFieldProps("birthCountryId").hidden;
+  const addressSpan = showBirthCountry ? 12 : 18;
 
   return (
     <>
       <Row gutter={16}>
-        {!getFieldProps("birthCountryId").hidden && (
+        {showBirthCountry && (
           <Col xs={24} sm={12} md={6} lg={6}>
             <Form.Item
               name="birthCountryId"
@@ -46,7 +48,7 @@ const EmployeeBasicInfoSecondaryRows = ({
         )}
 
         {!getFieldProps("registrationAddress").hidden && (
-          <Col xs={24} sm={24} md={12} lg={12}>
+          <Col xs={24} sm={24} md={addressSpan} lg={addressSpan}>
             <Form.Item
               name="registrationAddress"
               label="Адрес регистрации"

@@ -86,9 +86,6 @@ const EmployeeBasicInfoPrimaryRows = ({
           </Form.Item>
         </Col>
       )}
-    </Row>
-
-    <Row gutter={16}>
       {!getFieldProps("positionId").hidden && (
         <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
@@ -120,6 +117,9 @@ const EmployeeBasicInfoPrimaryRows = ({
           </Form.Item>
         </Col>
       )}
+    </Row>
+
+    <Row gutter={16}>
       {!getFieldProps("citizenshipId").hidden && (
         <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item

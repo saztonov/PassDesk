@@ -28,9 +28,6 @@ import {
 } from "./employeeFormModelUtils";
 
 const TEMP_HIDDEN_FIELDS = new Set([
-  "birthCountryId",
-  "passportType",
-  "passportExpiryDate",
   "kigEndDate",
   "gender",
   "email",
