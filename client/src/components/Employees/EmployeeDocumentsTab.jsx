@@ -66,6 +66,7 @@ const EmployeeDocumentsTab = ({
           </Form.Item>
         </Col>
       )}
+
       {!getFieldProps("bankAccountNumber").hidden && (
         <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
@@ -89,6 +90,7 @@ const EmployeeDocumentsTab = ({
           </Form.Item>
         </Col>
       )}
+
       {!getFieldProps("passportType").hidden && (
         <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
@@ -109,9 +111,7 @@ const EmployeeDocumentsTab = ({
           </Form.Item>
         </Col>
       )}
-    </Row>
 
-    <Row gutter={16}>
       {!getFieldProps("passportNumber").hidden && (
         <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
@@ -136,6 +136,7 @@ const EmployeeDocumentsTab = ({
           </Form.Item>
         </Col>
       )}
+
       {!getFieldProps("passportDate").hidden && (
         <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
@@ -148,10 +149,8 @@ const EmployeeDocumentsTab = ({
           </Form.Item>
         </Col>
       )}
-    </Row>
 
-    {passportType === "foreign" && !getFieldProps("passportExpiryDate").hidden && (
-      <Row gutter={16}>
+      {passportType === "foreign" && !getFieldProps("passportExpiryDate").hidden && (
         <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="passportExpiryDate"
@@ -162,10 +161,8 @@ const EmployeeDocumentsTab = ({
             <MaskedDatePicker format={dateFormat} />
           </Form.Item>
         </Col>
-      </Row>
-    )}
+      )}
 
-    <Row gutter={16}>
       {!getFieldProps("passportIssuer").hidden && (
         <Col xs={24} sm={24} md={12} lg={12}>
           <Form.Item
