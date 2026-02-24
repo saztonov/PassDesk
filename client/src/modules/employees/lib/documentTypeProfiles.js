@@ -149,7 +149,10 @@ const filterCodesByAllowed = (codes = [], allowedCodeSet = null) => {
   if (!allowedCodeSet || allowedCodeSet.size === 0) {
     return codes;
   }
-  return codes.filter((code) => allowedCodeSet.has(code));
+  return codes.filter(
+    (code) =>
+      allowedCodeSet.has(code) || REQUIRED_CONSENT_CODES.includes(code),
+  );
 };
 
 export const normalizeDocumentProfilesConfig = ({
