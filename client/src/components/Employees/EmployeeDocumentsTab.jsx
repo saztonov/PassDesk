@@ -19,33 +19,32 @@ const EmployeeDocumentsTab = ({
 }) => (
   <>
     <Row gutter={16}>
-      {!getFieldProps("inn").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
-          <Form.Item
-            name="inn"
-            label="ИНН"
-            required={getFieldProps("inn").required}
-            rules={[
-              ...getFieldProps("inn").rules,
-              {
-                pattern: /^\d{4}-\d{5}-\d{1}$|^\d{4}-\d{6}-\d{2}$/,
-                message:
-                  "ИНН должен быть в формате XXXX-XXXXX-X или XXXX-XXXXXX-XX",
-              },
-            ]}
-            normalize={(value) => formatInn(value)}
-          >
-            <Input
-              maxLength={14}
-              placeholder="XXXX-XXXXX-X"
-              onBlur={handleInnBlur}
-              {...noAutoFillProps}
-            />
-          </Form.Item>
-        </Col>
-      )}
+      <Col xs={24} sm={12} md={6} lg={6}>
+        <Form.Item
+          name="inn"
+          label="ИНН"
+          required={getFieldProps("inn").required}
+          rules={[
+            ...getFieldProps("inn").rules,
+            {
+              pattern: /^\d{4}-\d{5}-\d{1}$|^\d{4}-\d{6}-\d{2}$/,
+              message:
+                "ИНН должен быть в формате XXXX-XXXXX-X или XXXX-XXXXXX-XX",
+            },
+          ]}
+          normalize={(value) => formatInn(value)}
+        >
+          <Input
+            maxLength={14}
+            placeholder="XXXX-XXXXX-X"
+            onBlur={handleInnBlur}
+            {...noAutoFillProps}
+          />
+        </Form.Item>
+      </Col>
+
       {!getFieldProps("snils").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="snils"
             label="СНИЛС"
@@ -68,7 +67,7 @@ const EmployeeDocumentsTab = ({
         </Col>
       )}
       {!getFieldProps("bankAccountNumber").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="bankAccountNumber"
             label="Номер банковского счета"
@@ -90,11 +89,8 @@ const EmployeeDocumentsTab = ({
           </Form.Item>
         </Col>
       )}
-    </Row>
-
-    <Row gutter={16}>
       {!getFieldProps("passportType").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="passportType"
             label="Тип паспорта"
@@ -113,8 +109,11 @@ const EmployeeDocumentsTab = ({
           </Form.Item>
         </Col>
       )}
+    </Row>
+
+    <Row gutter={16}>
       {!getFieldProps("passportNumber").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="passportNumber"
             label="№ паспорта"
@@ -138,7 +137,7 @@ const EmployeeDocumentsTab = ({
         </Col>
       )}
       {!getFieldProps("passportDate").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="passportDate"
             label="Дата выдачи паспорта"
@@ -151,27 +150,24 @@ const EmployeeDocumentsTab = ({
       )}
     </Row>
 
+    {passportType === "foreign" && !getFieldProps("passportExpiryDate").hidden && (
+      <Row gutter={16}>
+        <Col xs={24} sm={12} md={6} lg={6}>
+          <Form.Item
+            name="passportExpiryDate"
+            label="Дата окончания паспорта"
+            required={getFieldProps("passportExpiryDate").required}
+            rules={getFieldProps("passportExpiryDate").rules}
+          >
+            <MaskedDatePicker format={dateFormat} />
+          </Form.Item>
+        </Col>
+      </Row>
+    )}
+
     <Row gutter={16}>
-      {passportType === "foreign" &&
-        !getFieldProps("passportExpiryDate").hidden && (
-          <Col xs={24} sm={12} md={12} lg={12}>
-            <Form.Item
-              name="passportExpiryDate"
-              label="Дата окончания паспорта"
-              required={getFieldProps("passportExpiryDate").required}
-              rules={getFieldProps("passportExpiryDate").rules}
-            >
-              <MaskedDatePicker format={dateFormat} />
-            </Form.Item>
-          </Col>
-        )}
       {!getFieldProps("passportIssuer").hidden && (
-        <Col
-          xs={24}
-          sm={passportType === "foreign" ? 12 : 24}
-          md={passportType === "foreign" ? 12 : 24}
-          lg={passportType === "foreign" ? 12 : 24}
-        >
+        <Col xs={24} sm={24} md={12} lg={12}>
           <Form.Item
             name="passportIssuer"
             label="Кем выдан паспорт"

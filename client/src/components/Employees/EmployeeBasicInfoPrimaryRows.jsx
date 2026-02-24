@@ -18,7 +18,7 @@ const EmployeeBasicInfoPrimaryRows = ({
   <>
     <Row gutter={16}>
       {!getFieldProps("lastName").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="lastName"
             label="Фамилия"
@@ -41,7 +41,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("firstName").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="firstName"
             label="Имя"
@@ -64,7 +64,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("middleName").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="middleName"
             label="Отчество"
@@ -90,7 +90,7 @@ const EmployeeBasicInfoPrimaryRows = ({
 
     <Row gutter={16}>
       {!getFieldProps("positionId").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="positionId"
             label="Должность"
@@ -121,7 +121,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("citizenshipId").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="citizenshipId"
             label="Гражданство"
@@ -147,7 +147,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("birthDate").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="birthDate"
             label="Дата рождения"

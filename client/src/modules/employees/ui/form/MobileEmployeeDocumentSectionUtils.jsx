@@ -6,6 +6,16 @@ import {
 } from "@/modules/employees/lib/documentTypeProfiles";
 
 const DATE_FORMAT = "DD.MM.YYYY";
+const CONSENT_DOCUMENT_TYPES = new Set([
+  "consent",
+  "biometric_consent",
+  "biometric_consent_developer",
+]);
+const REQUIRED_CONSENT_DOCUMENT_TYPES = [
+  "consent",
+  "biometric_consent",
+  "biometric_consent_developer",
+];
 
 export const formatDateInputValue = (value) => {
   if (!value) return value;
@@ -41,14 +51,37 @@ export const createDateInputRules = (rules = []) => [
 export const getUploadsForDocumentProfile = (
   profileCode,
   profilesConfig = null,
-) =>
-  getDocumentTypeCodesForProfile(profileCode, profilesConfig).map(
-    (documentType) => ({
-      documentType,
-      label: profileDocumentTypeLabels[documentType] || documentType,
-      multiple: true,
-    }),
-  );
+) => {
+  const profileCodes = getDocumentTypeCodesForProfile(profileCode, profilesConfig);
+  const mergedCodes = [...profileCodes];
+
+  REQUIRED_CONSENT_DOCUMENT_TYPES.forEach((documentType) => {
+    if (!mergedCodes.includes(documentType)) {
+      mergedCodes.push(documentType);
+    }
+  });
+
+  return mergedCodes.map((documentType) => ({
+    documentType,
+    label: profileDocumentTypeLabels[documentType] || documentType,
+    multiple: true,
+  }));
+};
+
+export const splitUploadsByConsent = (uploads = []) => {
+  const documentUploads = [];
+  const consentUploads = [];
+
+  uploads.forEach((upload) => {
+    if (CONSENT_DOCUMENT_TYPES.has(upload?.documentType)) {
+      consentUploads.push(upload);
+      return;
+    }
+    documentUploads.push(upload);
+  });
+
+  return { documentUploads, consentUploads };
+};
 
 export const renderUploads = ({
   uploads,

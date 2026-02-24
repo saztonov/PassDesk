@@ -43,6 +43,7 @@ const EmployeeBasicInfoTab = ({
       getFieldProps={getFieldProps}
       citizenships={citizenships}
       antiAutofillIds={antiAutofillIds}
+      userRole={user?.role}
     />
   </>
 );

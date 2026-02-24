@@ -3,6 +3,7 @@ import {
   createDateInputRules,
   formatDateInputValue,
   getUploadsForDocumentProfile,
+  splitUploadsByConsent,
 } from "./MobileEmployeeDocumentSectionUtils";
 import MobileEmployeeUploadsSection from "./MobileEmployeeUploadsSection";
 
@@ -24,46 +25,48 @@ export const buildMobileEmployeeDocumentsSection = ({
   ensureEmployeeId,
   profileCode,
   profilesConfig,
-}) => ({
-  key: "documents",
-  label: (
-    <Title level={5} style={{ margin: 0 }}>
-      📄 Документы
-    </Title>
-  ),
-  children: (
-    <>
-      {!getFieldProps("inn").hidden && (
-        <Form.Item
-          label="ИНН"
-          name="inn"
-          required={getFieldProps("inn").required}
-          rules={[
-            ...getFieldProps("inn").rules,
-            {
-              validator: (_, value) => {
-                if (!value) return Promise.resolve();
-                const digits = value.replace(/[^\d]/g, "");
-                if (digits.length === 10 || digits.length === 12) {
-                  return Promise.resolve();
-                }
-                return Promise.reject(
-                  new Error("ИНН должен содержать 10 или 12 цифр"),
-                );
-              },
+}) => {
+  const uploads = getUploadsForDocumentProfile(profileCode, profilesConfig);
+  const { documentUploads, consentUploads } = splitUploadsByConsent(uploads);
+
+  return {
+    key: "documents",
+    label: (
+      <Title level={5} style={{ margin: 0 }}>
+        📄 Документы
+      </Title>
+    ),
+    children: (
+      <>
+      <Form.Item
+        label="ИНН"
+        name="inn"
+        required={getFieldProps("inn").required}
+        rules={[
+          ...getFieldProps("inn").rules,
+          {
+            validator: (_, value) => {
+              if (!value) return Promise.resolve();
+              const digits = value.replace(/[^\d]/g, "");
+              if (digits.length === 10 || digits.length === 12) {
+                return Promise.resolve();
+              }
+              return Promise.reject(
+                new Error("ИНН должен содержать 10 или 12 цифр"),
+              );
             },
-          ]}
-          getValueFromEvent={(e) => formatInn(e.target.value)}
-        >
-          <Input
-            placeholder="1234-567890-12"
-            size="large"
-            maxLength={14}
-            onBlur={handleInnBlur}
-            {...noAutoFillProps}
-          />
-        </Form.Item>
-      )}
+          },
+        ]}
+        getValueFromEvent={(e) => formatInn(e.target.value)}
+      >
+        <Input
+          placeholder="1234-567890-12"
+          size="large"
+          maxLength={14}
+          onBlur={handleInnBlur}
+          {...noAutoFillProps}
+        />
+      </Form.Item>
 
       {!getFieldProps("snils").hidden && (
         <Form.Item
@@ -204,10 +207,24 @@ export const buildMobileEmployeeDocumentsSection = ({
       </div>
 
       <MobileEmployeeUploadsSection
-        uploads={getUploadsForDocumentProfile(profileCode, profilesConfig)}
+        uploads={documentUploads}
         employee={employee}
         ensureEmployeeId={ensureEmployeeId}
       />
-    </>
-  ),
-});
+
+      {consentUploads.length > 0 && (
+        <>
+          <div style={{ marginTop: 12, marginBottom: 12 }}>
+            <Text strong>Согласия</Text>
+          </div>
+          <MobileEmployeeUploadsSection
+            uploads={consentUploads}
+            employee={employee}
+            ensureEmployeeId={ensureEmployeeId}
+          />
+        </>
+      )}
+      </>
+    ),
+  };
+};
