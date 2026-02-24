@@ -41,6 +41,8 @@ export const DocumentScannerModal = ({
   const isPassportMode = mode === "passport";
   const isMobileViewport = viewport.isMobile;
   const isPortraitViewport = viewport.isPortrait;
+  const isVerticalPassportGuide =
+    isPassportMode && isMobileViewport && isPortraitViewport;
 
   // Константы для анализа видеопотока
   const ANALYSIS_WIDTH = 480;
@@ -57,10 +59,17 @@ export const DocumentScannerModal = ({
   const getGuideRect = useCallback(
     (width, height) => {
       if (isPassportMode) {
-        const targetAspect =
-          isMobileViewport && isPortraitViewport ? 1.45 : 1.9;
-        const maxWidth = isMobileViewport ? width * 0.82 : width * 0.88;
-        const maxHeight = isMobileViewport ? height * 0.42 : height * 0.62;
+        const targetAspect = isVerticalPassportGuide ? 0.72 : 1.9;
+        const maxWidth = isVerticalPassportGuide
+          ? width * 0.74
+          : isMobileViewport
+            ? width * 0.82
+            : width * 0.88;
+        const maxHeight = isVerticalPassportGuide
+          ? height * 0.78
+          : isMobileViewport
+            ? height * 0.42
+            : height * 0.62;
         let guideWidth = maxWidth;
         let guideHeight = guideWidth / targetAspect;
 
@@ -89,7 +98,7 @@ export const DocumentScannerModal = ({
         height: frameHeight,
       };
     },
-    [isMobileViewport, isPassportMode, isPortraitViewport],
+    [isMobileViewport, isPassportMode, isVerticalPassportGuide],
   );
 
   useEffect(() => {
@@ -657,33 +666,57 @@ export const DocumentScannerModal = ({
           ctxOverlay.setLineDash([]); // Убираем штриховку
 
           if (isPassportMode) {
-            // Линия сгиба паспорта посередине
-            ctxOverlay.beginPath();
-            ctxOverlay.strokeStyle = "rgba(255,255,255,0.7)";
-            ctxOverlay.lineWidth = 1.5;
-            ctxOverlay.setLineDash([7, 6]);
-            ctxOverlay.moveTo(frameLeft + frameWidth / 2, frameTop);
-            ctxOverlay.lineTo(
-              frameLeft + frameWidth / 2,
-              frameTop + frameHeight,
-            );
-            ctxOverlay.stroke();
-            ctxOverlay.setLineDash([]);
-
-            const labelTop = Math.max(6, frameTop - 26);
-            const drawLabel = (text, x) => {
+            const drawLabel = (text, x, y) => {
               const paddingX = 8;
               ctxOverlay.font = "12px sans-serif";
               const textWidth = ctxOverlay.measureText(text).width;
               const labelWidth = textWidth + paddingX * 2;
               ctxOverlay.fillStyle = "rgba(0,0,0,0.55)";
-              ctxOverlay.fillRect(x - labelWidth / 2, labelTop, labelWidth, 20);
+              ctxOverlay.fillRect(x - labelWidth / 2, y, labelWidth, 20);
               ctxOverlay.fillStyle = "#fff";
-              ctxOverlay.fillText(text, x - textWidth / 2, labelTop + 14);
+              ctxOverlay.fillText(text, x - textWidth / 2, y + 14);
             };
 
-            drawLabel("Фото и ФИО", frameLeft + frameWidth * 0.25);
-            drawLabel("Серия и номер", frameLeft + frameWidth * 0.75);
+            // Линия сгиба/разделения
+            ctxOverlay.beginPath();
+            ctxOverlay.strokeStyle = "rgba(255,255,255,0.7)";
+            ctxOverlay.lineWidth = 1.5;
+            ctxOverlay.setLineDash([7, 6]);
+
+            if (isVerticalPassportGuide) {
+              ctxOverlay.moveTo(frameLeft, frameTop + frameHeight / 2);
+              ctxOverlay.lineTo(
+                frameLeft + frameWidth,
+                frameTop + frameHeight / 2,
+              );
+              const topLabelY = Math.max(6, frameTop - 26);
+              const bottomLabelY = Math.min(
+                overlayCanvas.height - 24,
+                frameTop + frameHeight + 6,
+              );
+              drawLabel("Фото и ФИО", frameLeft + frameWidth / 2, topLabelY);
+              drawLabel(
+                "Серия и номер",
+                frameLeft + frameWidth / 2,
+                bottomLabelY,
+              );
+            } else {
+              ctxOverlay.moveTo(frameLeft + frameWidth / 2, frameTop);
+              ctxOverlay.lineTo(
+                frameLeft + frameWidth / 2,
+                frameTop + frameHeight,
+              );
+              const labelTop = Math.max(6, frameTop - 26);
+              drawLabel("Фото и ФИО", frameLeft + frameWidth * 0.25, labelTop);
+              drawLabel(
+                "Серия и номер",
+                frameLeft + frameWidth * 0.75,
+                labelTop,
+              );
+            }
+
+            ctxOverlay.stroke();
+            ctxOverlay.setLineDash([]);
           }
 
           if (contourToDraw && !isPassportMode) {
@@ -739,6 +772,7 @@ export const DocumentScannerModal = ({
     calculateFramePenalty,
     getGuideRect,
     isPassportMode,
+    isVerticalPassportGuide,
   ]);
 
   function findAndCropDocument(imgElement) {
@@ -1042,7 +1076,9 @@ export const DocumentScannerModal = ({
                 showIcon
                 message={
                   isPassportMode
-                    ? "Снимите основной разворот паспорта: обе страницы целиком, без бликов."
+                    ? isVerticalPassportGuide
+                      ? "Держите телефон вертикально. Совместите разворот паспорта с рамкой."
+                      : "Снимите основной разворот паспорта: обе страницы целиком, без бликов."
                     : "Совместите документ с пунктирной рамкой."
                 }
                 style={{
