@@ -5,7 +5,7 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import fs from "fs";
+import fsp from "fs/promises";
 
 const DEFAULT_BASE_PATH = "";
 const DEFAULT_DOWNLOAD_TTL = 3600;
@@ -95,8 +95,7 @@ export const createS3Provider = (config = {}) => {
     filePath,
   }) => {
     const objectKey = normalizePath(filePath);
-    const fileBody =
-      fileBuffer || (fileLocalPath ? fs.createReadStream(fileLocalPath) : null);
+    const fileBody = fileBuffer || (fileLocalPath ? await fsp.readFile(fileLocalPath) : null);
 
     if (!fileBody) {
       throw new Error("Отсутствуют данные файла для загрузки");
@@ -107,6 +106,7 @@ export const createS3Provider = (config = {}) => {
       Key: objectKey,
       Body: fileBody,
       ContentType: mimeType,
+      ContentLength: Buffer.isBuffer(fileBody) ? fileBody.length : undefined,
     };
 
     if (config.kmsKeyId) {
