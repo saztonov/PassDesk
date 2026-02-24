@@ -1,11 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Modal, Button, Spin, message, Alert, Switch } from "antd";
+import { Modal, Button, Spin, message, Alert } from "antd";
 import {
   CameraOutlined,
-  CloseOutlined,
   RotateRightOutlined,
   SaveOutlined,
-  ThunderboltOutlined,
 } from "@ant-design/icons";
 import Webcam from "react-webcam";
 
@@ -30,10 +28,19 @@ export const DocumentScannerModal = ({
   const [capturedImage, setCapturedImage] = useState(null);
   const [processedImage, setProcessedImage] = useState(null);
   const [error, setError] = useState(null);
-  const [autoCapture, setAutoCapture] = useState(false);
   const [isStable, setIsStable] = useState(false);
+  const [viewport, setViewport] = useState(() => {
+    if (typeof window === "undefined") {
+      return { isMobile: false, isPortrait: false };
+    }
+    return {
+      isMobile: window.innerWidth < 768,
+      isPortrait: window.innerHeight >= window.innerWidth,
+    };
+  });
   const isPassportMode = mode === "passport";
-  const allowAutoCapture = !isPassportMode;
+  const isMobileViewport = viewport.isMobile;
+  const isPortraitViewport = viewport.isPortrait;
 
   // Константы для анализа видеопотока
   const ANALYSIS_WIDTH = 480;
@@ -50,9 +57,10 @@ export const DocumentScannerModal = ({
   const getGuideRect = useCallback(
     (width, height) => {
       if (isPassportMode) {
-        const targetAspect = 1.9;
-        const maxWidth = width * 0.88;
-        const maxHeight = height * 0.62;
+        const targetAspect =
+          isMobileViewport && isPortraitViewport ? 1.45 : 1.9;
+        const maxWidth = isMobileViewport ? width * 0.92 : width * 0.88;
+        const maxHeight = isMobileViewport ? height * 0.5 : height * 0.62;
         let guideWidth = maxWidth;
         let guideHeight = guideWidth / targetAspect;
 
@@ -81,8 +89,23 @@ export const DocumentScannerModal = ({
         height: frameHeight,
       };
     },
-    [isPassportMode],
+    [isMobileViewport, isPassportMode, isPortraitViewport],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const updateViewport = () => {
+      setViewport({
+        isMobile: window.innerWidth < 768,
+        isPortrait: window.innerHeight >= window.innerWidth,
+      });
+    };
+
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    return () => window.removeEventListener("resize", updateViewport);
+  }, []);
 
   const handleModalVisibilityChange = useCallback((open) => {
     if (!open) {
@@ -90,7 +113,6 @@ export const DocumentScannerModal = ({
       setProcessedImage(null);
       setError(null);
       setProcessing(false);
-      setAutoCapture(false);
       lastContourRef.current = null;
       stableCounterRef.current = 0;
       setIsStable(false);
@@ -593,16 +615,6 @@ export const DocumentScannerModal = ({
         const isVeryStable = stableCounterRef.current > 6;
         setIsStable(isVeryStable);
 
-        if (
-          allowAutoCapture &&
-          autoCapture &&
-          isVeryStable &&
-          !processing &&
-          !capturedImage
-        ) {
-          takePhoto();
-        }
-
         const overlayCanvas = canvasRef.current;
         if (overlayCanvas) {
           overlayCanvas.width = video.clientWidth;
@@ -723,10 +735,7 @@ export const DocumentScannerModal = ({
   }, [
     cvReady,
     capturedImage,
-    autoCapture,
-    allowAutoCapture,
     processing,
-    takePhoto,
     calculateFramePenalty,
     getGuideRect,
     isPassportMode,
@@ -976,14 +985,19 @@ export const DocumentScannerModal = ({
       onCancel={onCancel}
       afterOpenChange={handleModalVisibilityChange}
       footer={null}
-      width={800}
-      centered
+      width={isMobileViewport ? "100vw" : 800}
+      centered={!isMobileViewport}
+      style={
+        isMobileViewport
+          ? { top: 0, paddingBottom: 0, maxWidth: "100vw" }
+          : undefined
+      }
       styles={{ body: { padding: 0 } }}
       destroyOnHidden
     >
       <div
         style={{
-          minHeight: 400,
+          minHeight: isMobileViewport ? "100vh" : 400,
           background: "#000",
           position: "relative",
           display: "flex",
@@ -1014,7 +1028,7 @@ export const DocumentScannerModal = ({
                 position: "absolute",
                 top: 12,
                 left: 12,
-                right: allowAutoCapture ? 170 : 12,
+                right: 12,
                 zIndex: 2,
               }}
             >
@@ -1047,7 +1061,7 @@ export const DocumentScannerModal = ({
                 width: "100%",
                 height: "100%",
                 objectFit: "contain",
-                maxHeight: "70vh",
+                maxHeight: isMobileViewport ? "100vh" : "70vh",
               }}
             />
 
@@ -1063,56 +1077,10 @@ export const DocumentScannerModal = ({
               }}
             />
 
-            {allowAutoCapture && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 16,
-                  right: 16,
-                  background: "rgba(0,0,0,0.6)",
-                  padding: "4px 12px",
-                  borderRadius: 20,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <span style={{ color: "#fff", fontSize: 12 }}>Авто-съемка</span>
-                <Switch
-                  size="small"
-                  checked={autoCapture}
-                  onChange={setAutoCapture}
-                  checkedChildren={<ThunderboltOutlined />}
-                  unCheckedChildren={<CloseOutlined />}
-                />
-              </div>
-            )}
-
-            {allowAutoCapture && autoCapture && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "15%",
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  padding: "6px 16px",
-                  borderRadius: 20,
-                  background: isStable
-                    ? "rgba(82, 196, 26, 0.8)"
-                    : "rgba(0, 0, 0, 0.5)",
-                  color: "#fff",
-                  fontSize: 14,
-                  transition: "background 0.3s, color 0.3s",
-                }}
-              >
-                {isStable ? "Не двигайте камеру..." : "Поиск документа..."}
-              </div>
-            )}
-
             <div
               style={{
                 position: "absolute",
-                bottom: 20,
+                bottom: isMobileViewport ? 28 : 20,
                 width: "100%",
                 display: "flex",
                 justifyContent: "center",
