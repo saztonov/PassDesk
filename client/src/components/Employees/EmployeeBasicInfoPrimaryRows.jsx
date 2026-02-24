@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import { Col, Form, Input, Row, Select } from "antd";
-import { noAutoFillProps } from "./employeeFormUtils";
+import { formatPhoneNumber, noAutoFillProps } from "./employeeFormUtils";
 import MaskedDatePicker from "../../shared/ui/MaskedDatePicker";
 
 const { Option } = Select;
@@ -181,6 +181,31 @@ const EmployeeBasicInfoPrimaryRows = ({
             ]}
           >
             <MaskedDatePicker format={dateFormat} />
+          </Form.Item>
+        </Col>
+      )}
+      {!getFieldProps("phone").hidden && (
+        <Col xs={24} sm={12} md={6} lg={6}>
+          <Form.Item
+            name="phone"
+            label="Телефон"
+            required={getFieldProps("phone").required}
+            rules={[
+              ...getFieldProps("phone").rules,
+              {
+                pattern: /^\+7 \(\d{3}\) \d{3}-\d{2}-\d{2}$/,
+                message: "Телефон должен быть в формате +7 (999) 123-45-67",
+              },
+            ]}
+            normalize={(value) => formatPhoneNumber(value)}
+          >
+            <Input
+              id={antiAutofillIds.phone}
+              name={antiAutofillIds.phone}
+              placeholder="+7 (999) 123-45-67"
+              maxLength={18}
+              {...noAutoFillProps}
+            />
           </Form.Item>
         </Col>
       )}
