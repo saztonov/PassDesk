@@ -13,7 +13,12 @@ import Webcam from "react-webcam";
  * Модальное окно для сканирования документов
  * Использует OpenCV.js напрямую для автоматического поиска границ
  */
-export const DocumentScannerModal = ({ visible, onCapture, onCancel }) => {
+export const DocumentScannerModal = ({
+  visible,
+  onCapture,
+  onCancel,
+  mode = "document",
+}) => {
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
   const lastContourRef = useRef(null);
@@ -27,6 +32,8 @@ export const DocumentScannerModal = ({ visible, onCapture, onCancel }) => {
   const [error, setError] = useState(null);
   const [autoCapture, setAutoCapture] = useState(false);
   const [isStable, setIsStable] = useState(false);
+  const isPassportMode = mode === "passport";
+  const allowAutoCapture = !isPassportMode;
 
   // Константы для анализа видеопотока
   const ANALYSIS_WIDTH = 480;
@@ -40,12 +47,50 @@ export const DocumentScannerModal = ({ visible, onCapture, onCancel }) => {
   const PRIORITY_INNER = 10; // х10 внутри рамки
   const PRIORITY_EDGE = 20; // х20 на краях рамки
 
+  const getGuideRect = useCallback(
+    (width, height) => {
+      if (isPassportMode) {
+        const targetAspect = 1.9;
+        const maxWidth = width * 0.88;
+        const maxHeight = height * 0.62;
+        let guideWidth = maxWidth;
+        let guideHeight = guideWidth / targetAspect;
+
+        if (guideHeight > maxHeight) {
+          guideHeight = maxHeight;
+          guideWidth = guideHeight * targetAspect;
+        }
+
+        return {
+          x: (width - guideWidth) / 2,
+          y: (height - guideHeight) / 2,
+          width: guideWidth,
+          height: guideHeight,
+        };
+      }
+
+      const frameLeft = width * OUTER_MARGIN_PERCENTAGE;
+      const frameTop = height * OUTER_MARGIN_PERCENTAGE;
+      const frameWidth = width * FRAME_PERCENTAGE;
+      const frameHeight = height * FRAME_PERCENTAGE;
+
+      return {
+        x: frameLeft,
+        y: frameTop,
+        width: frameWidth,
+        height: frameHeight,
+      };
+    },
+    [isPassportMode],
+  );
+
   const handleModalVisibilityChange = useCallback((open) => {
     if (!open) {
       setCapturedImage(null);
       setProcessedImage(null);
       setError(null);
       setProcessing(false);
+      setAutoCapture(false);
       lastContourRef.current = null;
       stableCounterRef.current = 0;
       setIsStable(false);
@@ -90,57 +135,60 @@ export const DocumentScannerModal = ({ visible, onCapture, onCancel }) => {
   }, []);
 
   // Функция для определения весового коэффициента контура на основе его расположения
-  const calculateFramePenalty = useCallback((contour, width, height) => {
-    const rect = window.cv.boundingRect(contour);
+  const calculateFramePenalty = useCallback(
+    (contour, width, height) => {
+      const rect = window.cv.boundingRect(contour);
 
-    // Определяем границы рамки приоритета
-    const frameLeft = width * OUTER_MARGIN_PERCENTAGE;
-    const frameRight = width * (1 - OUTER_MARGIN_PERCENTAGE);
-    const frameTop = height * OUTER_MARGIN_PERCENTAGE;
-    const frameBottom = height * (1 - OUTER_MARGIN_PERCENTAGE);
+      const guideRect = getGuideRect(width, height);
+      const frameLeft = guideRect.x;
+      const frameRight = guideRect.x + guideRect.width;
+      const frameTop = guideRect.y;
+      const frameBottom = guideRect.y + guideRect.height;
 
-    // Считаем пиксели внутри и снаружи рамки
-    const rectLeft = Math.max(rect.x, 0);
-    const rectRight = Math.min(rect.x + rect.width, width);
-    const rectTop = Math.max(rect.y, 0);
-    const rectBottom = Math.min(rect.y + rect.height, height);
+      // Считаем пиксели внутри и снаружи рамки
+      const rectLeft = Math.max(rect.x, 0);
+      const rectRight = Math.min(rect.x + rect.width, width);
+      const rectTop = Math.max(rect.y, 0);
+      const rectBottom = Math.min(rect.y + rect.height, height);
 
-    // Пересечение с рамкой
-    const overlapLeft = Math.max(frameLeft, rectLeft);
-    const overlapRight = Math.min(frameRight, rectRight);
-    const overlapTop = Math.max(frameTop, rectTop);
-    const overlapBottom = Math.min(frameBottom, rectBottom);
+      // Пересечение с рамкой
+      const overlapLeft = Math.max(frameLeft, rectLeft);
+      const overlapRight = Math.min(frameRight, rectRight);
+      const overlapTop = Math.max(frameTop, rectTop);
+      const overlapBottom = Math.min(frameBottom, rectBottom);
 
-    const insideArea =
-      Math.max(0, overlapRight - overlapLeft) *
-      Math.max(0, overlapBottom - overlapTop);
-    const totalArea = rect.width * rect.height;
-    const outsidePercentage =
-      totalArea > 0 ? (totalArea - insideArea) / totalArea : 0;
+      const insideArea =
+        Math.max(0, overlapRight - overlapLeft) *
+        Math.max(0, overlapBottom - overlapTop);
+      const totalArea = rect.width * rect.height;
+      const outsidePercentage =
+        totalArea > 0 ? (totalArea - insideArea) / totalArea : 0;
 
-    // Если более 15% документа вне рамки - сильный штраф
-    if (outsidePercentage > MAX_OUTSIDE_PERCENTAGE) {
-      return 0.05; // Практически полный штраф
-    }
+      // Если более 15% документа вне рамки - сильный штраф
+      if (outsidePercentage > MAX_OUTSIDE_PERCENTAGE) {
+        return 0.05; // Практически полный штраф
+      }
 
-    // Проверяем, находится ли контур в краях рамки или внутри
-    // Считаем сколько контура в краях (20% по сторонам)
-    const edgeLeftPart = Math.max(0, frameLeft - rectLeft);
-    const edgeRightPart = Math.max(0, rectRight - frameRight);
-    const edgeTopPart = Math.max(0, frameTop - rectTop);
-    const edgeBottomPart = Math.max(0, rectBottom - frameBottom);
+      // Проверяем, находится ли контур в краях рамки или внутри
+      // Считаем сколько контура в краях (20% по сторонам)
+      const edgeLeftPart = Math.max(0, frameLeft - rectLeft);
+      const edgeRightPart = Math.max(0, rectRight - frameRight);
+      const edgeTopPart = Math.max(0, frameTop - rectTop);
+      const edgeBottomPart = Math.max(0, rectBottom - frameBottom);
 
-    const edgePixels =
-      edgeLeftPart + edgeRightPart + edgeTopPart + edgeBottomPart;
-    const edgePercentage = edgePixels / Math.max(rect.width + rect.height, 1);
+      const edgePixels =
+        edgeLeftPart + edgeRightPart + edgeTopPart + edgeBottomPart;
+      const edgePercentage = edgePixels / Math.max(rect.width + rect.height, 1);
 
-    // Смешанный коэффициент: если много в краях - усиливаем приоритет х20, иначе х10
-    if (edgePercentage > 0.3) {
-      return 1.0 + (PRIORITY_EDGE - 1) * edgePercentage; // х20 за края
-    } else {
-      return 1.0 + (PRIORITY_INNER - 1) * (1 - outsidePercentage); // х10 внутри
-    }
-  }, []);
+      // Смешанный коэффициент: если много в краях - усиливаем приоритет х20, иначе х10
+      if (edgePercentage > 0.3) {
+        return 1.0 + (PRIORITY_EDGE - 1) * edgePercentage; // х20 за края
+      } else {
+        return 1.0 + (PRIORITY_INNER - 1) * (1 - outsidePercentage); // х10 внутри
+      }
+    },
+    [getGuideRect],
+  );
 
   const takePhoto = useCallback(async () => {
     if (!webcamRef.current) return;
@@ -545,7 +593,13 @@ export const DocumentScannerModal = ({ visible, onCapture, onCancel }) => {
         const isVeryStable = stableCounterRef.current > 6;
         setIsStable(isVeryStable);
 
-        if (autoCapture && isVeryStable && !processing && !capturedImage) {
+        if (
+          allowAutoCapture &&
+          autoCapture &&
+          isVeryStable &&
+          !processing &&
+          !capturedImage
+        ) {
           takePhoto();
         }
 
@@ -557,30 +611,30 @@ export const DocumentScannerModal = ({ visible, onCapture, onCancel }) => {
           ctxOverlay.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
           // Рисуем затемнение за пределами рамки приоритета
-          const frameLeft = overlayCanvas.width * OUTER_MARGIN_PERCENTAGE;
-          const frameTop = overlayCanvas.height * OUTER_MARGIN_PERCENTAGE;
-          const frameWidth = overlayCanvas.width * FRAME_PERCENTAGE;
-          const frameHeight = overlayCanvas.height * FRAME_PERCENTAGE;
+          const guideRect = getGuideRect(
+            overlayCanvas.width,
+            overlayCanvas.height,
+          );
+          const frameLeft = guideRect.x;
+          const frameTop = guideRect.y;
+          const frameWidth = guideRect.width;
+          const frameHeight = guideRect.height;
 
-          // Затемняем края (20% с каждой стороны)
+          // Затемняем пространство за пределами рамки
           ctxOverlay.fillStyle = "rgba(0, 0, 0, 0.3)";
-          // Левый край
           ctxOverlay.fillRect(0, 0, frameLeft, overlayCanvas.height);
-          // Правый край
           ctxOverlay.fillRect(
             frameLeft + frameWidth,
             0,
-            frameLeft,
+            overlayCanvas.width - (frameLeft + frameWidth),
             overlayCanvas.height,
           );
-          // Верхний край
-          ctxOverlay.fillRect(0, 0, overlayCanvas.width, frameTop);
-          // Нижний край
+          ctxOverlay.fillRect(frameLeft, 0, frameWidth, frameTop);
           ctxOverlay.fillRect(
-            0,
+            frameLeft,
             frameTop + frameHeight,
-            overlayCanvas.width,
-            frameTop,
+            frameWidth,
+            overlayCanvas.height - (frameTop + frameHeight),
           );
 
           // Рисуем рамку приоритета
@@ -589,6 +643,36 @@ export const DocumentScannerModal = ({ visible, onCapture, onCancel }) => {
           ctxOverlay.setLineDash([5, 5]); // Штрихованная линия
           ctxOverlay.strokeRect(frameLeft, frameTop, frameWidth, frameHeight);
           ctxOverlay.setLineDash([]); // Убираем штриховку
+
+          if (isPassportMode) {
+            // Линия сгиба паспорта посередине
+            ctxOverlay.beginPath();
+            ctxOverlay.strokeStyle = "rgba(255,255,255,0.7)";
+            ctxOverlay.lineWidth = 1.5;
+            ctxOverlay.setLineDash([7, 6]);
+            ctxOverlay.moveTo(frameLeft + frameWidth / 2, frameTop);
+            ctxOverlay.lineTo(
+              frameLeft + frameWidth / 2,
+              frameTop + frameHeight,
+            );
+            ctxOverlay.stroke();
+            ctxOverlay.setLineDash([]);
+
+            const labelTop = Math.max(6, frameTop - 26);
+            const drawLabel = (text, x) => {
+              const paddingX = 8;
+              ctxOverlay.font = "12px sans-serif";
+              const textWidth = ctxOverlay.measureText(text).width;
+              const labelWidth = textWidth + paddingX * 2;
+              ctxOverlay.fillStyle = "rgba(0,0,0,0.55)";
+              ctxOverlay.fillRect(x - labelWidth / 2, labelTop, labelWidth, 20);
+              ctxOverlay.fillStyle = "#fff";
+              ctxOverlay.fillText(text, x - textWidth / 2, labelTop + 14);
+            };
+
+            drawLabel("Фото и ФИО", frameLeft + frameWidth * 0.25);
+            drawLabel("Серия и номер", frameLeft + frameWidth * 0.75);
+          }
 
           if (contourToDraw) {
             const scaleX = overlayCanvas.width / width;
@@ -640,9 +724,12 @@ export const DocumentScannerModal = ({ visible, onCapture, onCancel }) => {
     cvReady,
     capturedImage,
     autoCapture,
+    allowAutoCapture,
     processing,
     takePhoto,
     calculateFramePenalty,
+    getGuideRect,
+    isPassportMode,
   ]);
 
   function findAndCropDocument(imgElement) {
@@ -884,7 +971,7 @@ export const DocumentScannerModal = ({ visible, onCapture, onCancel }) => {
 
   return (
     <Modal
-      title="Сканирование документа"
+      title={isPassportMode ? "Фото паспорта" : "Сканирование документа"}
       open={visible}
       onCancel={onCancel}
       afterOpenChange={handleModalVisibilityChange}
@@ -922,6 +1009,31 @@ export const DocumentScannerModal = ({ visible, onCapture, onCancel }) => {
 
         {!capturedImage && !loading && !error && (
           <>
+            <div
+              style={{
+                position: "absolute",
+                top: 12,
+                left: 12,
+                right: allowAutoCapture ? 170 : 12,
+                zIndex: 2,
+              }}
+            >
+              <Alert
+                type="info"
+                showIcon
+                message={
+                  isPassportMode
+                    ? "Снимите основной разворот паспорта: обе страницы целиком, без бликов."
+                    : "Совместите документ с пунктирной рамкой."
+                }
+                style={{
+                  background: "rgba(0, 0, 0, 0.45)",
+                  border: "1px solid rgba(255,255,255,0.3)",
+                  color: "#fff",
+                }}
+              />
+            </div>
+
             <Webcam
               audio={false}
               ref={webcamRef}
@@ -951,30 +1063,32 @@ export const DocumentScannerModal = ({ visible, onCapture, onCancel }) => {
               }}
             />
 
-            <div
-              style={{
-                position: "absolute",
-                top: 16,
-                right: 16,
-                background: "rgba(0,0,0,0.6)",
-                padding: "4px 12px",
-                borderRadius: 20,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <span style={{ color: "#fff", fontSize: 12 }}>Авто-съемка</span>
-              <Switch
-                size="small"
-                checked={autoCapture}
-                onChange={setAutoCapture}
-                checkedChildren={<ThunderboltOutlined />}
-                unCheckedChildren={<CloseOutlined />}
-              />
-            </div>
+            {allowAutoCapture && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 16,
+                  right: 16,
+                  background: "rgba(0,0,0,0.6)",
+                  padding: "4px 12px",
+                  borderRadius: 20,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <span style={{ color: "#fff", fontSize: 12 }}>Авто-съемка</span>
+                <Switch
+                  size="small"
+                  checked={autoCapture}
+                  onChange={setAutoCapture}
+                  checkedChildren={<ThunderboltOutlined />}
+                  unCheckedChildren={<CloseOutlined />}
+                />
+              </div>
+            )}
 
-            {autoCapture && (
+            {allowAutoCapture && autoCapture && (
               <div
                 style={{
                   position: "absolute",

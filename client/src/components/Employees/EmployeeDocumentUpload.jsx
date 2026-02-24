@@ -53,6 +53,7 @@ const EmployeeDocumentUpload = ({
     resolvedEmployeeId,
   } = state;
   const effectiveEmployeeId = employeeId || resolvedEmployeeId;
+  const cameraMode = documentType === "passport" ? "passport" : "document";
 
   // Ссылка на скрытый инпут для системной камеры (резервный вариант)
   const nativeCameraInputRef = useRef(null);
@@ -421,6 +422,7 @@ const EmployeeDocumentUpload = ({
       {/* Компонент камеры с режимом документа */}
       <DocumentCamera
         visible={cameraVisible}
+        mode={cameraMode}
         onCapture={handleCameraCapture}
         onCancel={() => setState((prev) => ({ ...prev, cameraVisible: false }))}
       />
