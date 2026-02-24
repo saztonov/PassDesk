@@ -12,7 +12,7 @@ const EmployeeBasicInfoSecondaryRows = ({
 }) => {
   const canEditNotes = userRole === "admin" || userRole === "manager";
   const showBirthCountry = !getFieldProps("birthCountryId").hidden;
-  const addressSpan = showBirthCountry ? 12 : 18;
+  const showNotes = canEditNotes && !getFieldProps("notes").hidden;
 
   return (
     <>
@@ -43,9 +43,11 @@ const EmployeeBasicInfoSecondaryRows = ({
             </Form.Item>
           </Col>
         )}
+      </Row>
 
+      <Row gutter={16}>
         {!getFieldProps("registrationAddress").hidden && (
-          <Col xs={24} sm={24} md={addressSpan} lg={addressSpan}>
+          <Col xs={24} sm={24} md={showNotes ? 12 : 24} lg={showNotes ? 12 : 24}>
             <Form.Item
               name="registrationAddress"
               label="Адрес регистрации"
@@ -61,12 +63,8 @@ const EmployeeBasicInfoSecondaryRows = ({
             </Form.Item>
           </Col>
         )}
-
-      </Row>
-
-      {canEditNotes && !getFieldProps("notes").hidden && (
-        <Row gutter={16}>
-          <Col span={24}>
+        {showNotes && (
+          <Col xs={24} sm={24} md={12} lg={12}>
             <Form.Item
               name="notes"
               label="Примечания"
@@ -76,8 +74,8 @@ const EmployeeBasicInfoSecondaryRows = ({
               <TextArea rows={2} {...noAutoFillProps} />
             </Form.Item>
           </Col>
-        </Row>
-      )}
+        )}
+      </Row>
     </>
   );
 };
