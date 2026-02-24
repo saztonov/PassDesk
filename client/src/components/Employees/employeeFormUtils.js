@@ -73,28 +73,22 @@ export const formatSnils = (value) => {
 
 export const formatKig = (value) => {
   if (!value) return value;
-
-  let kig = value.toUpperCase();
-  kig = kig.replace(/[^A-Z0-9]/g, "");
-
-  const letters = kig.replace(/[^A-Z]/g, "");
-  const numbers = kig.replace(/[^0-9]/g, "");
-
-  const limitedLetters = letters.slice(0, 2);
-  const limitedNumbers = numbers.slice(0, 7);
-
-  if (limitedLetters.length === 0) {
-    return "";
-  }
-  if (limitedNumbers.length === 0) {
-    return limitedLetters;
-  }
-  return `${limitedLetters} ${limitedNumbers}`;
+  return value.replace(/[^\d]/g, "").slice(0, 7);
 };
 
 export const normalizeKig = (value) => {
   if (!value) return value;
-  return value.replace(/\s/g, "");
+  return value.replace(/[^\d]/g, "");
+};
+
+export const formatBankAccountNumber = (value) => {
+  if (!value) return value;
+  return value.replace(/[^\d]/g, "").slice(0, 20);
+};
+
+export const normalizeBankAccountNumber = (value) => {
+  if (!value) return value;
+  return value.replace(/[^\d]/g, "");
 };
 
 export const formatInn = (value) => {

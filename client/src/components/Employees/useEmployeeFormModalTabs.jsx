@@ -37,6 +37,8 @@ export const useEmployeeFormModalTabs = ({
   documentProfilesConfig,
 }) => {
   return useMemo(() => {
+    const showCounterpartySection = false;
+
     const getTabIcon = (tabKey) => {
       if (tabsValidation[tabKey]) {
         return (
@@ -118,14 +120,18 @@ export const useEmployeeFormModalTabs = ({
               </>
             )}
 
-            <Divider style={{ margin: "12px 0" }} />
-            <Text strong style={{ display: "block", marginBottom: 12 }}>
-              Контрагент
-            </Text>
-            <EmployeeCounterpartyTab
-              availableCounterparties={availableCounterparties}
-              loadingCounterparties={loadingCounterparties}
-            />
+            {showCounterpartySection && (
+              <>
+                <Divider style={{ margin: "12px 0" }} />
+                <Text strong style={{ display: "block", marginBottom: 12 }}>
+                  Контрагент
+                </Text>
+                <EmployeeCounterpartyTab
+                  availableCounterparties={availableCounterparties}
+                  loadingCounterparties={loadingCounterparties}
+                />
+              </>
+            )}
           </>
         ),
       },

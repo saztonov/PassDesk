@@ -1,5 +1,6 @@
 import { Row, Col, Form, Input, Select } from "antd";
 import {
+  formatBankAccountNumber,
   formatRussianPassportNumber,
   formatSnils,
   noAutoFillProps,
@@ -17,7 +18,7 @@ const EmployeeDocumentsTab = ({
   <>
     <Row gutter={16}>
       {!getFieldProps("snils").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={12} md={12} lg={12}>
           <Form.Item
             name="snils"
             label="СНИЛС"
@@ -34,6 +35,29 @@ const EmployeeDocumentsTab = ({
             <Input
               maxLength={14}
               placeholder="123-456-789 00"
+              {...noAutoFillProps}
+            />
+          </Form.Item>
+        </Col>
+      )}
+      {!getFieldProps("bankAccountNumber").hidden && (
+        <Col xs={24} sm={12} md={12} lg={12}>
+          <Form.Item
+            name="bankAccountNumber"
+            label="Номер банковского счета"
+            required={getFieldProps("bankAccountNumber").required}
+            rules={[
+              ...getFieldProps("bankAccountNumber").rules,
+              {
+                pattern: /^\d{20}$/,
+                message: "Номер банковского счета должен содержать 20 цифр",
+              },
+            ]}
+            normalize={(value) => formatBankAccountNumber(value)}
+          >
+            <Input
+              maxLength={20}
+              placeholder="40702810900000000000"
               {...noAutoFillProps}
             />
           </Form.Item>

@@ -1,6 +1,7 @@
 import { Row, Col, Form, Input } from "antd";
 import {
   formatBlankNumber,
+  formatKig,
   formatPatentNumber,
   noAutoFillProps,
 } from "./employeeFormUtils";
@@ -9,8 +10,31 @@ import MaskedDatePicker from "../../shared/ui/MaskedDatePicker";
 const EmployeePatentTab = ({ getFieldProps, dateFormat }) => (
   <>
     <Row gutter={16}>
+      {!getFieldProps("kig").hidden && (
+        <Col xs={24} sm={6} md={6} lg={6}>
+          <Form.Item
+            name="kig"
+            label="КИГ"
+            required={getFieldProps("kig").required}
+            rules={[
+              ...getFieldProps("kig").rules,
+              {
+                pattern: /^\d{7}$/,
+                message: "КИГ должен содержать 7 цифр",
+              },
+            ]}
+            normalize={(value) => formatKig(value)}
+          >
+            <Input
+              placeholder="1234567"
+              maxLength={7}
+              {...noAutoFillProps}
+            />
+          </Form.Item>
+        </Col>
+      )}
       {!getFieldProps("patentNumber").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={6} md={6} lg={6}>
           <Form.Item
             name="patentNumber"
             label="Номер патента"
@@ -34,7 +58,7 @@ const EmployeePatentTab = ({ getFieldProps, dateFormat }) => (
         </Col>
       )}
       {!getFieldProps("patentIssueDate").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={6} md={6} lg={6}>
           <Form.Item
             name="patentIssueDate"
             label="Дата выдачи патента"
@@ -46,7 +70,7 @@ const EmployeePatentTab = ({ getFieldProps, dateFormat }) => (
         </Col>
       )}
       {!getFieldProps("blankNumber").hidden && (
-        <Col xs={24} sm={8} md={8} lg={8}>
+        <Col xs={24} sm={6} md={6} lg={6}>
           <Form.Item
             name="blankNumber"
             label="Номер бланка"

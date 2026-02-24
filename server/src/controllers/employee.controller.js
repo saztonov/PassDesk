@@ -72,6 +72,7 @@ const EMPLOYEE_UPDATE_ALLOWED_FIELDS = new Set([
   "blankNumber",
   "email",
   "phone",
+  "bankAccountNumber",
   "notes",
 ]);
 

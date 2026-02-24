@@ -9,6 +9,7 @@ const { Title } = Typography;
 export const buildMobileEmployeePatentSection = ({
   requiresPatent,
   getFieldProps,
+  formatKig,
   formatPatentNumber,
   noAutoFillProps,
   formatBlankNumber,
@@ -26,6 +27,29 @@ export const buildMobileEmployeePatentSection = ({
     ),
     children: (
       <>
+        {!getFieldProps("kig").hidden && (
+          <Form.Item
+            label="КИГ"
+            name="kig"
+            required={getFieldProps("kig").required}
+            rules={[
+              ...getFieldProps("kig").rules,
+              {
+                pattern: /^\d{7}$/,
+                message: "КИГ должен содержать 7 цифр",
+              },
+            ]}
+            getValueFromEvent={(e) => formatKig(e.target.value)}
+          >
+            <Input
+              placeholder="1234567"
+              size="large"
+              maxLength={7}
+              {...noAutoFillProps}
+            />
+          </Form.Item>
+        )}
+
         {!getFieldProps("patentNumber").hidden && (
           <Form.Item
             label="Номер патента"

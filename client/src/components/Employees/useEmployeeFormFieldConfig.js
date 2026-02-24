@@ -5,8 +5,9 @@ const TEMP_HIDDEN_FIELDS = new Set([
   "birthCountryId",
   "passportType",
   "passportExpiryDate",
-  "kig",
   "kigEndDate",
+  "gender",
+  "email",
 ]);
 
 export const useEmployeeFormFieldConfig = ({

@@ -6,6 +6,8 @@ export const buildMobileDocumentSections = ({
   getFieldProps,
   requiresPatent,
   formatSnils,
+  formatBankAccountNumber,
+  formatKig,
   passportType,
   setPassportType,
   formatRussianPassportNumber,
@@ -19,12 +21,14 @@ export const buildMobileDocumentSections = ({
   loadingCounterparties,
   availableCounterparties,
 }) => {
+  const showCounterpartySection = false;
   const sections = [];
 
   sections.push(
     buildMobileEmployeeDocumentsSection({
       getFieldProps,
       formatSnils,
+      formatBankAccountNumber,
       passportType,
       setPassportType,
       formatRussianPassportNumber,
@@ -39,6 +43,7 @@ export const buildMobileDocumentSections = ({
   const patentSection = buildMobileEmployeePatentSection({
     requiresPatent,
     getFieldProps,
+    formatKig,
     formatPatentNumber,
     noAutoFillProps,
     formatBlankNumber,
@@ -48,12 +53,14 @@ export const buildMobileDocumentSections = ({
     sections.push(patentSection);
   }
 
-  sections.push(
-    buildMobileEmployeeCounterpartySection({
-      loadingCounterparties,
-      availableCounterparties,
-    }),
-  );
+  if (showCounterpartySection) {
+    sections.push(
+      buildMobileEmployeeCounterpartySection({
+        loadingCounterparties,
+        availableCounterparties,
+      }),
+    );
+  }
 
   return sections;
 };

@@ -13,6 +13,7 @@ const { Option } = Select;
 export const buildMobileEmployeeDocumentsSection = ({
   getFieldProps,
   formatSnils,
+  formatBankAccountNumber,
   passportType,
   setPassportType,
   formatRussianPassportNumber,
@@ -53,6 +54,29 @@ export const buildMobileEmployeeDocumentsSection = ({
           <Input
             placeholder="123-456-789 00"
             size="large"
+            {...noAutoFillProps}
+          />
+        </Form.Item>
+      )}
+
+      {!getFieldProps("bankAccountNumber").hidden && (
+        <Form.Item
+          label="Номер банковского счета"
+          name="bankAccountNumber"
+          required={getFieldProps("bankAccountNumber").required}
+          rules={[
+            ...getFieldProps("bankAccountNumber").rules,
+            {
+              pattern: /^\d{20}$/,
+              message: "Номер банковского счета должен содержать 20 цифр",
+            },
+          ]}
+          getValueFromEvent={(e) => formatBankAccountNumber(e.target.value)}
+        >
+          <Input
+            placeholder="40702810900000000000"
+            size="large"
+            maxLength={20}
             {...noAutoFillProps}
           />
         </Form.Item>

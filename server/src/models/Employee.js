@@ -117,15 +117,15 @@ Employee.init(
           if (!value || value.trim() === "") {
             return;
           }
-          // КИГ должен быть в формате: 2 латинские буквы + 7 цифр (без пробела)
-          if (!/^[A-Z]{2}\d{7}$/.test(value)) {
+          // Допускаем новый формат (7 цифр) и legacy-формат (2 латинские буквы + 7 цифр)
+          if (!/^\d{7}$/.test(value) && !/^[A-Z]{2}\d{7}$/.test(value)) {
             throw new Error(
-              "КИГ должен быть в формате АА1234567 (2 латинские буквы + 7 цифр)",
+              "КИГ должен содержать 7 цифр",
             );
           }
         },
       },
-      comment: "КИГ (Карта иностранного гражданина) (уникальный)",
+      comment: "Номер КИГ (7 цифр, поддерживается legacy АА1234567) (уникальный)",
     },
     passportNumber: {
       type: DataTypes.STRING,
@@ -216,6 +216,24 @@ Employee.init(
           }
         },
       },
+    },
+    bankAccountNumber: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+      field: "bank_account_number",
+      validate: {
+        isValidBankAccountNumber(value) {
+          if (!value || value.trim() === "") {
+            return;
+          }
+          if (!/^\d{20}$/.test(value)) {
+            throw new Error(
+              "Номер банковского счета должен содержать 20 цифр",
+            );
+          }
+        },
+      },
+      comment: "Номер банковского счета (20 цифр)",
     },
     notes: {
       type: DataTypes.TEXT,

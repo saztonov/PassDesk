@@ -55,6 +55,7 @@ export const buildEmployeeInitialFormData = ({
   formatInn,
   formatSnils,
   formatPhoneNumber,
+  formatBankAccountNumber,
   formatKig,
   formatPatentNumber,
   formatBlankNumber,
@@ -106,6 +107,9 @@ export const buildEmployeeInitialFormData = ({
     inn: employee.inn ? formatInn(employee.inn) : null,
     snils: employee.snils ? formatSnils(employee.snils) : null,
     phone: employee.phone ? formatPhoneNumber(employee.phone) : null,
+    bankAccountNumber: employee.bankAccountNumber
+      ? formatBankAccountNumber(employee.bankAccountNumber)
+      : null,
     kig: employee.kig ? formatKig(employee.kig) : null,
     patentNumber: employee.patentNumber
       ? formatPatentNumber(employee.patentNumber)
@@ -130,6 +134,9 @@ export const buildSaveNormalizedValues = ({ values, normalizers }) => ({
   phone: normalizers.normalizePhoneNumber(values.phone),
   snils: normalizers.normalizeSnils(values.snils),
   inn: normalizers.normalizeInn(values.inn),
+  bankAccountNumber: normalizers.normalizeBankAccountNumber(
+    values.bankAccountNumber,
+  ),
   kig: normalizers.normalizeKig(values.kig),
   patentNumber: normalizers.normalizePatentNumber(values.patentNumber),
   passportNumber:
@@ -148,6 +155,9 @@ export const buildDraftNormalizedValues = ({ values, normalizers }) => ({
   phone: values.phone ? normalizers.normalizePhoneNumber(values.phone) : null,
   snils: values.snils ? normalizers.normalizeSnils(values.snils) : null,
   inn: values.inn ? normalizers.normalizeInn(values.inn) : null,
+  bankAccountNumber: values.bankAccountNumber
+    ? normalizers.normalizeBankAccountNumber(values.bankAccountNumber)
+    : null,
   kig: values.kig ? normalizers.normalizeKig(values.kig) : null,
   patentNumber: values.patentNumber
     ? normalizers.normalizePatentNumber(values.patentNumber)

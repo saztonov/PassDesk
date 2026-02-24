@@ -28,6 +28,7 @@ export const EMPLOYEE_FIELDS = [
   { key: 'passportDate', defaultRequired: true, defaultVisible: true },
   { key: 'passportIssuer', defaultRequired: true, defaultVisible: true },
   { key: 'passportExpiryDate', defaultRequired: false, defaultVisible: true },
+  { key: 'bankAccountNumber', defaultRequired: false, defaultVisible: true },
   
   // Патент и КИГ
   { key: 'kig', defaultRequired: true, defaultVisible: true },
@@ -152,4 +153,3 @@ export const getMissingRequiredFields = (employee, formConfig = DEFAULT_FORM_CON
 
   return missing;
 };
-

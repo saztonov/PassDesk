@@ -1,5 +1,9 @@
 import { Col, Form, Input, Row, Select } from "antd";
-import { formatPhoneNumber, noAutoFillProps } from "./employeeFormUtils";
+import {
+  formatInn,
+  formatPhoneNumber,
+  noAutoFillProps,
+} from "./employeeFormUtils";
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -8,6 +12,7 @@ const EmployeeBasicInfoSecondaryRows = ({
   getFieldProps,
   citizenships,
   antiAutofillIds,
+  handleInnBlur,
 }) => (
   <>
     <Row gutter={16}>
@@ -57,25 +62,6 @@ const EmployeeBasicInfoSecondaryRows = ({
     </Row>
 
     <Row gutter={16}>
-      {!getFieldProps("email").hidden && (
-        <Col xs={24} sm={12} md={12} lg={12}>
-          <Form.Item
-            name="email"
-            label="Email"
-            required={getFieldProps("email").required}
-            rules={[
-              ...getFieldProps("email").rules,
-              {
-                type: "email",
-                message:
-                  "Введите корректный email (например: ivanov@example.com)",
-              },
-            ]}
-          >
-            <Input placeholder="ivanov@example.com" {...noAutoFillProps} />
-          </Form.Item>
-        </Col>
-      )}
       {!getFieldProps("phone").hidden && (
         <Col xs={24} sm={12} md={12} lg={12}>
           <Form.Item
@@ -96,6 +82,31 @@ const EmployeeBasicInfoSecondaryRows = ({
               name={antiAutofillIds.phone}
               placeholder="+7 (999) 123-45-67"
               maxLength={18}
+              {...noAutoFillProps}
+            />
+          </Form.Item>
+        </Col>
+      )}
+      {!getFieldProps("inn").hidden && (
+        <Col xs={24} sm={12} md={12} lg={12}>
+          <Form.Item
+            name="inn"
+            label="ИНН"
+            required={getFieldProps("inn").required}
+            rules={[
+              ...getFieldProps("inn").rules,
+              {
+                pattern: /^\d{4}-\d{5}-\d{1}$|^\d{4}-\d{6}-\d{2}$/,
+                message:
+                  "ИНН должен быть в формате XXXX-XXXXX-X или XXXX-XXXXXX-XX",
+              },
+            ]}
+            normalize={(value) => formatInn(value)}
+          >
+            <Input
+              maxLength={14}
+              placeholder="XXXX-XXXXX-X"
+              onBlur={handleInnBlur}
               {...noAutoFillProps}
             />
           </Form.Item>

@@ -5,6 +5,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useReferencesStore } from "@/store/referencesStore";
 import { DEFAULT_FORM_CONFIG } from "@/shared/config/employeeFields";
 import {
+  formatBankAccountNumber,
   formatBlankNumber,
   formatInn,
   formatKig,
@@ -12,6 +13,7 @@ import {
   formatPhoneNumber,
   formatRussianPassportNumber,
   formatSnils,
+  normalizeBankAccountNumber,
   normalizeKig,
   normalizePatentNumber,
   normalizePhoneNumber,
@@ -29,8 +31,9 @@ const TEMP_HIDDEN_FIELDS = new Set([
   "birthCountryId",
   "passportType",
   "passportExpiryDate",
-  "kig",
   "kigEndDate",
+  "gender",
+  "email",
 ]);
 
 /**
@@ -234,6 +237,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
       formatInn,
       formatSnils,
       formatPhoneNumber,
+      formatBankAccountNumber,
       formatKig,
       formatPatentNumber,
       formatBlankNumber,
@@ -258,6 +262,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
             normalizePhoneNumber,
             normalizeSnils,
             normalizeInn,
+            normalizeBankAccountNumber,
             normalizeKig,
             normalizePatentNumber,
             normalizeRussianPassportNumber,
@@ -265,7 +270,10 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
         }),
       );
 
-      await onSuccess(normalizedValues);
+      const payload = { ...normalizedValues };
+      delete payload.counterpartyId;
+
+      await onSuccess(payload);
       setLoading(false);
     } catch (error) {
       setLoading(false);
@@ -289,6 +297,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
             normalizePhoneNumber,
             normalizeSnils,
             normalizeInn,
+            normalizeBankAccountNumber,
             normalizeKig,
             normalizePatentNumber,
             normalizeRussianPassportNumber,
@@ -301,7 +310,10 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
         isDraft: true,
       };
 
-      const result = await onSuccess(dataToSend);
+      const payload = { ...dataToSend };
+      delete payload.counterpartyId;
+
+      const result = await onSuccess(payload);
       setLoading(false);
       return result;
     } catch (error) {
@@ -331,6 +343,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
     formatPhoneNumber,
     formatSnils,
     formatKig,
+    formatBankAccountNumber,
     formatInn,
     formatPatentNumber,
     formatBlankNumber,

@@ -23,7 +23,7 @@ export const formatEmployeeFormPayload = (
   const formatted = {};
 
   Object.keys(values).forEach((key) => {
-    if (key === "constructionSiteId") {
+    if (key === "constructionSiteId" || key === "counterpartyId") {
       return;
     }
 
@@ -52,6 +52,11 @@ export const formatEmployeeFormPayload = (
 
     if (key === "kig") {
       formatted[key] = normalizeKig(value);
+      return;
+    }
+
+    if (key === "bankAccountNumber") {
+      formatted[key] = value ? value.replace(/[^\d]/g, "") : null;
       return;
     }
 

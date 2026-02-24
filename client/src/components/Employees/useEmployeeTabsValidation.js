@@ -19,6 +19,7 @@ const getRequiredFieldsByTab = (
       "registrationAddress",
       "email",
       "phone",
+      "bankAccountNumber",
       "notes",
       "snils",
       "passportType",

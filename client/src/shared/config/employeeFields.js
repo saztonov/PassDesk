@@ -25,6 +25,7 @@ export const EMPLOYEE_FIELDS = [
   { key: 'passportDate', label: 'Дата выдачи паспорта', group: 'documents', defaultRequired: true, defaultVisible: true },
   { key: 'passportIssuer', label: 'Кем выдан паспорт', group: 'documents', defaultRequired: true, defaultVisible: true },
   { key: 'passportExpiryDate', label: 'Дата окончания паспорта', group: 'documents', defaultRequired: false, defaultVisible: true }, // Только для иностранцев
+  { key: 'bankAccountNumber', label: 'Номер банковского счета', group: 'documents', defaultRequired: false, defaultVisible: true },
   
   // Патент и КИГ (видимость зависит от гражданства, но глобально можно отключить)
   { key: 'kig', label: 'КИГ (Карта иностранного гражданина)', group: 'patent', defaultRequired: true, defaultVisible: true },

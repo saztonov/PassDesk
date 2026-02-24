@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
-import { Col, Form, Input, Radio, Row, Select } from "antd";
-import { formatInn, noAutoFillProps } from "./employeeFormUtils";
+import { Col, Form, Input, Row, Select } from "antd";
+import { noAutoFillProps } from "./employeeFormUtils";
 import MaskedDatePicker from "../../shared/ui/MaskedDatePicker";
 
 const { Option } = Select;
@@ -13,53 +13,12 @@ const EmployeeBasicInfoPrimaryRows = ({
   antiAutofillIds,
   latinInputError,
   handleFullNameChange,
-  handleInnBlur,
   dateFormat,
 }) => (
   <>
     <Row gutter={16}>
-      {!getFieldProps("inn").hidden && (
-        <Col xs={24} sm={3} md={3} lg={3}>
-          <Form.Item
-            name="inn"
-            label="ИНН"
-            required={getFieldProps("inn").required}
-            rules={[
-              ...getFieldProps("inn").rules,
-              {
-                pattern: /^\d{4}-\d{5}-\d{1}$|^\d{4}-\d{6}-\d{2}$/,
-                message:
-                  "ИНН должен быть в формате XXXX-XXXXX-X или XXXX-XXXXXX-XX",
-              },
-            ]}
-            normalize={(value) => formatInn(value)}
-          >
-            <Input
-              maxLength={14}
-              placeholder="XXXX-XXXXX-X"
-              onBlur={handleInnBlur}
-              {...noAutoFillProps}
-            />
-          </Form.Item>
-        </Col>
-      )}
-      {!getFieldProps("gender").hidden && (
-        <Col xs={24} sm={3} md={3} lg={3}>
-          <Form.Item
-            name="gender"
-            label="Пол"
-            required={getFieldProps("gender").required}
-            rules={getFieldProps("gender").rules}
-          >
-            <Radio.Group style={{ display: "flex", gap: "8px" }}>
-              <Radio value="male">Муж</Radio>
-              <Radio value="female">Жен</Radio>
-            </Radio.Group>
-          </Form.Item>
-        </Col>
-      )}
       {!getFieldProps("lastName").hidden && (
-        <Col xs={24} sm={6} md={6} lg={6}>
+        <Col xs={24} sm={8} md={8} lg={8}>
           <Form.Item
             name="lastName"
             label="Фамилия"
@@ -82,7 +41,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("firstName").hidden && (
-        <Col xs={24} sm={6} md={6} lg={6}>
+        <Col xs={24} sm={8} md={8} lg={8}>
           <Form.Item
             name="firstName"
             label="Имя"
@@ -105,7 +64,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("middleName").hidden && (
-        <Col xs={24} sm={6} md={6} lg={6}>
+        <Col xs={24} sm={8} md={8} lg={8}>
           <Form.Item
             name="middleName"
             label="Отчество"

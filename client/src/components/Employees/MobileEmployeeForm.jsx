@@ -69,6 +69,8 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     initializeEmployeeData,
     formatPhoneNumber,
     formatSnils,
+    formatBankAccountNumber,
+    formatKig,
     formatInn,
     formatPatentNumber,
     formatBlankNumber,
@@ -82,7 +84,6 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     "documents",
     "patent",
     "statuses",
-    "counterparty",
   ]);
   const [employeeIdOnLoad, setEmployeeIdOnLoad] = useState(null); // Отслеживаем id сотрудника при загрузке
   const [passportType, setPassportType] = useState(null); // Отслеживаем тип паспорта
@@ -190,6 +191,8 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     formatPhoneNumber,
     requiresPatent,
     formatSnils,
+    formatBankAccountNumber,
+    formatKig,
     passportType,
     setPassportType,
     formatRussianPassportNumber,

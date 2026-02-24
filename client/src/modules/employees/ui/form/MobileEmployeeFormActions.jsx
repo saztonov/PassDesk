@@ -31,7 +31,7 @@ const MobileEmployeeFormActions = ({
       onClick={onSaveDraft}
       loading={loading}
     >
-      Черновик
+      Сохранить
     </Button>
 
     <div style={{ display: "flex", gap: 6 }}>
@@ -44,7 +44,7 @@ const MobileEmployeeFormActions = ({
         loading={loading}
         disabled={!canSave}
       >
-        Сохранить
+        Отправить
       </Button>
       <Button
         size="small"

@@ -122,6 +122,9 @@ export const useEmployeeFormInitialization = ({
             inn: employee.inn ? formatInn(employee.inn) : null,
             snils: employee.snils ? formatSnils(employee.snils) : null,
             phone: employee.phone ? formatPhoneNumber(employee.phone) : null,
+            bankAccountNumber: employee.bankAccountNumber
+              ? employee.bankAccountNumber.replace(/[^\d]/g, "").slice(0, 20)
+              : null,
             kig: employee.kig ? formatKig(employee.kig) : null,
             patentNumber: employee.patentNumber
               ? formatPatentNumber(employee.patentNumber)

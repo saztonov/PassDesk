@@ -37,7 +37,6 @@ const EmployeeBasicInfoTab = ({
       antiAutofillIds={antiAutofillIds}
       latinInputError={latinInputError}
       handleFullNameChange={handleFullNameChange}
-      handleInnBlur={handleInnBlur}
       dateFormat={dateFormat}
     />
 
@@ -45,6 +44,7 @@ const EmployeeBasicInfoTab = ({
       getFieldProps={getFieldProps}
       citizenships={citizenships}
       antiAutofillIds={antiAutofillIds}
+      handleInnBlur={handleInnBlur}
     />
   </>
 );
