@@ -12,6 +12,8 @@ const { Option } = Select;
 
 export const buildMobileEmployeeDocumentsSection = ({
   getFieldProps,
+  formatInn,
+  handleInnBlur,
   formatSnils,
   formatBankAccountNumber,
   passportType,
@@ -31,6 +33,38 @@ export const buildMobileEmployeeDocumentsSection = ({
   ),
   children: (
     <>
+      {!getFieldProps("inn").hidden && (
+        <Form.Item
+          label="ИНН"
+          name="inn"
+          required={getFieldProps("inn").required}
+          rules={[
+            ...getFieldProps("inn").rules,
+            {
+              validator: (_, value) => {
+                if (!value) return Promise.resolve();
+                const digits = value.replace(/[^\d]/g, "");
+                if (digits.length === 10 || digits.length === 12) {
+                  return Promise.resolve();
+                }
+                return Promise.reject(
+                  new Error("ИНН должен содержать 10 или 12 цифр"),
+                );
+              },
+            },
+          ]}
+          getValueFromEvent={(e) => formatInn(e.target.value)}
+        >
+          <Input
+            placeholder="1234-567890-12"
+            size="large"
+            maxLength={14}
+            onBlur={handleInnBlur}
+            {...noAutoFillProps}
+          />
+        </Form.Item>
+      )}
+
       {!getFieldProps("snils").hidden && (
         <Form.Item
           label="СНИЛС"

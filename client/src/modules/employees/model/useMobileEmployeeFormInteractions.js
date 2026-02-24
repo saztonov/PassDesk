@@ -66,19 +66,17 @@ export const useMobileEmployeeFormInteractions = ({
         return;
       }
 
-      const values = form.getFieldsValue(["inn", "firstName", "lastName"]);
+      const values = form.getFieldsValue(["inn", "lastName"]);
       const rawInn = values?.inn ? values.inn.replace(/[^\d]/g, "") : "";
-      const hasMinFields =
-        rawInn &&
-        (rawInn.length === 10 || rawInn.length === 12) &&
-        values?.firstName &&
-        values?.lastName;
+      const hasValidInn = rawInn.length === 10 || rawInn.length === 12;
+      const normalizedLastName = values?.lastName?.trim() || "";
+      const hasMinFields = hasValidInn || normalizedLastName.length > 0;
 
       if (!hasMinFields) {
         return;
       }
 
-      const hash = `${rawInn}|${values.firstName}|${values.lastName}`;
+      const hash = `${rawInn}|${normalizedLastName}`;
       if (lastAutoSavedHashRef.current === hash) {
         return;
       }

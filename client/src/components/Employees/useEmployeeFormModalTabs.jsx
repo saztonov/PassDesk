@@ -33,6 +33,7 @@ export const useEmployeeFormModalTabs = ({
   availableCounterparties,
   loadingCounterparties,
   handleFilesChange,
+  ensureEmployeeId,
   tabsValidation,
   documentProfilesConfig,
 }) => {
@@ -79,7 +80,6 @@ export const useEmployeeFormModalTabs = ({
               antiAutofillIds={antiAutofillIds}
               latinInputError={latinInputError}
               handleFullNameChange={handleFullNameChange}
-              handleInnBlur={handleInnBlur}
               dateFormat={dateFormat}
             />
 
@@ -89,6 +89,7 @@ export const useEmployeeFormModalTabs = ({
             </Text>
             <EmployeeDocumentsTab
               getFieldProps={getFieldProps}
+              handleInnBlur={handleInnBlur}
               passportType={passportType}
               setPassportType={setPassportType}
               dateFormat={dateFormat}
@@ -137,22 +138,21 @@ export const useEmployeeFormModalTabs = ({
       },
     ];
 
-    if (employee?.id) {
-      items.push({
-        key: "4",
-        label: "Файлы",
-        children: (
-          <EmployeeFilesTab
-            employee={employee}
-            selectedCitizenship={selectedCitizenship}
-            defaultCounterpartyId={defaultCounterpartyId}
-            userCounterpartyId={user?.counterpartyId || null}
-            onFilesUpdated={handleFilesChange}
-            documentProfilesConfig={documentProfilesConfig}
-          />
-        ),
-      });
-    }
+    items.push({
+      key: "4",
+      label: "Файлы",
+      children: (
+        <EmployeeFilesTab
+          employee={employee}
+          selectedCitizenship={selectedCitizenship}
+          defaultCounterpartyId={defaultCounterpartyId}
+          userCounterpartyId={user?.counterpartyId || null}
+          onFilesUpdated={handleFilesChange}
+          ensureEmployeeId={ensureEmployeeId}
+          documentProfilesConfig={documentProfilesConfig}
+        />
+      ),
+    });
 
     return items;
   }, [
@@ -169,6 +169,7 @@ export const useEmployeeFormModalTabs = ({
     handleFilesChange,
     handleFullNameChange,
     handleInnBlur,
+    ensureEmployeeId,
     latinInputError,
     loadingCounterparties,
     message,

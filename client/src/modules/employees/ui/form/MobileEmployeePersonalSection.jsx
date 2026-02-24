@@ -54,8 +54,6 @@ const normalizeDateInputValue = (value) => {
 
 export const buildMobileEmployeePersonalSection = ({
   getFieldProps,
-  formatInn,
-  handleInnBlur,
   noAutoFillProps,
   latinInputError,
   antiAutofillIds,
@@ -74,37 +72,6 @@ export const buildMobileEmployeePersonalSection = ({
   ),
   children: (
     <>
-      {!getFieldProps("inn").hidden && (
-        <Form.Item
-          label="ИНН"
-          name="inn"
-          required={getFieldProps("inn").required}
-          rules={[
-            ...getFieldProps("inn").rules,
-            {
-              validator: (_, value) => {
-                if (!value) return Promise.resolve();
-                const digits = value.replace(/[^\d]/g, "");
-                if (digits.length === 10 || digits.length === 12) {
-                  return Promise.resolve();
-                }
-                return Promise.reject(
-                  new Error("ИНН должен содержать 10 или 12 цифр"),
-                );
-              },
-            },
-          ]}
-          getValueFromEvent={(e) => formatInn(e.target.value)}
-        >
-          <Input
-            placeholder="1234-567890-12"
-            size="large"
-            onBlur={handleInnBlur}
-            {...noAutoFillProps}
-          />
-        </Form.Item>
-      )}
-
       {!getFieldProps("gender").hidden && (
         <div
           style={{

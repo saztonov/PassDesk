@@ -1,6 +1,5 @@
 import { Col, Form, Input, Row, Select } from "antd";
 import {
-  formatInn,
   formatPhoneNumber,
   noAutoFillProps,
 } from "./employeeFormUtils";
@@ -12,7 +11,6 @@ const EmployeeBasicInfoSecondaryRows = ({
   getFieldProps,
   citizenships,
   antiAutofillIds,
-  handleInnBlur,
 }) => (
   <>
     <Row gutter={16}>
@@ -63,7 +61,7 @@ const EmployeeBasicInfoSecondaryRows = ({
 
     <Row gutter={16}>
       {!getFieldProps("phone").hidden && (
-        <Col xs={24} sm={12} md={12} lg={12}>
+        <Col xs={24} sm={24} md={24} lg={24}>
           <Form.Item
             name="phone"
             label="Телефон"
@@ -82,31 +80,6 @@ const EmployeeBasicInfoSecondaryRows = ({
               name={antiAutofillIds.phone}
               placeholder="+7 (999) 123-45-67"
               maxLength={18}
-              {...noAutoFillProps}
-            />
-          </Form.Item>
-        </Col>
-      )}
-      {!getFieldProps("inn").hidden && (
-        <Col xs={24} sm={12} md={12} lg={12}>
-          <Form.Item
-            name="inn"
-            label="ИНН"
-            required={getFieldProps("inn").required}
-            rules={[
-              ...getFieldProps("inn").rules,
-              {
-                pattern: /^\d{4}-\d{5}-\d{1}$|^\d{4}-\d{6}-\d{2}$/,
-                message:
-                  "ИНН должен быть в формате XXXX-XXXXX-X или XXXX-XXXXXX-XX",
-              },
-            ]}
-            normalize={(value) => formatInn(value)}
-          >
-            <Input
-              maxLength={14}
-              placeholder="XXXX-XXXXX-X"
-              onBlur={handleInnBlur}
               {...noAutoFillProps}
             />
           </Form.Item>

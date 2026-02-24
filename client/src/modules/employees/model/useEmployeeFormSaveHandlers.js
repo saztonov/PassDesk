@@ -55,13 +55,15 @@ export const useEmployeeFormSaveHandlers = ({
         const formattedValues = formatEmployeeFormPayload(values, {
           isDraft: true,
         });
-        await onSuccess(formattedValues);
+        const savedEmployee = await onSuccess(formattedValues);
 
         if (!employee && !preserveForm) {
           resetFormStateAfterSave();
         }
+        return savedEmployee || null;
       } catch (error) {
         console.error("Save draft error:", error);
+        return null;
       } finally {
         if (!silent) {
           setLoading(false);
@@ -79,8 +81,16 @@ export const useEmployeeFormSaveHandlers = ({
   );
 
   const handleSaveDraft = useCallback(async () => {
-    await saveDraft({ silent: false, preserveForm: false });
+    return saveDraft({ silent: false, preserveForm: false });
   }, [saveDraft]);
+
+  const ensureEmployeeId = useCallback(async () => {
+    if (employee?.id) {
+      return employee.id;
+    }
+    const savedEmployee = await saveDraft({ silent: true, preserveForm: true });
+    return savedEmployee?.id || null;
+  }, [employee?.id, saveDraft]);
 
   const scheduleAutoSaveDraft = useCallback(() => {
     if (employee?.id || isFormResetRef.current) {
@@ -96,27 +106,27 @@ export const useEmployeeFormSaveHandlers = ({
         return;
       }
 
-      const values = form.getFieldsValue(["inn", "firstName", "lastName"]);
+      const values = form.getFieldsValue(["inn", "lastName"]);
       const rawInn = values?.inn ? values.inn.replace(/[^\d]/g, "") : "";
-      const hasMinFields =
-        rawInn &&
-        (rawInn.length === 10 || rawInn.length === 12) &&
-        values?.firstName &&
-        values?.lastName;
+      const hasValidInn = rawInn.length === 10 || rawInn.length === 12;
+      const normalizedLastName = values?.lastName?.trim() || "";
+      const hasMinFields = hasValidInn || normalizedLastName.length > 0;
 
       if (!hasMinFields) {
         return;
       }
 
-      const hash = `${rawInn}|${values.firstName}|${values.lastName}`;
+      const hash = `${rawInn}|${normalizedLastName}`;
       if (lastAutoSavedHashRef.current === hash) {
         return;
       }
 
       autoSavingRef.current = true;
       try {
-        await saveDraft({ silent: true, preserveForm: true });
-        lastAutoSavedHashRef.current = hash;
+        const savedEmployee = await saveDraft({ silent: true, preserveForm: true });
+        if (savedEmployee?.id || employee?.id) {
+          lastAutoSavedHashRef.current = hash;
+        }
       } finally {
         autoSavingRef.current = false;
       }
@@ -183,6 +193,7 @@ export const useEmployeeFormSaveHandlers = ({
     isFormResetRef,
     handleSave,
     handleSaveDraft,
+    ensureEmployeeId,
     scheduleAutoSaveDraft,
   };
 };

@@ -4,6 +4,8 @@ import { buildMobileEmployeePatentSection } from "@/modules/employees/ui/form/Mo
 
 export const buildMobileDocumentSections = ({
   getFieldProps,
+  formatInn,
+  handleInnBlur,
   requiresPatent,
   formatSnils,
   formatBankAccountNumber,
@@ -27,6 +29,8 @@ export const buildMobileDocumentSections = ({
   sections.push(
     buildMobileEmployeeDocumentsSection({
       getFieldProps,
+      formatInn,
+      handleInnBlur,
       formatSnils,
       formatBankAccountNumber,
       passportType,

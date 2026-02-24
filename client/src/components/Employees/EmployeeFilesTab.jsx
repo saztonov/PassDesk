@@ -10,6 +10,7 @@ const EmployeeFilesTab = ({
   selectedCitizenship,
   userCounterpartyId,
   onFilesUpdated,
+  ensureEmployeeId,
   documentProfilesConfig,
 }) => {
   const counterpartyId = resolveEmployeeCounterpartyId({
@@ -26,6 +27,7 @@ const EmployeeFilesTab = ({
   return (
     <DocumentTypeUploader
       employeeId={employee?.id}
+      ensureEmployeeId={ensureEmployeeId}
       readonly={false}
       onFilesUpdated={onFilesUpdated}
       profileCode={profileCode}

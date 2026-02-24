@@ -103,7 +103,7 @@ export const useAddEmployeePage = ({ id, navigate, message, modal }) => {
 
   const handleFormSuccess = async (values) => {
     if (values.employeeId) {
-      await createEmployee(values);
+      const linkedEmployee = await createEmployee(values);
 
       message.success("Сотрудник успешно привязан!");
 
@@ -111,7 +111,7 @@ export const useAddEmployeePage = ({ id, navigate, message, modal }) => {
         navigate("/employees");
       }, 1000);
 
-      return;
+      return linkedEmployee;
     }
 
     if (editingEmployee) {
@@ -124,6 +124,7 @@ export const useAddEmployeePage = ({ id, navigate, message, modal }) => {
           navigate("/employees");
         }, 1000);
       }
+      return updated;
     } else {
       const newEmployee = await createEmployee(values);
       setEditingEmployee(newEmployee);
@@ -134,6 +135,7 @@ export const useAddEmployeePage = ({ id, navigate, message, modal }) => {
           navigate("/employees");
         }, 1000);
       }
+      return newEmployee;
     }
   };
 

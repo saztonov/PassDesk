@@ -119,12 +119,14 @@ export const useEmployeesCrudActions = ({
             }
           }
         }
+        refetchEmployees();
+        return updated;
       } else {
         const newEmployee = await createEmployee(values);
         setEditingEmployee(newEmployee);
+        refetchEmployees();
+        return newEmployee;
       }
-
-      refetchEmployees();
     },
     [
       editingEmployee,

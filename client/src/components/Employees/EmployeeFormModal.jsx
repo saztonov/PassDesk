@@ -164,24 +164,29 @@ const EmployeeFormModal = ({
 
   const handleFilesChange = useCallback(() => {}, []);
 
-  const { isFormResetRef, handleSave, handleSaveDraft, scheduleAutoSaveDraft } =
-    useEmployeeFormSaveHandlers({
-      form,
-      employee,
-      onSuccess,
-      onCancel,
-      message,
-      linkingMode,
-      setLinkingMode,
-      setLoading,
-      setActiveTab,
-      setTabsValidation,
-      setSelectedCitizenship,
-      setPassportType,
-      applyLinkingModePayload,
-      shouldStayOpenAfterSave,
-      formatEmployeeFormPayload,
-    });
+  const {
+    isFormResetRef,
+    handleSave,
+    handleSaveDraft,
+    ensureEmployeeId,
+    scheduleAutoSaveDraft,
+  } = useEmployeeFormSaveHandlers({
+    form,
+    employee,
+    onSuccess,
+    onCancel,
+    message,
+    linkingMode,
+    setLinkingMode,
+    setLoading,
+    setActiveTab,
+    setTabsValidation,
+    setSelectedCitizenship,
+    setPassportType,
+    applyLinkingModePayload,
+    shouldStayOpenAfterSave,
+    formatEmployeeFormPayload,
+  });
 
   const {
     latinInputError,
@@ -232,6 +237,7 @@ const EmployeeFormModal = ({
     availableCounterparties,
     loadingCounterparties,
     handleFilesChange,
+    ensureEmployeeId,
     tabsValidation,
     documentProfilesConfig: settings?.employeeDocumentProfiles || null,
   });

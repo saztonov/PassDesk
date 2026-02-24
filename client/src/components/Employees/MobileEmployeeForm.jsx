@@ -213,6 +213,40 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     availableCounterparties,
   });
 
+  const collapseItemsWithDocumentActions = useMemo(
+    () =>
+      collapseItems.map((item) => {
+        if (item.key !== "documents") {
+          return item;
+        }
+
+        return {
+          ...item,
+          children: (
+            <>
+              {item.children}
+              <MobileEmployeeFormActions
+                inline
+                loading={loading}
+                canSave={canSave}
+                onSaveDraft={handleSaveDraftWithReset}
+                onSave={handleSaveWithReset}
+                onCancel={handleCancelWithConfirm}
+              />
+            </>
+          ),
+        };
+      }),
+    [
+      canSave,
+      collapseItems,
+      handleCancelWithConfirm,
+      handleSaveDraftWithReset,
+      handleSaveWithReset,
+      loading,
+    ],
+  );
+
   return (
     <div
       style={{
@@ -228,7 +262,7 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
           flex: 1,
           minHeight: 0,
           overflow: "auto",
-          paddingBottom: 80,
+          paddingBottom: 16,
         }}
       >
         <BrowserAutofillTrap />
@@ -255,18 +289,10 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
             )}
             expandIconPosition="start"
             ghost
-            items={collapseItems}
+            items={collapseItemsWithDocumentActions}
           />
         </Form>
       </div>
-
-      <MobileEmployeeFormActions
-        loading={loading}
-        canSave={canSave}
-        onSaveDraft={handleSaveDraftWithReset}
-        onSave={handleSaveWithReset}
-        onCancel={handleCancelWithConfirm}
-      />
     </div>
   );
 };

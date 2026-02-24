@@ -19,6 +19,7 @@ import { SUPPORTED_FORMATS } from "@/shared/constants/fileTypes";
  */
 const DocumentTypeUploader = ({
   employeeId,
+  ensureEmployeeId,
   onFilesUpdated,
   readonly = false,
   profileCode,
@@ -37,7 +38,10 @@ const DocumentTypeUploader = ({
     sampleModalVisible: false,
     selectedSampleDocType: null,
   });
+  const [resolvedEmployeeId, setResolvedEmployeeId] = useState(null);
   const uploadingRef = useRef(new Set());
+  const ensureEmployeeIdPromiseRef = useRef(null);
+  const effectiveEmployeeId = employeeId || resolvedEmployeeId;
   const { uploadingTypes, allFiles, documentTypes, loadingDocumentTypes } =
     dataState;
   const {
@@ -56,20 +60,53 @@ const DocumentTypeUploader = ({
     [documentTypes, profileCode, profilesConfig],
   );
 
+  const resolveEmployeeId = useCallback(async () => {
+    if (effectiveEmployeeId) {
+      return effectiveEmployeeId;
+    }
+    if (!ensureEmployeeId) {
+      message.error("Сначала сохраните черновик сотрудника");
+      return null;
+    }
+
+    if (ensureEmployeeIdPromiseRef.current) {
+      return ensureEmployeeIdPromiseRef.current;
+    }
+
+    ensureEmployeeIdPromiseRef.current = (async () => {
+      try {
+        const newEmployeeId = await ensureEmployeeId();
+        if (newEmployeeId) {
+          setResolvedEmployeeId(newEmployeeId);
+          return newEmployeeId;
+        }
+        message.error("Не удалось создать черновик сотрудника");
+        return null;
+      } catch {
+        message.error("Не удалось создать черновик сотрудника");
+        return null;
+      } finally {
+        ensureEmployeeIdPromiseRef.current = null;
+      }
+    })();
+
+    return ensureEmployeeIdPromiseRef.current;
+  }, [effectiveEmployeeId, ensureEmployeeId, message]);
+
   const fetchAllFiles = useCallback(async () => {
     try {
-      if (!employeeId) {
+      if (!effectiveEmployeeId) {
         setDataState((prev) => ({ ...prev, allFiles: [] }));
         return;
       }
-      const response = await employeeService.getFiles(employeeId);
+      const response = await employeeService.getFiles(effectiveEmployeeId);
       const files = response?.data || response || [];
       setDataState((prev) => ({ ...prev, allFiles: files }));
     } catch (error) {
       console.error("Error loading files:", error);
       message.error("Ошибка загрузки файлов");
     }
-  }, [employeeId, message]);
+  }, [effectiveEmployeeId, message]);
 
   useEffect(() => {
     fetchAllFiles();
@@ -130,6 +167,11 @@ const DocumentTypeUploader = ({
       return;
     }
 
+    const currentEmployeeId = await resolveEmployeeId();
+    if (!currentEmployeeId) {
+      return;
+    }
+
     const uploadKey = fileList
       .map((file) => `${file.name}_${file.size}`)
       .join("|");
@@ -151,7 +193,7 @@ const DocumentTypeUploader = ({
       });
       formData.append("documentType", documentType);
 
-      await employeeService.uploadFiles(employeeId, formData);
+      await employeeService.uploadFiles(currentEmployeeId, formData);
       message.success(`${getDocumentTypeLabel(documentType)} загружен(ы)`);
 
       setTimeout(() => {
@@ -174,8 +216,11 @@ const DocumentTypeUploader = ({
   };
 
   const handleDeleteFile = async (fileId) => {
+    if (!effectiveEmployeeId) {
+      return;
+    }
     try {
-      await employeeService.deleteFile(employeeId, fileId);
+      await employeeService.deleteFile(effectiveEmployeeId, fileId);
       message.success("Файл удален");
       await fetchAllFiles();
       if (onFilesUpdated) {
@@ -188,9 +233,12 @@ const DocumentTypeUploader = ({
   };
 
   const handleDownloadFile = async (file) => {
+    if (!effectiveEmployeeId) {
+      return;
+    }
     try {
       const downloadLink = await employeeService.getFileDownloadLink(
-        employeeId,
+        effectiveEmployeeId,
         file.id,
       );
       const url = downloadLink?.data?.downloadUrl || downloadLink?.downloadUrl;
@@ -208,9 +256,12 @@ const DocumentTypeUploader = ({
   };
 
   const handleViewFile = async (file) => {
+    if (!effectiveEmployeeId) {
+      return;
+    }
     try {
       const viewLink = await employeeService.getFileViewLink(
-        employeeId,
+        effectiveEmployeeId,
         file.id,
       );
       const url = viewLink?.data?.viewUrl || viewLink?.viewUrl;
@@ -279,7 +330,8 @@ const DocumentTypeUploader = ({
                   docType={docType}
                   filesOfType={getFilesForType(docType.value)}
                   readonly={readonly}
-                  employeeId={employeeId}
+                  employeeId={effectiveEmployeeId}
+                  canEnsureEmployeeId={typeof ensureEmployeeId === "function"}
                   uploading={uploadingTypes[docType.value]}
                   messageApi={message}
                   onOpenSample={handleOpenSample}

@@ -58,9 +58,9 @@ router.use(authenticate);
 router.use(authorize("admin", "manager", "user"));
 
 // Validation rules
-// Для черновиков - мягкая валидация (только фамилия обязательна)
+// Для черновиков - мягкая валидация (без обязательных ФИО полей)
 const createEmployeeValidation = [
-  body("lastName").notEmpty().trim(),
+  body("lastName").optional({ values: "falsy" }).trim(),
   body("firstName").optional().trim(),
   body("middleName").optional().trim(),
   body("positionId").optional().trim(),
@@ -71,7 +71,7 @@ const createEmployeeValidation = [
 
 // Для обновления черновика - мягкая валидация
 const updateEmployeeDraftValidation = [
-  body("lastName").optional().notEmpty().trim(),
+  body("lastName").optional({ values: "falsy" }).trim(),
   body("firstName").optional().trim(),
   body("middleName").optional().trim(),
   body("positionId").optional().trim(),
@@ -248,7 +248,7 @@ router.post(
   createEmployeeValidation,
   validate,
   employeeController.createEmployee,
-); // Валидация для создания (нужна минимум фамилия)
+); // Валидация для создания черновика/карточки
 router.get(
   "/deleted",
   authorize("admin"),

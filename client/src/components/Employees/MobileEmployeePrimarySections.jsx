@@ -12,8 +12,6 @@ export const buildMobilePrimarySections = ({
   onDeactivate,
   onActivate,
   getFieldProps,
-  formatInn,
-  handleInnBlur,
   noAutoFillProps,
   latinInputError,
   antiAutofillIds,
@@ -45,8 +43,6 @@ export const buildMobilePrimarySections = ({
   sections.push(
     buildMobileEmployeePersonalSection({
       getFieldProps,
-      formatInn,
-      handleInnBlur,
       noAutoFillProps,
       latinInputError,
       antiAutofillIds,

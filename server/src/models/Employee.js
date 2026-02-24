@@ -17,7 +17,7 @@ Employee.init(
     },
     lastName: {
       type: DataTypes.STRING,
-      allowNull: false, // Обязательное поле - минимум фамилия должна быть
+      allowNull: true, // Разрешаем null для черновиков
       field: "last_name",
     },
     middleName: {

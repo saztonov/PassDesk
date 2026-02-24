@@ -52,8 +52,6 @@ export const useMobileEmployeeFormSections = ({
         onDeactivate: handleDeactivate,
         onActivate: handleActivate,
         getFieldProps,
-        formatInn,
-        handleInnBlur,
         noAutoFillProps,
         latinInputError,
         antiAutofillIds,
@@ -69,6 +67,8 @@ export const useMobileEmployeeFormSections = ({
     items.push(
       ...buildMobileDocumentSections({
         getFieldProps,
+        formatInn,
+        handleInnBlur,
         requiresPatent,
         formatSnils,
         formatBankAccountNumber,

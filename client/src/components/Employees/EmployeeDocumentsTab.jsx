@@ -1,6 +1,7 @@
 import { Row, Col, Form, Input, Select } from "antd";
 import {
   formatBankAccountNumber,
+  formatInn,
   formatRussianPassportNumber,
   formatSnils,
   noAutoFillProps,
@@ -11,14 +12,40 @@ const { Option } = Select;
 
 const EmployeeDocumentsTab = ({
   getFieldProps,
+  handleInnBlur,
   passportType,
   setPassportType,
   dateFormat,
 }) => (
   <>
     <Row gutter={16}>
+      {!getFieldProps("inn").hidden && (
+        <Col xs={24} sm={8} md={8} lg={8}>
+          <Form.Item
+            name="inn"
+            label="ИНН"
+            required={getFieldProps("inn").required}
+            rules={[
+              ...getFieldProps("inn").rules,
+              {
+                pattern: /^\d{4}-\d{5}-\d{1}$|^\d{4}-\d{6}-\d{2}$/,
+                message:
+                  "ИНН должен быть в формате XXXX-XXXXX-X или XXXX-XXXXXX-XX",
+              },
+            ]}
+            normalize={(value) => formatInn(value)}
+          >
+            <Input
+              maxLength={14}
+              placeholder="XXXX-XXXXX-X"
+              onBlur={handleInnBlur}
+              {...noAutoFillProps}
+            />
+          </Form.Item>
+        </Col>
+      )}
       {!getFieldProps("snils").hidden && (
-        <Col xs={24} sm={12} md={12} lg={12}>
+        <Col xs={24} sm={8} md={8} lg={8}>
           <Form.Item
             name="snils"
             label="СНИЛС"
@@ -41,7 +68,7 @@ const EmployeeDocumentsTab = ({
         </Col>
       )}
       {!getFieldProps("bankAccountNumber").hidden && (
-        <Col xs={24} sm={12} md={12} lg={12}>
+        <Col xs={24} sm={8} md={8} lg={8}>
           <Form.Item
             name="bankAccountNumber"
             label="Номер банковского счета"

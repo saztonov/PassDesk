@@ -45,6 +45,7 @@ const DocumentTypeUploaderItem = ({
   filesOfType,
   readonly,
   employeeId,
+  canEnsureEmployeeId = false,
   uploading,
   messageApi,
   onOpenSample,
@@ -52,113 +53,123 @@ const DocumentTypeUploaderItem = ({
   onViewFile,
   onDownloadFile,
   onDeleteFile,
-}) => (
-  <div className="document-uploader-item">
-    <div className="document-uploader-header">
-      <span className="document-uploader-label">
-        <Tooltip title={docType.label}>{docType.label}</Tooltip>
-      </span>
-      <Tooltip
-        title={
-          getSampleUrl(docType)
-            ? "Показать образец документа"
-            : "Образец пока не добавлен"
-        }
-      >
-        <Button
-          type="text"
-          size="small"
-          className="document-uploader-info-button"
-          icon={<InfoCircleOutlined />}
-          onClick={() => onOpenSample(docType)}
-        />
-      </Tooltip>
+}) => {
+  const uploadDisabled = uploading || (!employeeId && !canEnsureEmployeeId);
 
-      {!readonly ? (
-        <>
-          <Upload
-            accept={ALLOWED_EXTENSIONS}
-            multiple={true}
-            beforeUpload={(file) => validateUploadFile(file, messageApi)}
-            onChange={(info) => onUploadChange(info, docType.value)}
-            showUploadList={false}
-            disabled={uploading || !employeeId}
-          >
-            <Button
-              size="small"
-              loading={uploading}
-              className="document-uploader-button"
-              disabled={!employeeId}
-            >
-              {uploading ? "Загруз." : "Загрузить"}
-            </Button>
-          </Upload>
-
-          <span className="document-uploader-count">
-            {uploading ? (
-              <Spin size="small" />
-            ) : (
-              <>
-                <CheckCircleOutlined style={{ color: "#52c41a", marginRight: 4 }} />
-                {filesOfType.length}
-              </>
-            )}
-          </span>
-        </>
-      ) : (
-        <span className="document-uploader-count">
-          <CheckCircleOutlined style={{ color: "#52c41a", marginRight: 4 }} />
-          {filesOfType.length}
+  return (
+    <div className="document-uploader-item">
+      <div className="document-uploader-header">
+        <span className="document-uploader-label">
+          <Tooltip title={docType.label}>{docType.label}</Tooltip>
         </span>
-      )}
-    </div>
+        <Tooltip
+          title={
+            getSampleUrl(docType)
+              ? "Показать образец документа"
+              : "Образец пока не добавлен"
+          }
+        >
+          <Button
+            type="text"
+            size="small"
+            className="document-uploader-info-button"
+            icon={<InfoCircleOutlined />}
+            onClick={() => onOpenSample(docType)}
+          />
+        </Tooltip>
 
-    {filesOfType.length > 0 && (
-      <div className="document-uploader-files">
-        <List
-          size="small"
-          dataSource={filesOfType}
-          renderItem={(file) => (
-            <List.Item>
-              <List.Item.Meta
-                title={<span style={{ fontSize: "12px" }}>{resolveDisplayName(file)}</span>}
-              />
-              {!readonly && (
-                <Space size="small">
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<EyeOutlined />}
-                    onClick={() => onViewFile(file)}
+        {!readonly ? (
+          <>
+            <Upload
+              accept={ALLOWED_EXTENSIONS}
+              multiple={true}
+              beforeUpload={(file) => validateUploadFile(file, messageApi)}
+              onChange={(info) => onUploadChange(info, docType.value)}
+              showUploadList={false}
+              disabled={uploadDisabled}
+            >
+              <Button
+                size="small"
+                loading={uploading}
+                className="document-uploader-button"
+                disabled={uploadDisabled}
+              >
+                {uploading ? "Загруз." : "Загрузить"}
+              </Button>
+            </Upload>
+
+            <span className="document-uploader-count">
+              {uploading ? (
+                <Spin size="small" />
+              ) : (
+                <>
+                  <CheckCircleOutlined
+                    style={{ color: "#52c41a", marginRight: 4 }}
                   />
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<DownloadOutlined />}
-                    onClick={() => onDownloadFile(file)}
-                  />
-                  <Popconfirm
-                    title="Удалить файл?"
-                    description="Вы уверены, что хотите удалить этот файл?"
-                    onConfirm={() => onDeleteFile(file.id)}
-                    okText="Да"
-                    cancelText="Отмена"
-                  >
+                  {filesOfType.length}
+                </>
+              )}
+            </span>
+          </>
+        ) : (
+          <span className="document-uploader-count">
+            <CheckCircleOutlined style={{ color: "#52c41a", marginRight: 4 }} />
+            {filesOfType.length}
+          </span>
+        )}
+      </div>
+
+      {filesOfType.length > 0 && (
+        <div className="document-uploader-files">
+          <List
+            size="small"
+            dataSource={filesOfType}
+            renderItem={(file) => (
+              <List.Item>
+                <List.Item.Meta
+                  title={
+                    <span style={{ fontSize: "12px" }}>
+                      {resolveDisplayName(file)}
+                    </span>
+                  }
+                />
+                {!readonly && (
+                  <Space size="small">
                     <Button
                       type="text"
                       size="small"
-                      danger
-                      icon={<DeleteOutlined />}
+                      icon={<EyeOutlined />}
+                      onClick={() => onViewFile(file)}
                     />
-                  </Popconfirm>
-                </Space>
-              )}
-            </List.Item>
-          )}
-        />
-      </div>
-    )}
-  </div>
-);
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<DownloadOutlined />}
+                      onClick={() => onDownloadFile(file)}
+                    />
+                    <Popconfirm
+                      title="Удалить файл?"
+                      description="Вы уверены, что хотите удалить этот файл?"
+                      onConfirm={() => onDeleteFile(file.id)}
+                      okText="Да"
+                      cancelText="Отмена"
+                    >
+                      <Button
+                        type="text"
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                      />
+                    </Popconfirm>
+                  </Space>
+                )}
+              </List.Item>
+            )}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default DocumentTypeUploaderItem;
