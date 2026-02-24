@@ -32,6 +32,10 @@ import {
   updateEmployeeStatusesByCompleteness,
   getImportStatuses,
 } from "../utils/employeeStatusUpdater.js";
+import {
+  applyLegacySensitivePlaintextPolicy,
+  buildEmployeeSensitiveFieldsPatch,
+} from "../services/employeeSensitiveFieldService.js";
 
 // Опции для загрузки сотрудника с маппингами (для проверки прав)
 const employeeAccessInclude = [
@@ -104,6 +108,15 @@ const filterEmployeeMutableFields = (
   });
 
   return sanitized;
+};
+
+const applyEmployeeSensitiveFieldEncryption = (payload = {}) => {
+  const encryptionPatch = buildEmployeeSensitiveFieldsPatch(payload);
+  const normalizedPayload = applyLegacySensitivePlaintextPolicy(payload);
+  return {
+    ...normalizedPayload,
+    ...encryptionPatch,
+  };
 };
 
 const buildInnLookupEmployeePayload = (employee) => {
@@ -883,7 +896,7 @@ export const createEmployee = async (req, res, next) => {
 
       // Обновляем сотрудника
       await existingEmployee.update({
-        ...linkingUpdateData,
+        ...applyEmployeeSensitiveFieldEncryption(linkingUpdateData),
         updatedBy: req.user.id,
       });
 
@@ -960,7 +973,7 @@ export const createEmployee = async (req, res, next) => {
     }
 
     const employeeData = {
-      ...cleanEmployeeData,
+      ...applyEmployeeSensitiveFieldEncryption(cleanEmployeeData),
       createdBy: req.user.id,
     };
 
@@ -1205,7 +1218,7 @@ export const updateEmployee = async (req, res, next) => {
     }
 
     const updates = {
-      ...cleanedData,
+      ...applyEmployeeSensitiveFieldEncryption(cleanedData),
       updatedBy: req.user.id,
     };
 

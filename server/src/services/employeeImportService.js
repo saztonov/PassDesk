@@ -28,6 +28,19 @@ import {
   updateEmployeeStatusesByCompleteness,
 } from "../utils/employeeStatusUpdater.js";
 import { DEFAULT_FORM_CONFIG } from "../utils/employeeFieldsConfig.js";
+import {
+  applyLegacySensitivePlaintextPolicy,
+  buildEmployeeSensitiveFieldsPatch,
+} from "./employeeSensitiveFieldService.js";
+
+const applyEmployeeSensitiveFieldEncryption = (payload = {}) => {
+  const encryptionPatch = buildEmployeeSensitiveFieldsPatch(payload);
+  const normalizedPayload = applyLegacySensitivePlaintextPolicy(payload);
+  return {
+    ...normalizedPayload,
+    ...encryptionPatch,
+  };
+};
 
 /**
  * Валидирует данные для импорта сотрудников (ОПТИМИЗИРОВАННАЯ ВЕРСИЯ 2.1)
@@ -629,8 +642,12 @@ export const importEmployees = async (
             }
 
             if (Object.keys(updateData).length > 0) {
-              updateData.updatedBy = userId;
-              await existingEmployee.update(updateData);
+              const encryptedUpdateData =
+                applyEmployeeSensitiveFieldEncryption(updateData);
+              await existingEmployee.update({
+                ...encryptedUpdateData,
+                updatedBy: userId,
+              });
               console.log(
                 `   ✅ ОБНОВЛЕНО полей: ${Object.keys(updateData).length - 1}`,
               );
@@ -645,7 +662,7 @@ export const importEmployees = async (
           } else {
             // Сотрудник не найден - создаем нового
             console.log(`   ✨ СОЗДАНИЕ нового сотрудника`);
-            employee = await Employee.create({
+            const createPayload = applyEmployeeSensitiveFieldEncryption({
               firstName: emp.firstName,
               lastName: emp.lastName,
               middleName: emp.middleName,
@@ -658,6 +675,7 @@ export const importEmployees = async (
               citizenshipId: emp.citizenship?.id,
               createdBy: userId,
             });
+            employee = await Employee.create(createPayload);
             isCreated = true;
             console.log(`   ✅ СОЗДАН новый сотрудник:`, {
               id: employee.id,

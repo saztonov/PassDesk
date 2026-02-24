@@ -21,6 +21,28 @@ const sanitizeKey = (value = "") => {
   return value.replace(/^\/+/, "").replace(/\/{2,}/g, "/");
 };
 
+const streamToBuffer = async (stream) => {
+  if (!stream) {
+    return Buffer.alloc(0);
+  }
+
+  if (Buffer.isBuffer(stream)) {
+    return stream;
+  }
+
+  if (typeof stream.transformToByteArray === "function") {
+    const bytes = await stream.transformToByteArray();
+    return Buffer.from(bytes);
+  }
+
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+};
+
 export const createS3Provider = (config = {}) => {
   if (!config.accessKeyId || !config.secretAccessKey) {
     throw new Error(
@@ -177,6 +199,18 @@ export const createS3Provider = (config = {}) => {
     });
   };
 
+  const getFileBuffer = async (filePath) => {
+    const objectKey = normalizePath(filePath);
+    const response = await client.send(
+      new GetObjectCommand({
+        Bucket: config.bucketName,
+        Key: objectKey,
+      }),
+    );
+
+    return streamToBuffer(response.Body);
+  };
+
   return {
     type: "s3",
     name: config.providerName || "s3",
@@ -188,5 +222,6 @@ export const createS3Provider = (config = {}) => {
     deleteFile,
     getDownloadUrl,
     getPublicUrl,
+    getFileBuffer,
   };
 };

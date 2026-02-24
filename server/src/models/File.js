@@ -109,6 +109,32 @@ File.init(
         key: "id",
       },
     },
+    isEncrypted: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: "is_encrypted",
+    },
+    encryptionAlgorithm: {
+      type: DataTypes.STRING(32),
+      allowNull: true,
+      field: "encryption_algorithm",
+    },
+    encryptionIv: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+      field: "encryption_iv",
+    },
+    encryptionTag: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+      field: "encryption_tag",
+    },
+    encryptionKeyVersion: {
+      type: DataTypes.STRING(16),
+      allowNull: true,
+      field: "encryption_key_version",
+    },
     isDeleted: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,

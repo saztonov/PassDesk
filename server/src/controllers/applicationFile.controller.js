@@ -6,6 +6,7 @@ import {
   getSafeFileExtension,
 } from "../utils/transliterate.js";
 import { AppError } from "../middleware/errorHandler.js";
+import { buildFileProxyUrl } from "../services/fileDownloadTokenService.js";
 
 /**
  * Построение пути для файлов заявки
@@ -304,6 +305,16 @@ export const getApplicationFileDownloadLink = async (req, res, next) => {
       throw new AppError("Файл не найден", 404);
     }
 
+    if (file.isEncrypted) {
+      return res.json({
+        success: true,
+        data: {
+          downloadUrl: buildFileProxyUrl(req, file.id, "attachment"),
+          fileName: file.originalName,
+        },
+      });
+    }
+
     const downloadData = await storageProvider.getDownloadUrl(file.filePath, {
       expiresIn: 3600,
       fileName: file.originalName, // Передаём имя файла для заголовка Content-Disposition
@@ -352,6 +363,17 @@ export const getApplicationFileViewLink = async (req, res, next) => {
 
     if (!file) {
       throw new AppError("Файл не найден", 404);
+    }
+
+    if (file.isEncrypted) {
+      return res.json({
+        success: true,
+        data: {
+          viewUrl: buildFileProxyUrl(req, file.id, "inline"),
+          fileName: file.originalName,
+          mimeType: file.mimeType,
+        },
+      });
     }
 
     const viewData = await storageProvider.getPublicUrl(file.filePath, {

@@ -177,6 +177,14 @@ export const createYandexDiskProvider = (config = {}) => {
     };
   };
 
+  const getFileBuffer = async (filePath) => {
+    const downloadData = await getDownloadUrl(filePath, { expiresIn: 300 });
+    const response = await axios.get(downloadData.url, {
+      responseType: "arraybuffer",
+    });
+    return Buffer.from(response.data);
+  };
+
   return {
     type: "yandexDisk",
     name: "yandexDisk",
@@ -193,5 +201,6 @@ export const createYandexDiskProvider = (config = {}) => {
     deleteFile,
     getDownloadUrl,
     getPublicUrl,
+    getFileBuffer,
   };
 };

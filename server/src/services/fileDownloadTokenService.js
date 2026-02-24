@@ -57,3 +57,10 @@ export const verifyFileProxyToken = (token) => {
     disposition: decoded.disposition === "inline" ? "inline" : "attachment",
   };
 };
+
+export const buildFileProxyUrl = (req, fileId, disposition = "attachment") => {
+  const token = issueFileProxyToken({ fileId, disposition });
+  const origin = `${req.protocol}://${req.get("host")}`;
+  const apiVersion = process.env.API_VERSION || "v1";
+  return `${origin}/api/${apiVersion}/files/proxy/${fileId}?token=${encodeURIComponent(token)}`;
+};

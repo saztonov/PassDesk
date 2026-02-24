@@ -1,6 +1,11 @@
 import storageProvider from "../config/storage.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { checkEmployeeAccess } from "../utils/permissionUtils.js";
+import { decryptFileBuffer } from "../services/fileEncryptionService.js";
+import {
+  verifyFileProxyToken,
+  buildFileProxyUrl,
+} from "../services/fileDownloadTokenService.js";
 
 /**
  * Проверка прав доступа к файлу
@@ -69,6 +74,86 @@ const checkFileAccess = async (file, user) => {
 
   // Для других типов сущностей - запрещаем доступ обычным пользователям
   throw new AppError("Нет доступа к этому файлу", 403);
+};
+
+const buildContentDisposition = (disposition, fileName) => {
+  const safeDisposition = disposition === "inline" ? "inline" : "attachment";
+  const encodedFileName = encodeURIComponent(fileName || "file").replace(
+    /'/g,
+    "%27",
+  );
+
+  return `${safeDisposition}; filename="${encodedFileName}"; filename*=UTF-8''${encodedFileName}`;
+};
+
+const ensureStorageSupportsBufferRead = () => {
+  if (typeof storageProvider.getFileBuffer !== "function") {
+    throw new AppError(
+      "Текущий провайдер хранения не поддерживает чтение файлов через proxy",
+      500,
+    );
+  }
+};
+
+export const proxyFile = async (req, res, next) => {
+  try {
+    const { fileId } = req.params;
+    const { token } = req.query;
+
+    if (!token || typeof token !== "string") {
+      throw new AppError("Требуется token для доступа к файлу", 401);
+    }
+
+    let tokenPayload;
+    try {
+      tokenPayload = verifyFileProxyToken(token);
+    } catch (error) {
+      throw new AppError("Недействительный token для доступа к файлу", 401);
+    }
+
+    if (String(tokenPayload.fileId) !== String(fileId)) {
+      throw new AppError("Token не соответствует файлу", 403);
+    }
+
+    const { File } = await import("../models/index.js");
+    const file = await File.findOne({
+      where: {
+        id: fileId,
+        isDeleted: false,
+      },
+    });
+
+    if (!file) {
+      throw new AppError("Файл не найден", 404);
+    }
+
+    ensureStorageSupportsBufferRead();
+    const storedBuffer = await storageProvider.getFileBuffer(file.filePath);
+
+    let responseBuffer = storedBuffer;
+    if (file.isEncrypted) {
+      responseBuffer = decryptFileBuffer(storedBuffer, {
+        encryptionAlgorithm: file.encryptionAlgorithm,
+        encryptionKeyVersion: file.encryptionKeyVersion,
+        encryptionIv: file.encryptionIv,
+        encryptionTag: file.encryptionTag,
+        documentType: file.documentType,
+      });
+    }
+
+    const fileName = file.originalName || file.fileName || "file";
+    res.setHeader("Content-Type", file.mimeType || "application/octet-stream");
+    res.setHeader(
+      "Content-Disposition",
+      buildContentDisposition(tokenPayload.disposition, fileName),
+    );
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Length", String(responseBuffer.length));
+
+    return res.status(200).send(responseBuffer);
+  } catch (error) {
+    next(error);
+  }
 };
 
 /**
@@ -198,6 +283,16 @@ export const getFileById = async (req, res, next) => {
     // ПРОВЕРКА ПРАВ ДОСТУПА
     await checkFileAccess(file, req.user);
 
+    if (file.isEncrypted) {
+      return res.json({
+        success: true,
+        data: {
+          url: buildFileProxyUrl(req, file.id, "attachment"),
+          fileName: file.originalName || file.fileName,
+        },
+      });
+    }
+
     const downloadData = await storageProvider.getDownloadUrl(file.filePath, {
       expiresIn: 3600,
       fileName: file.originalName || file.fileName,
@@ -237,6 +332,16 @@ export const getFile = async (req, res, next) => {
     // Если файл найден в БД - проверяем права
     if (file) {
       await checkFileAccess(file, req.user);
+
+      if (file.isEncrypted) {
+        return res.json({
+          success: true,
+          data: {
+            url: buildFileProxyUrl(req, file.id, "attachment"),
+            fileName: file.originalName || file.fileName || fileKey,
+          },
+        });
+      }
     } else {
       // Файл не в БД - только админы могут получить доступ
       if (req.user.role !== "admin") {
@@ -284,6 +389,16 @@ export const getPublicLink = async (req, res, next) => {
     // Если файл найден в БД - проверяем права
     if (file) {
       await checkFileAccess(file, req.user);
+
+      if (file.isEncrypted) {
+        return res.json({
+          success: true,
+          data: {
+            publicUrl: buildFileProxyUrl(req, file.id, "inline"),
+            fileName: file.originalName || file.fileName || fileKey,
+          },
+        });
+      }
     } else {
       // Файл не в БД - только админы могут получить доступ
       if (req.user.role !== "admin") {

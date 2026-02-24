@@ -21,6 +21,13 @@ const uploadRateLimiter = rateLimit({
   keyGenerator: (req) => req.user?.id || req.ip,
 });
 
+router.get(
+  "/proxy/:fileId",
+  param("fileId").isUUID().withMessage("fileId должен быть UUID"),
+  validate,
+  fileController.proxyFile,
+);
+
 // Все маршруты требуют аутентификации
 router.use(authenticate);
 router.use(authorize("admin", "user", "manager", "ot_admin", "ot_engineer"));

@@ -20,6 +20,21 @@ Employee.init(
       allowNull: true, // Разрешаем null для черновиков
       field: "last_name",
     },
+    lastNameEnc: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: "last_name_enc",
+    },
+    lastNameHash: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+      field: "last_name_hash",
+    },
+    lastNameKeyVersion: {
+      type: DataTypes.STRING(16),
+      allowNull: true,
+      field: "last_name_key_version",
+    },
     middleName: {
       type: DataTypes.STRING,
       field: "middle_name",
@@ -127,12 +142,42 @@ Employee.init(
       },
       comment: "Номер КИГ (7 цифр, поддерживается legacy АА1234567) (уникальный)",
     },
+    kigEnc: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: "kig_enc",
+    },
+    kigHash: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+      field: "kig_hash",
+    },
+    kigKeyVersion: {
+      type: DataTypes.STRING(16),
+      allowNull: true,
+      field: "kig_key_version",
+    },
     passportNumber: {
       type: DataTypes.STRING,
       allowNull: true,
       unique: true,
       field: "passport_number",
       comment: "Номер паспорта (уникальный)",
+    },
+    passportNumberEnc: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: "passport_number_enc",
+    },
+    passportNumberHash: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+      field: "passport_number_hash",
+    },
+    passportNumberKeyVersion: {
+      type: DataTypes.STRING(16),
+      allowNull: true,
+      field: "passport_number_key_version",
     },
     passportDate: {
       type: DataTypes.DATE,
@@ -175,6 +220,21 @@ Employee.init(
       allowNull: true,
       field: "patent_number",
       comment: "Номер патента",
+    },
+    patentNumberEnc: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: "patent_number_enc",
+    },
+    patentNumberHash: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+      field: "patent_number_hash",
+    },
+    patentNumberKeyVersion: {
+      type: DataTypes.STRING(16),
+      allowNull: true,
+      field: "patent_number_key_version",
     },
     patentIssueDate: {
       type: DataTypes.DATE,

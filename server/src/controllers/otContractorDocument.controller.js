@@ -15,7 +15,7 @@ import {
 import { uploadOtFile } from "../services/otFileService.js";
 import { recalculateStatus } from "../services/otStatusService.js";
 import storageProvider from "../config/storage.js";
-import { issueFileProxyToken } from "../services/fileDownloadTokenService.js";
+import { buildFileProxyUrl } from "../services/fileDownloadTokenService.js";
 
 const buildLinkedFilePayload = (file) => ({
   id: file.id,
@@ -23,13 +23,6 @@ const buildLinkedFilePayload = (file) => ({
   uploadedAt: file.createdAt || null,
   uploadedBy: file.uploadedBy || null,
 });
-
-const buildProxyFileUrl = (req, fileId, disposition = "attachment") => {
-  const token = issueFileProxyToken({ fileId, disposition });
-  const origin = `${req.protocol}://${req.get("host")}`;
-  const apiVersion = process.env.API_VERSION || "v1";
-  return `${origin}/api/${apiVersion}/files/proxy/${fileId}?token=${encodeURIComponent(token)}`;
-};
 
 const resolveActiveContractorFile = async (
   contractorDocumentId,
@@ -526,6 +519,16 @@ export const downloadOtContractorDocumentFile = async (req, res, next) => {
       throw new AppError("Файл не найден", 404);
     }
 
+    if (file.isEncrypted) {
+      return res.json({
+        success: true,
+        data: {
+          url: buildFileProxyUrl(req, file.id, "attachment"),
+          fileName: file.originalName || file.fileName,
+        },
+      });
+    }
+
     const downloadData = await storageProvider.getDownloadUrl(file.filePath, {
       expiresIn: 3600,
       fileName: file.originalName || file.fileName,
@@ -574,7 +577,7 @@ export const getOtContractorDocumentFileView = async (req, res, next) => {
       return res.json({
         success: true,
         data: {
-          viewUrl: buildProxyFileUrl(req, file.id, "inline"),
+          viewUrl: buildFileProxyUrl(req, file.id, "inline"),
           fileName: file.originalName || file.fileName,
           mimeType: file.mimeType,
         },
