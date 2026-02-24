@@ -16,6 +16,7 @@ const BASE_CONSENTS = [
   "biometric_consent",
   "biometric_consent_developer",
 ];
+const REQUIRED_CONSENT_CODES = [...BASE_CONSENTS];
 
 export const DEFAULT_DOCUMENT_PROFILES = {
   [PROFILE_CODES.EXTERNAL]: [...BASE_CONSENTS],
@@ -134,6 +135,16 @@ const toUniqueCodes = (values = []) => {
   return unique;
 };
 
+const ensureRequiredConsents = (codes = []) => {
+  const result = [...codes];
+  REQUIRED_CONSENT_CODES.forEach((code) => {
+    if (!result.includes(code)) {
+      result.push(code);
+    }
+  });
+  return result;
+};
+
 const filterCodesByAllowed = (codes = [], allowedCodeSet = null) => {
   if (!allowedCodeSet || allowedCodeSet.size === 0) {
     return codes;
@@ -160,11 +171,11 @@ export const normalizeDocumentProfilesConfig = ({
 
   return Object.values(PROFILE_CODES).reduce((accumulator, code) => {
     const defaultCodes = filterCodesByAllowed(
-      DEFAULT_DOCUMENT_PROFILES[code] || [],
+      ensureRequiredConsents(DEFAULT_DOCUMENT_PROFILES[code] || []),
       allowedCodeSet,
     );
     const inputCodes = filterCodesByAllowed(
-      toUniqueCodes(input[code]),
+      ensureRequiredConsents(toUniqueCodes(input[code])),
       allowedCodeSet,
     );
 
