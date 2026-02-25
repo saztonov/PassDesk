@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: passdesk_postgres
+    profiles: ["local-db"]
     environment:
       POSTGRES_DB: passdesk
       POSTGRES_USER: admin
@@ -73,9 +74,6 @@ services:
 
     command: >
       sh -c "npm ci --omit=dev && npm run db:migrate && npm run start"
-    depends_on:
-      postgres:
-        condition: service_healthy
     ports:
       - "5003:5000"
     volumes:
@@ -117,7 +115,7 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: passdesk_pgadmin
-    profiles: ["ops"]
+    profiles: ["local-db"]
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
