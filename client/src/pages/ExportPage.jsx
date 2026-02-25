@@ -240,8 +240,9 @@ const ExportPage = () => {
             return hrStatus === "status_hr_edited";
           }
           if (value === "active") {
-            // Действующий = status_new или status_tb_passed или status_processed
+            // Действующий = текущий active-статус или legacy main-статусы
             return (
+              activeStatus === "status_active_employed" ||
               mainStatus === "status_new" ||
               mainStatus === "status_tb_passed" ||
               mainStatus === "status_processed"
@@ -299,6 +300,10 @@ const ExportPage = () => {
 
     if (hrStatus && hrStatusMap[hrStatus]) {
       return hrStatusMap[hrStatus];
+    }
+
+    if (activeStatus === "status_active_employed") {
+      return { name: "Действующий", color: "green" };
     }
 
     const statusMap = {
@@ -563,8 +568,9 @@ const ExportPage = () => {
           return hrStatus === "status_hr_edited";
         }
         if (value === "active") {
-          // Действующий = status_new или status_tb_passed или status_processed
+          // Действующий = текущий active-статус или legacy main-статусы
           return (
+            activeStatus === "status_active_employed" ||
             mainStatus === "status_new" ||
             mainStatus === "status_tb_passed" ||
             mainStatus === "status_processed"

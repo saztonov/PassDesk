@@ -23,15 +23,16 @@ const ExcelExportModal = ({
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
 
-  // Фильтруем сотрудников для выгрузки
-  // Условие: есть хотя бы один активный статус из (status_new, status_tb_passed, status_processed, status_hr_edited)
-  // И is_upload = false для этих статусов
+  // Фильтруем сотрудников для выгрузки.
+  // Условие: есть хотя бы один релевантный активный статус с is_upload = false
+  // (поддерживаем текущие и legacy-коды).
   const filteredEmployees = useMemo(() => {
     const statusNamesToCheck = [
+      "status_active_employed",
+      "status_hr_edited",
       "status_new",
       "status_tb_passed",
       "status_processed",
-      "status_hr_edited",
     ];
 
     return employees.filter((emp) => {
@@ -41,8 +42,9 @@ const ExcelExportModal = ({
       const hasValidStatus = statusMappings.some((mapping) => {
         const statusName = mapping.status?.name;
         const isUpload = mapping.isUpload;
+        const isActive = mapping.isActive;
 
-        return statusNamesToCheck.includes(statusName) && !isUpload;
+        return isActive && statusNamesToCheck.includes(statusName) && !isUpload;
       });
 
       return hasValidStatus;

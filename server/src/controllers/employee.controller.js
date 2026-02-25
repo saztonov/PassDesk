@@ -291,6 +291,16 @@ export const getAllEmployees = async (req, res, next) => {
       ];
     }
 
+    // Статусы, которые считаем "активными" для режима выгрузки
+    // Поддерживаем как текущие, так и legacy-коды.
+    const exportActiveStatuses = [
+      "status_active_employed",
+      "status_hr_edited",
+      "status_new",
+      "status_tb_passed",
+      "status_processed",
+    ];
+
     // Статусы, которые исключаем из выгрузки (только если activeOnly = true)
     const isActiveOnly = activeOnly === "true";
     const excludedStatuses = [
@@ -304,6 +314,7 @@ export const getAllEmployees = async (req, res, next) => {
 
     // Статусы для фильтрации по дате (если указан фильтр)
     const dateFilterStatuses = [
+      "status_active_employed",
       "status_new",
       "status_tb_passed",
       "status_processed",
@@ -370,7 +381,7 @@ export const getAllEmployees = async (req, res, next) => {
             // Если activeOnly=true, фильтруем только действующие статусы
             where: isActiveOnly
               ? {
-                  name: ["status_new", "status_tb_passed", "status_processed"],
+                  name: exportActiveStatuses,
                 }
               : undefined,
           },
@@ -3312,7 +3323,13 @@ export const importEmployees = async (req, res, next) => {
  */
 export const getActiveEmployeesForExport = async (req, res, next) => {
   try {
-    const { limit = 100, page = 1, search = "" } = req.query;
+    const {
+      limit = 100,
+      page = 1,
+      search = "",
+      dateFrom,
+      dateTo,
+    } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const userId = req.user?.id;
     const userRole = req.user?.role;
@@ -3332,12 +3349,59 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
       ];
     }
 
-    // Только активные статусы для выгрузки
+    // Только активные статусы для выгрузки.
+    // Поддерживаем как текущие, так и legacy-коды.
     const activeStatuses = [
+      "status_active_employed",
+      "status_hr_edited",
       "status_new",
       "status_tb_passed",
       "status_processed",
     ];
+
+    const parseFilterDate = (value, { endOfDay = false } = {}) => {
+      if (!value) {
+        return null;
+      }
+
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) {
+        throw new AppError("Некорректный формат даты фильтра", 400);
+      }
+
+      if (endOfDay) {
+        parsed.setHours(23, 59, 59, 999);
+      } else {
+        parsed.setHours(0, 0, 0, 0);
+      }
+
+      return parsed;
+    };
+
+    const startDate = parseFilterDate(dateFrom);
+    const endDate = parseFilterDate(dateTo, { endOfDay: true });
+
+    const statusMappingsWhere = {
+      isActive: true,
+    };
+
+    if (startDate || endDate) {
+      let rangeOperator = Op.between;
+      let rangeValue = [startDate, endDate];
+
+      if (startDate && !endDate) {
+        rangeOperator = Op.gte;
+        rangeValue = startDate;
+      } else if (!startDate && endDate) {
+        rangeOperator = Op.lte;
+        rangeValue = endDate;
+      }
+
+      statusMappingsWhere[Op.or] = [
+        { createdAt: { [rangeOperator]: rangeValue } },
+        { updatedAt: { [rangeOperator]: rangeValue } },
+      ];
+    }
 
     const employeeInclude = [
       {
@@ -3394,9 +3458,7 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
           "createdAt",
           "updatedAt",
         ],
-        where: {
-          isActive: true,
-        },
+        where: statusMappingsWhere,
         required: true,
         include: [
           {
@@ -3452,7 +3514,7 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
           {
             model: EmployeeStatusMapping,
             as: "statusMappings",
-            where: { isActive: true },
+            where: statusMappingsWhere,
             required: true,
             attributes: [],
             include: [
@@ -3483,7 +3545,7 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
           {
             model: EmployeeStatusMapping,
             as: "statusMappings",
-            where: { isActive: true },
+            where: statusMappingsWhere,
             required: true,
             attributes: [],
             include: [
@@ -3507,7 +3569,7 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
           {
             model: EmployeeStatusMapping,
             as: "statusMappings",
-            where: { isActive: true },
+            where: statusMappingsWhere,
             required: true,
             attributes: [],
             include: [
