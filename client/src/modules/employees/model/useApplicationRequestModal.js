@@ -61,6 +61,8 @@ export const useApplicationRequestModal = ({
           activeOnly: false,
           page: 1,
           limit: 10000,
+          ...(selectedCounterparty ? { counterpartyId: selectedCounterparty } : {}),
+          ...(selectedSite ? { constructionSiteId: selectedSite } : {}),
         });
         const employeesFromApi = response?.data?.employees || [];
         if (!cancelled) {
@@ -85,7 +87,7 @@ export const useApplicationRequestModal = ({
     return () => {
       cancelled = true;
     };
-  }, [visible, allEmployees]);
+  }, [visible, allEmployees, selectedCounterparty, selectedSite]);
 
   useEffect(() => {
     if (!visible) {
@@ -180,9 +182,11 @@ export const useApplicationRequestModal = ({
       }
     } else if (userRole === "admin" && selectedCounterparty) {
       filtered = filtered.filter((employee) => {
-        const counterpartyId =
-          employee.employeeCounterpartyMappings?.[0]?.counterpartyId;
-        return counterpartyId === selectedCounterparty;
+        const counterpartyIds =
+          employee.employeeCounterpartyMappings?.map(
+            (mapping) => mapping.counterpartyId,
+          ) || [];
+        return counterpartyIds.includes(selectedCounterparty);
       });
     }
 
@@ -198,8 +202,11 @@ export const useApplicationRequestModal = ({
       filtered = filtered.filter((employee) => {
         const siteIds =
           employee.employeeCounterpartyMappings
-            ?.filter((mapping) => mapping.constructionSite)
-            .map((mapping) => mapping.constructionSite?.id) || [];
+            ?.map(
+              (mapping) =>
+                mapping.constructionSite?.id || mapping.constructionSiteId,
+            )
+            .filter(Boolean) || [];
         return siteIds.includes(selectedSite);
       });
     }
@@ -217,10 +224,18 @@ export const useApplicationRequestModal = ({
   ]);
 
   useEffect(() => {
-    if (visible && availableEmployees.length > 0) {
+    if (!visible) {
+      return;
+    }
+
+    if (availableEmployees.length > 0) {
       setSelectedEmployees(availableEmployees.map((employee) => employee.id));
       setAllSelected(true);
+      return;
     }
+
+    setSelectedEmployees([]);
+    setAllSelected(false);
   }, [visible, availableEmployees]);
 
   const handleSelectAll = (event) => {
