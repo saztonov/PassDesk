@@ -1,5 +1,4 @@
 import { Row, Col, Form, Input } from "antd";
-import EmployeeDocumentUpload from "./EmployeeDocumentUpload";
 import {
   formatBlankNumber,
   formatKig,
@@ -11,9 +10,6 @@ import MaskedDatePicker from "../../shared/ui/MaskedDatePicker";
 const EmployeePatentTab = ({
   getFieldProps,
   dateFormat,
-  employee,
-  ensureEmployeeId,
-  getUploadMeta,
 }) => {
   return (
     <>
@@ -97,39 +93,6 @@ const EmployeePatentTab = ({
             </Form.Item>
           </Col>
         )}
-      </Row>
-
-      <Row gutter={16}>
-        <Col xs={24} sm={8} md={8} lg={8}>
-          <EmployeeDocumentUpload
-            employeeId={employee?.id}
-            ensureEmployeeId={ensureEmployeeId}
-            documentType="patent_front"
-            label={getUploadMeta("patent_front").label}
-            readonly={false}
-            multiple={getUploadMeta("patent_front").multiple}
-          />
-        </Col>
-        <Col xs={24} sm={8} md={8} lg={8}>
-          <EmployeeDocumentUpload
-            employeeId={employee?.id}
-            ensureEmployeeId={ensureEmployeeId}
-            documentType="patent_back"
-            label={getUploadMeta("patent_back").label}
-            readonly={false}
-            multiple={getUploadMeta("patent_back").multiple}
-          />
-        </Col>
-        <Col xs={24} sm={8} md={8} lg={8}>
-          <EmployeeDocumentUpload
-            employeeId={employee?.id}
-            ensureEmployeeId={ensureEmployeeId}
-            documentType="patent_payment_receipt"
-            label={getUploadMeta("patent_payment_receipt").label}
-            readonly={false}
-            multiple={getUploadMeta("patent_payment_receipt").multiple}
-          />
-        </Col>
       </Row>
     </>
   );

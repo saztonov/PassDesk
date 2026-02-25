@@ -5,10 +5,6 @@ import EmployeeBasicInfoTab from "./EmployeeBasicInfoTab.jsx";
 import EmployeeDocumentsTab from "./EmployeeDocumentsTab.jsx";
 import EmployeeCounterpartyTab from "./EmployeeCounterpartyTab.jsx";
 import EmployeeFilesTab from "./EmployeeFilesTab.jsx";
-import {
-  resolveEmployeeCounterpartyId,
-  resolveEmployeeDocumentProfile,
-} from "@/modules/employees/lib/documentTypeProfiles";
 
 const { Text } = Typography;
 
@@ -42,14 +38,6 @@ export const useEmployeeFormModalTabs = ({
 }) => {
   return useMemo(() => {
     const showCounterpartySection = false;
-    const profileCode = resolveEmployeeDocumentProfile({
-      counterpartyId: resolveEmployeeCounterpartyId({
-        employee,
-        fallbackCounterpartyId: user?.counterpartyId || null,
-      }),
-      defaultCounterpartyId,
-      citizenship: selectedCitizenship || employee?.citizenship || null,
-    });
 
     const getTabIcon = (tabKey) => {
       if (tabsValidation[tabKey]) {
@@ -106,10 +94,6 @@ export const useEmployeeFormModalTabs = ({
               requiresPatent={requiresPatent}
               checkingCitizenship={checkingCitizenship}
               dateFormat={dateFormat}
-              employee={employee}
-              ensureEmployeeId={ensureEmployeeId}
-              profileCode={profileCode}
-              profilesConfig={documentProfilesConfig}
             />
 
             {showCounterpartySection && (

@@ -1,5 +1,4 @@
 import { Divider, Row, Col, Form, Input } from "antd";
-import EmployeeDocumentUpload from "./EmployeeDocumentUpload";
 import EmployeePatentTab from "./EmployeePatentTab";
 import {
   formatBankAccountNumber,
@@ -7,10 +6,6 @@ import {
   formatSnils,
   noAutoFillProps,
 } from "./employeeFormUtils";
-import {
-  profileDocumentTypeLabels,
-} from "@/modules/employees/lib/documentTypeProfiles";
-import { getUploadsForDocumentProfile } from "@/modules/employees/ui/form/MobileEmployeeDocumentSectionUtils";
 
 const EmployeeDocumentsTab = ({
   getFieldProps,
@@ -18,23 +13,7 @@ const EmployeeDocumentsTab = ({
   requiresPatent,
   checkingCitizenship,
   dateFormat,
-  employee,
-  ensureEmployeeId,
-  profileCode,
-  profilesConfig,
 }) => {
-  const uploads = getUploadsForDocumentProfile(profileCode, profilesConfig);
-  const uploadsByType = new Map(
-    uploads.map((upload) => [upload.documentType, upload]),
-  );
-  const getUploadMeta = (documentType) =>
-    uploadsByType.get(documentType) || {
-      documentType,
-      label: profileDocumentTypeLabels[documentType] || documentType,
-      multiple: true,
-    };
-  const hasUploadType = (documentType) => uploadsByType.has(documentType);
-
   return (
     <>
       <Row gutter={16}>
@@ -60,25 +39,6 @@ const EmployeeDocumentsTab = ({
               {...noAutoFillProps}
             />
           </Form.Item>
-
-          {(hasUploadType("inn_document") || hasUploadType("inn")) && (
-            <EmployeeDocumentUpload
-              employeeId={employee?.id}
-              ensureEmployeeId={ensureEmployeeId}
-              documentType={hasUploadType("inn_document") ? "inn_document" : "inn"}
-              label={
-                hasUploadType("inn_document")
-                  ? getUploadMeta("inn_document").label
-                  : getUploadMeta("inn").label
-              }
-              readonly={false}
-              multiple={
-                hasUploadType("inn_document")
-                  ? getUploadMeta("inn_document").multiple
-                  : getUploadMeta("inn").multiple
-              }
-            />
-          )}
         </Col>
 
         {!getFieldProps("snils").hidden && (
@@ -102,17 +62,6 @@ const EmployeeDocumentsTab = ({
                 {...noAutoFillProps}
               />
             </Form.Item>
-
-            {hasUploadType("snils_card") && (
-              <EmployeeDocumentUpload
-                employeeId={employee?.id}
-                ensureEmployeeId={ensureEmployeeId}
-                documentType="snils_card"
-                label={getUploadMeta("snils_card").label}
-                readonly={false}
-                multiple={getUploadMeta("snils_card").multiple}
-              />
-            )}
           </Col>
         )}
 
@@ -137,15 +86,6 @@ const EmployeeDocumentsTab = ({
                 {...noAutoFillProps}
               />
             </Form.Item>
-
-            <EmployeeDocumentUpload
-              employeeId={employee?.id}
-              ensureEmployeeId={ensureEmployeeId}
-              documentType="bank_details"
-              label={getUploadMeta("bank_details").label}
-              readonly={false}
-              multiple={getUploadMeta("bank_details").multiple}
-            />
           </Col>
         )}
       </Row>
@@ -167,9 +107,6 @@ const EmployeeDocumentsTab = ({
             <EmployeePatentTab
               getFieldProps={getFieldProps}
               dateFormat={dateFormat}
-              employee={employee}
-              ensureEmployeeId={ensureEmployeeId}
-              getUploadMeta={getUploadMeta}
             />
           )}
         </>
