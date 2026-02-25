@@ -79,7 +79,7 @@ services:
     ports:
       - "5003:5000"
     volumes:
-      - ./cert:/app/cert:ro
+      - ${HOST_CERT_PATH:-./cert/root.crt}:/app/cert/root.crt:ro
     restart: unless-stopped
     healthcheck:
       test:
@@ -95,7 +95,8 @@ services:
       dockerfile: Dockerfile
     environment:
       VITE_DEV_HTTPS: "false"
-      VITE_ALLOWED_HOSTS: pd.devdenis.ru,localhost,127.0.0.1
+      VITE_ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
     container_name: passdesk_client
     command: >
       sh -c "npm ci && npm run build && npm run preview -- --host 0.0.0.0 --port 5173"
