@@ -161,13 +161,20 @@ const loadLegacyDocPlaintextByIds = async (ids, legacyColumns) => {
     return new Map(ids.map((id) => [id, {}]));
   }
 
+  const replacements = {};
+  const idPlaceholders = ids.map((id, index) => {
+    const key = `id_${index}`;
+    replacements[key] = id;
+    return `:${key}`;
+  });
+
   const [rows] = await sequelize.query(
     `
       SELECT ${selectParts.join(", ")}
       FROM public.employees
-      WHERE id = ANY(:ids)
+      WHERE id IN (${idPlaceholders.join(", ")})
     `,
-    { replacements: { ids } },
+    { replacements },
   );
 
   return new Map(rows.map((row) => [row.id, row]));
