@@ -57,14 +57,23 @@ export const useApplicationRequestModal = ({
     const loadModalEmployees = async () => {
       setTableLoading(true);
       try {
-        const response = await employeeApi.getAll({
+        const requestParams = {
           activeOnly: false,
           page: 1,
           limit: 10000,
           ...(selectedCounterparty ? { counterpartyId: selectedCounterparty } : {}),
           ...(selectedSite ? { constructionSiteId: selectedSite } : {}),
+        };
+        console.info("[ApplicationRequestModal] fetch employees", requestParams);
+
+        const response = await employeeApi.getAll({
+          ...requestParams,
         });
         const employeesFromApi = response?.data?.employees || [];
+        console.info(
+          "[ApplicationRequestModal] employees loaded",
+          employeesFromApi.length,
+        );
         if (!cancelled) {
           setModalEmployees(
             Array.isArray(employeesFromApi) ? employeesFromApi : [],
@@ -193,7 +202,6 @@ export const useApplicationRequestModal = ({
     filtered = filtered.filter((employee) => {
       const priority = getStatusPriority(employee);
       if (priority === 1 || priority === 3) return false;
-      if (employee.statusCard === "draft") return false;
       if (!includeFired && priority === 2) return false;
       return true;
     });
@@ -221,6 +229,27 @@ export const useApplicationRequestModal = ({
     userCounterpartyId,
     userId,
     defaultCounterpartyId,
+  ]);
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    console.info("[ApplicationRequestModal] filter state", {
+      selectedCounterparty,
+      selectedSite,
+      includeFired,
+      modalEmployees: modalEmployees.length,
+      availableEmployees: availableEmployees.length,
+    });
+  }, [
+    visible,
+    selectedCounterparty,
+    selectedSite,
+    includeFired,
+    modalEmployees.length,
+    availableEmployees.length,
   ]);
 
   useEffect(() => {

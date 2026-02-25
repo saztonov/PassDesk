@@ -50,6 +50,16 @@ export const DEFAULT_FORM_CONFIG = EMPLOYEE_FIELDS.reduce((acc, field) => {
   return acc;
 }, {});
 
+// Поля, временно скрытые на фронте. Они не должны влиять на статус заполненности карточки.
+const TEMP_HIDDEN_FIELDS = new Set([
+  "birthCountryId",
+  "passportType",
+  "passportExpiryDate",
+  "kigEndDate",
+  "gender",
+  "email",
+]);
+
 /**
  * Проверить, заполнены ли все обязательные поля сотрудника согласно конфигурации
  * @param {Object} employee - объект сотрудника
@@ -67,6 +77,11 @@ export const isEmployeeCardComplete = (employee, formConfig = DEFAULT_FORM_CONFI
   // Проходим по всем полям конфигурации
   for (const fieldKey in formConfig) {
     const fieldConfig = formConfig[fieldKey];
+
+    // Если поле временно скрыто в UI, исключаем его из проверки completeness.
+    if (TEMP_HIDDEN_FIELDS.has(fieldKey)) {
+      continue;
+    }
     
     // Пропускаем скрытые или необязательные поля
     if (!fieldConfig.visible || !fieldConfig.required) {
@@ -129,6 +144,10 @@ export const getMissingRequiredFields = (employee, formConfig = DEFAULT_FORM_CON
 
   for (const fieldKey in formConfig) {
     const fieldConfig = formConfig[fieldKey];
+
+    if (TEMP_HIDDEN_FIELDS.has(fieldKey)) {
+      continue;
+    }
     
     if (!fieldConfig.visible || !fieldConfig.required) {
       continue;

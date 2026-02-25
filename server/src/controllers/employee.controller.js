@@ -263,6 +263,7 @@ export const getAllEmployees = async (req, res, next) => {
       dateTo,
       offset: queryOffset,
       counterpartyId,
+      constructionSiteId,
     } = req.query;
     // Используем offset из query если передан, иначе вычисляем из page
     const offset =
@@ -407,6 +408,18 @@ export const getAllEmployees = async (req, res, next) => {
       },
     ];
 
+    const mappingInclude = employeeInclude[4];
+    const ensureMappingWhere = () => {
+      mappingInclude.where = mappingInclude.where || {};
+      mappingInclude.required = true;
+      return mappingInclude.where;
+    };
+
+    if (constructionSiteId) {
+      const mappingWhere = ensureMappingWhere();
+      mappingWhere.constructionSiteId = constructionSiteId;
+    }
+
     // Добавляем загрузку файлов согласий на перс. данные Застройщика
     employeeInclude.push({
       model: File,
@@ -461,20 +474,16 @@ export const getAllEmployees = async (req, res, next) => {
         ];
 
         // Фильтруем по EmployeeCounterpartyMapping (индекс 4)
-        employeeInclude[4].where = {
-          counterpartyId: allowedCounterpartyIds,
-        };
-        employeeInclude[4].required = true;
+        const mappingWhere = ensureMappingWhere();
+        mappingWhere.counterpartyId = allowedCounterpartyIds;
       }
     } else if (
       (userRole === "admin" || userRole === "manager") &&
       counterpartyId
     ) {
       // Для админа и manager - если выбран конкретный контрагент в фильтре - фильтруем по нему
-      employeeInclude[4].where = {
-        counterpartyId: counterpartyId,
-      };
-      employeeInclude[4].required = true;
+      const mappingWhere = ensureMappingWhere();
+      mappingWhere.counterpartyId = counterpartyId;
     }
     // Если админ/manager не выбрал контрагент - видят всех из всех контрагентов
 
