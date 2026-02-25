@@ -16,7 +16,6 @@ const BASE_CONSENTS = [
   "biometric_consent",
   "biometric_consent_developer",
 ];
-const REQUIRED_CONSENT_CODES = [...BASE_CONSENTS];
 const REQUIRED_PROFILE_CODES = {
   [PROFILE_CODES.EXTERNAL]: ["inn_document"],
   [PROFILE_CODES.DEFAULT_RU_BY]: ["inn_document"],
@@ -143,16 +142,6 @@ const toUniqueCodes = (values = []) => {
   return unique;
 };
 
-const ensureRequiredConsents = (codes = []) => {
-  const result = [...codes];
-  REQUIRED_CONSENT_CODES.forEach((code) => {
-    if (!result.includes(code)) {
-      result.push(code);
-    }
-  });
-  return result;
-};
-
 const ensureRequiredByProfile = (profileCode, codes = []) => {
   const requiredCodes = REQUIRED_PROFILE_CODES[profileCode] || [];
   if (!requiredCodes.length) {
@@ -172,10 +161,7 @@ const filterCodesByAllowed = (codes = [], allowedCodeSet = null) => {
   if (!allowedCodeSet || allowedCodeSet.size === 0) {
     return codes;
   }
-  return codes.filter(
-    (code) =>
-      allowedCodeSet.has(code) || REQUIRED_CONSENT_CODES.includes(code),
-  );
+  return codes.filter((code) => allowedCodeSet.has(code));
 };
 
 export const normalizeDocumentProfilesConfig = ({
@@ -197,14 +183,11 @@ export const normalizeDocumentProfilesConfig = ({
 
   return Object.values(PROFILE_CODES).reduce((accumulator, code) => {
     const defaultCodes = filterCodesByAllowed(
-      ensureRequiredByProfile(
-        code,
-        ensureRequiredConsents(DEFAULT_DOCUMENT_PROFILES[code] || []),
-      ),
+      ensureRequiredByProfile(code, DEFAULT_DOCUMENT_PROFILES[code] || []),
       allowedCodeSet,
     );
     const inputCodes = filterCodesByAllowed(
-      ensureRequiredByProfile(code, ensureRequiredConsents(toUniqueCodes(input[code]))),
+      ensureRequiredByProfile(code, toUniqueCodes(input[code])),
       allowedCodeSet,
     );
 

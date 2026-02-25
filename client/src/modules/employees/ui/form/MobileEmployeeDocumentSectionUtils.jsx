@@ -11,11 +11,6 @@ const CONSENT_DOCUMENT_TYPES = new Set([
   "biometric_consent",
   "biometric_consent_developer",
 ]);
-const REQUIRED_CONSENT_DOCUMENT_TYPES = [
-  "consent",
-  "biometric_consent",
-  "biometric_consent_developer",
-];
 
 export const formatDateInputValue = (value) => {
   if (!value) return value;
@@ -52,16 +47,12 @@ export const getUploadsForDocumentProfile = (
   profileCode,
   profilesConfig = null,
 ) => {
-  const profileCodes = getDocumentTypeCodesForProfile(profileCode, profilesConfig);
-  const mergedCodes = [...profileCodes];
+  const profileCodes = getDocumentTypeCodesForProfile(
+    profileCode,
+    profilesConfig,
+  );
 
-  REQUIRED_CONSENT_DOCUMENT_TYPES.forEach((documentType) => {
-    if (!mergedCodes.includes(documentType)) {
-      mergedCodes.push(documentType);
-    }
-  });
-
-  return mergedCodes.map((documentType) => ({
+  return profileCodes.map((documentType) => ({
     documentType,
     label: profileDocumentTypeLabels[documentType] || documentType,
     multiple: true,
