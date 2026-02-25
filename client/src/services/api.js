@@ -63,7 +63,9 @@ const performRefreshTokenRequest = async () => {
     return newToken;
   } catch (error) {
     const status = error.response?.status;
-    console.error("❌ Error refreshing token:", status, error.message);
+    if (status !== 401 && status !== 403) {
+      console.error("❌ Error refreshing token:", status, error.message);
+    }
 
     // Разлогиниваем только при невалидной refresh-сессии.
     // Для сетевых/временных ошибок не сбрасываем авторизацию мгновенно.
@@ -104,6 +106,16 @@ api.interceptors.request.use(
     const authStore = useAuthStore.getState();
     const token = authStore.token;
     const isRefreshRequest = config?.url?.includes("/auth/refresh");
+    const isAuthRequest = config?.url?.includes("/auth/");
+
+    if (!token && !isRefreshRequest && !isAuthRequest) {
+      // Access token не хранится в localStorage, поэтому после reload
+      // сначала тихо пытаемся восстановить его через refresh cookie.
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        config.headers.Authorization = `Bearer ${newToken}`;
+      }
+    }
 
     if (token && !isRefreshRequest) {
       let authToken = token;
@@ -144,13 +156,18 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     const isAuthRefreshRequest =
       originalRequest?.url?.includes("/auth/refresh");
+    const isRetryableUnauthorized =
+      error.response?.status === 401 &&
+      !originalRequest?._retry &&
+      !originalRequest?.url?.includes("/auth/logout") &&
+      !isAuthRefreshRequest;
 
     // Логируем ошибку для отладки (кроме 404 для check-inn, это нормально)
     const isCheckInnNotFound =
       error.response?.status === 404 &&
       error.config?.url?.includes("/check-inn");
 
-    if (!isCheckInnNotFound) {
+    if (!isCheckInnNotFound && !isRetryableUnauthorized) {
       console.error("API Error:", {
         url: error.config?.url,
         method: error.config?.method,
@@ -161,12 +178,7 @@ api.interceptors.response.use(
     }
 
     // Обработка 401 ошибки (неавторизован / истек токен)
-    if (
-      error.response?.status === 401 &&
-      !originalRequest._retry &&
-      !originalRequest.url?.includes("/auth/logout") &&
-      !isAuthRefreshRequest
-    ) {
+    if (isRetryableUnauthorized) {
       originalRequest._retry = true;
 
       // Попытаемся обновить токен и повторить запрос
