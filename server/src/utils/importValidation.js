@@ -10,6 +10,23 @@ import {
   Employee,
 } from "../models/index.js";
 import { Op } from "sequelize";
+import {
+  ENCRYPTED_EMPLOYEE_FIELDS,
+  hashForSearch,
+  isFieldEncryptionEnabled,
+} from "../services/encryptionService.js";
+
+const buildLastNameHash = (lastName) => {
+  if (!lastName || !isFieldEncryptionEnabled()) {
+    return null;
+  }
+
+  try {
+    return hashForSearch(ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME, lastName);
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Валидирует ИНН (10 или 12 цифр)
@@ -676,6 +693,7 @@ export const validateEmployeeForImportOptimized = async (
  */
 export const checkEmployeeConflict = async (validatedEmployee) => {
   const conflicts = [];
+  const lastNameHash = buildLastNameHash(validatedEmployee.lastName);
 
   // Проверяем ИНН
   if (validatedEmployee.inn) {
@@ -710,12 +728,17 @@ export const checkEmployeeConflict = async (validatedEmployee) => {
   }
 
   // Проверяем ФИО (точное совпадение)
+  const fioWhere = {
+    firstName: validatedEmployee.firstName,
+    middleName: validatedEmployee.middleName,
+  };
+  fioWhere[Op.or] = [{ lastName: validatedEmployee.lastName }];
+  if (lastNameHash) {
+    fioWhere[Op.or].push({ lastNameHash });
+  }
+
   const existingByFio = await Employee.findOne({
-    where: {
-      firstName: validatedEmployee.firstName,
-      lastName: validatedEmployee.lastName,
-      middleName: validatedEmployee.middleName,
-    },
+    where: fioWhere,
     attributes: ["id", "firstName", "lastName", "middleName", "inn", "snils"],
   });
 
@@ -738,6 +761,7 @@ export const checkEmployeeConflictFromCache = (
   existingEmployeesCache,
 ) => {
   const conflicts = [];
+  const lastNameHash = buildLastNameHash(validatedEmployee.lastName);
 
   // Проверяем ИНН
   if (validatedEmployee.inn) {
@@ -771,7 +795,8 @@ export const checkEmployeeConflictFromCache = (
   const existingByFio = existingEmployeesCache.find(
     (e) =>
       e.firstName === validatedEmployee.firstName &&
-      e.lastName === validatedEmployee.lastName &&
+      (e.lastName === validatedEmployee.lastName ||
+        (lastNameHash && e.lastNameHash === lastNameHash)) &&
       e.middleName === validatedEmployee.middleName,
   );
 

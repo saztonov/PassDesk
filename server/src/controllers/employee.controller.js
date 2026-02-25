@@ -36,6 +36,11 @@ import {
   applyLegacySensitivePlaintextPolicy,
   buildEmployeeSensitiveFieldsPatch,
 } from "../services/employeeSensitiveFieldService.js";
+import {
+  ENCRYPTED_EMPLOYEE_FIELDS,
+  hashForSearch,
+  isFieldEncryptionEnabled,
+} from "../services/encryptionService.js";
 
 // Опции для загрузки сотрудника с маппингами (для проверки прав)
 const employeeAccessInclude = [
@@ -117,6 +122,19 @@ const applyEmployeeSensitiveFieldEncryption = (payload = {}) => {
     ...normalizedPayload,
     ...encryptionPatch,
   };
+};
+
+const buildLastNameHashSearchCondition = (value) => {
+  if (!value || !isFieldEncryptionEnabled()) {
+    return null;
+  }
+
+  try {
+    const searchHash = hashForSearch(ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME, value);
+    return searchHash ? { lastNameHash: searchHash } : null;
+  } catch {
+    return null;
+  }
 };
 
 const buildInnLookupEmployeePayload = (employee) => {
@@ -283,12 +301,14 @@ export const getAllEmployees = async (req, res, next) => {
 
     // Поиск по ФИО, email, телефону
     if (search) {
+      const lastNameHashCondition = buildLastNameHashSearchCondition(search);
       where[Op.or] = [
         { firstName: { [Op.iLike]: `%${search}%` } },
         { lastName: { [Op.iLike]: `%${search}%` } },
         { middleName: { [Op.iLike]: `%${search}%` } },
         { email: { [Op.iLike]: `%${search}%` } },
         { phone: { [Op.iLike]: `%${search}%` } },
+        ...(lastNameHashCondition ? [lastNameHashCondition] : []),
       ];
     }
 
@@ -2863,10 +2883,12 @@ export const searchEmployees = async (req, res, next) => {
     const userId = req.user.id;
 
     if (query) {
+      const lastNameHashCondition = buildLastNameHashSearchCondition(query);
       where[Op.or] = [
         { firstName: { [Op.iLike]: `%${query}%` } },
         { lastName: { [Op.iLike]: `%${query}%` } },
         { middleName: { [Op.iLike]: `%${query}%` } },
+        ...(lastNameHashCondition ? [lastNameHashCondition] : []),
       ];
     }
 

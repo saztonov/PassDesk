@@ -37,13 +37,19 @@ const FIELD_MAPPINGS = [
 ];
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
-const LEGACY_DOC_PLAIN_KEYS = Object.freeze([
+const LEGACY_PLAIN_KEYS = Object.freeze([
+  "lastName",
   "passportNumber",
   "kig",
   "patentNumber",
 ]);
 
-const shouldKeepLegacyDocPlaintext = () => {
+const shouldKeepLegacyPlaintext = () => {
+  const commonRaw = process.env.FIELD_ENCRYPTION_KEEP_LEGACY_PLAINTEXT;
+  if (commonRaw !== undefined) {
+    return String(commonRaw).toLowerCase() === "true";
+  }
+
   const raw = process.env.FIELD_ENCRYPTION_KEEP_LEGACY_DOC_PLAINTEXT;
   if (raw === undefined) {
     return true;
@@ -81,12 +87,12 @@ export const buildEmployeeSensitiveFieldsPatch = (payload = {}) => {
 };
 
 export const applyLegacySensitivePlaintextPolicy = (payload = {}) => {
-  if (!isFieldEncryptionEnabled() || shouldKeepLegacyDocPlaintext()) {
+  if (!isFieldEncryptionEnabled() || shouldKeepLegacyPlaintext()) {
     return payload;
   }
 
   const patchedPayload = { ...payload };
-  for (const key of LEGACY_DOC_PLAIN_KEYS) {
+  for (const key of LEGACY_PLAIN_KEYS) {
     if (hasOwn(patchedPayload, key)) {
       patchedPayload[key] = null;
     }

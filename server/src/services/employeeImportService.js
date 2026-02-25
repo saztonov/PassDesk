@@ -160,6 +160,7 @@ export const validateEmployeesImport = async (
             "id",
             "firstName",
             "lastName",
+            "lastNameHash",
             "middleName",
             "inn",
             "snils",

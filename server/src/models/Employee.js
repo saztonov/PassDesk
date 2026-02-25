@@ -1,7 +1,66 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database.js";
+import { decryptField } from "../services/encryptionService.js";
 
-class Employee extends Model {}
+const isEmptyValue = (value) =>
+  value === null || value === undefined || value === "";
+
+const restoreEncryptedValue = (values, plainKey, encryptedKey, keyVersionKey) => {
+  if (!isEmptyValue(values[plainKey])) {
+    return;
+  }
+
+  const encryptedPayload = values[encryptedKey];
+  const keyVersion = values[keyVersionKey];
+  if (!encryptedPayload || !keyVersion) {
+    return;
+  }
+
+  try {
+    const decrypted = decryptField(encryptedPayload, keyVersion);
+    if (!isEmptyValue(decrypted)) {
+      values[plainKey] = decrypted;
+    }
+  } catch {
+    // Keep plaintext fallback (or null) if decryption is unavailable.
+  }
+};
+
+class Employee extends Model {
+  toJSON() {
+    const values = { ...this.get() };
+
+    restoreEncryptedValue(values, "lastName", "lastNameEnc", "lastNameKeyVersion");
+    restoreEncryptedValue(
+      values,
+      "passportNumber",
+      "passportNumberEnc",
+      "passportNumberKeyVersion",
+    );
+    restoreEncryptedValue(values, "kig", "kigEnc", "kigKeyVersion");
+    restoreEncryptedValue(
+      values,
+      "patentNumber",
+      "patentNumberEnc",
+      "patentNumberKeyVersion",
+    );
+
+    delete values.lastNameEnc;
+    delete values.lastNameHash;
+    delete values.lastNameKeyVersion;
+    delete values.passportNumberEnc;
+    delete values.passportNumberHash;
+    delete values.passportNumberKeyVersion;
+    delete values.kigEnc;
+    delete values.kigHash;
+    delete values.kigKeyVersion;
+    delete values.patentNumberEnc;
+    delete values.patentNumberHash;
+    delete values.patentNumberKeyVersion;
+
+    return values;
+  }
+}
 
 Employee.init(
   {

@@ -23,6 +23,7 @@ const clearEncryptionEnv = () => {
   delete process.env.APP_FIELD_ENCRYPTION_ACTIVE_KEY_VERSION;
   delete process.env.APP_FIELD_HASH_PEPPER;
   delete process.env.FIELD_ENCRYPTION_KEEP_LEGACY_DOC_PLAINTEXT;
+  delete process.env.FIELD_ENCRYPTION_KEEP_LEGACY_PLAINTEXT;
 };
 
 test("buildEmployeeSensitiveFieldsPatch should return empty object when encryption is disabled", () => {
@@ -104,9 +105,10 @@ test("buildEmployeeSensitiveFieldsPatch should clear enc/hash/keyVersion for emp
   assert.equal(patch.kigKeyVersion, null);
 });
 
-test("applyLegacySensitivePlaintextPolicy should keep legacy doc plaintext by default", () => {
+test("applyLegacySensitivePlaintextPolicy should keep legacy plaintext by default", () => {
   setEncryptionEnv();
   delete process.env.FIELD_ENCRYPTION_KEEP_LEGACY_DOC_PLAINTEXT;
+  delete process.env.FIELD_ENCRYPTION_KEEP_LEGACY_PLAINTEXT;
 
   const payload = {
     lastName: "Иванов",
@@ -131,8 +133,22 @@ test("applyLegacySensitivePlaintextPolicy should clear doc plaintext when disabl
   };
   const patched = applyLegacySensitivePlaintextPolicy(payload);
 
-  assert.equal(patched.lastName, "Иванов");
+  assert.equal(patched.lastName, null);
   assert.equal(patched.passportNumber, null);
   assert.equal(patched.kig, null);
   assert.equal(patched.patentNumber, null);
+});
+
+test("applyLegacySensitivePlaintextPolicy should support common legacy plaintext flag", () => {
+  setEncryptionEnv();
+  process.env.FIELD_ENCRYPTION_KEEP_LEGACY_PLAINTEXT = "false";
+
+  const payload = {
+    lastName: "Сидоров",
+    passportNumber: "4015123456",
+  };
+  const patched = applyLegacySensitivePlaintextPolicy(payload);
+
+  assert.equal(patched.lastName, null);
+  assert.equal(patched.passportNumber, null);
 });
