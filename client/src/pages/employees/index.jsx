@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { App, Grid } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useEmployees } from "@/entities/employee";
@@ -96,6 +96,30 @@ const EmployeesPage = () => {
     !tableFilters.counterparty?.length ||
     Object.keys(counterpartyMap).length > 0;
 
+  const [debouncedSearchText, setDebouncedSearchText] = useState(searchText);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearchText(searchText.trim());
+    }, 350);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchText]);
+
+  const employeeRequestFilters = useMemo(() => {
+    const filters = {};
+
+    if (counterpartyIdForFilter) {
+      filters.counterpartyId = counterpartyIdForFilter;
+    }
+
+    if (debouncedSearchText) {
+      filters.search = debouncedSearchText;
+    }
+
+    return filters;
+  }, [counterpartyIdForFilter, debouncedSearchText]);
+
   const {
     employees,
     loading: employeesLoading,
@@ -104,7 +128,7 @@ const EmployeesPage = () => {
     refetch: refetchEmployees,
   } = useEmployees(
     false,
-    counterpartyIdForFilter ? { counterpartyId: counterpartyIdForFilter } : {},
+    employeeRequestFilters,
     isCounterpartyFilterReady,
   );
 
@@ -129,6 +153,7 @@ const EmployeesPage = () => {
     searchText,
     statusFilter,
     counterpartyFilter: tableFilters.counterparty,
+    skipSearchFiltering: true,
   });
 
   const {

@@ -124,17 +124,46 @@ const applyEmployeeSensitiveFieldEncryption = (payload = {}) => {
   };
 };
 
-const buildLastNameHashSearchCondition = (value) => {
+const normalizeDigitsSearch = (value = "") =>
+  String(value || "").replace(/[^\d]/g, "");
+
+const normalizeDocumentSearch = (value = "") =>
+  String(value || "")
+    .normalize("NFKC")
+    .toUpperCase()
+    .replace(/[^0-9A-Z]/g, "");
+
+const buildEmployeeSensitiveHashSearchConditions = (value) => {
   if (!value || !isFieldEncryptionEnabled()) {
-    return null;
+    return [];
   }
 
-  try {
-    const searchHash = hashForSearch(ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME, value);
-    return searchHash ? { lastNameHash: searchHash } : null;
-  } catch {
-    return null;
-  }
+  const conditions = [];
+  const pushHashCondition = (field, column, searchValue) => {
+    try {
+      const searchHash = hashForSearch(field, searchValue);
+      if (searchHash) {
+        conditions.push({ [column]: searchHash });
+      }
+    } catch {
+      // Ignore hash search if current query cannot be normalized for field.
+    }
+  };
+
+  pushHashCondition(ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME, "lastNameHash", value);
+  pushHashCondition(
+    ENCRYPTED_EMPLOYEE_FIELDS.PASSPORT_NUMBER,
+    "passportNumberHash",
+    value,
+  );
+  pushHashCondition(ENCRYPTED_EMPLOYEE_FIELDS.KIG, "kigHash", value);
+  pushHashCondition(
+    ENCRYPTED_EMPLOYEE_FIELDS.PATENT_NUMBER,
+    "patentNumberHash",
+    value,
+  );
+
+  return conditions;
 };
 
 const buildInnLookupEmployeePayload = (employee) => {
@@ -299,16 +328,35 @@ export const getAllEmployees = async (req, res, next) => {
       // Но нужно учитывать роль пользователя - админ может смотреть всех, user только своих
     }
 
-    // Поиск по ФИО, email, телефону
+    // Поиск по ФИО/контактам/документам (включая hash-поиск для зашифрованных полей)
     if (search) {
-      const lastNameHashCondition = buildLastNameHashSearchCondition(search);
+      const normalizedSearch = String(search).trim();
+      const digitsSearch = normalizeDigitsSearch(normalizedSearch);
+      const docSearch = normalizeDocumentSearch(normalizedSearch);
+      const sensitiveHashConditions =
+        buildEmployeeSensitiveHashSearchConditions(normalizedSearch);
+
       where[Op.or] = [
-        { firstName: { [Op.iLike]: `%${search}%` } },
-        { lastName: { [Op.iLike]: `%${search}%` } },
-        { middleName: { [Op.iLike]: `%${search}%` } },
-        { email: { [Op.iLike]: `%${search}%` } },
-        { phone: { [Op.iLike]: `%${search}%` } },
-        ...(lastNameHashCondition ? [lastNameHashCondition] : []),
+        { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        { lastName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        { email: { [Op.iLike]: `%${normalizedSearch}%` } },
+        { phone: { [Op.iLike]: `%${normalizedSearch}%` } },
+        ...(digitsSearch
+          ? [
+              { inn: { [Op.iLike]: `%${digitsSearch}%` } },
+              { snils: { [Op.iLike]: `%${digitsSearch}%` } },
+              { phone: { [Op.iLike]: `%${digitsSearch}%` } },
+            ]
+          : []),
+        ...(docSearch
+          ? [
+              { passportNumber: { [Op.iLike]: `%${docSearch}%` } },
+              { kig: { [Op.iLike]: `%${docSearch}%` } },
+              { patentNumber: { [Op.iLike]: `%${docSearch}%` } },
+            ]
+          : []),
+        ...sensitiveHashConditions,
       ];
     }
 
@@ -2883,12 +2931,30 @@ export const searchEmployees = async (req, res, next) => {
     const userId = req.user.id;
 
     if (query) {
-      const lastNameHashCondition = buildLastNameHashSearchCondition(query);
+      const normalizedSearch = String(query).trim();
+      const digitsSearch = normalizeDigitsSearch(normalizedSearch);
+      const docSearch = normalizeDocumentSearch(normalizedSearch);
+      const sensitiveHashConditions =
+        buildEmployeeSensitiveHashSearchConditions(normalizedSearch);
       where[Op.or] = [
-        { firstName: { [Op.iLike]: `%${query}%` } },
-        { lastName: { [Op.iLike]: `%${query}%` } },
-        { middleName: { [Op.iLike]: `%${query}%` } },
-        ...(lastNameHashCondition ? [lastNameHashCondition] : []),
+        { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        { lastName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        ...(digitsSearch
+          ? [
+              { inn: { [Op.iLike]: `%${digitsSearch}%` } },
+              { snils: { [Op.iLike]: `%${digitsSearch}%` } },
+              { phone: { [Op.iLike]: `%${digitsSearch}%` } },
+            ]
+          : []),
+        ...(docSearch
+          ? [
+              { passportNumber: { [Op.iLike]: `%${docSearch}%` } },
+              { kig: { [Op.iLike]: `%${docSearch}%` } },
+              { patentNumber: { [Op.iLike]: `%${docSearch}%` } },
+            ]
+          : []),
+        ...sensitiveHashConditions,
       ];
     }
 

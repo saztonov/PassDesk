@@ -20,6 +20,7 @@ export const useFilteredEmployees = ({
   searchText,
   statusFilter,
   counterpartyFilter,
+  skipSearchFiltering = false,
 }) => {
   const filteredEmployees = useMemo(() => {
     let filtered = employees;
@@ -66,7 +67,7 @@ export const useFilteredEmployees = ({
       });
     }
 
-    if (!searchText) return filtered;
+    if (skipSearchFiltering || !searchText) return filtered;
 
     const normalizedSearchText = normalizeTextSearch(searchText);
     const searchTokens = normalizedSearchText
@@ -132,7 +133,7 @@ export const useFilteredEmployees = ({
 
       return isTextMatch || isDigitsMatch || isDocumentExact;
     });
-  }, [employees, searchText, statusFilter]);
+  }, [employees, searchText, skipSearchFiltering, statusFilter]);
 
   const uniqueFilters = useMemo(
     () => getUniqueFilterValues(filteredEmployees, counterpartyFilter),
