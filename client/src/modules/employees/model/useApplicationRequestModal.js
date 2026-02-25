@@ -5,6 +5,7 @@ import { useExcelColumns } from "@/hooks/useExcelColumns";
 import { applicationService } from "@/services/applicationService";
 import { constructionSiteService } from "@/services/constructionSiteService";
 import { counterpartyService } from "@/services/counterpartyService";
+import { employeeApi } from "@/entities/employee";
 import { getStatusPriority } from "@/entities/employee/model/utils";
 import { buildApplicationRequestExcelData } from "@/modules/employees/lib/applicationRequestModalFormatters";
 import { buildApplicationRequestModalColumns } from "@/modules/employees/ui/ApplicationRequestModalColumns";
@@ -20,6 +21,7 @@ export const useApplicationRequestModal = ({
   messageApi,
 }) => {
   const [loading, setLoading] = useState(false);
+  const [tableLoading, setTableLoading] = useState(false);
   const [sitesLoading, setSitesLoading] = useState(false);
   const [counterpartiesLoading, setCounterpartiesLoading] = useState(false);
   const [downloadingConsents, setDownloadingConsents] = useState(false);
@@ -30,6 +32,7 @@ export const useApplicationRequestModal = ({
   const [includeFired, setIncludeFired] = useState(false);
   const [availableSites, setAvailableSites] = useState([]);
   const [availableCounterparties, setAvailableCounterparties] = useState([]);
+  const [modalEmployees, setModalEmployees] = useState(allEmployees || []);
   const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
   const [employeesWithConsents, setEmployeesWithConsents] = useState({});
@@ -43,6 +46,46 @@ export const useApplicationRequestModal = ({
     selectAll,
     deselectAll,
   } = useExcelColumns();
+
+  useEffect(() => {
+    if (!visible) {
+      setModalEmployees(Array.isArray(allEmployees) ? allEmployees : []);
+      return;
+    }
+
+    let cancelled = false;
+    const loadModalEmployees = async () => {
+      setTableLoading(true);
+      try {
+        const response = await employeeApi.getAll({
+          activeOnly: false,
+          page: 1,
+          limit: 10000,
+        });
+        const employeesFromApi = response?.data?.employees || [];
+        if (!cancelled) {
+          setModalEmployees(
+            Array.isArray(employeesFromApi) ? employeesFromApi : [],
+          );
+        }
+      } catch (error) {
+        console.error("Error loading employees for request modal:", error);
+        if (!cancelled) {
+          setModalEmployees(Array.isArray(allEmployees) ? allEmployees : []);
+        }
+      } finally {
+        if (!cancelled) {
+          setTableLoading(false);
+        }
+      }
+    };
+
+    loadModalEmployees();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, allEmployees]);
 
   useEffect(() => {
     if (!visible) {
@@ -115,19 +158,19 @@ export const useApplicationRequestModal = ({
   }, [visible, userRole]);
 
   useEffect(() => {
-    if (!(visible && allEmployees.length > 0)) {
+    if (!(visible && modalEmployees.length > 0)) {
       return;
     }
 
     const consentsMap = {};
-    allEmployees.forEach((employee) => {
+    modalEmployees.forEach((employee) => {
       consentsMap[employee.id] = employee.files && employee.files.length > 0;
     });
     setEmployeesWithConsents(consentsMap);
-  }, [visible, allEmployees]);
+  }, [visible, modalEmployees]);
 
   const availableEmployees = useMemo(() => {
-    let filtered = allEmployees;
+    let filtered = modalEmployees;
 
     if (userRole === "user") {
       const isDefaultCounterparty =
@@ -163,7 +206,7 @@ export const useApplicationRequestModal = ({
 
     return filtered;
   }, [
-    allEmployees,
+    modalEmployees,
     selectedSite,
     includeFired,
     selectedCounterparty,
@@ -301,6 +344,7 @@ export const useApplicationRequestModal = ({
 
   return {
     loading,
+    tableLoading,
     sitesLoading,
     counterpartiesLoading,
     downloadingConsents,

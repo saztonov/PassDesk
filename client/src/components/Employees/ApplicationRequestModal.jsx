@@ -17,6 +17,7 @@ const ApplicationRequestModal = ({
   const { message } = App.useApp();
   const {
     loading,
+    tableLoading,
     sitesLoading,
     counterpartiesLoading,
     downloadingConsents,
@@ -115,7 +116,7 @@ const ApplicationRequestModal = ({
           onSelectAll={handleSelectAll}
           rowSelection={rowSelection}
           columns={columns}
-          loading={loading}
+          loading={tableLoading}
           pagination={pagination}
           onPageSizeChange={(pageSize) =>
             setPagination({ current: 1, pageSize })
