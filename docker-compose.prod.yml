@@ -28,12 +28,13 @@ services:
       CLIENT_URL: ${CLIENT_URL:?Set_CLIENT_URL_in_.env}
       SERVER_URL: ${SERVER_URL:-}
 
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: passdesk
-      DB_USER: admin
+      DB_HOST: ${DB_HOST:?Set_DB_HOST_in_.env}
+      DB_PORT: ${DB_PORT:?Set_DB_PORT_in_.env}
+      DB_NAME: ${DB_NAME:?Set_DB_NAME_in_.env}
+      DB_USER: ${DB_USER:?Set_DB_USER_in_.env}
       DB_PASSWORD: ${DB_PASSWORD:?Set_DB_PASSWORD_in_.env}
       DB_SSL: ${DB_SSL:-false}
+      DB_SSL_CA_PATH: ${DB_SSL_CA_PATH:-/app/cert/root.crt}
 
       JWT_SECRET: ${JWT_SECRET:?Set_JWT_SECRET_in_.env}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set_JWT_REFRESH_SECRET_in_.env}
@@ -77,6 +78,8 @@ services:
         condition: service_healthy
     ports:
       - "5003:5000"
+    volumes:
+      - ./cert:/app/cert:ro
     restart: unless-stopped
     healthcheck:
       test:
