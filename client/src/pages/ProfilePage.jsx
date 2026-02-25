@@ -23,14 +23,10 @@ import {
   CloseOutlined,
   IdcardOutlined,
   LogoutOutlined,
-  LinkOutlined,
-  QrcodeOutlined,
-  CopyOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
 import profileService from "@/services/profileService";
-import userProfileService from "@/services/userProfileService";
 import { forbiddenPasswordValidator } from "@/utils/forbiddenPasswords";
 import { useTranslation } from "react-i18next";
 import { useSettings } from "@/entities/settings";
@@ -57,16 +53,9 @@ const ProfilePage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [profileData, setProfileData] = useState(null);
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
-  const [telegramBinding, setTelegramBinding] = useState(null);
-  const [telegramLoading, setTelegramLoading] = useState(false);
-  const [telegramGenerating, setTelegramGenerating] = useState(false);
-  const [telegramUnlinking, setTelegramUnlinking] = useState(false);
-  const [telegramUnavailableReason, setTelegramUnavailableReason] =
-    useState(null);
 
   const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
-  const canUseTelegramBinding = user?.role === "user";
 
   const loadProfile = useCallback(async () => {
     try {
@@ -90,34 +79,6 @@ const ProfilePage = () => {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
-
-  const loadTelegramBinding = useCallback(async () => {
-    if (!canUseTelegramBinding) {
-      setTelegramBinding(null);
-      setTelegramUnavailableReason(null);
-      return;
-    }
-
-    try {
-      setTelegramLoading(true);
-      const response = await userProfileService.getTelegramBinding();
-      setTelegramBinding(response?.data || null);
-      setTelegramUnavailableReason(null);
-    } catch (error) {
-      console.error("Error loading telegram binding:", error);
-      setTelegramBinding(null);
-      setTelegramUnavailableReason(
-        error?.response?.data?.message ||
-          "Не удалось загрузить Telegram-статус",
-      );
-    } finally {
-      setTelegramLoading(false);
-    }
-  }, [canUseTelegramBinding]);
-
-  useEffect(() => {
-    loadTelegramBinding();
-  }, [loadTelegramBinding]);
 
   const handleSaveProfile = async () => {
     try {
@@ -175,53 +136,6 @@ const ProfilePage = () => {
   const handleLogout = () => {
     logout();
     navigate("/login");
-  };
-
-  const handleGenerateTelegramCode = async () => {
-    try {
-      setTelegramGenerating(true);
-      await userProfileService.generateTelegramLinkCode();
-      message.success("Код привязки Telegram создан");
-      await loadTelegramBinding();
-    } catch (error) {
-      console.error("Error generating telegram code:", error);
-      message.error(
-        error?.response?.data?.message || "Ошибка генерации кода Telegram",
-      );
-    } finally {
-      setTelegramGenerating(false);
-    }
-  };
-
-  const handleUnlinkTelegram = async () => {
-    try {
-      setTelegramUnlinking(true);
-      await userProfileService.unlinkTelegram();
-      message.success("Telegram отвязан");
-      await loadTelegramBinding();
-    } catch (error) {
-      console.error("Error unlinking telegram:", error);
-      message.error(
-        error?.response?.data?.message || "Ошибка отвязки Telegram",
-      );
-    } finally {
-      setTelegramUnlinking(false);
-    }
-  };
-
-  const handleCopyTelegramCommand = async () => {
-    const command = telegramBinding?.activeCode?.command;
-    if (!command) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(command);
-      message.success("Команда скопирована");
-    } catch (error) {
-      console.error("Error copying telegram command:", error);
-      message.error("Не удалось скопировать команду");
-    }
   };
 
   // Форматирование УИН в формат XXX-XXX
@@ -404,123 +318,6 @@ const ProfilePage = () => {
           </Typography.Link>
         </Space>
       </Card>
-
-      {canUseTelegramBinding && (
-        <Card
-          title={
-            <Space>
-              <LinkOutlined />
-              <span>Telegram-бот</span>
-            </Space>
-          }
-          style={{ marginTop: 16 }}
-          loading={telegramLoading}
-        >
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            {telegramUnavailableReason ? (
-              <Alert
-                type="warning"
-                showIcon
-                message={telegramUnavailableReason}
-              />
-            ) : (
-              <>
-                <Alert
-                  type={telegramBinding?.linked ? "success" : "info"}
-                  showIcon
-                  message={
-                    telegramBinding?.linked
-                      ? "Telegram привязан к вашему профилю"
-                      : "Telegram не привязан"
-                  }
-                  description={
-                    telegramBinding?.linked ? (
-                      <div>
-                        <div>
-                          Username:{" "}
-                          {telegramBinding?.account?.telegramUsername || "-"}
-                        </div>
-                        <div>
-                          Язык: {telegramBinding?.account?.language || "ru"}
-                        </div>
-                        <div>
-                          Привязан:{" "}
-                          {telegramBinding?.account?.linkedAt
-                            ? new Date(
-                                telegramBinding.account.linkedAt,
-                              ).toLocaleString("ru-RU")
-                            : "-"}
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        1. Нажмите «Сгенерировать код».
-                        <br />
-                        2. В Telegram отправьте боту команду вида{" "}
-                        <b>/start КОД</b>.
-                      </div>
-                    )
-                  }
-                />
-
-                {telegramBinding?.activeCode && (
-                  <Card size="small">
-                    <Space
-                      direction="vertical"
-                      size={8}
-                      style={{ width: "100%" }}
-                    >
-                      <Space>
-                        <QrcodeOutlined />
-                        <Text strong>
-                          Код привязки: {telegramBinding.activeCode.code}
-                        </Text>
-                      </Space>
-                      <Text type="secondary">
-                        Действует до:{" "}
-                        {new Date(
-                          telegramBinding.activeCode.expiresAt,
-                        ).toLocaleString("ru-RU")}
-                      </Text>
-                      <Space wrap>
-                        <Input
-                          readOnly
-                          value={telegramBinding.activeCode.command}
-                          style={{ minWidth: isMobile ? 220 : 360 }}
-                        />
-                        <Button
-                          icon={<CopyOutlined />}
-                          onClick={handleCopyTelegramCommand}
-                        >
-                          Копировать
-                        </Button>
-                      </Space>
-                    </Space>
-                  </Card>
-                )}
-
-                <Space wrap>
-                  <Button
-                    type="primary"
-                    onClick={handleGenerateTelegramCode}
-                    loading={telegramGenerating}
-                  >
-                    Сгенерировать код
-                  </Button>
-                  <Button
-                    danger
-                    onClick={handleUnlinkTelegram}
-                    loading={telegramUnlinking}
-                    disabled={!telegramBinding?.linked}
-                  >
-                    Отвязать Telegram
-                  </Button>
-                </Space>
-              </>
-            )}
-          </Space>
-        </Card>
-      )}
 
       {/* Модальное окно смены пароля */}
       <Modal

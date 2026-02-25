@@ -30,9 +30,6 @@ import {
   DeleteOutlined,
   CheckCircleFilled,
   LogoutOutlined,
-  LinkOutlined,
-  CopyOutlined,
-  QrcodeOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import imageCompression from "browser-image-compression";
@@ -184,10 +181,6 @@ const UserProfilePage = () => {
   const [employee, setEmployee] = useState(null);
   const [citizenships, setCitizenships] = useState([]);
   const [files, setFiles] = useState([]);
-  const [telegramBinding, setTelegramBinding] = useState(null);
-  const [telegramLoading, setTelegramLoading] = useState(false);
-  const [telegramGenerating, setTelegramGenerating] = useState(false);
-  const [telegramUnlinking, setTelegramUnlinking] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fileList, setFileList] = useState([]);
   const [previewFile, setPreviewFile] = useState(null);
@@ -251,19 +244,6 @@ const UserProfilePage = () => {
     }
   }, []);
 
-  const loadTelegramBinding = useCallback(async () => {
-    try {
-      setTelegramLoading(true);
-      const response = await userProfileService.getTelegramBinding();
-      setTelegramBinding(response?.data || null);
-    } catch (error) {
-      console.error("Error loading telegram binding:", error);
-      setTelegramBinding(null);
-    } finally {
-      setTelegramLoading(false);
-    }
-  }, []);
-
   const loadFiles = useCallback(async (employeeId) => {
     try {
       const response = await userProfileService.getFiles(employeeId);
@@ -277,8 +257,7 @@ const UserProfilePage = () => {
   useEffect(() => {
     loadProfile();
     loadCitizenships();
-    loadTelegramBinding();
-  }, [loadProfile, loadCitizenships, loadTelegramBinding]);
+  }, [loadProfile, loadCitizenships]);
 
   const handleEdit = () => {
     setIsEditing(true);
@@ -566,53 +545,6 @@ const UserProfilePage = () => {
     } catch (error) {
       console.error("Error deleting file:", error);
       message.error("Ошибка удаления файла");
-    }
-  };
-
-  const handleGenerateTelegramCode = async () => {
-    try {
-      setTelegramGenerating(true);
-      const response = await userProfileService.generateTelegramLinkCode();
-      setTelegramBinding((prev) => ({
-        ...(prev || {}),
-        ...(response?.data || {}),
-      }));
-      message.success("Код привязки Telegram создан");
-      await loadTelegramBinding();
-    } catch (error) {
-      console.error("Error generating telegram code:", error);
-      message.error(
-        error?.response?.data?.message || "Ошибка генерации кода Telegram",
-      );
-    } finally {
-      setTelegramGenerating(false);
-    }
-  };
-
-  const handleUnlinkTelegram = async () => {
-    try {
-      setTelegramUnlinking(true);
-      await userProfileService.unlinkTelegram();
-      message.success("Telegram отвязан");
-      await loadTelegramBinding();
-    } catch (error) {
-      console.error("Error unlinking telegram:", error);
-      message.error(
-        error?.response?.data?.message || "Ошибка отвязки Telegram",
-      );
-    } finally {
-      setTelegramUnlinking(false);
-    }
-  };
-
-  const handleCopyTelegramCommand = async () => {
-    const command = telegramBinding?.activeCode?.command;
-    if (!command) return;
-    try {
-      await navigator.clipboard.writeText(command);
-      message.success("Команда скопирована");
-    } catch {
-      message.warning("Не удалось скопировать в буфер обмена");
     }
   };
 
@@ -988,106 +920,6 @@ const UserProfilePage = () => {
               </Col>
             </Row>
           </Form>
-        </Card>
-
-        <Card
-          title={
-            <Space>
-              <LinkOutlined />
-              <span>Telegram-бот</span>
-            </Space>
-          }
-          style={{ marginTop: 24 }}
-          loading={telegramLoading}
-        >
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            <Alert
-              type={telegramBinding?.linked ? "success" : "info"}
-              showIcon
-              message={
-                telegramBinding?.linked
-                  ? "Telegram привязан к вашему профилю"
-                  : "Telegram не привязан"
-              }
-              description={
-                telegramBinding?.linked ? (
-                  <div>
-                    <div>
-                      Username:{" "}
-                      {telegramBinding?.account?.telegramUsername || "-"}
-                    </div>
-                    <div>
-                      Язык: {telegramBinding?.account?.language || "ru"}
-                    </div>
-                    <div>
-                      Привязан:{" "}
-                      {telegramBinding?.account?.linkedAt
-                        ? dayjs(telegramBinding.account.linkedAt).format(
-                            "DD.MM.YYYY HH:mm",
-                          )
-                        : "-"}
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    1. Нажмите «Сгенерировать код».
-                    <br />
-                    2. В Telegram отправьте боту команду вида <b>/start КОД</b>.
-                  </div>
-                )
-              }
-            />
-
-            {telegramBinding?.activeCode && (
-              <Card size="small">
-                <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                  <Space>
-                    <QrcodeOutlined />
-                    <Text strong>
-                      Код привязки: {telegramBinding.activeCode.code}
-                    </Text>
-                  </Space>
-                  <Text type="secondary">
-                    Действует до:{" "}
-                    {dayjs(telegramBinding.activeCode.expiresAt).format(
-                      "DD.MM.YYYY HH:mm",
-                    )}
-                  </Text>
-                  <Space wrap>
-                    <Input
-                      readOnly
-                      value={telegramBinding.activeCode.command}
-                      style={{ minWidth: isMobile ? 220 : 360 }}
-                    />
-                    <Button
-                      icon={<CopyOutlined />}
-                      onClick={handleCopyTelegramCommand}
-                    >
-                      Копировать
-                    </Button>
-                  </Space>
-                </Space>
-              </Card>
-            )}
-
-            <Space wrap>
-              <Button
-                type="primary"
-                onClick={handleGenerateTelegramCode}
-                loading={telegramGenerating}
-              >
-                Сгенерировать код
-              </Button>
-              <Button
-                danger
-                onClick={handleUnlinkTelegram}
-                loading={telegramUnlinking}
-                disabled={!telegramBinding?.linked}
-              >
-                Отвязать Telegram
-              </Button>
-            </Space>
-          </Space>
         </Card>
 
         {/* Секция загрузки файлов */}
