@@ -74,7 +74,8 @@ services:
       APP_FIELD_ENCRYPTION_ACTIVE_KEY_VERSION: v1
       APP_FIELD_ENCRYPTION_KEYS: ${APP_FIELD_ENCRYPTION_KEYS:-}
       APP_FIELD_HASH_PEPPER: ${APP_FIELD_HASH_PEPPER:-}
-      FIELD_ENCRYPTION_KEEP_LEGACY_DOC_PLAINTEXT: "false"
+      # Keep plaintext doc fields until UI/API reads encrypted columns directly.
+      FIELD_ENCRYPTION_KEEP_LEGACY_DOC_PLAINTEXT: "true"
       FILE_ENCRYPTION_ENABLED: true
       FILE_ENCRYPTION_SENSITIVE_DOC_TYPES: passport,kig,patent_front,patent_back,application_scan
       FILE_PROXY_TOKEN_TTL_SECONDS: 300
