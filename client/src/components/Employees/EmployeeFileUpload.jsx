@@ -36,6 +36,7 @@ const { Option } = Select;
 const DOCUMENT_TYPES = [
   { value: "passport", label: "Паспорт" },
   { value: "passport_translation", label: "Перевод паспорта" },
+  { value: "inn_document", label: "ИНН" },
   { value: "bank_details", label: "Реквизиты счета" },
   { value: "consent", label: "Согласие на перс.дан. Подрядчик" },
   { value: "patent_front", label: "Лицевая сторона патента (с фото)" },

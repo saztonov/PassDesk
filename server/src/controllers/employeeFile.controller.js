@@ -68,6 +68,7 @@ export const uploadEmployeeFiles = async (req, res, next) => {
     const validDocumentTypes = [
       "passport",
       "passport_translation",
+      "inn_document",
       "patent_front",
       "patent_back",
       "visa",

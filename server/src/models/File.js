@@ -67,6 +67,7 @@ File.init(
       type: DataTypes.ENUM(
         "passport",
         "passport_translation",
+        "inn_document",
         "patent_front",
         "patent_back",
         "visa",

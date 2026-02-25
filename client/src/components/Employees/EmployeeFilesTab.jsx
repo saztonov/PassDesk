@@ -4,6 +4,12 @@ import {
 } from "@/modules/employees/lib/documentTypeProfiles";
 import DocumentTypeUploader from "./DocumentTypeUploader.jsx";
 
+const CONSENT_DOCUMENT_TYPES = [
+  "consent",
+  "biometric_consent",
+  "biometric_consent_developer",
+];
+
 const EmployeeFilesTab = ({
   employee,
   defaultCounterpartyId,
@@ -11,7 +17,6 @@ const EmployeeFilesTab = ({
   userCounterpartyId,
   onFilesUpdated,
   ensureEmployeeId,
-  documentProfilesConfig,
 }) => {
   const counterpartyId = resolveEmployeeCounterpartyId({
     employee,
@@ -23,6 +28,11 @@ const EmployeeFilesTab = ({
     defaultCounterpartyId,
     citizenship: selectedCitizenship || employee?.citizenship || null,
   });
+  const consentOnlyProfilesConfig = {
+    external: [...CONSENT_DOCUMENT_TYPES],
+    default_ru_by: [...CONSENT_DOCUMENT_TYPES],
+    default_foreign: [...CONSENT_DOCUMENT_TYPES],
+  };
 
   return (
     <DocumentTypeUploader
@@ -31,7 +41,7 @@ const EmployeeFilesTab = ({
       readonly={false}
       onFilesUpdated={onFilesUpdated}
       profileCode={profileCode}
-      profilesConfig={documentProfilesConfig}
+      profilesConfig={consentOnlyProfilesConfig}
     />
   );
 };

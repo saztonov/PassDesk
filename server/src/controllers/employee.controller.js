@@ -3044,16 +3044,19 @@ export const updateMyProfile = async (req, res, next) => {
 
     const filteredData = {};
     allowedFields.forEach((field) => {
-      if (updateData[field] !== undefined) {
-        filteredData[field] = updateData[field];
+      if (updateData[field] === undefined) {
+        return;
       }
+
+      filteredData[field] =
+        updateData[field] === "" ? null : updateData[field];
     });
 
     console.log("✅ Filtered data:", filteredData);
 
     // Обновляем профиль
     await employee.update({
-      ...filteredData,
+      ...applyEmployeeSensitiveFieldEncryption(filteredData),
       updatedBy: userId,
     });
 

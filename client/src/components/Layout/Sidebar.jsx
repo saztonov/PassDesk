@@ -58,11 +58,17 @@ const Sidebar = () => {
       user?.counterpartyId &&
       user?.counterpartyId !== defaultCounterpartyId);
 
+  const isDefaultCounterpartyUser =
+    user?.role === "user" &&
+    user?.counterpartyId &&
+    defaultCounterpartyId &&
+    String(user.counterpartyId) === String(defaultCounterpartyId);
+
   const showOtMenu =
     isOtEngineer ||
     isOtAdmin ||
     user?.role === "admin" ||
-    user?.role === "user";
+    (user?.role === "user" && !isDefaultCounterpartyUser);
 
   // Меню для обычных пользователей (role: user)
   const userMenuItems = [

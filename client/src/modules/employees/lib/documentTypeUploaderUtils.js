@@ -1,6 +1,7 @@
 export const DEFAULT_DOCUMENT_TYPES = [
   { value: "passport", label: "Паспорт" },
   { value: "passport_translation", label: "Перевод паспорта" },
+  { value: "inn_document", label: "ИНН" },
   { value: "bank_details", label: "Реквизиты счета" },
   { value: "consent", label: "Согласие на перс.дан. Подрядчик" },
   { value: "biometric_consent", label: "Согласие на перс.дан. Генподряд" },

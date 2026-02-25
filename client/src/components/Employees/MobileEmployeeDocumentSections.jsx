@@ -30,6 +30,10 @@ export const buildMobileDocumentSections = ({
     formatPatentNumber,
     noAutoFillProps,
     formatBlankNumber,
+    employee,
+    ensureEmployeeId,
+    profileCode: documentProfileCode,
+    profilesConfig: documentProfilesConfig,
   });
 
   const documentsSection = buildMobileEmployeeDocumentsSection({

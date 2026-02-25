@@ -1,7 +1,10 @@
 import { Form, Input, Typography } from "antd";
+import EmployeeDocumentUpload from "@/components/Employees/EmployeeDocumentUpload";
+import { profileDocumentTypeLabels } from "@/modules/employees/lib/documentTypeProfiles";
 import {
   createDateInputRules,
   formatDateInputValue,
+  getUploadsForDocumentProfile,
 } from "./MobileEmployeeDocumentSectionUtils";
 
 const { Title } = Typography;
@@ -13,10 +16,25 @@ export const buildMobileEmployeePatentSection = ({
   formatPatentNumber,
   noAutoFillProps,
   formatBlankNumber,
+  employee,
+  ensureEmployeeId,
+  profileCode,
+  profilesConfig,
 }) => {
   if (!requiresPatent) {
     return null;
   }
+
+  const uploads = getUploadsForDocumentProfile(profileCode, profilesConfig);
+  const uploadsByType = new Map(
+    uploads.map((upload) => [upload.documentType, upload]),
+  );
+  const getInlineUploadMeta = (documentType) =>
+    uploadsByType.get(documentType) || {
+      documentType,
+      label: profileDocumentTypeLabels[documentType] || documentType,
+      multiple: true,
+    };
 
   return {
     key: "patent",
@@ -51,31 +69,58 @@ export const buildMobileEmployeePatentSection = ({
         )}
 
         {!getFieldProps("patentNumber").hidden && (
-          <Form.Item
-            label="Номер патента"
-            name="patentNumber"
-            required={getFieldProps("patentNumber").required}
-            rules={[
-              ...getFieldProps("patentNumber").rules,
-              {
-                validator: (_, value) => {
-                  if (!value) return Promise.resolve();
-                  const digits = value.replace(/[^\d]/g, "");
-                  if (digits.length === 12) return Promise.resolve();
-                  return Promise.reject(
-                    new Error("Номер патента должен содержать 12 цифр"),
-                  );
+          <>
+            <Form.Item
+              label="Номер патента"
+              name="patentNumber"
+              required={getFieldProps("patentNumber").required}
+              rules={[
+                ...getFieldProps("patentNumber").rules,
+                {
+                  validator: (_, value) => {
+                    if (!value) return Promise.resolve();
+                    const digits = value.replace(/[^\d]/g, "");
+                    if (digits.length === 12) return Promise.resolve();
+                    return Promise.reject(
+                      new Error("Номер патента должен содержать 12 цифр"),
+                    );
+                  },
                 },
-              },
-            ]}
-            getValueFromEvent={(e) => formatPatentNumber(e.target.value)}
-          >
-            <Input
-              placeholder="01 №1234567890"
-              size="large"
-              {...noAutoFillProps}
+              ]}
+              getValueFromEvent={(e) => formatPatentNumber(e.target.value)}
+            >
+              <Input
+                placeholder="01 №1234567890"
+                size="large"
+                {...noAutoFillProps}
+              />
+            </Form.Item>
+
+            <EmployeeDocumentUpload
+              employeeId={employee?.id}
+              ensureEmployeeId={ensureEmployeeId}
+              documentType="patent_front"
+              label={getInlineUploadMeta("patent_front").label}
+              readonly={false}
+              multiple={getInlineUploadMeta("patent_front").multiple}
             />
-          </Form.Item>
+            <EmployeeDocumentUpload
+              employeeId={employee?.id}
+              ensureEmployeeId={ensureEmployeeId}
+              documentType="patent_back"
+              label={getInlineUploadMeta("patent_back").label}
+              readonly={false}
+              multiple={getInlineUploadMeta("patent_back").multiple}
+            />
+            <EmployeeDocumentUpload
+              employeeId={employee?.id}
+              ensureEmployeeId={ensureEmployeeId}
+              documentType="patent_payment_receipt"
+              label={getInlineUploadMeta("patent_payment_receipt").label}
+              readonly={false}
+              multiple={getInlineUploadMeta("patent_payment_receipt").multiple}
+            />
+          </>
         )}
 
         {!getFieldProps("patentIssueDate").hidden && (

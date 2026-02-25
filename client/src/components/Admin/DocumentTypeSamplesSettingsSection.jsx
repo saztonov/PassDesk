@@ -32,6 +32,7 @@ import { useReferencesStore } from "@/store/referencesStore";
 import {
   normalizeDocumentProfilesConfig,
   profileCodes,
+  profileDocumentTypeLabels,
   profileLabels,
 } from "@/modules/employees/lib/documentTypeProfiles";
 
@@ -278,6 +279,41 @@ const DocumentTypeSamplesSettingsSection = () => {
         })),
     [items],
   );
+
+  const profileSelectOptions = useMemo(() => {
+    const optionsMap = new Map(
+      activeDocumentTypeOptions.map((option) => [option.value, option]),
+    );
+    const allItemLabels = new Map(
+      items.map((item) => [
+        String(item.code || item.value || "").trim(),
+        item.label || item.name || item.code || item.value,
+      ]),
+    );
+
+    const selectedCodes = new Set(
+      Object.values(profilesConfig || {})
+        .flat()
+        .map((code) => String(code || "").trim())
+        .filter(Boolean),
+    );
+
+    selectedCodes.forEach((code) => {
+      if (optionsMap.has(code)) {
+        return;
+      }
+
+      optionsMap.set(code, {
+        value: code,
+        label:
+          allItemLabels.get(code) ||
+          profileDocumentTypeLabels[code] ||
+          code,
+      });
+    });
+
+    return Array.from(optionsMap.values());
+  }, [activeDocumentTypeOptions, items, profilesConfig]);
 
   const normalizedProfilesForSave = useMemo(
     () =>
@@ -573,7 +609,7 @@ const DocumentTypeSamplesSettingsSection = () => {
                   style={{ width: "100%", marginTop: 6 }}
                   placeholder="Выберите типы документов"
                   value={profilesConfig?.[profileCode] || []}
-                  options={activeDocumentTypeOptions}
+                  options={profileSelectOptions}
                   onChange={(values) =>
                     handleProfileCodesChange(profileCode, values)
                   }

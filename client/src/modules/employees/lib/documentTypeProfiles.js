@@ -17,11 +17,17 @@ const BASE_CONSENTS = [
   "biometric_consent_developer",
 ];
 const REQUIRED_CONSENT_CODES = [...BASE_CONSENTS];
+const REQUIRED_PROFILE_CODES = {
+  [PROFILE_CODES.EXTERNAL]: ["inn_document"],
+  [PROFILE_CODES.DEFAULT_RU_BY]: ["inn_document"],
+  [PROFILE_CODES.DEFAULT_FOREIGN]: ["inn_document"],
+};
 
 export const DEFAULT_DOCUMENT_PROFILES = {
-  [PROFILE_CODES.EXTERNAL]: [...BASE_CONSENTS],
+  [PROFILE_CODES.EXTERNAL]: ["inn_document", ...BASE_CONSENTS],
   [PROFILE_CODES.DEFAULT_RU_BY]: [
     "passport",
+    "inn_document",
     "bank_details",
     ...BASE_CONSENTS,
     "diploma",
@@ -30,6 +36,7 @@ export const DEFAULT_DOCUMENT_PROFILES = {
   [PROFILE_CODES.DEFAULT_FOREIGN]: [
     "passport",
     "passport_translation",
+    "inn_document",
     "patent_front",
     "patent_back",
     "bank_details",
@@ -44,6 +51,7 @@ export const DEFAULT_DOCUMENT_PROFILES = {
 const DOCUMENT_TYPE_LABELS = {
   passport: "Паспорт",
   passport_translation: "Перевод паспорта",
+  inn_document: "ИНН",
   bank_details: "Реквизиты счета",
   consent: "Согласие на перс.дан. Подрядчик",
   biometric_consent: "Согласие на перс.дан. Генподряд",
@@ -145,6 +153,21 @@ const ensureRequiredConsents = (codes = []) => {
   return result;
 };
 
+const ensureRequiredByProfile = (profileCode, codes = []) => {
+  const requiredCodes = REQUIRED_PROFILE_CODES[profileCode] || [];
+  if (!requiredCodes.length) {
+    return codes;
+  }
+
+  const result = [...codes];
+  requiredCodes.forEach((code) => {
+    if (!result.includes(code)) {
+      result.push(code);
+    }
+  });
+  return result;
+};
+
 const filterCodesByAllowed = (codes = [], allowedCodeSet = null) => {
   if (!allowedCodeSet || allowedCodeSet.size === 0) {
     return codes;
@@ -174,11 +197,14 @@ export const normalizeDocumentProfilesConfig = ({
 
   return Object.values(PROFILE_CODES).reduce((accumulator, code) => {
     const defaultCodes = filterCodesByAllowed(
-      ensureRequiredConsents(DEFAULT_DOCUMENT_PROFILES[code] || []),
+      ensureRequiredByProfile(
+        code,
+        ensureRequiredConsents(DEFAULT_DOCUMENT_PROFILES[code] || []),
+      ),
       allowedCodeSet,
     );
     const inputCodes = filterCodesByAllowed(
-      ensureRequiredConsents(toUniqueCodes(input[code])),
+      ensureRequiredByProfile(code, ensureRequiredConsents(toUniqueCodes(input[code]))),
       allowedCodeSet,
     );
 

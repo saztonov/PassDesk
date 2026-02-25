@@ -10,7 +10,6 @@ import {
 } from "antd";
 import {
   ClearOutlined,
-  FileExcelOutlined,
   MoreOutlined,
   PlusOutlined,
   SyncOutlined,
@@ -178,19 +177,6 @@ const EmployeesToolbar = memo(
                 style={{ flex: 1 }}
               >
                 {t("common.add")}
-              </Button>
-              <Button
-                type="primary"
-                icon={<FileExcelOutlined />}
-                onClick={actions.onRequest}
-                size="large"
-                style={{
-                  flex: 1,
-                  background: "#52c41a",
-                  borderColor: "#52c41a",
-                }}
-              >
-                {t("employees.requestExcel")}
               </Button>
             </div>
           </div>

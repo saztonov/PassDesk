@@ -22,8 +22,9 @@ import ProtectedRoute from "./components/Auth/ProtectedRoute";
 import { useTokenRefresh } from "./hooks/useTokenRefresh";
 import { useAuthBootstrap } from "./hooks/useAuthBootstrap";
 import { useAuthStore } from "./store/authStore";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { setLanguage } from "./i18n";
+import settingsService from "./services/settingsService";
 
 // Компонент для перенаправления на employees для всех ролей
 const RoleBasedRedirect = () => {
@@ -35,12 +36,34 @@ function App() {
   // Автоматически обновляем токен в фоне каждые 30 секунд
   useTokenRefresh();
   const { user } = useAuthStore();
+  const [defaultCounterpartyId, setDefaultCounterpartyId] = useState(null);
+
+  useEffect(() => {
+    const loadDefaultCounterpartyId = async () => {
+      try {
+        const response = await settingsService.getPublicSettings();
+        if (response.success && response.data.defaultCounterpartyId) {
+          setDefaultCounterpartyId(response.data.defaultCounterpartyId);
+        }
+      } catch (error) {
+        console.error("Error loading default counterparty ID:", error);
+      }
+    };
+
+    loadDefaultCounterpartyId();
+  }, []);
 
   useEffect(() => {
     if (user?.userLanguage) {
       setLanguage(user.userLanguage);
     }
   }, [user?.userLanguage]);
+
+  const isDefaultCounterpartyUser =
+    user?.role === "user" &&
+    user?.counterpartyId &&
+    defaultCounterpartyId &&
+    String(user.counterpartyId) === String(defaultCounterpartyId);
 
   return (
     <ConfigProvider theme={antdTheme} locale={ruRU}>
@@ -167,7 +190,11 @@ function App() {
                 <ProtectedRoute
                   allowedRoles={["admin", "user", "ot_engineer", "ot_admin"]}
                 >
-                  <OccupationalSafetyPage />
+                  {isDefaultCounterpartyUser ? (
+                    <Navigate to="/employees" replace />
+                  ) : (
+                    <OccupationalSafetyPage />
+                  )}
                 </ProtectedRoute>
               }
             />

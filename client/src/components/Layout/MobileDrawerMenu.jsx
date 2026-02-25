@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Drawer, Menu } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -9,6 +10,7 @@ import {
 } from "@ant-design/icons";
 import { useAuthStore } from "@/store/authStore";
 import { useTranslation } from "react-i18next";
+import settingsService from "@/services/settingsService";
 
 /**
  * Мобильное выдвижное меню (Drawer)
@@ -19,8 +21,24 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
   const location = useLocation();
   const { logout, user } = useAuthStore();
   const { t } = useTranslation();
+  const [defaultCounterpartyId, setDefaultCounterpartyId] = useState(null);
   const isOtEngineer = user?.role === "ot_engineer";
   const isOtAdmin = user?.role === "ot_admin";
+
+  useEffect(() => {
+    const loadDefaultCounterpartyId = async () => {
+      try {
+        const response = await settingsService.getPublicSettings();
+        if (response.success && response.data.defaultCounterpartyId) {
+          setDefaultCounterpartyId(response.data.defaultCounterpartyId);
+        }
+      } catch (error) {
+        console.error("Error loading default counterparty ID:", error);
+      }
+    };
+
+    loadDefaultCounterpartyId();
+  }, []);
 
   // Верхняя часть меню (для админов и пользователей)
   const topMenuItems = [];
@@ -38,7 +56,9 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
     isOtEngineer ||
     isOtAdmin ||
     user?.role === "admin" ||
-    user?.role === "user";
+    (user?.role === "user" &&
+      (!defaultCounterpartyId ||
+        String(user?.counterpartyId) !== String(defaultCounterpartyId)));
 
   if (showOtMenu) {
     topMenuItems.push({

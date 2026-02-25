@@ -36,11 +36,17 @@ const BASE_CONSENTS = [
   "biometric_consent",
   "biometric_consent_developer",
 ];
+const REQUIRED_PROFILE_CODES = {
+  [PROFILE_CODES.EXTERNAL]: ["inn_document"],
+  [PROFILE_CODES.DEFAULT_RU_BY]: ["inn_document"],
+  [PROFILE_CODES.DEFAULT_FOREIGN]: ["inn_document"],
+};
 
 const DEFAULT_DOCUMENT_PROFILES = {
-  [PROFILE_CODES.EXTERNAL]: [...BASE_CONSENTS],
+  [PROFILE_CODES.EXTERNAL]: ["inn_document", ...BASE_CONSENTS],
   [PROFILE_CODES.DEFAULT_RU_BY]: [
     "passport",
+    "inn_document",
     "bank_details",
     ...BASE_CONSENTS,
     "diploma",
@@ -49,6 +55,7 @@ const DEFAULT_DOCUMENT_PROFILES = {
   [PROFILE_CODES.DEFAULT_FOREIGN]: [
     "passport",
     "passport_translation",
+    "inn_document",
     "patent_front",
     "patent_back",
     "bank_details",
@@ -83,8 +90,22 @@ const normalizeDocumentProfilesConfig = (rawConfig) => {
       : {};
 
   return Object.values(PROFILE_CODES).reduce((acc, profileCode) => {
-    const inputCodes = toUniqueCodes(input[profileCode]);
-    const fallbackCodes = toUniqueCodes(
+    const ensureRequiredByProfile = (codes = []) => {
+      const requiredCodes = REQUIRED_PROFILE_CODES[profileCode] || [];
+      if (!requiredCodes.length) {
+        return toUniqueCodes(codes);
+      }
+      const result = [...toUniqueCodes(codes)];
+      requiredCodes.forEach((code) => {
+        if (!result.includes(code)) {
+          result.push(code);
+        }
+      });
+      return result;
+    };
+
+    const inputCodes = ensureRequiredByProfile(input[profileCode]);
+    const fallbackCodes = ensureRequiredByProfile(
       DEFAULT_DOCUMENT_PROFILES[profileCode] || [],
     );
     acc[profileCode] = inputCodes.length > 0 ? inputCodes : fallbackCodes;

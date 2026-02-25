@@ -12,6 +12,12 @@ const INLINE_UPLOAD_TYPES = new Set([
   "passport",
   "passport_translation",
   "snils_card",
+  "bank_details",
+  "patent_front",
+  "patent_back",
+  "patent_payment_receipt",
+  "inn_document",
+  "inn",
 ]);
 
 export const buildMobileEmployeeDocumentsSection = ({
@@ -38,7 +44,8 @@ export const buildMobileEmployeeDocumentsSection = ({
       label: profileDocumentTypeLabels[documentType] || documentType,
       multiple: true,
     };
-  const remainingDocumentUploads = documentUploads.filter(
+  const hasUploadType = (documentType) => uploadsByType.has(documentType);
+  const additionalDocumentUploads = documentUploads.filter(
     (upload) => !INLINE_UPLOAD_TYPES.has(upload.documentType),
   );
 
@@ -81,6 +88,25 @@ export const buildMobileEmployeeDocumentsSection = ({
           />
         </Form.Item>
 
+        {(hasUploadType("inn_document") || hasUploadType("inn")) && (
+          <EmployeeDocumentUpload
+            employeeId={employee?.id}
+            ensureEmployeeId={ensureEmployeeId}
+            documentType={hasUploadType("inn_document") ? "inn_document" : "inn"}
+            label={
+              hasUploadType("inn_document")
+                ? getInlineUploadMeta("inn_document").label
+                : getInlineUploadMeta("inn").label
+            }
+            readonly={false}
+            multiple={
+              hasUploadType("inn_document")
+                ? getInlineUploadMeta("inn_document").multiple
+                : getInlineUploadMeta("inn").multiple
+            }
+          />
+        )}
+
         {!getFieldProps("snils").hidden && (
           <>
             <Form.Item
@@ -108,49 +134,61 @@ export const buildMobileEmployeeDocumentsSection = ({
                 {...noAutoFillProps}
               />
             </Form.Item>
-            <EmployeeDocumentUpload
-              employeeId={employee?.id}
-              ensureEmployeeId={ensureEmployeeId}
-              documentType="snils_card"
-              label={getInlineUploadMeta("snils_card").label}
-              readonly={false}
-              multiple={getInlineUploadMeta("snils_card").multiple}
-            />
+            {hasUploadType("snils_card") && (
+              <EmployeeDocumentUpload
+                employeeId={employee?.id}
+                ensureEmployeeId={ensureEmployeeId}
+                documentType="snils_card"
+                label={getInlineUploadMeta("snils_card").label}
+                readonly={false}
+                multiple={getInlineUploadMeta("snils_card").multiple}
+              />
+            )}
           </>
         )}
 
         {!getFieldProps("bankAccountNumber").hidden && (
-          <Form.Item
-            label="Номер банковского счета"
-            name="bankAccountNumber"
-            required={getFieldProps("bankAccountNumber").required}
-            rules={[
-              ...getFieldProps("bankAccountNumber").rules,
-              {
-                pattern: /^\d{20}$/,
-                message: "Номер банковского счета должен содержать 20 цифр",
-              },
-            ]}
-            getValueFromEvent={(e) => formatBankAccountNumber(e.target.value)}
-          >
-            <Input
-              placeholder="40702810900000000000"
-              size="large"
-              maxLength={20}
-              {...noAutoFillProps}
+          <>
+            <Form.Item
+              label="Номер банковского счета"
+              name="bankAccountNumber"
+              required={getFieldProps("bankAccountNumber").required}
+              rules={[
+                ...getFieldProps("bankAccountNumber").rules,
+                {
+                  pattern: /^\d{20}$/,
+                  message: "Номер банковского счета должен содержать 20 цифр",
+                },
+              ]}
+              getValueFromEvent={(e) => formatBankAccountNumber(e.target.value)}
+            >
+              <Input
+                placeholder="40702810900000000000"
+                size="large"
+                maxLength={20}
+                {...noAutoFillProps}
+              />
+            </Form.Item>
+            <EmployeeDocumentUpload
+              employeeId={employee?.id}
+              ensureEmployeeId={ensureEmployeeId}
+              documentType="bank_details"
+              label={getInlineUploadMeta("bank_details").label}
+              readonly={false}
+              multiple={getInlineUploadMeta("bank_details").multiple}
             />
-          </Form.Item>
+          </>
         )}
 
         {patentFields}
 
-        {remainingDocumentUploads.length > 0 && (
+        {additionalDocumentUploads.length > 0 && (
           <>
             <div style={{ marginTop: 8, marginBottom: 12 }}>
-              <Text strong>Фото и файлы документов</Text>
+              <Text strong>Дополнительные документы</Text>
             </div>
             <MobileEmployeeUploadsSection
-              uploads={remainingDocumentUploads}
+              uploads={additionalDocumentUploads}
               employee={employee}
               ensureEmployeeId={ensureEmployeeId}
             />

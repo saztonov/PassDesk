@@ -172,6 +172,7 @@ export const getSafeFileExtension = (fileName) => {
 const documentTypeNames = {
   passport: "паспорт",
   passport_translation: "перевод_паспорта",
+  inn_document: "инн",
   consent: "согласие_персональные",
   biometric_consent: "согласие_биометрические_генподряд",
   biometric_consent_developer: "согласие_биометрические_застройщик",
