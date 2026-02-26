@@ -113,8 +113,12 @@ const EmployeesPage = () => {
       filters.counterpartyId = counterpartyIdForFilter;
     }
 
+    if (debouncedSearchText) {
+      filters.search = debouncedSearchText;
+    }
+
     return filters;
-  }, [counterpartyIdForFilter]);
+  }, [counterpartyIdForFilter, debouncedSearchText]);
 
   const {
     employees,
@@ -149,7 +153,7 @@ const EmployeesPage = () => {
     searchText: debouncedSearchText,
     statusFilter,
     counterpartyFilter: tableFilters.counterparty,
-    skipSearchFiltering: false,
+    skipSearchFiltering: Boolean(debouncedSearchText),
   });
 
   const {

@@ -36,11 +36,6 @@ import {
   applyLegacySensitivePlaintextPolicy,
   buildEmployeeSensitiveFieldsPatch,
 } from "../services/employeeSensitiveFieldService.js";
-import {
-  ENCRYPTED_EMPLOYEE_FIELDS,
-  hashForSearch,
-  isFieldEncryptionEnabled,
-} from "../services/encryptionService.js";
 
 // Опции для загрузки сотрудника с маппингами (для проверки прав)
 const employeeAccessInclude = [
@@ -127,50 +122,76 @@ const applyEmployeeSensitiveFieldEncryption = (payload = {}) => {
 const normalizeDigitsSearch = (value = "") =>
   String(value || "").replace(/[^\d]/g, "");
 
-const buildEmployeeSensitiveHashSearchConditions = (value) => {
-  if (!value || !isFieldEncryptionEnabled()) {
-    return [];
+const normalizeTextSearch = (value = "") =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+const normalizeDocSearch = (value = "") =>
+  String(value || "")
+    .toUpperCase()
+    .replace(/[^0-9A-ZА-ЯЁ]/g, "");
+
+const getEmployeeSearchSource = (employee) =>
+  employee?.toJSON ? employee.toJSON() : employee || {};
+
+const matchesEmployeeSearch = (employee, rawSearch) => {
+  const normalizedSearchText = normalizeTextSearch(rawSearch);
+  const normalizedDigitsSearchValue = normalizeDigitsSearch(rawSearch);
+  const normalizedDocSearchValue = normalizeDocSearch(rawSearch);
+  const searchTokens = normalizedSearchText
+    ? normalizedSearchText.split(" ").filter(Boolean)
+    : [];
+
+  const hasTextQuery = normalizedSearchText.length > 0;
+  const hasDigitsQuery = normalizedDigitsSearchValue.length > 0;
+  const hasDocQuery = normalizedDocSearchValue.length > 0;
+
+  if (!hasTextQuery && !hasDigitsQuery && !hasDocQuery) {
+    return true;
   }
 
-  const conditions = [];
-  const pushHashCondition = (field, column, searchValue) => {
-    try {
-      const searchHash = hashForSearch(field, searchValue);
-      if (searchHash) {
-        conditions.push({ [column]: searchHash });
-      }
-    } catch {
-      // Ignore hash search if current query cannot be normalized for field.
-    }
-  };
-
-  pushHashCondition(ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME, "lastNameHash", value);
-  pushHashCondition(
-    ENCRYPTED_EMPLOYEE_FIELDS.PASSPORT_NUMBER,
-    "passportNumberHash",
-    value,
+  const source = getEmployeeSearchSource(employee);
+  const firstName = normalizeTextSearch(source.firstName);
+  const lastName = normalizeTextSearch(source.lastName);
+  const middleName = normalizeTextSearch(source.middleName);
+  const positionName = normalizeTextSearch(source.position?.name);
+  const fullName = normalizeTextSearch(
+    [source.lastName, source.firstName, source.middleName]
+      .filter(Boolean)
+      .join(" "),
   );
-  pushHashCondition(ENCRYPTED_EMPLOYEE_FIELDS.KIG, "kigHash", value);
-  pushHashCondition(
-    ENCRYPTED_EMPLOYEE_FIELDS.PATENT_NUMBER,
-    "patentNumberHash",
-    value,
-  );
 
-  return conditions;
-};
+  const isTextMatch =
+    hasTextQuery &&
+    (firstName.includes(normalizedSearchText) ||
+      lastName.includes(normalizedSearchText) ||
+      middleName.includes(normalizedSearchText) ||
+      fullName.includes(normalizedSearchText) ||
+      positionName.includes(normalizedSearchText) ||
+      searchTokens.every((token) => fullName.includes(token)));
 
-const buildLastNameHashSearchCondition = (value) => {
-  if (!value || !isFieldEncryptionEnabled()) {
-    return null;
-  }
+  const isDigitsMatch =
+    hasDigitsQuery &&
+    (normalizeDigitsSearch(source.inn).includes(normalizedDigitsSearchValue) ||
+      normalizeDigitsSearch(source.snils).includes(normalizedDigitsSearchValue) ||
+      normalizeDigitsSearch(source.phone).includes(normalizedDigitsSearchValue) ||
+      normalizeDigitsSearch(source.passportNumber).includes(
+        normalizedDigitsSearchValue,
+      ) ||
+      normalizeDigitsSearch(source.patentNumber).includes(
+        normalizedDigitsSearchValue,
+      ) ||
+      normalizeDigitsSearch(source.kig).includes(normalizedDigitsSearchValue));
 
-  try {
-    const searchHash = hashForSearch(ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME, value);
-    return searchHash ? { lastNameHash: searchHash } : null;
-  } catch {
-    return null;
-  }
+  const isDocumentExact =
+    hasDocQuery &&
+    (normalizeDocSearch(source.passportNumber) === normalizedDocSearchValue ||
+      normalizeDocSearch(source.kig) === normalizedDocSearchValue ||
+      normalizeDocSearch(source.patentNumber) === normalizedDocSearchValue);
+
+  return isTextMatch || isDigitsMatch || isDocumentExact;
 };
 
 const buildEmployeeDuplicateChecks = (employeeLike = {}) => {
@@ -350,6 +371,8 @@ export const getAllEmployees = async (req, res, next) => {
     ensureEmployeeRoleAllowed(userRole);
 
     const where = { isDeleted: false };
+    const normalizedSearch = String(search || "").trim();
+    const hasSearchQuery = normalizedSearch.length > 0;
 
     // Фильтр по контрагенту (если выбран)
     if (counterpartyId) {
@@ -357,28 +380,8 @@ export const getAllEmployees = async (req, res, next) => {
       // Но нужно учитывать роль пользователя - админ может смотреть всех, user только своих
     }
 
-    // Поиск по ФИО/контактам/документам (включая hash-поиск для зашифрованных полей)
-    if (search) {
-      const normalizedSearch = String(search).trim();
-      const digitsSearch = normalizeDigitsSearch(normalizedSearch);
-      const sensitiveHashConditions =
-        buildEmployeeSensitiveHashSearchConditions(normalizedSearch);
-
-      where[Op.or] = [
-        { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        { email: { [Op.iLike]: `%${normalizedSearch}%` } },
-        { phone: { [Op.iLike]: `%${normalizedSearch}%` } },
-        ...(digitsSearch
-          ? [
-              { inn: { [Op.iLike]: `%${digitsSearch}%` } },
-              { snils: { [Op.iLike]: `%${digitsSearch}%` } },
-              { phone: { [Op.iLike]: `%${digitsSearch}%` } },
-            ]
-          : []),
-        ...sensitiveHashConditions,
-      ];
-    }
+    // В режиме full encryption поиск по фамилии и ФИО делаем после чтения записей,
+    // чтобы поддержать частичные совпадения и комбинированные запросы.
 
     // Статусы, которые считаем "активными" для режима выгрузки
     // Поддерживаем как текущие, так и legacy-коды.
@@ -575,49 +578,52 @@ export const getAllEmployees = async (req, res, next) => {
     }
     // Если админ/manager не выбрал контрагент - видят всех из всех контрагентов
 
-    // ИСПРАВЛЕНИЕ: делаем отдельный COUNT запрос для точного подсчета
-    // потому что distinct: true с множественными JOIN'ами дает неправильный результат
-    let totalCount;
-    if (
-      userRole === "user" &&
-      userCounterpartyId ===
-        (await Setting.getSetting("default_counterparty_id"))
-    ) {
-      // Для user в default контрагенте считаем по createdBy
-      totalCount = await Employee.count({
-        where: {
-          ...where,
-          createdBy: userId,
-        },
-      });
-    } else if (userRole === "user") {
-      // Для user в других контрагентах считаем через маппинг (включая субподрядчиков)
-      const { CounterpartySubcounterpartyMapping } =
-        await import("../models/index.js");
-      const subcontractors = await CounterpartySubcounterpartyMapping.findAll({
-        where: { parentCounterpartyId: userCounterpartyId },
-        attributes: ["childCounterpartyId"],
-      });
-
-      const subcontractorIds = subcontractors.map((s) => s.childCounterpartyId);
-      const allowedCounterpartyIds = [userCounterpartyId, ...subcontractorIds];
-
-      totalCount = await Employee.count({
-        where,
-        include: [
-          {
-            model: EmployeeCounterpartyMapping,
-            as: "employeeCounterpartyMappings",
-            where: { counterpartyId: allowedCounterpartyIds },
-            required: true,
-            attributes: [],
+    // Для режима с поиском общий total считаем после in-memory фильтрации.
+    // Для режима без поиска оставляем SQL count.
+    let totalCount = null;
+    if (!hasSearchQuery) {
+      if (
+        userRole === "user" &&
+        userCounterpartyId ===
+          (await Setting.getSetting("default_counterparty_id"))
+      ) {
+        // Для user в default контрагенте считаем по createdBy
+        totalCount = await Employee.count({
+          where: {
+            ...where,
+            createdBy: userId,
           },
-        ],
-        distinct: true,
-      });
-    } else {
-      // Для админа и manager просто считаем всех
-      totalCount = await Employee.count({ where });
+        });
+      } else if (userRole === "user") {
+        // Для user в других контрагентах считаем через маппинг (включая субподрядчиков)
+        const { CounterpartySubcounterpartyMapping } =
+          await import("../models/index.js");
+        const subcontractors =
+          await CounterpartySubcounterpartyMapping.findAll({
+            where: { parentCounterpartyId: userCounterpartyId },
+            attributes: ["childCounterpartyId"],
+          });
+
+        const subcontractorIds = subcontractors.map((s) => s.childCounterpartyId);
+        const allowedCounterpartyIds = [userCounterpartyId, ...subcontractorIds];
+
+        totalCount = await Employee.count({
+          where,
+          include: [
+            {
+              model: EmployeeCounterpartyMapping,
+              as: "employeeCounterpartyMappings",
+              where: { counterpartyId: allowedCounterpartyIds },
+              required: true,
+              attributes: [],
+            },
+          ],
+          distinct: true,
+        });
+      } else {
+        // Для админа и manager просто считаем всех
+        totalCount = await Employee.count({ where });
+      }
     }
 
     // Загружаем сотрудников с полными данными
@@ -625,8 +631,8 @@ export const getAllEmployees = async (req, res, next) => {
     // а не к строкам JOIN (иначе при множественных маппингах получаем дубликаты)
     const rows = await Employee.findAll({
       where,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      limit: hasSearchQuery ? undefined : parseInt(limit),
+      offset: hasSearchQuery ? undefined : parseInt(offset),
       order: [["firstName", "ASC"], ["middleName", "ASC"]],
       include: employeeInclude,
       // Добавляем подсчет файлов для каждого сотрудника
@@ -644,7 +650,7 @@ export const getAllEmployees = async (req, res, next) => {
           ],
         ],
       },
-      subQuery: true,
+      subQuery: !hasSearchQuery,
       raw: false,
       nest: true,
     });
@@ -774,15 +780,24 @@ export const getAllEmployees = async (req, res, next) => {
       return employeeData;
     });
 
-    // ВАЖНО: total должен быть общим количеством записей в БД (totalCount),
-    // а НЕ количеством в текущем батче после пост-фильтрации (filteredRows.length)
-    // Потому что filteredRows уже ограничен LIMIT и OFFSET
-    const finalTotalCount = totalCount;
+    let employeesForResponse = employeesWithStatus;
+    let finalTotalCount = totalCount ?? employeesWithStatus.length;
+
+    if (hasSearchQuery) {
+      const searchedEmployees = employeesWithStatus.filter((employee) =>
+        matchesEmployeeSearch(employee, normalizedSearch),
+      );
+      finalTotalCount = searchedEmployees.length;
+      employeesForResponse = searchedEmployees.slice(
+        parseInt(offset),
+        parseInt(offset) + parseInt(limit),
+      );
+    }
 
     res.json({
       success: true,
       data: {
-        employees: employeesWithStatus,
+        employees: employeesForResponse,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
@@ -2052,47 +2067,66 @@ export const unmarkEmployeeForDeletion = async (req, res, next) => {
 export const getMarkedForDeletionEmployees = async (req, res, next) => {
   try {
     const { page = 1, limit = 20, search = "" } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const offset = (pageNumber - 1) * limitNumber;
+    const normalizedSearch = String(search || "").trim();
+    const hasSearchQuery = normalizedSearch.length > 0;
 
     const where = {
       isDeleted: false,
       markedForDeletion: true,
     };
 
-    if (search) {
-      const normalizedSearch = String(search).trim();
-      const lastNameHashCondition =
-        buildLastNameHashSearchCondition(normalizedSearch);
+    const include = [
+      {
+        model: EmployeeCounterpartyMapping,
+        as: "employeeCounterpartyMappings",
+        include: [
+          {
+            model: Counterparty,
+            as: "counterparty",
+            attributes: ["id", "name"],
+          },
+          {
+            model: ConstructionSite,
+            as: "constructionSite",
+            attributes: ["id", "shortName", "fullName"],
+          },
+        ],
+      },
+    ];
 
-      where[Op.or] = [
-        { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        { inn: { [Op.iLike]: `%${normalizedSearch}%` } },
-        ...(lastNameHashCondition ? [lastNameHashCondition] : []),
-      ];
+    if (hasSearchQuery) {
+      const rows = await Employee.findAll({
+        where,
+        include,
+        order: [["updatedAt", "DESC"]],
+      });
+
+      const searchedRows = rows.filter((employee) =>
+        matchesEmployeeSearch(employee, normalizedSearch),
+      );
+      const pagedRows = searchedRows.slice(offset, offset + limitNumber);
+
+      return res.json({
+        success: true,
+        data: {
+          employees: pagedRows,
+          pagination: {
+            page: pageNumber,
+            limit: limitNumber,
+            total: searchedRows.length,
+            pages: Math.ceil(searchedRows.length / limitNumber),
+          },
+        },
+      });
     }
 
     const { count, rows } = await Employee.findAndCountAll({
       where,
-      include: [
-        {
-          model: EmployeeCounterpartyMapping,
-          as: "employeeCounterpartyMappings",
-          include: [
-            {
-              model: Counterparty,
-              as: "counterparty",
-              attributes: ["id", "name"],
-            },
-            {
-              model: ConstructionSite,
-              as: "constructionSite",
-              attributes: ["id", "shortName", "fullName"],
-            },
-          ],
-        },
-      ],
-      limit: parseInt(limit),
+      include,
+      limit: limitNumber,
       offset,
       order: [["updatedAt", "DESC"]],
       distinct: true,
@@ -2103,10 +2137,10 @@ export const getMarkedForDeletionEmployees = async (req, res, next) => {
       data: {
         employees: rows,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: pageNumber,
+          limit: limitNumber,
           total: count,
-          pages: Math.ceil(count / limit),
+          pages: Math.ceil(count / limitNumber),
         },
       },
     });
@@ -2118,46 +2152,65 @@ export const getMarkedForDeletionEmployees = async (req, res, next) => {
 export const getDeletedEmployees = async (req, res, next) => {
   try {
     const { page = 1, limit = 20, search = "" } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const offset = (pageNumber - 1) * limitNumber;
+    const normalizedSearch = String(search || "").trim();
+    const hasSearchQuery = normalizedSearch.length > 0;
 
     const where = {
       isDeleted: true,
     };
 
-    if (search) {
-      const normalizedSearch = String(search).trim();
-      const lastNameHashCondition =
-        buildLastNameHashSearchCondition(normalizedSearch);
+    const include = [
+      {
+        model: EmployeeCounterpartyMapping,
+        as: "employeeCounterpartyMappings",
+        include: [
+          {
+            model: Counterparty,
+            as: "counterparty",
+            attributes: ["id", "name"],
+          },
+          {
+            model: ConstructionSite,
+            as: "constructionSite",
+            attributes: ["id", "shortName", "fullName"],
+          },
+        ],
+      },
+    ];
 
-      where[Op.or] = [
-        { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        { inn: { [Op.iLike]: `%${normalizedSearch}%` } },
-        ...(lastNameHashCondition ? [lastNameHashCondition] : []),
-      ];
+    if (hasSearchQuery) {
+      const rows = await Employee.findAll({
+        where,
+        include,
+        order: [["deletedAt", "DESC"]],
+      });
+
+      const searchedRows = rows.filter((employee) =>
+        matchesEmployeeSearch(employee, normalizedSearch),
+      );
+      const pagedRows = searchedRows.slice(offset, offset + limitNumber);
+
+      return res.json({
+        success: true,
+        data: {
+          employees: pagedRows,
+          pagination: {
+            page: pageNumber,
+            limit: limitNumber,
+            total: searchedRows.length,
+            pages: Math.ceil(searchedRows.length / limitNumber),
+          },
+        },
+      });
     }
 
     const { count, rows } = await Employee.findAndCountAll({
       where,
-      include: [
-        {
-          model: EmployeeCounterpartyMapping,
-          as: "employeeCounterpartyMappings",
-          include: [
-            {
-              model: Counterparty,
-              as: "counterparty",
-              attributes: ["id", "name"],
-            },
-            {
-              model: ConstructionSite,
-              as: "constructionSite",
-              attributes: ["id", "shortName", "fullName"],
-            },
-          ],
-        },
-      ],
-      limit: parseInt(limit),
+      include,
+      limit: limitNumber,
       offset,
       order: [["deletedAt", "DESC"]],
       distinct: true,
@@ -2168,10 +2221,10 @@ export const getDeletedEmployees = async (req, res, next) => {
       data: {
         employees: rows,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: pageNumber,
+          limit: limitNumber,
           total: count,
-          pages: Math.ceil(count / limit),
+          pages: Math.ceil(count / limitNumber),
         },
       },
     });
@@ -2993,28 +3046,11 @@ export const checkEmployeeByInn = async (req, res, next) => {
 export const searchEmployees = async (req, res, next) => {
   try {
     const { query, counterpartyId, position } = req.query;
+    const normalizedSearch = String(query || "").trim();
+    const hasSearchQuery = normalizedSearch.length > 0;
 
     const where = { isDeleted: false };
     const userId = req.user.id;
-
-    if (query) {
-      const normalizedSearch = String(query).trim();
-      const digitsSearch = normalizeDigitsSearch(normalizedSearch);
-      const sensitiveHashConditions =
-        buildEmployeeSensitiveHashSearchConditions(normalizedSearch);
-      where[Op.or] = [
-        { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        ...(digitsSearch
-          ? [
-              { inn: { [Op.iLike]: `%${digitsSearch}%` } },
-              { snils: { [Op.iLike]: `%${digitsSearch}%` } },
-              { phone: { [Op.iLike]: `%${digitsSearch}%` } },
-            ]
-          : []),
-        ...sensitiveHashConditions,
-      ];
-    }
 
     // Переопределяем логику поиска
 
@@ -3071,10 +3107,16 @@ export const searchEmployees = async (req, res, next) => {
       include: include,
     });
 
+    const searchedEmployees = hasSearchQuery
+      ? employees.filter((employee) =>
+          matchesEmployeeSearch(employee, normalizedSearch),
+        )
+      : employees;
+
     res.json({
       success: true,
       data: {
-        employees,
+        employees: searchedEmployees,
       },
     });
   } catch (error) {
@@ -3485,7 +3527,11 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
       dateFrom,
       dateTo,
     } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const offset = (pageNumber - 1) * limitNumber;
+    const normalizedSearch = String(search || "").trim();
+    const hasSearchQuery = normalizedSearch.length > 0;
     const userId = req.user?.id;
     const userRole = req.user?.role;
     const userCounterpartyId = req.user?.counterpartyId;
@@ -3493,20 +3539,6 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
 
     // Основной фильтр
     const where = {};
-
-    if (search) {
-      const normalizedSearch = String(search).trim();
-      const lastNameHashCondition =
-        buildLastNameHashSearchCondition(normalizedSearch);
-
-      where[Op.or] = [
-        { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        { email: { [Op.iLike]: `%${normalizedSearch}%` } },
-        { phone: { [Op.iLike]: `%${normalizedSearch}%` } },
-        ...(lastNameHashCondition ? [lastNameHashCondition] : []),
-      ];
-    }
 
     // Только активные статусы для выгрузки.
     // Поддерживаем как текущие, так и legacy-коды.
@@ -3657,101 +3689,103 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
       }
     }
 
-    // Подсчитаем активных сотрудников
-    let totalCount;
-    if (
-      userRole === "user" &&
-      userCounterpartyId ===
-        (await Setting.getSetting("default_counterparty_id"))
-    ) {
-      totalCount = await Employee.count({
-        where: {
-          ...where,
-          createdBy: userId,
-        },
-        include: [
-          {
-            model: EmployeeStatusMapping,
-            as: "statusMappings",
-            where: statusMappingsWhere,
-            required: true,
-            attributes: [],
-            include: [
-              {
-                model: Status,
-                as: "status",
-                where: { name: activeStatuses },
-                required: true,
-                attributes: [],
-              },
-            ],
+    // Подсчет total в режиме поиска считаем после in-memory фильтрации.
+    let totalCount = null;
+    if (!hasSearchQuery) {
+      if (
+        userRole === "user" &&
+        userCounterpartyId ===
+          (await Setting.getSetting("default_counterparty_id"))
+      ) {
+        totalCount = await Employee.count({
+          where: {
+            ...where,
+            createdBy: userId,
           },
-        ],
-        distinct: true,
-        subQuery: false,
-      });
-    } else if (userRole === "user") {
-      totalCount = await Employee.count({
-        where,
-        include: [
-          {
-            model: EmployeeCounterpartyMapping,
-            as: "employeeCounterpartyMappings",
-            where: { counterpartyId: userCounterpartyId },
-            required: true,
-            attributes: [],
-          },
-          {
-            model: EmployeeStatusMapping,
-            as: "statusMappings",
-            where: statusMappingsWhere,
-            required: true,
-            attributes: [],
-            include: [
-              {
-                model: Status,
-                as: "status",
-                where: { name: activeStatuses },
-                required: true,
-                attributes: [],
-              },
-            ],
-          },
-        ],
-        distinct: true,
-        subQuery: false,
-      });
-    } else {
-      totalCount = await Employee.count({
-        where,
-        include: [
-          {
-            model: EmployeeStatusMapping,
-            as: "statusMappings",
-            where: statusMappingsWhere,
-            required: true,
-            attributes: [],
-            include: [
-              {
-                model: Status,
-                as: "status",
-                where: { name: activeStatuses },
-                required: true,
-                attributes: [],
-              },
-            ],
-          },
-        ],
-        distinct: true,
-        subQuery: false,
-      });
+          include: [
+            {
+              model: EmployeeStatusMapping,
+              as: "statusMappings",
+              where: statusMappingsWhere,
+              required: true,
+              attributes: [],
+              include: [
+                {
+                  model: Status,
+                  as: "status",
+                  where: { name: activeStatuses },
+                  required: true,
+                  attributes: [],
+                },
+              ],
+            },
+          ],
+          distinct: true,
+          subQuery: false,
+        });
+      } else if (userRole === "user") {
+        totalCount = await Employee.count({
+          where,
+          include: [
+            {
+              model: EmployeeCounterpartyMapping,
+              as: "employeeCounterpartyMappings",
+              where: { counterpartyId: userCounterpartyId },
+              required: true,
+              attributes: [],
+            },
+            {
+              model: EmployeeStatusMapping,
+              as: "statusMappings",
+              where: statusMappingsWhere,
+              required: true,
+              attributes: [],
+              include: [
+                {
+                  model: Status,
+                  as: "status",
+                  where: { name: activeStatuses },
+                  required: true,
+                  attributes: [],
+                },
+              ],
+            },
+          ],
+          distinct: true,
+          subQuery: false,
+        });
+      } else {
+        totalCount = await Employee.count({
+          where,
+          include: [
+            {
+              model: EmployeeStatusMapping,
+              as: "statusMappings",
+              where: statusMappingsWhere,
+              required: true,
+              attributes: [],
+              include: [
+                {
+                  model: Status,
+                  as: "status",
+                  where: { name: activeStatuses },
+                  required: true,
+                  attributes: [],
+                },
+              ],
+            },
+          ],
+          distinct: true,
+          subQuery: false,
+        });
+      }
     }
 
     // Загружаем данные без subQuery (простой подход)
     const rows = await Employee.findAll({
       where,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      limit: hasSearchQuery ? undefined : limitNumber,
+      offset: hasSearchQuery ? undefined : offset,
       order: [["firstName", "ASC"], ["middleName", "ASC"]],
       include: employeeInclude,
       attributes: {
@@ -3787,15 +3821,26 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
       return employeeData;
     });
 
+    let employeesForResponse = employeesWithStatus;
+    let finalTotalCount = totalCount ?? employeesWithStatus.length;
+
+    if (hasSearchQuery) {
+      const searchedEmployees = employeesWithStatus.filter((employee) =>
+        matchesEmployeeSearch(employee, normalizedSearch),
+      );
+      finalTotalCount = searchedEmployees.length;
+      employeesForResponse = searchedEmployees.slice(offset, offset + limitNumber);
+    }
+
     res.json({
       success: true,
       data: {
-        employees: employeesWithStatus,
+        employees: employeesForResponse,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: totalCount,
-          pages: Math.ceil(totalCount / limit),
+          page: pageNumber,
+          limit: limitNumber,
+          total: finalTotalCount,
+          pages: Math.ceil(finalTotalCount / limitNumber),
         },
       },
     });
