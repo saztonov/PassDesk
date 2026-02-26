@@ -140,8 +140,16 @@ export const DocumentScannerModal = ({
       footer={null}
       width={isMobileViewport ? "100vw" : 840}
       centered={!isMobileViewport}
-      style={isMobileViewport ? { top: 0, maxWidth: "100vw", paddingBottom: 0 } : undefined}
-      styles={{ body: { padding: 12 } }}
+      style={
+        isMobileViewport ? { top: 0, maxWidth: "100vw", paddingBottom: 0 } : undefined
+      }
+      styles={{
+        body: {
+          padding: isMobileViewport ? 8 : 12,
+          maxHeight: isMobileViewport ? "calc(100vh - 56px)" : undefined,
+          overflowY: isMobileViewport ? "auto" : undefined,
+        },
+      }}
       destroyOnHidden
     >
       <Space direction="vertical" style={{ width: "100%" }} size={12}>
@@ -153,6 +161,7 @@ export const DocumentScannerModal = ({
               borderRadius: 8,
               overflow: "hidden",
               background: "#000",
+              maxHeight: isMobileViewport ? "calc(100vh - 240px)" : undefined,
             }}
           >
             <Webcam
@@ -160,7 +169,13 @@ export const DocumentScannerModal = ({
               audio={false}
               screenshotFormat="image/jpeg"
               videoConstraints={videoConstraints}
-              style={{ width: "100%", height: "auto", display: "block" }}
+              style={{
+                width: "100%",
+                height: "auto",
+                display: "block",
+                maxHeight: isMobileViewport ? "calc(100vh - 240px)" : undefined,
+                objectFit: "cover",
+              }}
             />
             <div
               style={buildFrameStyle(scanFrame)}
@@ -174,7 +189,15 @@ export const DocumentScannerModal = ({
           />
         )}
 
-        <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 8,
+            flexWrap: "wrap",
+            width: "100%",
+          }}
+        >
           {!capturedImage && (
             <div
               style={{
@@ -193,12 +216,17 @@ export const DocumentScannerModal = ({
               icon={<CameraOutlined />}
               onClick={handleCapture}
               loading={saving}
+              block={isMobileViewport}
             >
               Снять
             </Button>
           ) : (
             <>
-              <Button icon={<RotateRightOutlined />} onClick={resetCapture}>
+              <Button
+                icon={<RotateRightOutlined />}
+                onClick={resetCapture}
+                style={isMobileViewport ? { flex: 1 } : undefined}
+              >
                 Переснять
               </Button>
               <Button
@@ -206,6 +234,7 @@ export const DocumentScannerModal = ({
                 icon={<SaveOutlined />}
                 onClick={handleSave}
                 loading={saving}
+                style={isMobileViewport ? { flex: 1 } : undefined}
               >
                 Сохранить
               </Button>
