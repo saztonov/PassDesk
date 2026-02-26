@@ -22,10 +22,10 @@ export const EmployeeSearchFilter = ({
   const isMobile = !screens.md;
   const useCompactLayout = isMobile || compact;
 
-  // Нормализация значения: удаление черточек, тире, минусов и пробелов на конце/начале
+  // Поисковую строку оставляем как ввел пользователь.
+  // Нормализация делается на сервере/в фильтрах поиска.
   const handleSearchChange = (value) => {
-    const normalized = value.replace(/[-–—]/g, "").trim();
-    onSearchChange(normalized);
+    onSearchChange(value);
   };
 
   // Опции фильтра по статусу
