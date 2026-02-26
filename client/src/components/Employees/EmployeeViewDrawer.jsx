@@ -16,8 +16,13 @@ const EmployeeViewDrawer = ({ visible, employee, onClose, onEdit }) => {
   const [form] = Form.useForm();
   const [activeKeys, setActiveKeys] = useState(["personal", "documents", "files"]);
 
-  const { citizenships, positions, requiresPatent, defaultCounterpartyId, user } =
-    useEmployeeForm(employee, false);
+  const {
+    citizenships,
+    positions,
+    requiresPatent,
+    user,
+    getFieldProps,
+  } = useEmployeeForm(employee, false);
 
   useEffect(() => {
     const formData = buildEmployeeViewDrawerFormData(employee);
@@ -36,8 +41,16 @@ const EmployeeViewDrawer = ({ visible, employee, onClose, onEdit }) => {
         citizenships,
         requiresPatent,
         canViewStatuses,
+        getFieldProps,
       }),
-    [employee, positions, citizenships, requiresPatent, canViewStatuses],
+    [
+      employee,
+      positions,
+      citizenships,
+      requiresPatent,
+      canViewStatuses,
+      getFieldProps,
+    ],
   );
 
   return (
