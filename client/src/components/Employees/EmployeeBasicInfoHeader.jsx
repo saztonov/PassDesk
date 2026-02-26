@@ -1,4 +1,4 @@
-import { Col, Row, Space } from "antd";
+import { Col, Row } from "antd";
 import EmployeeActionButtons from "./EmployeeActionButtons.jsx";
 
 const EmployeeBasicInfoHeader = ({
@@ -13,22 +13,28 @@ const EmployeeBasicInfoHeader = ({
     return null;
   }
 
+  const isDefaultCounterpartyUser =
+    user?.counterpartyId === defaultCounterpartyId;
+  const isAdmin = user?.role === "admin";
+  const canManageStatuses = isAdmin;
+  const canTransfer = isDefaultCounterpartyUser && (isAdmin || employee.isContractor);
+
+  if (!canManageStatuses && !canTransfer) {
+    return null;
+  }
+
   return (
     <Row gutter={16} style={{ marginBottom: 16 }}>
       <Col span={24}>
-        <Space size="middle" wrap>
-          <EmployeeActionButtons
-            employee={employee}
-            messageApi={messageApi}
-            onCancel={onCancel}
-            isDefaultCounterpartyUser={
-              user?.counterpartyId === defaultCounterpartyId
-            }
-            userRole={user?.role}
-            isAdmin={user?.role === "admin"}
-            onTransfer={onTransfer}
-          />
-        </Space>
+        <EmployeeActionButtons
+          employee={employee}
+          messageApi={messageApi}
+          onCancel={onCancel}
+          isDefaultCounterpartyUser={isDefaultCounterpartyUser}
+          userRole={user?.role}
+          isAdmin={isAdmin}
+          onTransfer={onTransfer}
+        />
       </Col>
     </Row>
   );

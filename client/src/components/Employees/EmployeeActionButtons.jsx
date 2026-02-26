@@ -21,8 +21,7 @@ const EmployeeActionButtons = ({
   const isInactive =
     employee.statusMappings?.find((m) => m.statusGroup === "status_active")
       ?.status?.name === "status_active_inactive";
-  const hideStatusActions =
-    isDefaultCounterpartyUser && userRole === "user";
+  const canManageStatuses = userRole === "admin";
 
   const handleFire = async () => {
     try {
@@ -102,7 +101,7 @@ const EmployeeActionButtons = ({
 
   return (
     <Space wrap>
-      {!hideStatusActions &&
+      {canManageStatuses &&
         (isFired ? (
           <Popconfirm
             title="Восстановить сотрудника?"
@@ -129,7 +128,7 @@ const EmployeeActionButtons = ({
           </Popconfirm>
         ))}
 
-      {!hideStatusActions &&
+      {canManageStatuses &&
         (isInactive ? (
           <Popconfirm
             title="Активировать сотрудника?"
