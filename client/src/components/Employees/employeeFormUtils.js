@@ -79,12 +79,15 @@ export const formatSnils = (value) => {
 
 export const formatKig = (value) => {
   if (!value) return value;
-  return value.replace(/[^\d]/g, "").slice(0, 7);
+  const normalized = String(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const letters = normalized.replace(/[^A-Z]/g, "").slice(0, 2);
+  const digits = normalized.replace(/[^\d]/g, "").slice(0, 7);
+  return `${letters}${digits}`.slice(0, 9);
 };
 
 export const normalizeKig = (value) => {
   if (!value) return value;
-  return value.replace(/[^\d]/g, "");
+  return String(value).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 9);
 };
 
 export const formatBankAccountNumber = (value) => {

@@ -5,7 +5,6 @@ const TEMP_HIDDEN_FIELDS = new Set([
   "birthCountryId",
   "passportType",
   "passportExpiryDate",
-  "kigEndDate",
   "gender",
   "email",
 ]);

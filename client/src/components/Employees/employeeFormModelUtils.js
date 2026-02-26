@@ -94,11 +94,20 @@ export const buildEmployeeInitialFormData = ({
       ? dayjs(employee.patentIssueDate)
       : null;
 
+  const kigEndDateValue = isMobile
+    ? employee.kigEndDate
+      ? dayjs(employee.kigEndDate).format("DD.MM.YYYY")
+      : null
+    : employee.kigEndDate
+      ? dayjs(employee.kigEndDate)
+      : null;
+
   return {
     ...employee,
     birthDate: birthDateValue,
     passportDate: passportDateValue,
     patentIssueDate: patentIssueDateValue,
+    kigEndDate: kigEndDateValue,
     constructionSiteId: mapping?.constructionSiteId || null,
     counterpartyId: mapping?.counterpartyId || null,
     birthCountryId: employee.birthCountryId || null,

@@ -26,6 +26,8 @@ const getRequiredFieldsByTab = (
       "passportDate",
       "passportIssuer",
       "passportExpiryDate",
+      "kig",
+      "kigEndDate",
       "patentNumber",
       "patentIssueDate",
       "blankNumber",
@@ -43,7 +45,7 @@ const getRequiredFieldsByTab = (
       }
 
       if (
-        ["patentNumber", "patentIssueDate", "blankNumber"].includes(fieldName)
+        ["kig", "kigEndDate", "patentNumber", "patentIssueDate", "blankNumber"].includes(fieldName)
       ) {
         if (!requiresPatent) return false;
       }

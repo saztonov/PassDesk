@@ -28,7 +28,6 @@ import {
 } from "./employeeFormModelUtils";
 
 const TEMP_HIDDEN_FIELDS = new Set([
-  "kigEndDate",
   "gender",
   "email",
 ]);

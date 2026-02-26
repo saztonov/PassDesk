@@ -14,25 +14,34 @@ const EmployeePatentTab = ({
   return (
     <>
       <Row gutter={16}>
-        {!getFieldProps("kig").hidden && (
-          <Col xs={24} sm={6} md={6} lg={6}>
-            <Form.Item
-              name="kig"
-              label="КИГ"
-              required={getFieldProps("kig").required}
-              rules={[
-                ...getFieldProps("kig").rules,
-                {
-                  pattern: /^\d{7}$/,
-                  message: "КИГ должен содержать 7 цифр",
-                },
-              ]}
-              normalize={(value) => formatKig(value)}
-            >
-              <Input placeholder="1234567" maxLength={7} {...noAutoFillProps} />
-            </Form.Item>
-          </Col>
-        )}
+        <Col xs={24} sm={6} md={6} lg={6}>
+          <Form.Item
+            name="kig"
+            label="КИГ"
+            required={getFieldProps("kig").required}
+            rules={[
+              ...getFieldProps("kig").rules,
+              {
+                pattern: /^[A-Z]{2}\d{7}$/,
+                message:
+                  "КИГ должен быть в формате AF1234567 (2 латинские буквы и 7 цифр)",
+              },
+            ]}
+            normalize={(value) => formatKig(value)}
+          >
+            <Input placeholder="AF1234567" maxLength={9} {...noAutoFillProps} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} sm={6} md={6} lg={6}>
+          <Form.Item
+            name="kigEndDate"
+            label="Срок окончания КИГ"
+            required={getFieldProps("kigEndDate").required}
+            rules={getFieldProps("kigEndDate").rules}
+          >
+            <MaskedDatePicker format={dateFormat} />
+          </Form.Item>
+        </Col>
         {!getFieldProps("patentNumber").hidden && (
           <Col xs={24} sm={6} md={6} lg={6}>
             <Form.Item

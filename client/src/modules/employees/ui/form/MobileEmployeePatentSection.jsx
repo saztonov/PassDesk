@@ -46,40 +46,53 @@ export const buildMobileEmployeePatentSection = ({
     ),
     children: (
       <>
-        {!getFieldProps("kig").hidden && (
-          <>
-            <Form.Item
-              label="КИГ"
-              name="kig"
-              required={getFieldProps("kig").required}
-              rules={[
-                ...getFieldProps("kig").rules,
-                {
-                  pattern: /^\d{7}$/,
-                  message: "КИГ должен содержать 7 цифр",
-                },
-              ]}
-              getValueFromEvent={(e) => formatKig(e.target.value)}
-            >
-              <Input
-                placeholder="1234567"
-                size="large"
-                maxLength={7}
-                {...noAutoFillProps}
-              />
-            </Form.Item>
-            {hasUploadType("kig") && (
-              <EmployeeDocumentUpload
-                employeeId={employee?.id}
-                ensureEmployeeId={ensureEmployeeId}
-                documentType="kig"
-                label={getInlineUploadMeta("kig").label}
-                readonly={false}
-                multiple={getInlineUploadMeta("kig").multiple}
-              />
-            )}
-          </>
-        )}
+        <>
+          <Form.Item
+            label="КИГ"
+            name="kig"
+            required={getFieldProps("kig").required}
+            rules={[
+              ...getFieldProps("kig").rules,
+              {
+                pattern: /^[A-Z]{2}\d{7}$/,
+                message:
+                  "КИГ должен быть в формате AF1234567 (2 латинские буквы и 7 цифр)",
+              },
+            ]}
+            getValueFromEvent={(e) => formatKig(e.target.value)}
+          >
+            <Input
+              placeholder="AF1234567"
+              size="large"
+              maxLength={9}
+              {...noAutoFillProps}
+            />
+          </Form.Item>
+          {hasUploadType("kig") && (
+            <EmployeeDocumentUpload
+              employeeId={employee?.id}
+              ensureEmployeeId={ensureEmployeeId}
+              documentType="kig"
+              label={getInlineUploadMeta("kig").label}
+              readonly={false}
+              multiple={getInlineUploadMeta("kig").multiple}
+            />
+          )}
+        </>
+
+        <Form.Item
+          label="Срок окончания КИГ"
+          name="kigEndDate"
+          required={getFieldProps("kigEndDate").required}
+          rules={createDateInputRules(getFieldProps("kigEndDate").rules)}
+          normalize={formatDateInputValue}
+        >
+          <Input
+            placeholder="ДД.ММ.ГГГГ"
+            size="large"
+            {...noAutoFillProps}
+          />
+        </Form.Item>
 
         {!getFieldProps("patentNumber").hidden && (
           <>
