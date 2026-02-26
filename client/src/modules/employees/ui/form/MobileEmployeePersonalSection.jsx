@@ -86,6 +86,8 @@ export const buildMobileEmployeePersonalSection = ({
   profilesConfig,
 }) => {
   const uploads = getUploadsForDocumentProfile(profileCode, profilesConfig);
+  const registrationAddressProps = getFieldProps("registrationAddress");
+  const phoneProps = getFieldProps("phone");
   const uploadsByType = new Map(
     uploads.map((upload) => [upload.documentType, upload]),
   );
@@ -248,12 +250,12 @@ export const buildMobileEmployeePersonalSection = ({
         </Form.Item>
       )}
 
-      {!getFieldProps("registrationAddress").hidden && (
+      {!registrationAddressProps.hidden && (
         <Form.Item
           label="Адрес регистрации"
           name="registrationAddress"
-          required={getFieldProps("registrationAddress").required}
-          rules={getFieldProps("registrationAddress").rules}
+          required={false}
+          rules={[]}
         >
           <TextArea
             id={antiAutofillIds.registrationAddress}
@@ -266,13 +268,12 @@ export const buildMobileEmployeePersonalSection = ({
         </Form.Item>
       )}
 
-      {!getFieldProps("phone").hidden && (
+      {!phoneProps.hidden && (
         <Form.Item
           label="Телефон"
           name="phone"
-          required={getFieldProps("phone").required}
+          required={false}
           rules={[
-            ...getFieldProps("phone").rules,
             {
               validator: (_, value) => {
                 if (!value) return Promise.resolve();

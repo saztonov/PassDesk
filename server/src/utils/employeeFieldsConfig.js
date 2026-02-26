@@ -58,6 +58,9 @@ const TEMP_HIDDEN_FIELDS = new Set([
   "kigEndDate",
   "gender",
   "email",
+  // Не блокируют перевод карточки в "действующий" статус.
+  "registrationAddress",
+  "phone",
 ]);
 
 /**
