@@ -298,9 +298,12 @@ const EmployeeDocumentUpload = ({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
+                    gap: 8,
                     padding: 8,
                     background: "#f5f5f5",
                     borderRadius: 4,
+                    width: "100%",
+                    overflow: "hidden",
                   }}
                 >
                   <div
@@ -309,6 +312,7 @@ const EmployeeDocumentUpload = ({
                       alignItems: "center",
                       gap: 8,
                       flex: 1,
+                      minWidth: 0,
                     }}
                   >
                     <FileImageOutlined
@@ -316,6 +320,9 @@ const EmployeeDocumentUpload = ({
                     />
                     <span
                       style={{
+                        display: "block",
+                        flex: 1,
+                        minWidth: 0,
                         fontSize: 13,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -326,7 +333,7 @@ const EmployeeDocumentUpload = ({
                     </span>
                   </div>
 
-                  <Space size={4}>
+                  <Space size={4} style={{ flexShrink: 0 }}>
                     <Tooltip title="Просмотр">
                       <Button
                         icon={<EyeOutlined />}
