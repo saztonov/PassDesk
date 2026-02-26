@@ -314,6 +314,8 @@ class EmployeeStatusService {
         "id",
         "firstName",
         "lastName",
+        "lastNameEnc",
+        "lastNameKeyVersion",
         "middleName",
         "positionId",
         "isActive",
@@ -325,8 +327,8 @@ class EmployeeStatusService {
       offset,
       distinct: true,
       order: [
-        ["lastName", "ASC"],
         ["firstName", "ASC"],
+        ["middleName", "ASC"],
       ],
     });
   }

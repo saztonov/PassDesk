@@ -34,6 +34,8 @@ const getEmployeeMapping = async (userId) => {
           "id",
           "firstName",
           "lastName",
+          "lastNameEnc",
+          "lastNameKeyVersion",
           "middleName",
           "isActive",
           "passportExpiryDate",
@@ -510,7 +512,15 @@ export const getTelegramAccountByUser = async (telegramUserId) => {
       {
         model: Employee,
         as: "employee",
-        attributes: ["id", "firstName", "lastName", "middleName", "isActive"],
+        attributes: [
+          "id",
+          "firstName",
+          "lastName",
+          "lastNameEnc",
+          "lastNameKeyVersion",
+          "middleName",
+          "isActive",
+        ],
       },
     ],
   });

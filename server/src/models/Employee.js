@@ -99,9 +99,8 @@ Employee.init(
       field: "first_name",
     },
     lastName: {
-      type: DataTypes.STRING,
+      type: DataTypes.VIRTUAL,
       allowNull: true, // Разрешаем null для черновиков
-      field: "last_name",
       get() {
         return resolveSensitiveFieldValue(
           this,
@@ -109,6 +108,9 @@ Employee.init(
           "lastNameEnc",
           "lastNameKeyVersion",
         );
+      },
+      set(value) {
+        this.setDataValue("lastName", value);
       },
     },
     lastNameEnc: {
@@ -213,28 +215,14 @@ Employee.init(
       comment: "СНИЛС сотрудника (уникальный)",
     },
     kig: {
-      type: DataTypes.STRING(50),
+      type: DataTypes.VIRTUAL,
       allowNull: true,
-      unique: true,
-      field: "kig",
       get() {
         return resolveSensitiveFieldValue(this, "kig", "kigEnc", "kigKeyVersion");
       },
-      validate: {
-        isValidKig(value) {
-          // Пропускаем пустые значения (null, undefined, пустая строка)
-          if (!value || value.trim() === "") {
-            return;
-          }
-          // Допускаем новый формат (7 цифр) и legacy-формат (2 латинские буквы + 7 цифр)
-          if (!/^\d{7}$/.test(value) && !/^[A-Z]{2}\d{7}$/.test(value)) {
-            throw new Error(
-              "КИГ должен содержать 7 цифр",
-            );
-          }
-        },
+      set(value) {
+        this.setDataValue("kig", value);
       },
-      comment: "Номер КИГ (7 цифр, поддерживается legacy АА1234567) (уникальный)",
     },
     kigEnc: {
       type: DataTypes.TEXT,
@@ -252,10 +240,8 @@ Employee.init(
       field: "kig_key_version",
     },
     passportNumber: {
-      type: DataTypes.STRING,
+      type: DataTypes.VIRTUAL,
       allowNull: true,
-      unique: true,
-      field: "passport_number",
       get() {
         return resolveSensitiveFieldValue(
           this,
@@ -264,7 +250,9 @@ Employee.init(
           "passportNumberKeyVersion",
         );
       },
-      comment: "Номер паспорта (уникальный)",
+      set(value) {
+        this.setDataValue("passportNumber", value);
+      },
     },
     passportNumberEnc: {
       type: DataTypes.TEXT,
@@ -318,9 +306,8 @@ Employee.init(
       comment: "Адрес регистрации",
     },
     patentNumber: {
-      type: DataTypes.STRING,
+      type: DataTypes.VIRTUAL,
       allowNull: true,
-      field: "patent_number",
       get() {
         return resolveSensitiveFieldValue(
           this,
@@ -329,7 +316,9 @@ Employee.init(
           "patentNumberKeyVersion",
         );
       },
-      comment: "Номер патента",
+      set(value) {
+        this.setDataValue("patentNumber", value);
+      },
     },
     patentNumberEnc: {
       type: DataTypes.TEXT,
@@ -490,9 +479,6 @@ Employee.init(
       },
       {
         fields: ["snils"],
-      },
-      {
-        fields: ["kig"],
       },
       {
         fields: ["id_all"],

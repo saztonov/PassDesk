@@ -31,7 +31,6 @@ import { DEFAULT_FORM_CONFIG } from "../utils/employeeFieldsConfig.js";
 import {
   applyLegacySensitivePlaintextPolicy,
   buildEmployeeSensitiveFieldsPatch,
-  shouldKeepEmployeeSensitiveLegacyPlaintext,
 } from "./employeeSensitiveFieldService.js";
 import {
   ENCRYPTED_EMPLOYEE_FIELDS,
@@ -508,13 +507,7 @@ export const importEmployees = async (
               middleName: emp.middleName || null,
             };
 
-            const useLegacySensitivePlaintextSearch =
-              !isFieldEncryptionEnabled() ||
-              shouldKeepEmployeeSensitiveLegacyPlaintext();
-
-            if (useLegacySensitivePlaintextSearch) {
-              candidateWhere.lastName = emp.lastName;
-            } else {
+            if (isFieldEncryptionEnabled()) {
               const lastNameHash = hashForSearch(
                 ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME,
                 emp.lastName,

@@ -202,7 +202,14 @@ export const getCounterpartyById = async (req, res, next) => {
               attributes: ["id", "name"],
             },
           ],
-          attributes: ["id", "firstName", "lastName", "positionId"],
+          attributes: [
+            "id",
+            "firstName",
+            "lastName",
+            "lastNameEnc",
+            "lastNameKeyVersion",
+            "positionId",
+          ],
         },
         {
           model: CounterpartyTypeMapping,

@@ -35,7 +35,6 @@ import {
 import {
   applyLegacySensitivePlaintextPolicy,
   buildEmployeeSensitiveFieldsPatch,
-  shouldKeepEmployeeSensitiveLegacyPlaintext,
 } from "../services/employeeSensitiveFieldService.js";
 import {
   ENCRYPTED_EMPLOYEE_FIELDS,
@@ -128,12 +127,6 @@ const applyEmployeeSensitiveFieldEncryption = (payload = {}) => {
 const normalizeDigitsSearch = (value = "") =>
   String(value || "").replace(/[^\d]/g, "");
 
-const normalizeDocumentSearch = (value = "") =>
-  String(value || "")
-    .normalize("NFKC")
-    .toUpperCase()
-    .replace(/[^0-9A-Z]/g, "");
-
 const buildEmployeeSensitiveHashSearchConditions = (value) => {
   if (!value || !isFieldEncryptionEnabled()) {
     return [];
@@ -180,17 +173,8 @@ const buildLastNameHashSearchCondition = (value) => {
   }
 };
 
-const shouldUseLegacySensitivePlaintextSearch = () => {
-  if (!isFieldEncryptionEnabled()) {
-    return true;
-  }
-  return shouldKeepEmployeeSensitiveLegacyPlaintext();
-};
-
 const buildEmployeeDuplicateChecks = (employeeLike = {}) => {
   const duplicateChecks = [];
-  const useLegacySensitivePlaintextSearch =
-    shouldUseLegacySensitivePlaintextSearch();
 
   if (employeeLike.inn) {
     duplicateChecks.push({ inn: employeeLike.inn });
@@ -202,17 +186,10 @@ const buildEmployeeDuplicateChecks = (employeeLike = {}) => {
 
   if (employeeLike.kigHash) {
     duplicateChecks.push({ kigHash: employeeLike.kigHash });
-  } else if (useLegacySensitivePlaintextSearch && employeeLike.kig) {
-    duplicateChecks.push({ kig: employeeLike.kig });
   }
 
   if (employeeLike.passportNumberHash) {
     duplicateChecks.push({ passportNumberHash: employeeLike.passportNumberHash });
-  } else if (
-    useLegacySensitivePlaintextSearch &&
-    employeeLike.passportNumber
-  ) {
-    duplicateChecks.push({ passportNumber: employeeLike.passportNumber });
   }
 
   return duplicateChecks;
@@ -384,17 +361,11 @@ export const getAllEmployees = async (req, res, next) => {
     if (search) {
       const normalizedSearch = String(search).trim();
       const digitsSearch = normalizeDigitsSearch(normalizedSearch);
-      const docSearch = normalizeDocumentSearch(normalizedSearch);
       const sensitiveHashConditions =
         buildEmployeeSensitiveHashSearchConditions(normalizedSearch);
-      const useLegacySensitivePlaintextSearch =
-        shouldUseLegacySensitivePlaintextSearch();
 
       where[Op.or] = [
         { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        ...(useLegacySensitivePlaintextSearch
-          ? [{ lastName: { [Op.iLike]: `%${normalizedSearch}%` } }]
-          : []),
         { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
         { email: { [Op.iLike]: `%${normalizedSearch}%` } },
         { phone: { [Op.iLike]: `%${normalizedSearch}%` } },
@@ -404,15 +375,6 @@ export const getAllEmployees = async (req, res, next) => {
               { snils: { [Op.iLike]: `%${digitsSearch}%` } },
               { phone: { [Op.iLike]: `%${digitsSearch}%` } },
             ]
-          : []),
-        ...(docSearch
-          ? useLegacySensitivePlaintextSearch
-            ? [
-              { passportNumber: { [Op.iLike]: `%${docSearch}%` } },
-              { kig: { [Op.iLike]: `%${docSearch}%` } },
-              { patentNumber: { [Op.iLike]: `%${docSearch}%` } },
-            ]
-            : []
           : []),
         ...sensitiveHashConditions,
       ];
@@ -665,7 +627,7 @@ export const getAllEmployees = async (req, res, next) => {
       where,
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [["lastName", "ASC"]],
+      order: [["firstName", "ASC"], ["middleName", "ASC"]],
       include: employeeInclude,
       // Добавляем подсчет файлов для каждого сотрудника
       attributes: {
@@ -2059,16 +2021,11 @@ export const getMarkedForDeletionEmployees = async (req, res, next) => {
 
     if (search) {
       const normalizedSearch = String(search).trim();
-      const useLegacySensitivePlaintextSearch =
-        shouldUseLegacySensitivePlaintextSearch();
       const lastNameHashCondition =
         buildLastNameHashSearchCondition(normalizedSearch);
 
       where[Op.or] = [
         { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        ...(useLegacySensitivePlaintextSearch
-          ? [{ lastName: { [Op.iLike]: `%${normalizedSearch}%` } }]
-          : []),
         { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
         { inn: { [Op.iLike]: `%${normalizedSearch}%` } },
         ...(lastNameHashCondition ? [lastNameHashCondition] : []),
@@ -2129,16 +2086,11 @@ export const getDeletedEmployees = async (req, res, next) => {
 
     if (search) {
       const normalizedSearch = String(search).trim();
-      const useLegacySensitivePlaintextSearch =
-        shouldUseLegacySensitivePlaintextSearch();
       const lastNameHashCondition =
         buildLastNameHashSearchCondition(normalizedSearch);
 
       where[Op.or] = [
         { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        ...(useLegacySensitivePlaintextSearch
-          ? [{ lastName: { [Op.iLike]: `%${normalizedSearch}%` } }]
-          : []),
         { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
         { inn: { [Op.iLike]: `%${normalizedSearch}%` } },
         ...(lastNameHashCondition ? [lastNameHashCondition] : []),
@@ -3008,16 +2960,10 @@ export const searchEmployees = async (req, res, next) => {
     if (query) {
       const normalizedSearch = String(query).trim();
       const digitsSearch = normalizeDigitsSearch(normalizedSearch);
-      const docSearch = normalizeDocumentSearch(normalizedSearch);
       const sensitiveHashConditions =
         buildEmployeeSensitiveHashSearchConditions(normalizedSearch);
-      const useLegacySensitivePlaintextSearch =
-        shouldUseLegacySensitivePlaintextSearch();
       where[Op.or] = [
         { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        ...(useLegacySensitivePlaintextSearch
-          ? [{ lastName: { [Op.iLike]: `%${normalizedSearch}%` } }]
-          : []),
         { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
         ...(digitsSearch
           ? [
@@ -3025,15 +2971,6 @@ export const searchEmployees = async (req, res, next) => {
               { snils: { [Op.iLike]: `%${digitsSearch}%` } },
               { phone: { [Op.iLike]: `%${digitsSearch}%` } },
             ]
-          : []),
-        ...(docSearch
-          ? useLegacySensitivePlaintextSearch
-            ? [
-              { passportNumber: { [Op.iLike]: `%${docSearch}%` } },
-              { kig: { [Op.iLike]: `%${docSearch}%` } },
-              { patentNumber: { [Op.iLike]: `%${docSearch}%` } },
-            ]
-            : []
           : []),
         ...sensitiveHashConditions,
       ];
@@ -3090,7 +3027,7 @@ export const searchEmployees = async (req, res, next) => {
 
     const employees = await Employee.findAll({
       where,
-      order: [["lastName", "ASC"]],
+      order: [["firstName", "ASC"], ["middleName", "ASC"]],
       include: include,
     });
 
@@ -3519,16 +3456,11 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
 
     if (search) {
       const normalizedSearch = String(search).trim();
-      const useLegacySensitivePlaintextSearch =
-        shouldUseLegacySensitivePlaintextSearch();
       const lastNameHashCondition =
         buildLastNameHashSearchCondition(normalizedSearch);
 
       where[Op.or] = [
         { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        ...(useLegacySensitivePlaintextSearch
-          ? [{ lastName: { [Op.iLike]: `%${normalizedSearch}%` } }]
-          : []),
         { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
         { email: { [Op.iLike]: `%${normalizedSearch}%` } },
         { phone: { [Op.iLike]: `%${normalizedSearch}%` } },
@@ -3780,7 +3712,7 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
       where,
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [["lastName", "ASC"]],
+      order: [["firstName", "ASC"], ["middleName", "ASC"]],
       include: employeeInclude,
       attributes: {
         include: [

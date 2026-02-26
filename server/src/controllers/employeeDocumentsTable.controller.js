@@ -14,9 +14,7 @@ import {
   decryptField,
   ENCRYPTED_EMPLOYEE_FIELDS,
   hashForSearch,
-  isFieldEncryptionEnabled,
 } from "../services/encryptionService.js";
-import { shouldKeepEmployeeSensitiveLegacyPlaintext } from "../services/employeeSensitiveFieldService.js";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 50;
@@ -216,13 +214,13 @@ const buildEmployeeFullName = (lastName, firstName, middleName) =>
 
 const resolveSeriesNumber = (row) => {
   const passportNumber = resolveEncryptedValue(
-    row.passport_number,
+    null,
     row.passport_number_enc,
     row.passport_number_key_version,
   );
-  const kig = resolveEncryptedValue(row.kig, row.kig_enc, row.kig_key_version);
+  const kig = resolveEncryptedValue(null, row.kig_enc, row.kig_key_version);
   const patentNumber = resolveEncryptedValue(
-    row.patent_number,
+    null,
     row.patent_number_enc,
     row.patent_number_key_version,
   );
@@ -349,36 +347,23 @@ const buildDocumentCte = async ({ user, filters }) => {
   }
 
   if (filters.employeeSearch) {
-    const useLegacySensitivePlaintextSearch =
-      !isFieldEncryptionEnabled() ||
-      shouldKeepEmployeeSensitiveLegacyPlaintext();
-
-    if (useLegacySensitivePlaintextSearch) {
-      employeeWhere.push(`(
-        e.last_name ILIKE :employeeSearch
-        OR e.first_name ILIKE :employeeSearch
-        OR e.middle_name ILIKE :employeeSearch
-        OR CONCAT_WS(' ', e.last_name, e.first_name, e.middle_name) ILIKE :employeeSearch
-      )`);
-    } else {
-      let employeeSearchLastNameHash = null;
-      try {
-        employeeSearchLastNameHash = hashForSearch(
-          ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME,
-          filters.employeeSearch,
-        );
-      } catch {
-        employeeSearchLastNameHash = null;
-      }
-
-      employeeWhere.push(`(
-        e.first_name ILIKE :employeeSearch
-        OR e.middle_name ILIKE :employeeSearch
-        OR CONCAT_WS(' ', e.first_name, e.middle_name) ILIKE :employeeSearch
-        OR (:employeeSearchLastNameHash IS NOT NULL AND e.last_name_hash = :employeeSearchLastNameHash)
-      )`);
-      replacements.employeeSearchLastNameHash = employeeSearchLastNameHash;
+    let employeeSearchLastNameHash = null;
+    try {
+      employeeSearchLastNameHash = hashForSearch(
+        ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME,
+        filters.employeeSearch,
+      );
+    } catch {
+      employeeSearchLastNameHash = null;
     }
+
+    employeeWhere.push(`(
+      e.first_name ILIKE :employeeSearch
+      OR e.middle_name ILIKE :employeeSearch
+      OR CONCAT_WS(' ', e.first_name, e.middle_name) ILIKE :employeeSearch
+      OR (:employeeSearchLastNameHash IS NOT NULL AND e.last_name_hash = :employeeSearchLastNameHash)
+    )`);
+    replacements.employeeSearchLastNameHash = employeeSearchLastNameHash;
 
     replacements.employeeSearch = `%${filters.employeeSearch}%`;
   }
@@ -423,21 +408,17 @@ const buildDocumentCte = async ({ user, filters }) => {
     WITH filtered_employees AS (
       SELECT DISTINCT
         e.id AS employee_id,
-        e.last_name,
         e.last_name_enc,
         e.last_name_key_version,
         e.first_name,
         e.middle_name,
-        e.passport_number,
         e.passport_number_enc,
         e.passport_number_key_version,
         e.passport_date,
         e.passport_expiry_date,
-        e.kig,
         e.kig_enc,
         e.kig_key_version,
         e.kig_end_date,
-        e.patent_number,
         e.patent_number_enc,
         e.patent_number_key_version,
         e.patent_issue_date,
@@ -466,18 +447,14 @@ const buildDocumentCte = async ({ user, filters }) => {
         fe.employee_id,
         fe.counterparty_id,
         fe.counterparty_name,
-        fe.last_name,
         fe.last_name_enc,
         fe.last_name_key_version,
         fe.first_name,
         fe.middle_name,
-        fe.passport_number,
         fe.passport_number_enc,
         fe.passport_number_key_version,
-        fe.kig,
         fe.kig_enc,
         fe.kig_key_version,
-        fe.patent_number,
         fe.patent_number_enc,
         fe.patent_number_key_version,
         fe.blank_number,
@@ -537,7 +514,7 @@ const buildDocumentCte = async ({ user, filters }) => {
 
 const mapRow = (row) => {
   const lastName = resolveEncryptedValue(
-    row.last_name,
+    null,
     row.last_name_enc,
     row.last_name_key_version,
   );
