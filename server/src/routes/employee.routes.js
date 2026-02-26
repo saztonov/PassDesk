@@ -95,7 +95,7 @@ const updateEmployeeValidation = [
   body("firstName").optional().notEmpty().trim(),
   body("lastName").optional().notEmpty().trim(),
   body("middleName").optional().trim(),
-  body("positionId").optional().notEmpty().withMessage("Должность обязательна"),
+  body("positionId").optional({ values: "falsy" }).trim(),
   body("email").optional().trim(),
   body("phone").optional().trim(),
   body("bankAccountNumber").optional().trim(),

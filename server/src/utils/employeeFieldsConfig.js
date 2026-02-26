@@ -11,7 +11,7 @@ export const EMPLOYEE_FIELDS = [
   { key: 'lastName', defaultRequired: true, defaultVisible: true },
   { key: 'firstName', defaultRequired: true, defaultVisible: true },
   { key: 'middleName', defaultRequired: false, defaultVisible: true },
-  { key: 'positionId', defaultRequired: true, defaultVisible: true },
+  { key: 'positionId', defaultRequired: false, defaultVisible: true },
   { key: 'citizenshipId', defaultRequired: true, defaultVisible: true },
   { key: 'birthDate', defaultRequired: true, defaultVisible: true },
   { key: 'birthCountryId', defaultRequired: true, defaultVisible: true },
@@ -63,6 +63,9 @@ const TEMP_HIDDEN_FIELDS = new Set([
   "phone",
 ]);
 
+// Поля, которые временно не должны влиять на статус заполненности.
+const FORCED_OPTIONAL_FIELDS = new Set(["positionId"]);
+
 /**
  * Проверить, заполнены ли все обязательные поля сотрудника согласно конфигурации
  * @param {Object} employee - объект сотрудника
@@ -86,8 +89,12 @@ export const isEmployeeCardComplete = (employee, formConfig = DEFAULT_FORM_CONFI
       continue;
     }
     
-    // Пропускаем скрытые или необязательные поля
-    if (!fieldConfig.visible || !fieldConfig.required) {
+    // Пропускаем скрытые, необязательные и временно принудительно-необязательные поля
+    if (
+      !fieldConfig.visible ||
+      !fieldConfig.required ||
+      FORCED_OPTIONAL_FIELDS.has(fieldKey)
+    ) {
       continue;
     }
 
@@ -152,7 +159,11 @@ export const getMissingRequiredFields = (employee, formConfig = DEFAULT_FORM_CON
       continue;
     }
     
-    if (!fieldConfig.visible || !fieldConfig.required) {
+    if (
+      !fieldConfig.visible ||
+      !fieldConfig.required ||
+      FORCED_OPTIONAL_FIELDS.has(fieldKey)
+    ) {
       continue;
     }
 

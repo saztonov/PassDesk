@@ -9,6 +9,9 @@ const TEMP_HIDDEN_FIELDS = new Set([
   "email",
 ]);
 
+// Временно держим должность необязательной независимо от админ-конфига.
+const FORCED_OPTIONAL_FIELDS = new Set(["positionId"]);
+
 export const useEmployeeFormFieldConfig = ({
   userCounterpartyId,
   defaultCounterpartyId,
@@ -45,14 +48,17 @@ export const useEmployeeFormFieldConfig = ({
         required: false,
       };
 
+      const required =
+        !FORCED_OPTIONAL_FIELDS.has(fieldName) && fieldConfig.required;
+
       const rules = [];
-      if (fieldConfig.required) {
+      if (required) {
         rules.push({ required: true, message: "Заполните поле" });
       }
 
       return {
         hidden: !fieldConfig.visible,
-        required: fieldConfig.required,
+        required,
         rules,
       };
     },

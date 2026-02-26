@@ -8,7 +8,7 @@ export const EMPLOYEE_FIELDS = [
   { key: 'lastName', label: 'Фамилия', group: 'personal', defaultRequired: true, defaultVisible: true },
   { key: 'firstName', label: 'Имя', group: 'personal', defaultRequired: true, defaultVisible: true },
   { key: 'middleName', label: 'Отчество', group: 'personal', defaultRequired: false, defaultVisible: true },
-  { key: 'positionId', label: 'Должность', group: 'personal', defaultRequired: true, defaultVisible: true },
+  { key: 'positionId', label: 'Должность', group: 'personal', defaultRequired: false, defaultVisible: true },
   { key: 'citizenshipId', label: 'Гражданство', group: 'personal', defaultRequired: true, defaultVisible: true },
   { key: 'birthDate', label: 'Дата рождения', group: 'personal', defaultRequired: true, defaultVisible: true },
   { key: 'birthCountryId', label: 'Страна рождения', group: 'personal', defaultRequired: true, defaultVisible: true },
