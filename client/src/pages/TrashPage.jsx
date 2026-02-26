@@ -8,13 +8,10 @@ import {
   Space,
   Table,
   Tabs,
-  Typography,
 } from "antd";
 import { employeeService } from "@/services/employeeService";
 import { userService } from "@/services/userService";
 import dayjs from "dayjs";
-
-const { Title } = Typography;
 
 const formatFullName = (record) =>
   [record?.lastName, record?.firstName, record?.middleName]
@@ -376,17 +373,6 @@ const TrashPage = () => {
         },
       }}
     >
-      <div
-        style={{
-          flexShrink: 0,
-          padding: "16px 24px",
-          borderBottom: "1px solid #f0f0f0",
-        }}
-      >
-        <Title level={4} style={{ margin: 0 }}>
-          Корзина
-        </Title>
-      </div>
       <div
         style={{
           flex: 1,
