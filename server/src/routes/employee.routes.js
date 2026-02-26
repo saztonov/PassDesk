@@ -265,6 +265,12 @@ router.post(
   authorize("admin"),
   employeeController.restoreEmployee,
 );
+router.delete(
+  "/:id/permanent",
+  idParamValidation,
+  authorize("admin"),
+  employeeController.permanentlyDeleteEmployee,
+);
 router.post(
   "/:id/mark-for-deletion",
   idParamValidation,

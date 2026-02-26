@@ -1903,6 +1903,46 @@ export const deleteEmployee = async (req, res, next) => {
   }
 };
 
+export const permanentlyDeleteEmployee = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (req.user.role !== "admin") {
+      return next(new AppError("Недостаточно прав", 403));
+    }
+
+    const employee = await Employee.findByPk(id, {
+      include: employeeAccessInclude,
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Сотрудник не найден",
+      });
+    }
+
+    if (!employee.isDeleted) {
+      return next(
+        new AppError(
+          "Полное удаление доступно только для сотрудников из корзины",
+          400,
+        ),
+      );
+    }
+
+    await employee.destroy();
+
+    res.json({
+      success: true,
+      message: "Сотрудник удален навсегда",
+    });
+  } catch (error) {
+    console.error("Error permanently deleting employee:", error);
+    next(error);
+  }
+};
+
 export const markEmployeeForDeletion = async (req, res, next) => {
   try {
     const { id } = req.params;

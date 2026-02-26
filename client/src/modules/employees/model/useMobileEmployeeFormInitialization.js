@@ -17,6 +17,21 @@ export const useMobileEmployeeFormInitialization = ({
   useEffect(() => {
     if (citizenshipsLength) {
       if (employee?.id !== employeeIdOnLoad) {
+        // Для нового черновика: после первого autosave появляется employee.id.
+        // Если пользователь уже редактирует поля, не перезаписываем форму
+        // ответом сервера, чтобы не "съедать" последние введенные символы.
+        const isInitialDraftAttach =
+          !employeeIdOnLoad && !!employee?.id && form.isFieldsTouched(true);
+        if (isInitialDraftAttach) {
+          const currentCitizenshipId =
+            form.getFieldValue("citizenshipId") || employee?.citizenshipId;
+          if (currentCitizenshipId) {
+            handleCitizenshipChange(currentCitizenshipId);
+          }
+          setEmployeeIdOnLoad(employee.id);
+          return;
+        }
+
         const formData = initializeEmployeeData(true);
         if (formData) {
           form.setFieldsValue({

@@ -43,6 +43,12 @@ export const userService = {
     return response.data;
   },
 
+  // Полностью удалить пользователя из корзины
+  permanentlyDelete: async (id) => {
+    const response = await api.delete(`/users/${id}/permanent`);
+    return response.data;
+  },
+
   // Обновить пароль
   updatePassword: async (id, passwordData) => {
     const response = await api.patch(`/users/${id}/password`, passwordData);

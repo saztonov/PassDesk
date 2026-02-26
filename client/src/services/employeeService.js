@@ -86,6 +86,12 @@ export const employeeService = {
     return response.data;
   },
 
+  // Полностью удалить сотрудника из корзины
+  permanentlyDelete: async (id) => {
+    const response = await api.delete(`/employees/${id}/permanent`);
+    return response.data;
+  },
+
   // Поиск сотрудников
   search: async (query) => {
     const response = await api.get("/employees/search", { params: { query } });

@@ -1,12 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
-import { App, Button, Card, Input, Space, Table, Tabs, Typography } from "antd";
+import {
+  App,
+  Button,
+  Card,
+  Input,
+  Popconfirm,
+  Space,
+  Table,
+  Tabs,
+  Typography,
+} from "antd";
 import { employeeService } from "@/services/employeeService";
 import { userService } from "@/services/userService";
 import dayjs from "dayjs";
 
 const { Title } = Typography;
 
-const createEmployeeColumns = (onRestore) => [
+const createEmployeeColumns = (onRestore, onPermanentDelete) => [
   {
     title: "ФИО",
     key: "fullName",
@@ -33,12 +43,24 @@ const createEmployeeColumns = (onRestore) => [
     title: "Действия",
     key: "actions",
     render: (_, record) => (
-      <Button onClick={() => onRestore(record)}>Восстановить</Button>
+      <Space>
+        <Button onClick={() => onRestore(record)}>Восстановить</Button>
+        <Popconfirm
+          title="Удалить сотрудника навсегда?"
+          description="Запись будет удалена без возможности восстановления."
+          okText="Удалить навсегда"
+          okType="danger"
+          cancelText="Отмена"
+          onConfirm={() => onPermanentDelete(record)}
+        >
+          <Button danger>Удалить навсегда</Button>
+        </Popconfirm>
+      </Space>
     ),
   },
 ];
 
-const createUserColumns = (onRestore) => [
+const createUserColumns = (onRestore, onPermanentDelete) => [
   { title: "Email", dataIndex: "email" },
   { title: "Имя", dataIndex: "firstName" },
   { title: "Роль", dataIndex: "role" },
@@ -51,7 +73,19 @@ const createUserColumns = (onRestore) => [
     title: "Действия",
     key: "actions",
     render: (_, record) => (
-      <Button onClick={() => onRestore(record)}>Восстановить</Button>
+      <Space>
+        <Button onClick={() => onRestore(record)}>Восстановить</Button>
+        <Popconfirm
+          title="Удалить пользователя навсегда?"
+          description="Запись будет удалена без возможности восстановления."
+          okText="Удалить навсегда"
+          okType="danger"
+          cancelText="Отмена"
+          onConfirm={() => onPermanentDelete(record)}
+        >
+          <Button danger>Удалить навсегда</Button>
+        </Popconfirm>
+      </Space>
     ),
   },
 ];
@@ -191,17 +225,50 @@ const TrashPage = () => {
   }, [fetchUsers]);
 
   const restoreEmployee = async (employee) => {
-    await employeeService.restore(employee.id);
-    fetchEmployees();
+    try {
+      await employeeService.restore(employee.id);
+      message.success("Сотрудник восстановлен");
+      fetchEmployees();
+    } catch (error) {
+      message.error("Ошибка при восстановлении сотрудника");
+    }
   };
 
   const restoreUser = async (user) => {
-    await userService.restore(user.id);
-    fetchUsers();
+    try {
+      await userService.restore(user.id);
+      message.success("Пользователь восстановлен");
+      fetchUsers();
+    } catch (error) {
+      message.error("Ошибка при восстановлении пользователя");
+    }
   };
 
-  const employeeColumns = createEmployeeColumns(restoreEmployee);
-  const userColumns = createUserColumns(restoreUser);
+  const permanentlyDeleteEmployee = async (employee) => {
+    try {
+      await employeeService.permanentlyDelete(employee.id);
+      message.success("Сотрудник удален навсегда");
+      fetchEmployees();
+    } catch (error) {
+      message.error("Ошибка при полном удалении сотрудника");
+    }
+  };
+
+  const permanentlyDeleteUser = async (user) => {
+    try {
+      await userService.permanentlyDelete(user.id);
+      message.success("Пользователь удален навсегда");
+      fetchUsers();
+    } catch (error) {
+      message.error("Ошибка при полном удалении пользователя");
+    }
+  };
+
+  const employeeColumns = createEmployeeColumns(
+    restoreEmployee,
+    permanentlyDeleteEmployee,
+  );
+  const userColumns = createUserColumns(restoreUser, permanentlyDeleteUser);
 
   const tabs = [
     {

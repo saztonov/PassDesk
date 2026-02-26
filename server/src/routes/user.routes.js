@@ -93,6 +93,12 @@ router.post(
   validate,
   userController.restoreUser,
 );
+router.delete(
+  "/:id/permanent",
+  idParamValidation,
+  validate,
+  userController.permanentlyDeleteUser,
+);
 router.get("/", userController.getAllUsers);
 router.get("/:id", idParamValidation, validate, userController.getUserById);
 router.post("/", createUserValidation, validate, userController.createUser);

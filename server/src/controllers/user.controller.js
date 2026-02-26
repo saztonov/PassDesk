@@ -220,6 +220,45 @@ export const deleteUser = async (req, res, next) => {
   }
 };
 
+export const permanentlyDeleteUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (id === req.user.id) {
+      throw new AppError("Вы не можете удалить собственный аккаунт", 400);
+    }
+
+    const user = await User.findByPk(id);
+    if (!user) {
+      throw new AppError("Пользователь не найден", 404);
+    }
+
+    if (!user.isDeleted) {
+      throw new AppError(
+        "Полное удаление доступно только для пользователей из корзины",
+        400,
+      );
+    }
+
+    await user.destroy();
+
+    res.json({
+      success: true,
+      message: "Пользователь удален навсегда",
+    });
+  } catch (error) {
+    if (error.name === "SequelizeForeignKeyConstraintError") {
+      return next(
+        new AppError(
+          "Нельзя удалить пользователя: есть связанные записи в системе",
+          409,
+        ),
+      );
+    }
+    next(error);
+  }
+};
+
 export const getDeletedUsers = async (req, res, next) => {
   try {
     const { page = 1, limit = 20, search } = req.query;
