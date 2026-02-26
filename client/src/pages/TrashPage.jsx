@@ -121,7 +121,7 @@ const TrashListTab = ({
       dataSource={dataSource}
       rowKey="id"
       loading={loading}
-      scroll={{ x: "max-content" }}
+      scroll={{ x: "max-content", y: "calc(100vh - 360px)" }}
       pagination={{
         ...pagination,
         onChange: onChangePage,
