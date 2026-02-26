@@ -21,6 +21,7 @@ export const DocumentScannerModal = ({
   const canvasRef = useRef(null);
   const lastContourRef = useRef(null);
   const stableCounterRef = useRef(0);
+  const scannerRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -43,6 +44,38 @@ export const DocumentScannerModal = ({
   const isPortraitViewport = viewport.isPortrait;
   const isVerticalPassportGuide =
     isPassportMode && isMobileViewport && isPortraitViewport;
+
+  const initializeJscanify = useCallback(() => {
+    if (scannerRef.current) {
+      return;
+    }
+
+    if (window.jscanify) {
+      scannerRef.current = new window.jscanify();
+      return;
+    }
+
+    const existingScript = document.querySelector(
+      "script[data-jscanify-script='true']",
+    );
+    if (existingScript) {
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.dataset.jscanifyScript = "true";
+    script.src = "https://cdn.jsdelivr.net/npm/jscanify@1.4.2/src/jscanify.min.js";
+    script.async = true;
+    script.onload = () => {
+      if (window.jscanify) {
+        scannerRef.current = new window.jscanify();
+      }
+    };
+    script.onerror = () => {
+      console.warn("Failed to load jscanify. Legacy crop mode will be used.");
+    };
+    document.body.appendChild(script);
+  }, []);
 
   // Константы для анализа видеопотока
   const ANALYSIS_WIDTH = 480;
@@ -130,6 +163,7 @@ export const DocumentScannerModal = ({
 
     if (window.cv) {
       setCvReady(true);
+      initializeJscanify();
       setLoading(false);
       setError(null);
       return;
@@ -148,10 +182,12 @@ export const DocumentScannerModal = ({
     script.onload = () => {
       if (window.cv.getBuildInformation) {
         setCvReady(true);
+        initializeJscanify();
         setLoading(false);
       } else {
         window.cv.onRuntimeInitialized = () => {
           setCvReady(true);
+          initializeJscanify();
           setLoading(false);
         };
       }
@@ -163,7 +199,7 @@ export const DocumentScannerModal = ({
       setLoading(false);
     };
     document.body.appendChild(script);
-  }, []);
+  }, [initializeJscanify]);
 
   // Функция для определения весового коэффициента контура на основе его расположения
   const calculateFramePenalty = useCallback(
@@ -221,6 +257,38 @@ export const DocumentScannerModal = ({
     [getGuideRect],
   );
 
+  const extractWithJscanify = useCallback((imgElement) => {
+    if (!cvReady || !scannerRef.current || !imgElement) {
+      return null;
+    }
+
+    try {
+      const resultWidth =
+        imgElement.naturalWidth || imgElement.videoWidth || imgElement.width;
+      const resultHeight =
+        imgElement.naturalHeight || imgElement.videoHeight || imgElement.height;
+
+      if (!resultWidth || !resultHeight) {
+        return null;
+      }
+
+      const resultCanvas = scannerRef.current.extractPaper(
+        imgElement,
+        resultWidth,
+        resultHeight,
+      );
+
+      if (!resultCanvas) {
+        return null;
+      }
+
+      return resultCanvas.toDataURL("image/jpeg", 0.9);
+    } catch (error) {
+      console.warn("jscanify extraction failed, fallback to legacy crop:", error);
+      return null;
+    }
+  }, [cvReady]);
+
   const takePhoto = useCallback(async () => {
     if (!webcamRef.current) return;
 
@@ -258,6 +326,13 @@ export const DocumentScannerModal = ({
       const img = new Image();
       img.src = imageSrc;
       img.onload = () => {
+        const jscanifyResult = extractWithJscanify(img);
+        if (jscanifyResult) {
+          setProcessedImage(jscanifyResult);
+          setProcessing(false);
+          return;
+        }
+
         try {
           const resultDataUrl = cropDocumentWithNormalizedContour(
             img,
@@ -287,7 +362,12 @@ export const DocumentScannerModal = ({
       message.error("Ошибка при захвате изображения");
       setProcessing(false);
     }
-  }, [cropDocumentWithNormalizedContour, findAndCropDocument, webcamRef]);
+  }, [
+    cropDocumentWithNormalizedContour,
+    extractWithJscanify,
+    findAndCropDocument,
+    webcamRef,
+  ]);
 
   // Новая функция обрезки через нормализованные координаты
   function cropDocumentWithNormalizedContour(
@@ -776,6 +856,11 @@ export const DocumentScannerModal = ({
   ]);
 
   function findAndCropDocument(imgElement) {
+    const jscanifyResult = extractWithJscanify(imgElement);
+    if (jscanifyResult) {
+      return jscanifyResult;
+    }
+
     try {
       const cv = window.cv;
       const src = cv.imread(imgElement);
