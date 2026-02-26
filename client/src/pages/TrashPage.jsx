@@ -16,12 +16,17 @@ import dayjs from "dayjs";
 
 const { Title } = Typography;
 
+const formatFullName = (record) =>
+  [record?.lastName, record?.firstName, record?.middleName]
+    .filter((part) => typeof part === "string" && part.trim().length > 0)
+    .join(" ")
+    .trim();
+
 const createEmployeeColumns = (onRestore, onPermanentDelete) => [
   {
     title: "ФИО",
     key: "fullName",
-    render: (_, record) =>
-      `${record.lastName} ${record.firstName} ${record.middleName || ""}`.trim(),
+    render: (_, record) => formatFullName(record) || "-",
   },
   {
     title: "Контрагент",
@@ -102,7 +107,9 @@ const TrashListTab = ({
   onChangePage,
   onChangePageSize,
 }) => (
-  <>
+  <div
+    style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}
+  >
     <Space style={{ marginBottom: 12 }}>
       <Input
         placeholder={searchPlaceholder}
@@ -117,6 +124,7 @@ const TrashListTab = ({
       dataSource={dataSource}
       rowKey="id"
       loading={loading}
+      scroll={{ x: "max-content", y: 480 }}
       pagination={{
         ...pagination,
         onChange: onChangePage,
@@ -126,7 +134,7 @@ const TrashListTab = ({
       }}
       size="small"
     />
-  </>
+  </div>
 );
 
 const TrashPage = () => {
