@@ -370,7 +370,7 @@ export const getAllEmployees = async (req, res, next) => {
     const userCounterpartyId = req.user.counterpartyId;
     ensureEmployeeRoleAllowed(userRole);
 
-    const where = { isDeleted: false };
+    const where = { isDeleted: false, markedForDeletion: false };
     const normalizedSearch = String(search || "").trim();
     const hasSearchQuery = normalizedSearch.length > 0;
 
@@ -1937,7 +1937,7 @@ export const permanentlyDeleteEmployee = async (req, res, next) => {
       });
     }
 
-    if (!employee.isDeleted) {
+    if (!employee.isDeleted && !employee.markedForDeletion) {
       return next(
         new AppError(
           "Полное удаление доступно только для сотрудников из корзины",
@@ -2159,7 +2159,7 @@ export const getDeletedEmployees = async (req, res, next) => {
     const hasSearchQuery = normalizedSearch.length > 0;
 
     const where = {
-      isDeleted: true,
+      [Op.or]: [{ isDeleted: true }, { markedForDeletion: true }],
     };
 
     const include = [
@@ -2185,7 +2185,14 @@ export const getDeletedEmployees = async (req, res, next) => {
       const rows = await Employee.findAll({
         where,
         include,
-        order: [["deletedAt", "DESC"]],
+        order: [
+          [
+            sequelize.literal(
+              'COALESCE("Employee"."deleted_at","Employee"."updated_at")',
+            ),
+            "DESC",
+          ],
+        ],
       });
 
       const searchedRows = rows.filter((employee) =>
@@ -2212,7 +2219,14 @@ export const getDeletedEmployees = async (req, res, next) => {
       include,
       limit: limitNumber,
       offset,
-      order: [["deletedAt", "DESC"]],
+      order: [
+        [
+          sequelize.literal(
+            'COALESCE("Employee"."deleted_at","Employee"."updated_at")',
+          ),
+          "DESC",
+        ],
+      ],
       distinct: true,
     });
 
@@ -2241,7 +2255,7 @@ export const restoreEmployee = async (req, res, next) => {
       include: employeeAccessInclude,
     });
 
-    if (!employee || !employee.isDeleted) {
+    if (!employee || (!employee.isDeleted && !employee.markedForDeletion)) {
       return res.status(404).json({
         success: false,
         message: "Сотрудник не найден",
@@ -2252,23 +2266,25 @@ export const restoreEmployee = async (req, res, next) => {
       return next(new AppError("Недостаточно прав", 403));
     }
 
-    const duplicateChecks = buildEmployeeDuplicateChecks(employee);
+    if (employee.isDeleted) {
+      const duplicateChecks = buildEmployeeDuplicateChecks(employee);
 
-    if (duplicateChecks.length > 0) {
-      const duplicate = await Employee.findOne({
-        where: {
-          id: { [Op.ne]: employee.id },
-          isDeleted: false,
-          [Op.or]: duplicateChecks,
-        },
-      });
-
-      if (duplicate) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "Невозможно восстановить: найден активный сотрудник с такими же данными",
+      if (duplicateChecks.length > 0) {
+        const duplicate = await Employee.findOne({
+          where: {
+            id: { [Op.ne]: employee.id },
+            isDeleted: false,
+            [Op.or]: duplicateChecks,
+          },
         });
+
+        if (duplicate) {
+          return res.status(409).json({
+            success: false,
+            message:
+              "Невозможно восстановить: найден активный сотрудник с такими же данными",
+          });
+        }
       }
     }
 
@@ -3049,7 +3065,7 @@ export const searchEmployees = async (req, res, next) => {
     const normalizedSearch = String(query || "").trim();
     const hasSearchQuery = normalizedSearch.length > 0;
 
-    const where = { isDeleted: false };
+    const where = { isDeleted: false, markedForDeletion: false };
     const userId = req.user.id;
 
     // Переопределяем логику поиска
@@ -3537,8 +3553,11 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
     const userCounterpartyId = req.user?.counterpartyId;
     ensureEmployeeRoleAllowed(userRole);
 
-    // Основной фильтр
-    const where = {};
+    // Основной фильтр: исключаем записи из корзины
+    const where = {
+      isDeleted: false,
+      markedForDeletion: false,
+    };
 
     // Только активные статусы для выгрузки.
     // Поддерживаем как текущие, так и legacy-коды.
