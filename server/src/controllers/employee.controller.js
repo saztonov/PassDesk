@@ -2186,12 +2186,8 @@ export const getDeletedEmployees = async (req, res, next) => {
         where,
         include,
         order: [
-          [
-            sequelize.literal(
-              'COALESCE("Employee"."deleted_at","Employee"."updated_at")',
-            ),
-            "DESC",
-          ],
+          ["deletedAt", "DESC"],
+          ["updatedAt", "DESC"],
         ],
       });
 
@@ -2220,12 +2216,8 @@ export const getDeletedEmployees = async (req, res, next) => {
       limit: limitNumber,
       offset,
       order: [
-        [
-          sequelize.literal(
-            'COALESCE("Employee"."deleted_at","Employee"."updated_at")',
-          ),
-          "DESC",
-        ],
+        ["deletedAt", "DESC"],
+        ["updatedAt", "DESC"],
       ],
       distinct: true,
     });
