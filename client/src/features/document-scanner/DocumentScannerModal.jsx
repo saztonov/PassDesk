@@ -28,6 +28,7 @@ export const DocumentScannerModal = ({
   const [state, setState] = useState({
     initializing: false,
     ready: false,
+    scannerAvailable: true,
     processing: false,
     capturedImage: null,
     processedImage: null,
@@ -37,6 +38,7 @@ export const DocumentScannerModal = ({
   const {
     initializing,
     ready,
+    scannerAvailable,
     processing,
     capturedImage,
     processedImage,
@@ -60,6 +62,7 @@ export const DocumentScannerModal = ({
     if (!visible) {
       setState((prev) => ({
         ...prev,
+        ready: false,
         capturedImage: null,
         processedImage: null,
         processing: false,
@@ -78,7 +81,7 @@ export const DocumentScannerModal = ({
       }));
 
       try {
-        if (!scannerRef.current) {
+        if (!scannerRef.current || typeof scannerRef.current.scan !== "function") {
           scannerRef.current = new Scanner();
         }
 
@@ -91,6 +94,7 @@ export const DocumentScannerModal = ({
             ...prev,
             initializing: false,
             ready: true,
+            scannerAvailable: true,
           }));
         }
       } catch (initError) {
@@ -99,10 +103,11 @@ export const DocumentScannerModal = ({
             ...prev,
             initializing: false,
             ready: false,
-            error:
-              "Сканер не инициализировался. Можно снять фото и сохранить без авто-обрезки.",
+            scannerAvailable: false,
+            error: null,
           }));
         }
+        scannerRef.current = null;
         console.error("Scanic init error:", initError);
       }
     };
@@ -146,7 +151,12 @@ export const DocumentScannerModal = ({
     }));
 
     try {
-      if (!ready || !scannerRef.current || typeof scannerRef.current.scan !== "function") {
+      if (
+        !ready ||
+        !scannerAvailable ||
+        !scannerRef.current ||
+        typeof scannerRef.current.scan !== "function"
+      ) {
         setState((prev) => ({
           ...prev,
           processedImage: screenshot,
@@ -193,7 +203,7 @@ export const DocumentScannerModal = ({
         error: "Авто-обрезка не сработала. Можно сохранить исходное фото.",
       }));
     }
-  }, [processing, ready]);
+  }, [processing, ready, scannerAvailable]);
 
   const handleSave = useCallback(async () => {
     const output = processedImage || capturedImage;
