@@ -66,6 +66,15 @@ const toHighlightedFieldsText = (value) => {
   return value.join("\n");
 };
 
+const normalizeProfilesForCompare = (config) =>
+  Object.values(profileCodes).reduce((acc, profileCode) => {
+    const values = Array.isArray(config?.[profileCode]) ? config[profileCode] : [];
+    acc[profileCode] = [
+      ...new Set(values.map((value) => String(value || "").trim()).filter(Boolean)),
+    ];
+    return acc;
+  }, {});
+
 const DocumentTypeEditForm = ({ form }) => (
   <Form form={form} layout="vertical">
     <Form.Item
@@ -324,12 +333,11 @@ const DocumentTypeSamplesSettingsSection = () => {
     [activeDocumentTypeCodes, profilesConfig],
   );
 
-  const hasProfileChanges = useMemo(
-    () =>
-      JSON.stringify(normalizedProfilesForSave) !==
-      JSON.stringify(savedProfilesConfig),
-    [normalizedProfilesForSave, savedProfilesConfig],
-  );
+  const hasProfileChanges = useMemo(() => {
+    const current = normalizeProfilesForCompare(profilesConfig);
+    const saved = normalizeProfilesForCompare(savedProfilesConfig);
+    return JSON.stringify(current) !== JSON.stringify(saved);
+  }, [profilesConfig, savedProfilesConfig]);
 
   const loadDocumentTypes = useCallback(async () => {
     try {

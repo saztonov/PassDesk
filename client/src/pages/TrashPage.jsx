@@ -5,6 +5,7 @@ import {
   Card,
   Input,
   Popconfirm,
+  Pagination,
   Space,
   Table,
   Tabs,
@@ -45,7 +46,7 @@ const createEmployeeColumns = (onRestore, onPermanentDelete) => [
     title: "Действия",
     key: "actions",
     render: (_, record) => (
-      <Space>
+      <Space wrap>
         <Button onClick={() => onRestore(record)}>Восстановить</Button>
         <Popconfirm
           title="Удалить сотрудника навсегда?"
@@ -75,7 +76,7 @@ const createUserColumns = (onRestore, onPermanentDelete) => [
     title: "Действия",
     key: "actions",
     render: (_, record) => (
-      <Space>
+      <Space wrap>
         <Button onClick={() => onRestore(record)}>Восстановить</Button>
         <Popconfirm
           title="Удалить пользователя навсегда?"
@@ -113,7 +114,13 @@ const TrashListTab = ({
   onChangePageSize,
 }) => (
   <div
-    style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: 12,
+      minHeight: 0,
+      overflow: "visible",
+    }}
   >
     <Space style={{ marginBottom: 12 }}>
       <Input
@@ -158,17 +165,18 @@ const TrashListTab = ({
       rowKey="id"
       rowSelection={rowSelection}
       loading={loading}
-      scroll={{ x: "max-content" }}
-      pagination={{
-        ...pagination,
-        onChange: onChangePage,
-        onShowSizeChange: onChangePageSize,
-        showSizeChanger: true,
-        pageSizeOptions: ["10", "20", "50", "100"],
-        position: ["bottomRight"],
-      }}
+      pagination={false}
       size="small"
     />
+    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <Pagination
+        {...pagination}
+        onChange={onChangePage}
+        onShowSizeChange={onChangePageSize}
+        showSizeChanger
+        pageSizeOptions={["10", "20", "50", "100"]}
+      />
+    </div>
   </div>
 );
 
@@ -403,7 +411,8 @@ const TrashPage = () => {
           bulkDeleteDescription="Записи будут удалены без возможности восстановления."
           rowSelection={{
             selectedRowKeys: selectedEmployeeIds,
-            onChange: (selectedRowKeys) => setSelectedEmployeeIds(selectedRowKeys),
+            onChange: (selectedRowKeys) =>
+              setSelectedEmployeeIds(selectedRowKeys),
           }}
           columns={employeeColumns}
           dataSource={employees}
@@ -487,7 +496,7 @@ const TrashPage = () => {
         minHeight: 0,
         display: "flex",
         flexDirection: "column",
-        overflow: "hidden",
+        overflow: "auto",
         margin: 0,
       }}
       styles={{
@@ -495,7 +504,7 @@ const TrashPage = () => {
           display: "flex",
           flexDirection: "column",
           flex: 1,
-          overflow: "hidden",
+          overflow: "visible",
           minHeight: 0,
           padding: 0,
         },
@@ -505,12 +514,49 @@ const TrashPage = () => {
         style={{
           flex: 1,
           minHeight: 0,
-          overflow: "auto",
+          overflow: "visible",
           padding: "16px 24px 24px 24px",
         }}
       >
-        <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabs} />
+        <Tabs
+          className="trash-page-tabs"
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={tabs}
+        />
       </div>
+      <style>
+        {`
+          .trash-page-tabs {
+            min-height: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+          }
+
+          .trash-page-tabs > .ant-tabs-nav {
+            flex-shrink: 0;
+          }
+
+          .trash-page-tabs > .ant-tabs-content-holder {
+            flex: 1;
+            min-height: 0;
+          }
+
+          .trash-page-tabs > .ant-tabs-content-holder > .ant-tabs-content {
+            height: 100%;
+          }
+
+          .trash-page-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+            height: 100%;
+          }
+
+          .trash-page-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane.ant-tabs-tabpane-active {
+            overflow-y: auto;
+            overflow-x: hidden;
+          }
+        `}
+      </style>
     </Card>
   );
 };

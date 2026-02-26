@@ -24,6 +24,7 @@ const EmployeeBasicInfoHeader = ({
             isDefaultCounterpartyUser={
               user?.counterpartyId === defaultCounterpartyId
             }
+            userRole={user?.role}
             isAdmin={user?.role === "admin"}
             onTransfer={onTransfer}
           />

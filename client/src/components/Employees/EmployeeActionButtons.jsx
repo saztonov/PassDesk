@@ -8,6 +8,7 @@ const EmployeeActionButtons = ({
   messageApi,
   onCancel,
   isDefaultCounterpartyUser,
+  userRole,
   isAdmin,
   onTransfer,
 }) => {
@@ -20,6 +21,8 @@ const EmployeeActionButtons = ({
   const isInactive =
     employee.statusMappings?.find((m) => m.statusGroup === "status_active")
       ?.status?.name === "status_active_inactive";
+  const hideStatusActions =
+    isDefaultCounterpartyUser && userRole === "user";
 
   const handleFire = async () => {
     try {
@@ -99,57 +102,59 @@ const EmployeeActionButtons = ({
 
   return (
     <Space wrap>
-      {isFired ? (
-        <Popconfirm
-          title="Восстановить сотрудника?"
-          description={`Вы уверены, что ${employee.lastName} ${employee.firstName} восстанавливается?`}
-          onConfirm={handleReinstate}
-          okText="Да"
-          cancelText="Нет"
-        >
-          <Button type="primary" danger loading={loadingReinstate}>
-            Принять уволенного
-          </Button>
-        </Popconfirm>
-      ) : (
-        <Popconfirm
-          title="Уволить сотрудника?"
-          description={`Вы уверены, что ${employee.lastName} ${employee.firstName} увольняется?`}
-          onConfirm={handleFire}
-          okText="Да"
-          cancelText="Нет"
-        >
-          <Button danger loading={loadingFire}>
-            Уволить
-          </Button>
-        </Popconfirm>
-      )}
+      {!hideStatusActions &&
+        (isFired ? (
+          <Popconfirm
+            title="Восстановить сотрудника?"
+            description={`Вы уверены, что ${employee.lastName} ${employee.firstName} восстанавливается?`}
+            onConfirm={handleReinstate}
+            okText="Да"
+            cancelText="Нет"
+          >
+            <Button type="primary" danger loading={loadingReinstate}>
+              Принять уволенного
+            </Button>
+          </Popconfirm>
+        ) : (
+          <Popconfirm
+            title="Уволить сотрудника?"
+            description={`Вы уверены, что ${employee.lastName} ${employee.firstName} увольняется?`}
+            onConfirm={handleFire}
+            okText="Да"
+            cancelText="Нет"
+          >
+            <Button danger loading={loadingFire}>
+              Уволить
+            </Button>
+          </Popconfirm>
+        ))}
 
-      {isInactive ? (
-        <Popconfirm
-          title="Активировать сотрудника?"
-          description={`Вы уверены, что ${employee.lastName} ${employee.firstName} активируется?`}
-          onConfirm={handleActivate}
-          okText="Да"
-          cancelText="Нет"
-        >
-          <Button type="primary" loading={loadingReinstate}>
-            Активировать
-          </Button>
-        </Popconfirm>
-      ) : (
-        <Popconfirm
-          title="Деактивировать сотрудника?"
-          description={`Вы уверены, что ${employee.lastName} ${employee.firstName} деактивируется?`}
-          onConfirm={handleDeactivate}
-          okText="Да"
-          cancelText="Нет"
-        >
-          <Button type="default" loading={loadingFire}>
-            Деактивировать
-          </Button>
-        </Popconfirm>
-      )}
+      {!hideStatusActions &&
+        (isInactive ? (
+          <Popconfirm
+            title="Активировать сотрудника?"
+            description={`Вы уверены, что ${employee.lastName} ${employee.firstName} активируется?`}
+            onConfirm={handleActivate}
+            okText="Да"
+            cancelText="Нет"
+          >
+            <Button type="primary" loading={loadingReinstate}>
+              Активировать
+            </Button>
+          </Popconfirm>
+        ) : (
+          <Popconfirm
+            title="Деактивировать сотрудника?"
+            description={`Вы уверены, что ${employee.lastName} ${employee.firstName} деактивируется?`}
+            onConfirm={handleDeactivate}
+            okText="Да"
+            cancelText="Нет"
+          >
+            <Button type="default" loading={loadingFire}>
+              Деактивировать
+            </Button>
+          </Popconfirm>
+        ))}
 
       {isDefaultCounterpartyUser && (isAdmin || employee.isContractor) && (
         <Button onClick={onTransfer}>Перевести</Button>

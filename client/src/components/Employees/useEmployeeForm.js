@@ -40,6 +40,7 @@ const TEMP_HIDDEN_FIELDS = new Set([
 export const useEmployeeForm = (employee, visible, onSuccess) => {
   const { message } = App.useApp();
   const [form] = Form.useForm();
+  const watchedCitizenshipId = Form.useWatch("citizenshipId", form);
   const { user } = useAuthStore();
 
   // Получаем справочники из глобального кэша
@@ -199,7 +200,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
   );
 
   // Проверка гражданства
-  const checkCitizenship = (citizenshipId) => {
+  const checkCitizenship = useCallback((citizenshipId) => {
     if (!citizenshipId) {
       setSelectedCitizenship(null);
       return;
@@ -208,7 +209,11 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
     // Находим гражданство из уже загруженного списка
     const citizenship = citizenships.find((c) => c.id === citizenshipId);
     setSelectedCitizenship(citizenship || null);
-  };
+  }, [citizenships]);
+
+  useEffect(() => {
+    checkCitizenship(watchedCitizenshipId || null);
+  }, [watchedCitizenshipId, checkCitizenship]);
 
   // Нормализация СНИЛС и ИНН - удаляем маску, оставляем только цифры
   const normalizeSnils = normalizeDigitsOnly;
@@ -241,9 +246,9 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
     });
 
   // Обработка изменения гражданства
-  const handleCitizenshipChange = (citizenshipId) => {
+  const handleCitizenshipChange = useCallback((citizenshipId) => {
     checkCitizenship(citizenshipId);
-  };
+  }, [checkCitizenship]);
 
   // Сохранение формы
   const handleSave = async ({ draftEmployeeId = null } = {}) => {

@@ -193,6 +193,10 @@ const AdministrationPage = () => {
           min-height: 0;
           overflow: hidden;
         }
+        .administration-tabs .ant-tabs-tabpane.ant-tabs-tabpane-active {
+          overflow-y: auto;
+          overflow-x: hidden;
+        }
       `}</style>
       <Card
         title={

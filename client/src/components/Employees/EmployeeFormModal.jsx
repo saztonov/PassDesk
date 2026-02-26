@@ -43,6 +43,7 @@ const EmployeeFormModal = ({
 }) => {
   const { message } = App.useApp();
   const [form] = Form.useForm();
+  const watchedCitizenshipId = Form.useWatch("citizenshipId", form);
   const antiAutofillIds = useMemo(() => createAntiAutofillIds(), []);
   const [citizenships, setCitizenships] = useState([]);
   const [positions, setPositions] = useState([]);
@@ -143,6 +144,10 @@ const EmployeeFormModal = ({
     },
     [citizenships],
   );
+
+  useEffect(() => {
+    updateSelectedCitizenship(watchedCitizenshipId || null);
+  }, [watchedCitizenshipId, updateSelectedCitizenship]);
 
   const handleCitizenshipChange = useCallback(
     (citizenshipId) => {

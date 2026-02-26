@@ -43,15 +43,14 @@ const BASE_CONSENTS = [
 ];
 const REQUIRED_PROFILE_CODES = {
   [PROFILE_CODES.EXTERNAL]: [],
-  [PROFILE_CODES.DEFAULT_RU_BY]: ["inn_document"],
-  [PROFILE_CODES.DEFAULT_FOREIGN]: ["inn_document", "kig"],
+  [PROFILE_CODES.DEFAULT_RU_BY]: [],
+  [PROFILE_CODES.DEFAULT_FOREIGN]: ["kig"],
 };
 
 const DEFAULT_DOCUMENT_PROFILES = {
-  [PROFILE_CODES.EXTERNAL]: ["inn_document", ...BASE_CONSENTS],
+  [PROFILE_CODES.EXTERNAL]: [...BASE_CONSENTS],
   [PROFILE_CODES.DEFAULT_RU_BY]: [
     "passport",
-    "inn_document",
     "bank_details",
     ...BASE_CONSENTS,
     "diploma",
@@ -61,7 +60,6 @@ const DEFAULT_DOCUMENT_PROFILES = {
     "passport",
     "passport_translation",
     "kig",
-    "inn_document",
     "patent_front",
     "patent_back",
     "bank_details",
@@ -114,7 +112,12 @@ const normalizeDocumentProfilesConfig = (rawConfig) => {
     const fallbackCodes = ensureRequiredByProfile(
       DEFAULT_DOCUMENT_PROFILES[profileCode] || [],
     );
-    acc[profileCode] = inputCodes.length > 0 ? inputCodes : fallbackCodes;
+    const hasExplicitProfile = Array.isArray(input[profileCode]);
+    acc[profileCode] = hasExplicitProfile
+      ? inputCodes
+      : inputCodes.length > 0
+        ? inputCodes
+        : fallbackCodes;
     return acc;
   }, {});
 };
