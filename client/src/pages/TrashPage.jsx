@@ -97,6 +97,14 @@ const TrashListTab = ({
   searchValue,
   onSearchChange,
   onRefresh,
+  selectedCount,
+  onSelectAllVisible,
+  onClearSelection,
+  onBulkDelete,
+  bulkDeleteLoading,
+  bulkDeleteTitle,
+  bulkDeleteDescription,
+  rowSelection,
   columns,
   dataSource,
   loading,
@@ -116,10 +124,39 @@ const TrashListTab = ({
       />
       <Button onClick={onRefresh}>Обновить</Button>
     </Space>
+    <Space style={{ marginBottom: 12, flexWrap: "wrap" }}>
+      <Button
+        onClick={onSelectAllVisible}
+        disabled={loading || (dataSource?.length || 0) === 0}
+      >
+        Выделить все
+      </Button>
+      <Button onClick={onClearSelection} disabled={selectedCount === 0}>
+        Снять выделение
+      </Button>
+      <Popconfirm
+        title={bulkDeleteTitle}
+        description={bulkDeleteDescription}
+        okText="Удалить"
+        okType="danger"
+        cancelText="Отмена"
+        onConfirm={onBulkDelete}
+        disabled={selectedCount === 0}
+      >
+        <Button
+          danger
+          disabled={selectedCount === 0}
+          loading={bulkDeleteLoading}
+        >
+          Удалить выбранные ({selectedCount})
+        </Button>
+      </Popconfirm>
+    </Space>
     <Table
       columns={columns}
       dataSource={dataSource}
       rowKey="id"
+      rowSelection={rowSelection}
       loading={loading}
       scroll={{ x: "max-content", y: 420 }}
       pagination={{
@@ -137,6 +174,12 @@ const TrashListTab = ({
 const TrashPage = () => {
   const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState("employees");
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState({
+    employees: false,
+    users: false,
+  });
   const [employeeState, setEmployeeState] = useState({
     items: [],
     loading: false,
@@ -186,6 +229,7 @@ const TrashPage = () => {
           total: data.pagination?.total || 0,
         },
       }));
+      setSelectedEmployeeIds([]);
     } catch (error) {
       message.error("Ошибка при загрузке удаленных сотрудников");
     } finally {
@@ -214,6 +258,7 @@ const TrashPage = () => {
           total: data.pagination?.total || 0,
         },
       }));
+      setSelectedUserIds([]);
     } catch (error) {
       message.error("Ошибка при загрузке удаленных пользователей");
     } finally {
@@ -269,6 +314,62 @@ const TrashPage = () => {
     }
   };
 
+  const permanentlyDeleteSelectedEmployees = async () => {
+    if (selectedEmployeeIds.length === 0) {
+      return;
+    }
+
+    setBulkDeleteLoading((prev) => ({ ...prev, employees: true }));
+    try {
+      const results = await Promise.allSettled(
+        selectedEmployeeIds.map((id) => employeeService.permanentlyDelete(id)),
+      );
+      const successCount = results.filter(
+        (result) => result.status === "fulfilled",
+      ).length;
+      const failedCount = results.length - successCount;
+
+      if (successCount > 0) {
+        message.success(`Сотрудников удалено: ${successCount}`);
+      }
+      if (failedCount > 0) {
+        message.warning(`Не удалось удалить сотрудников: ${failedCount}`);
+      }
+
+      await fetchEmployees();
+    } finally {
+      setBulkDeleteLoading((prev) => ({ ...prev, employees: false }));
+    }
+  };
+
+  const permanentlyDeleteSelectedUsers = async () => {
+    if (selectedUserIds.length === 0) {
+      return;
+    }
+
+    setBulkDeleteLoading((prev) => ({ ...prev, users: true }));
+    try {
+      const results = await Promise.allSettled(
+        selectedUserIds.map((id) => userService.permanentlyDelete(id)),
+      );
+      const successCount = results.filter(
+        (result) => result.status === "fulfilled",
+      ).length;
+      const failedCount = results.length - successCount;
+
+      if (successCount > 0) {
+        message.success(`Пользователей удалено: ${successCount}`);
+      }
+      if (failedCount > 0) {
+        message.warning(`Не удалось удалить пользователей: ${failedCount}`);
+      }
+
+      await fetchUsers();
+    } finally {
+      setBulkDeleteLoading((prev) => ({ ...prev, users: false }));
+    }
+  };
+
   const employeeColumns = createEmployeeColumns(
     restoreEmployee,
     permanentlyDeleteEmployee,
@@ -290,6 +391,19 @@ const TrashPage = () => {
             }))
           }
           onRefresh={fetchEmployees}
+          selectedCount={selectedEmployeeIds.length}
+          onSelectAllVisible={() =>
+            setSelectedEmployeeIds((employees || []).map((item) => item.id))
+          }
+          onClearSelection={() => setSelectedEmployeeIds([])}
+          onBulkDelete={permanentlyDeleteSelectedEmployees}
+          bulkDeleteLoading={bulkDeleteLoading.employees}
+          bulkDeleteTitle="Удалить выбранных сотрудников навсегда?"
+          bulkDeleteDescription="Записи будут удалены без возможности восстановления."
+          rowSelection={{
+            selectedRowKeys: selectedEmployeeIds,
+            onChange: (selectedRowKeys) => setSelectedEmployeeIds(selectedRowKeys),
+          }}
           columns={employeeColumns}
           dataSource={employees}
           loading={employeesLoading}
@@ -327,6 +441,19 @@ const TrashPage = () => {
             }))
           }
           onRefresh={fetchUsers}
+          selectedCount={selectedUserIds.length}
+          onSelectAllVisible={() =>
+            setSelectedUserIds((users || []).map((item) => item.id))
+          }
+          onClearSelection={() => setSelectedUserIds([])}
+          onBulkDelete={permanentlyDeleteSelectedUsers}
+          bulkDeleteLoading={bulkDeleteLoading.users}
+          bulkDeleteTitle="Удалить выбранных пользователей навсегда?"
+          bulkDeleteDescription="Записи будут удалены без возможности восстановления."
+          rowSelection={{
+            selectedRowKeys: selectedUserIds,
+            onChange: (selectedRowKeys) => setSelectedUserIds(selectedRowKeys),
+          }}
           columns={userColumns}
           dataSource={users}
           loading={usersLoading}
