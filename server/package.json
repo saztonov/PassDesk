@@ -9,6 +9,7 @@
     "dev": "nodemon src/server.js",
     "db:check": "node src/database/check-connection.js",
     "db:migrate": "node src/database/runMigrations.js",
+    "encryption:clear-legacy-plaintext": "node src/scripts/clearEmployeeSensitiveLegacyPlaintext.js",
     "recalculate-statuses": "node src/scripts/recalculateEmployeeStatuses.js",
     "telegram:bot": "node src/telegram/botRunner.js"
   },

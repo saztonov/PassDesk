@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 export const useEmployeeFormSaveHandlers = ({
   form,
+  visible,
   employee,
   onSuccess,
   onCancel,
@@ -21,6 +22,17 @@ export const useEmployeeFormSaveHandlers = ({
   const autoSaveTimeoutRef = useRef(null);
   const autoSavingRef = useRef(false);
   const lastAutoSavedHashRef = useRef(null);
+  const draftEmployeeIdRef = useRef(employee?.id || null);
+
+  useEffect(() => {
+    if (!visible) {
+      draftEmployeeIdRef.current = null;
+      lastAutoSavedHashRef.current = null;
+      autoSavingRef.current = false;
+      return;
+    }
+    draftEmployeeIdRef.current = employee?.id || null;
+  }, [employee?.id, visible]);
 
   const resetFormStateAfterSave = useCallback(
     ({ resetLinkingMode = false } = {}) => {
@@ -55,7 +67,14 @@ export const useEmployeeFormSaveHandlers = ({
         const formattedValues = formatEmployeeFormPayload(values, {
           isDraft: true,
         });
+        const draftEmployeeId = employee?.id || draftEmployeeIdRef.current;
+        if (draftEmployeeId) {
+          formattedValues.__draftEmployeeId = draftEmployeeId;
+        }
         const savedEmployee = await onSuccess(formattedValues);
+        if (savedEmployee?.id) {
+          draftEmployeeIdRef.current = savedEmployee.id;
+        }
 
         if (!employee && !preserveForm) {
           resetFormStateAfterSave();
@@ -85,15 +104,20 @@ export const useEmployeeFormSaveHandlers = ({
   }, [saveDraft]);
 
   const ensureEmployeeId = useCallback(async () => {
-    if (employee?.id) {
-      return employee.id;
+    const effectiveEmployeeId = employee?.id || draftEmployeeIdRef.current;
+    if (effectiveEmployeeId) {
+      return effectiveEmployeeId;
     }
     const savedEmployee = await saveDraft({ silent: true, preserveForm: true });
-    return savedEmployee?.id || null;
+    const savedEmployeeId = savedEmployee?.id || null;
+    if (savedEmployeeId) {
+      draftEmployeeIdRef.current = savedEmployeeId;
+    }
+    return savedEmployeeId;
   }, [employee?.id, saveDraft]);
 
   const scheduleAutoSaveDraft = useCallback(() => {
-    if (employee?.id || isFormResetRef.current) {
+    if (employee?.id || draftEmployeeIdRef.current || isFormResetRef.current) {
       return;
     }
 
@@ -102,7 +126,11 @@ export const useEmployeeFormSaveHandlers = ({
     }
 
     autoSaveTimeoutRef.current = setTimeout(async () => {
-      if (autoSavingRef.current || employee?.id) {
+      if (
+        autoSavingRef.current ||
+        employee?.id ||
+        draftEmployeeIdRef.current
+      ) {
         return;
       }
 
@@ -123,8 +151,11 @@ export const useEmployeeFormSaveHandlers = ({
 
       autoSavingRef.current = true;
       try {
-        const savedEmployee = await saveDraft({ silent: true, preserveForm: true });
-        if (savedEmployee?.id || employee?.id) {
+        const savedEmployee = await saveDraft({
+          silent: true,
+          preserveForm: true,
+        });
+        if (savedEmployee?.id || employee?.id || draftEmployeeIdRef.current) {
           lastAutoSavedHashRef.current = hash;
         }
       } finally {
@@ -156,6 +187,10 @@ export const useEmployeeFormSaveHandlers = ({
         employee,
         linkingMode,
       );
+      const draftEmployeeId = employee?.id || draftEmployeeIdRef.current;
+      if (draftEmployeeId && !payload.employeeId) {
+        payload.__draftEmployeeId = draftEmployeeId;
+      }
 
       await onSuccess(payload);
 

@@ -172,6 +172,7 @@ const EmployeeFormModal = ({
     scheduleAutoSaveDraft,
   } = useEmployeeFormSaveHandlers({
     form,
+    visible,
     employee,
     onSuccess,
     onCancel,

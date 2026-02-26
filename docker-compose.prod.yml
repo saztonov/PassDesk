@@ -93,6 +93,7 @@ services:
       dockerfile: Dockerfile
     environment:
       VITE_DEV_HTTPS: "false"
+      VITE_PROXY_TARGET: ${VITE_PROXY_TARGET:-http://server:5000}
       VITE_ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
     container_name: passdesk_client

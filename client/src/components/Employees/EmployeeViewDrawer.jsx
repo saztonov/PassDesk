@@ -26,8 +26,7 @@ const EmployeeViewDrawer = ({ visible, employee, onClose, onEdit }) => {
     }
   }, [employee, form]);
 
-  const canEditConstructionSite =
-    user?.counterpartyId === defaultCounterpartyId && user?.role !== "user";
+  const canViewStatuses = user?.role === "admin";
 
   const collapseItems = useMemo(
     () =>
@@ -36,9 +35,9 @@ const EmployeeViewDrawer = ({ visible, employee, onClose, onEdit }) => {
         positions,
         citizenships,
         requiresPatent,
-        canEditConstructionSite,
+        canViewStatuses,
       }),
-    [employee, positions, citizenships, requiresPatent, canEditConstructionSite],
+    [employee, positions, citizenships, requiresPatent, canViewStatuses],
   );
 
   return (

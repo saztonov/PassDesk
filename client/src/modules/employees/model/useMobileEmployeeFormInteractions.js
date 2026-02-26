@@ -16,17 +16,25 @@ export const useMobileEmployeeFormInteractions = ({
   const autoSaveTimeoutRef = useRef(null);
   const autoSavingRef = useRef(false);
   const lastAutoSavedHashRef = useRef(null);
+  const draftEmployeeIdRef = useRef(employee?.id || null);
   const canSaveTimeoutRef = useRef(null);
   const latinErrorTimeoutRef = useRef(null);
   const [canSave, setCanSave] = useState(false);
   const [latinInputError, setLatinInputError] = useState(null);
+
+  useEffect(() => {
+    draftEmployeeIdRef.current = employee?.id || null;
+    if (!employee?.id) {
+      lastAutoSavedHashRef.current = null;
+    }
+  }, [employee?.id]);
 
   const handleSaveWithReset = useCallback(async () => {
     if (innCheckTimeoutRef.current) {
       clearTimeout(innCheckTimeoutRef.current);
     }
     isFormResetRef.current = true;
-    await handleSave();
+    await handleSave({ draftEmployeeId: draftEmployeeIdRef.current });
     lastSavedSnapshotRef.current = JSON.stringify(form.getFieldsValue(true));
   }, [form, handleSave, lastSavedSnapshotRef]);
 
@@ -35,25 +43,35 @@ export const useMobileEmployeeFormInteractions = ({
       clearTimeout(innCheckTimeoutRef.current);
     }
     isFormResetRef.current = true;
-    const saved = await handleSaveDraft();
+    const saved = await handleSaveDraft({
+      draftEmployeeId: draftEmployeeIdRef.current,
+    });
+    if (saved?.id) {
+      draftEmployeeIdRef.current = saved.id;
+    }
     lastSavedSnapshotRef.current = JSON.stringify(form.getFieldsValue(true));
     return saved;
   }, [form, handleSaveDraft, lastSavedSnapshotRef]);
 
   const ensureEmployeeId = useCallback(async () => {
-    if (employee?.id) {
-      return employee.id;
+    const effectiveEmployeeId = employee?.id || draftEmployeeIdRef.current;
+    if (effectiveEmployeeId) {
+      return effectiveEmployeeId;
     }
     try {
       const savedEmployee = await handleSaveDraftWithReset();
-      return savedEmployee?.id || null;
+      const savedEmployeeId = savedEmployee?.id || null;
+      if (savedEmployeeId) {
+        draftEmployeeIdRef.current = savedEmployeeId;
+      }
+      return savedEmployeeId;
     } catch {
       return null;
     }
   }, [employee?.id, handleSaveDraftWithReset]);
 
   const scheduleAutoSaveDraft = useCallback(() => {
-    if (employee?.id || isFormResetRef.current) {
+    if (employee?.id || draftEmployeeIdRef.current || isFormResetRef.current) {
       return;
     }
 
@@ -62,7 +80,11 @@ export const useMobileEmployeeFormInteractions = ({
     }
 
     autoSaveTimeoutRef.current = setTimeout(async () => {
-      if (autoSavingRef.current || employee?.id) {
+      if (
+        autoSavingRef.current ||
+        employee?.id ||
+        draftEmployeeIdRef.current
+      ) {
         return;
       }
 
@@ -85,6 +107,7 @@ export const useMobileEmployeeFormInteractions = ({
       try {
         const savedEmployee = await handleSaveDraftWithReset();
         if (savedEmployee?.id) {
+          draftEmployeeIdRef.current = savedEmployee.id;
           lastAutoSavedHashRef.current = hash;
         }
       } finally {

@@ -231,6 +231,7 @@ export const useEmployeeActions = (onSuccess) => {
       const isDraft = values.isDraft;
       const valuesToSend = { ...values };
       delete valuesToSend.isDraft;
+      delete valuesToSend.__draftEmployeeId;
 
       console.log("📤 Creating employee with values:", valuesToSend);
 
@@ -303,6 +304,7 @@ export const useEmployeeActions = (onSuccess) => {
       const isDraft = values.isDraft;
       const valuesToSend = { ...values };
       delete valuesToSend.isDraft;
+      delete valuesToSend.__draftEmployeeId;
 
       // Используем разные методы API для черновиков и полного сохранения
       const response = isDraft

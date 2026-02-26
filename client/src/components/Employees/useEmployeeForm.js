@@ -247,7 +247,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
   };
 
   // Сохранение формы
-  const handleSave = async () => {
+  const handleSave = async ({ draftEmployeeId = null } = {}) => {
     try {
       const values = await form.validateFields();
       setLoading(true);
@@ -268,6 +268,9 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
       );
 
       const payload = { ...normalizedValues };
+      if (draftEmployeeId) {
+        payload.__draftEmployeeId = draftEmployeeId;
+      }
       delete payload.counterpartyId;
 
       await onSuccess(payload);
@@ -282,7 +285,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
   };
 
   // Сохранение черновика без валидации
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = async ({ draftEmployeeId = null } = {}) => {
     try {
       setLoading(true);
       const values = form.getFieldsValue();
@@ -306,6 +309,9 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
         ...normalizedValues,
         isDraft: true,
       };
+      if (draftEmployeeId || employee?.id) {
+        dataToSend.__draftEmployeeId = draftEmployeeId || employee.id;
+      }
 
       const payload = { ...dataToSend };
       delete payload.counterpartyId;

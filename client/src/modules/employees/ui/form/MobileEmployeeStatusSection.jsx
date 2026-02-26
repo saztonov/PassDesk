@@ -13,7 +13,7 @@ export const buildMobileEmployeeStatusSection = ({
   onDeactivate,
   onActivate,
 }) => {
-  if (!employee?.id) {
+  if (!employee?.id || user?.role !== "admin") {
     return null;
   }
 

@@ -45,7 +45,7 @@ export const buildEmployeeViewDrawerItems = ({
   positions,
   citizenships,
   requiresPatent,
-  canEditConstructionSite,
+  canViewStatuses,
 }) => {
   const items = [
     {
@@ -228,7 +228,7 @@ export const buildEmployeeViewDrawerItems = ({
     });
   }
 
-  if (employee?.id && canEditConstructionSite) {
+  if (employee?.id && canViewStatuses) {
     items.push({
       key: "statuses",
       label: (

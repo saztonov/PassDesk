@@ -102,8 +102,12 @@ export const useAddEmployeePage = ({ id, navigate, message, modal }) => {
   }, [id, navigate, message]);
 
   const handleFormSuccess = async (values) => {
+    const valuesToSave = { ...values };
+    const draftEmployeeId = valuesToSave.__draftEmployeeId || null;
+    delete valuesToSave.__draftEmployeeId;
+
     if (values.employeeId) {
-      const linkedEmployee = await createEmployee(values);
+      const linkedEmployee = await createEmployee(valuesToSave);
 
       message.success("Сотрудник успешно привязан!");
 
@@ -115,22 +119,33 @@ export const useAddEmployeePage = ({ id, navigate, message, modal }) => {
     }
 
     if (editingEmployee) {
-      const updated = await updateEmployee(editingEmployee.id, values);
+      const updated = await updateEmployee(editingEmployee.id, valuesToSave);
       setEditingEmployee(updated);
       savedEmployeeIdRef.current = updated?.id || editingEmployee.id;
 
-      if (!values.isDraft) {
+      if (!valuesToSave.isDraft) {
+        setTimeout(() => {
+          navigate("/employees");
+        }, 1000);
+      }
+      return updated;
+    } else if (draftEmployeeId) {
+      const updated = await updateEmployee(draftEmployeeId, valuesToSave);
+      setEditingEmployee(updated);
+      savedEmployeeIdRef.current = updated?.id || draftEmployeeId;
+
+      if (!valuesToSave.isDraft) {
         setTimeout(() => {
           navigate("/employees");
         }, 1000);
       }
       return updated;
     } else {
-      const newEmployee = await createEmployee(values);
+      const newEmployee = await createEmployee(valuesToSave);
       setEditingEmployee(newEmployee);
       savedEmployeeIdRef.current = newEmployee?.id;
 
-      if (!values.isDraft) {
+      if (!valuesToSave.isDraft) {
         setTimeout(() => {
           navigate("/employees");
         }, 1000);

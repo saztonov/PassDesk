@@ -99,8 +99,12 @@ export const useEmployeesCrudActions = ({
 
   const handleFormSuccess = useCallback(
     async (values) => {
+      const valuesToSave = { ...values };
+      const draftEmployeeId = valuesToSave.__draftEmployeeId || null;
+      delete valuesToSave.__draftEmployeeId;
+
       if (editingEmployee) {
-        const updated = await updateEmployee(editingEmployee.id, values);
+        const updated = await updateEmployee(editingEmployee.id, valuesToSave);
         setEditingEmployee(updated);
 
         if (
@@ -121,8 +125,13 @@ export const useEmployeesCrudActions = ({
         }
         refetchEmployees();
         return updated;
+      } else if (draftEmployeeId) {
+        const updated = await updateEmployee(draftEmployeeId, valuesToSave);
+        setEditingEmployee(updated);
+        refetchEmployees();
+        return updated;
       } else {
-        const newEmployee = await createEmployee(values);
+        const newEmployee = await createEmployee(valuesToSave);
         setEditingEmployee(newEmployee);
         refetchEmployees();
         return newEmployee;
