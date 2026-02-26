@@ -24,28 +24,34 @@ export const createAntiAutofillIds = () => ({
 });
 
 export const formatPhoneNumber = (value) => {
-  if (!value) return value;
-  const phoneNumber = value.replace(/[^\d]/g, "");
-  const phoneNumberLength = phoneNumber.length;
+  if (!value) return "";
 
-  let formattedNumber = phoneNumber;
-  if (phoneNumber.startsWith("8")) {
-    formattedNumber = "7" + phoneNumber.slice(1);
+  const phoneNumber = String(value).replace(/[^\d]/g, "");
+  if (!phoneNumber) return "";
+
+  let normalized = phoneNumber;
+  if (normalized.startsWith("8")) {
+    normalized = `7${normalized.slice(1)}`;
+  } else if (!normalized.startsWith("7")) {
+    normalized = `7${normalized}`;
   }
 
-  if (phoneNumberLength < 2) {
-    return formattedNumber;
+  normalized = normalized.slice(0, 11);
+  const local = normalized.slice(1);
+
+  if (local.length === 0) {
+    return "+7";
   }
-  if (phoneNumberLength < 5) {
-    return `+7 (${formattedNumber.slice(1)}`;
+  if (local.length <= 3) {
+    return `+7 (${local}`;
   }
-  if (phoneNumberLength < 8) {
-    return `+7 (${formattedNumber.slice(1, 4)}) ${formattedNumber.slice(4)}`;
+  if (local.length <= 6) {
+    return `+7 (${local.slice(0, 3)}) ${local.slice(3)}`;
   }
-  if (phoneNumberLength < 10) {
-    return `+7 (${formattedNumber.slice(1, 4)}) ${formattedNumber.slice(4, 7)}-${formattedNumber.slice(7)}`;
+  if (local.length <= 8) {
+    return `+7 (${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}`;
   }
-  return `+7 (${formattedNumber.slice(1, 4)}) ${formattedNumber.slice(4, 7)}-${formattedNumber.slice(7, 9)}-${formattedNumber.slice(9, 11)}`;
+  return `+7 (${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6, 8)}-${local.slice(8, 10)}`;
 };
 
 export const normalizePhoneNumber = (value) => {
