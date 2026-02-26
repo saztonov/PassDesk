@@ -42,9 +42,9 @@ const BASE_CONSENTS = [
   "biometric_consent_developer",
 ];
 const REQUIRED_PROFILE_CODES = {
-  [PROFILE_CODES.EXTERNAL]: ["inn_document"],
-  [PROFILE_CODES.DEFAULT_RU_BY]: ["inn_document"],
-  [PROFILE_CODES.DEFAULT_FOREIGN]: ["inn_document"],
+  [PROFILE_CODES.EXTERNAL]: ["inn_document", "consent"],
+  [PROFILE_CODES.DEFAULT_RU_BY]: ["inn_document", "consent"],
+  [PROFILE_CODES.DEFAULT_FOREIGN]: ["inn_document", "consent", "kig"],
 };
 
 const DEFAULT_DOCUMENT_PROFILES = {
@@ -60,6 +60,7 @@ const DEFAULT_DOCUMENT_PROFILES = {
   [PROFILE_CODES.DEFAULT_FOREIGN]: [
     "passport",
     "passport_translation",
+    "kig",
     "inn_document",
     "patent_front",
     "patent_back",

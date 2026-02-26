@@ -17,9 +17,9 @@ const BASE_CONSENTS = [
   "biometric_consent_developer",
 ];
 const REQUIRED_PROFILE_CODES = {
-  [PROFILE_CODES.EXTERNAL]: ["inn_document"],
-  [PROFILE_CODES.DEFAULT_RU_BY]: ["inn_document"],
-  [PROFILE_CODES.DEFAULT_FOREIGN]: ["inn_document"],
+  [PROFILE_CODES.EXTERNAL]: ["inn_document", "consent"],
+  [PROFILE_CODES.DEFAULT_RU_BY]: ["inn_document", "consent"],
+  [PROFILE_CODES.DEFAULT_FOREIGN]: ["inn_document", "consent", "kig"],
 };
 
 export const DEFAULT_DOCUMENT_PROFILES = {
@@ -35,6 +35,7 @@ export const DEFAULT_DOCUMENT_PROFILES = {
   [PROFILE_CODES.DEFAULT_FOREIGN]: [
     "passport",
     "passport_translation",
+    "kig",
     "inn_document",
     "patent_front",
     "patent_back",
@@ -52,6 +53,7 @@ const DOCUMENT_TYPE_LABELS = {
   passport_translation: "Перевод паспорта",
   inn_document: "ИНН",
   bank_details: "Реквизиты счета",
+  kig: "КИГ",
   consent: "Согласие на перс.дан. Подрядчик",
   biometric_consent: "Согласие на перс.дан. Генподряд",
   biometric_consent_developer: "Согласие на перс.дан. Застройщ",
