@@ -343,18 +343,7 @@ export const buildMobileEmployeePersonalSection = ({
           rules={createDateInputRules(getFieldProps("passportDate").rules)}
           normalize={formatDateInputValue}
         >
-          <Input placeholder="ДД.ММ.ГГГГ" size="large" {...noAutoFillProps} />
-        </Form.Item>
-      )}
-
-      {!getFieldProps("passportExpiryDate").hidden && (
-        <Form.Item
-          label="Дата окончания паспорта"
-          name="passportExpiryDate"
-          required={getFieldProps("passportExpiryDate").required}
-          rules={getFieldProps("passportExpiryDate").rules}
-        >
-          <Input placeholder="ДД.ММ.ГГГГ" size="large" {...noAutoFillProps} />
+          <MaskedDateInput format={DATE_FORMAT} size="large" />
         </Form.Item>
       )}
 
