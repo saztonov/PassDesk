@@ -26,6 +26,30 @@ const restoreEncryptedValue = (values, plainKey, encryptedKey, keyVersionKey) =>
   }
 };
 
+const resolveSensitiveFieldValue = (
+  instance,
+  plainKey,
+  encryptedKey,
+  keyVersionKey,
+) => {
+  const plainValue = instance.getDataValue(plainKey);
+  if (!isEmptyValue(plainValue)) {
+    return plainValue;
+  }
+
+  const encryptedPayload = instance.getDataValue(encryptedKey);
+  const keyVersion = instance.getDataValue(keyVersionKey);
+  if (!encryptedPayload || !keyVersion) {
+    return plainValue ?? null;
+  }
+
+  try {
+    return decryptField(encryptedPayload, keyVersion);
+  } catch {
+    return plainValue ?? null;
+  }
+};
+
 class Employee extends Model {
   toJSON() {
     const values = { ...this.get() };
@@ -78,6 +102,14 @@ Employee.init(
       type: DataTypes.STRING,
       allowNull: true, // Разрешаем null для черновиков
       field: "last_name",
+      get() {
+        return resolveSensitiveFieldValue(
+          this,
+          "lastName",
+          "lastNameEnc",
+          "lastNameKeyVersion",
+        );
+      },
     },
     lastNameEnc: {
       type: DataTypes.TEXT,
@@ -185,6 +217,9 @@ Employee.init(
       allowNull: true,
       unique: true,
       field: "kig",
+      get() {
+        return resolveSensitiveFieldValue(this, "kig", "kigEnc", "kigKeyVersion");
+      },
       validate: {
         isValidKig(value) {
           // Пропускаем пустые значения (null, undefined, пустая строка)
@@ -221,6 +256,14 @@ Employee.init(
       allowNull: true,
       unique: true,
       field: "passport_number",
+      get() {
+        return resolveSensitiveFieldValue(
+          this,
+          "passportNumber",
+          "passportNumberEnc",
+          "passportNumberKeyVersion",
+        );
+      },
       comment: "Номер паспорта (уникальный)",
     },
     passportNumberEnc: {
@@ -278,6 +321,14 @@ Employee.init(
       type: DataTypes.STRING,
       allowNull: true,
       field: "patent_number",
+      get() {
+        return resolveSensitiveFieldValue(
+          this,
+          "patentNumber",
+          "patentNumberEnc",
+          "patentNumberKeyVersion",
+        );
+      },
       comment: "Номер патента",
     },
     patentNumberEnc: {

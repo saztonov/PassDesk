@@ -31,7 +31,13 @@ import { DEFAULT_FORM_CONFIG } from "../utils/employeeFieldsConfig.js";
 import {
   applyLegacySensitivePlaintextPolicy,
   buildEmployeeSensitiveFieldsPatch,
+  shouldKeepEmployeeSensitiveLegacyPlaintext,
 } from "./employeeSensitiveFieldService.js";
+import {
+  ENCRYPTED_EMPLOYEE_FIELDS,
+  hashForSearch,
+  isFieldEncryptionEnabled,
+} from "./encryptionService.js";
 
 const applyEmployeeSensitiveFieldEncryption = (payload = {}) => {
   const encryptionPatch = buildEmployeeSensitiveFieldsPatch(payload);
@@ -497,12 +503,33 @@ export const importEmployees = async (
             );
 
             // Сначала ищем всех сотрудников с таким ФИО
+            const candidateWhere = {
+              firstName: emp.firstName,
+              middleName: emp.middleName || null,
+            };
+
+            const useLegacySensitivePlaintextSearch =
+              !isFieldEncryptionEnabled() ||
+              shouldKeepEmployeeSensitiveLegacyPlaintext();
+
+            if (useLegacySensitivePlaintextSearch) {
+              candidateWhere.lastName = emp.lastName;
+            } else {
+              const lastNameHash = hashForSearch(
+                ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME,
+                emp.lastName,
+              );
+              if (!lastNameHash) {
+                throw new AppError(
+                  "Не удалось вычислить hash фамилии для поиска дубликатов импорта",
+                  500,
+                );
+              }
+              candidateWhere.lastNameHash = lastNameHash;
+            }
+
             const candidateEmployees = await Employee.findAll({
-              where: {
-                firstName: emp.firstName,
-                lastName: emp.lastName,
-                middleName: emp.middleName || null,
-              },
+              where: candidateWhere,
             });
 
             console.log(

@@ -10,6 +10,13 @@ import {
 } from "../models/index.js";
 import storageProvider from "../config/storage.js";
 import { AppError } from "../middleware/errorHandler.js";
+import {
+  decryptField,
+  ENCRYPTED_EMPLOYEE_FIELDS,
+  hashForSearch,
+  isFieldEncryptionEnabled,
+} from "../services/encryptionService.js";
+import { shouldKeepEmployeeSensitiveLegacyPlaintext } from "../services/employeeSensitiveFieldService.js";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 50;
@@ -189,6 +196,60 @@ const normalizeIdList = (value) => {
   ];
 };
 
+const resolveEncryptedValue = (plainValue, encryptedPayload, keyVersion) => {
+  if (plainValue !== null && plainValue !== undefined && plainValue !== "") {
+    return plainValue;
+  }
+  if (!encryptedPayload || !keyVersion) {
+    return plainValue ?? null;
+  }
+
+  try {
+    return decryptField(encryptedPayload, keyVersion);
+  } catch {
+    return plainValue ?? null;
+  }
+};
+
+const buildEmployeeFullName = (lastName, firstName, middleName) =>
+  [lastName, firstName, middleName].filter(Boolean).join(" ").trim() || null;
+
+const resolveSeriesNumber = (row) => {
+  const passportNumber = resolveEncryptedValue(
+    row.passport_number,
+    row.passport_number_enc,
+    row.passport_number_key_version,
+  );
+  const kig = resolveEncryptedValue(row.kig, row.kig_enc, row.kig_key_version);
+  const patentNumber = resolveEncryptedValue(
+    row.patent_number,
+    row.patent_number_enc,
+    row.patent_number_key_version,
+  );
+
+  if (row.document_type_code === "passport") {
+    return passportNumber || null;
+  }
+
+  if (
+    row.document_type_code === "patent_front" ||
+    row.document_type_code === "patent_back" ||
+    row.document_type_code === "patent_payment_receipt"
+  ) {
+    return patentNumber || null;
+  }
+
+  if (row.document_type_code === "kig") {
+    return kig || null;
+  }
+
+  if (row.document_type_code === "visa") {
+    return row.blank_number || null;
+  }
+
+  return null;
+};
+
 const getAllowedCounterpartyIds = async (user) => {
   if (user.role === "admin" || user.role === "manager") {
     return null;
@@ -288,12 +349,37 @@ const buildDocumentCte = async ({ user, filters }) => {
   }
 
   if (filters.employeeSearch) {
-    employeeWhere.push(`(
-      e.last_name ILIKE :employeeSearch
-      OR e.first_name ILIKE :employeeSearch
-      OR e.middle_name ILIKE :employeeSearch
-      OR CONCAT_WS(' ', e.last_name, e.first_name, e.middle_name) ILIKE :employeeSearch
-    )`);
+    const useLegacySensitivePlaintextSearch =
+      !isFieldEncryptionEnabled() ||
+      shouldKeepEmployeeSensitiveLegacyPlaintext();
+
+    if (useLegacySensitivePlaintextSearch) {
+      employeeWhere.push(`(
+        e.last_name ILIKE :employeeSearch
+        OR e.first_name ILIKE :employeeSearch
+        OR e.middle_name ILIKE :employeeSearch
+        OR CONCAT_WS(' ', e.last_name, e.first_name, e.middle_name) ILIKE :employeeSearch
+      )`);
+    } else {
+      let employeeSearchLastNameHash = null;
+      try {
+        employeeSearchLastNameHash = hashForSearch(
+          ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME,
+          filters.employeeSearch,
+        );
+      } catch {
+        employeeSearchLastNameHash = null;
+      }
+
+      employeeWhere.push(`(
+        e.first_name ILIKE :employeeSearch
+        OR e.middle_name ILIKE :employeeSearch
+        OR CONCAT_WS(' ', e.first_name, e.middle_name) ILIKE :employeeSearch
+        OR (:employeeSearchLastNameHash IS NOT NULL AND e.last_name_hash = :employeeSearchLastNameHash)
+      )`);
+      replacements.employeeSearchLastNameHash = employeeSearchLastNameHash;
+    }
+
     replacements.employeeSearch = `%${filters.employeeSearch}%`;
   }
 
@@ -338,14 +424,22 @@ const buildDocumentCte = async ({ user, filters }) => {
       SELECT DISTINCT
         e.id AS employee_id,
         e.last_name,
+        e.last_name_enc,
+        e.last_name_key_version,
         e.first_name,
         e.middle_name,
         e.passport_number,
+        e.passport_number_enc,
+        e.passport_number_key_version,
         e.passport_date,
         e.passport_expiry_date,
         e.kig,
+        e.kig_enc,
+        e.kig_key_version,
         e.kig_end_date,
         e.patent_number,
+        e.patent_number_enc,
+        e.patent_number_key_version,
         e.patent_issue_date,
         e.blank_number,
         c.id AS counterparty_id,
@@ -373,20 +467,24 @@ const buildDocumentCte = async ({ user, filters }) => {
         fe.counterparty_id,
         fe.counterparty_name,
         fe.last_name,
+        fe.last_name_enc,
+        fe.last_name_key_version,
         fe.first_name,
         fe.middle_name,
-        TRIM(CONCAT_WS(' ', fe.last_name, fe.first_name, fe.middle_name)) AS employee_full_name,
+        fe.passport_number,
+        fe.passport_number_enc,
+        fe.passport_number_key_version,
+        fe.kig,
+        fe.kig_enc,
+        fe.kig_key_version,
+        fe.patent_number,
+        fe.patent_number_enc,
+        fe.patent_number_key_version,
+        fe.blank_number,
         dt.id AS document_type_id,
         dt.code AS document_type_code,
         dt.name AS document_type_name,
         ${hasRequiredColumn ? "dt.is_required" : "FALSE"} AS document_type_required,
-        CASE
-          WHEN dt.code = 'passport' THEN fe.passport_number
-          WHEN dt.code IN ('patent_front', 'patent_back', 'patent_payment_receipt') THEN fe.patent_number
-          WHEN dt.code = 'kig' THEN fe.kig
-          WHEN dt.code = 'visa' THEN fe.blank_number
-          ELSE NULL
-        END AS series_number,
         CASE
           WHEN dt.code = 'passport' THEN fe.passport_date::date
           WHEN dt.code IN ('patent_front', 'patent_back', 'patent_payment_receipt') THEN fe.patent_issue_date::date
@@ -437,27 +535,39 @@ const buildDocumentCte = async ({ user, filters }) => {
   return { cte, replacements, statusWhere, empty: false };
 };
 
-const mapRow = (row) => ({
-  employeeId: row.employee_id,
-  counterpartyId: row.counterparty_id,
-  counterpartyName: row.counterparty_name,
-  employeeFullName: row.employee_full_name,
-  documentTypeId: row.document_type_id,
-  documentType: row.document_type_code,
-  documentTypeName: row.document_type_name,
-  isRequired: Boolean(row.document_type_required),
-  seriesNumber: row.series_number || null,
-  issueDate: normalizeDate(row.issue_date),
-  expiryDate: normalizeDate(row.expiry_date),
-  status: row.doc_status,
-  statusLabel: STATUS_LABELS[row.doc_status] || row.doc_status,
-  fileId: row.file_id || null,
-  fileName: row.file_name || null,
-  originalName: row.original_name || null,
-  filePath: row.file_path || null,
-  mimeType: row.mime_type || null,
-  uploadedAt: row.uploaded_at || null,
-});
+const mapRow = (row) => {
+  const lastName = resolveEncryptedValue(
+    row.last_name,
+    row.last_name_enc,
+    row.last_name_key_version,
+  );
+
+  return {
+    employeeId: row.employee_id,
+    counterpartyId: row.counterparty_id,
+    counterpartyName: row.counterparty_name,
+    employeeFullName: buildEmployeeFullName(
+      lastName,
+      row.first_name,
+      row.middle_name,
+    ),
+    documentTypeId: row.document_type_id,
+    documentType: row.document_type_code,
+    documentTypeName: row.document_type_name,
+    isRequired: Boolean(row.document_type_required),
+    seriesNumber: resolveSeriesNumber(row),
+    issueDate: normalizeDate(row.issue_date),
+    expiryDate: normalizeDate(row.expiry_date),
+    status: row.doc_status,
+    statusLabel: STATUS_LABELS[row.doc_status] || row.doc_status,
+    fileId: row.file_id || null,
+    fileName: row.file_name || null,
+    originalName: row.original_name || null,
+    filePath: row.file_path || null,
+    mimeType: row.mime_type || null,
+    uploadedAt: row.uploaded_at || null,
+  };
+};
 
 const fetchDocumentRows = async ({ req, withPagination }) => {
   const filters = {
@@ -500,7 +610,7 @@ const fetchDocumentRows = async ({ req, withPagination }) => {
     SELECT *
     FROM base_data bd
     ${statusClause}
-    ORDER BY bd.employee_full_name ASC, bd.document_type_name ASC
+    ORDER BY bd.first_name ASC, bd.middle_name ASC, bd.document_type_name ASC
     ${withPagination ? "LIMIT :limit OFFSET :offset" : ""}
   `;
 

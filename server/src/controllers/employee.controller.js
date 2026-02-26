@@ -35,6 +35,7 @@ import {
 import {
   applyLegacySensitivePlaintextPolicy,
   buildEmployeeSensitiveFieldsPatch,
+  shouldKeepEmployeeSensitiveLegacyPlaintext,
 } from "../services/employeeSensitiveFieldService.js";
 import {
   ENCRYPTED_EMPLOYEE_FIELDS,
@@ -164,6 +165,57 @@ const buildEmployeeSensitiveHashSearchConditions = (value) => {
   );
 
   return conditions;
+};
+
+const buildLastNameHashSearchCondition = (value) => {
+  if (!value || !isFieldEncryptionEnabled()) {
+    return null;
+  }
+
+  try {
+    const searchHash = hashForSearch(ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME, value);
+    return searchHash ? { lastNameHash: searchHash } : null;
+  } catch {
+    return null;
+  }
+};
+
+const shouldUseLegacySensitivePlaintextSearch = () => {
+  if (!isFieldEncryptionEnabled()) {
+    return true;
+  }
+  return shouldKeepEmployeeSensitiveLegacyPlaintext();
+};
+
+const buildEmployeeDuplicateChecks = (employeeLike = {}) => {
+  const duplicateChecks = [];
+  const useLegacySensitivePlaintextSearch =
+    shouldUseLegacySensitivePlaintextSearch();
+
+  if (employeeLike.inn) {
+    duplicateChecks.push({ inn: employeeLike.inn });
+  }
+
+  if (employeeLike.snils) {
+    duplicateChecks.push({ snils: employeeLike.snils });
+  }
+
+  if (employeeLike.kigHash) {
+    duplicateChecks.push({ kigHash: employeeLike.kigHash });
+  } else if (useLegacySensitivePlaintextSearch && employeeLike.kig) {
+    duplicateChecks.push({ kig: employeeLike.kig });
+  }
+
+  if (employeeLike.passportNumberHash) {
+    duplicateChecks.push({ passportNumberHash: employeeLike.passportNumberHash });
+  } else if (
+    useLegacySensitivePlaintextSearch &&
+    employeeLike.passportNumber
+  ) {
+    duplicateChecks.push({ passportNumber: employeeLike.passportNumber });
+  }
+
+  return duplicateChecks;
 };
 
 const buildInnLookupEmployeePayload = (employee) => {
@@ -335,10 +387,14 @@ export const getAllEmployees = async (req, res, next) => {
       const docSearch = normalizeDocumentSearch(normalizedSearch);
       const sensitiveHashConditions =
         buildEmployeeSensitiveHashSearchConditions(normalizedSearch);
+      const useLegacySensitivePlaintextSearch =
+        shouldUseLegacySensitivePlaintextSearch();
 
       where[Op.or] = [
         { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        { lastName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        ...(useLegacySensitivePlaintextSearch
+          ? [{ lastName: { [Op.iLike]: `%${normalizedSearch}%` } }]
+          : []),
         { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
         { email: { [Op.iLike]: `%${normalizedSearch}%` } },
         { phone: { [Op.iLike]: `%${normalizedSearch}%` } },
@@ -350,11 +406,13 @@ export const getAllEmployees = async (req, res, next) => {
             ]
           : []),
         ...(docSearch
-          ? [
+          ? useLegacySensitivePlaintextSearch
+            ? [
               { passportNumber: { [Op.iLike]: `%${docSearch}%` } },
               { kig: { [Op.iLike]: `%${docSearch}%` } },
               { patentNumber: { [Op.iLike]: `%${docSearch}%` } },
             ]
+            : []
           : []),
         ...sensitiveHashConditions,
       ];
@@ -1202,7 +1260,9 @@ export const createEmployee = async (req, res, next) => {
         inn: "ИНН",
         snils: "СНИЛС",
         kig: "КИГ",
+        kig_hash: "КИГ",
         passport_number: "Номер паспорта",
+        passport_number_hash: "Номер паспорта",
       };
 
       if (fieldNames[field]) {
@@ -1632,7 +1692,9 @@ export const updateEmployee = async (req, res, next) => {
         inn: "ИНН",
         snils: "СНИЛС",
         kig: "КИГ",
+        kig_hash: "КИГ",
         passport_number: "Номер паспорта",
+        passport_number_hash: "Номер паспорта",
       };
 
       if (fieldNames[field]) {
@@ -1996,11 +2058,20 @@ export const getMarkedForDeletionEmployees = async (req, res, next) => {
     };
 
     if (search) {
+      const normalizedSearch = String(search).trim();
+      const useLegacySensitivePlaintextSearch =
+        shouldUseLegacySensitivePlaintextSearch();
+      const lastNameHashCondition =
+        buildLastNameHashSearchCondition(normalizedSearch);
+
       where[Op.or] = [
-        { firstName: { [Op.iLike]: `%${search}%` } },
-        { lastName: { [Op.iLike]: `%${search}%` } },
-        { middleName: { [Op.iLike]: `%${search}%` } },
-        { inn: { [Op.iLike]: `%${search}%` } },
+        { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        ...(useLegacySensitivePlaintextSearch
+          ? [{ lastName: { [Op.iLike]: `%${normalizedSearch}%` } }]
+          : []),
+        { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        { inn: { [Op.iLike]: `%${normalizedSearch}%` } },
+        ...(lastNameHashCondition ? [lastNameHashCondition] : []),
       ];
     }
 
@@ -2057,11 +2128,20 @@ export const getDeletedEmployees = async (req, res, next) => {
     };
 
     if (search) {
+      const normalizedSearch = String(search).trim();
+      const useLegacySensitivePlaintextSearch =
+        shouldUseLegacySensitivePlaintextSearch();
+      const lastNameHashCondition =
+        buildLastNameHashSearchCondition(normalizedSearch);
+
       where[Op.or] = [
-        { firstName: { [Op.iLike]: `%${search}%` } },
-        { lastName: { [Op.iLike]: `%${search}%` } },
-        { middleName: { [Op.iLike]: `%${search}%` } },
-        { inn: { [Op.iLike]: `%${search}%` } },
+        { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        ...(useLegacySensitivePlaintextSearch
+          ? [{ lastName: { [Op.iLike]: `%${normalizedSearch}%` } }]
+          : []),
+        { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        { inn: { [Op.iLike]: `%${normalizedSearch}%` } },
+        ...(lastNameHashCondition ? [lastNameHashCondition] : []),
       ];
     }
 
@@ -2127,12 +2207,7 @@ export const restoreEmployee = async (req, res, next) => {
       return next(new AppError("Недостаточно прав", 403));
     }
 
-    const duplicateChecks = [];
-    if (employee.inn) duplicateChecks.push({ inn: employee.inn });
-    if (employee.snils) duplicateChecks.push({ snils: employee.snils });
-    if (employee.kig) duplicateChecks.push({ kig: employee.kig });
-    if (employee.passportNumber)
-      duplicateChecks.push({ passportNumber: employee.passportNumber });
+    const duplicateChecks = buildEmployeeDuplicateChecks(employee);
 
     if (duplicateChecks.length > 0) {
       const duplicate = await Employee.findOne({
@@ -2936,9 +3011,13 @@ export const searchEmployees = async (req, res, next) => {
       const docSearch = normalizeDocumentSearch(normalizedSearch);
       const sensitiveHashConditions =
         buildEmployeeSensitiveHashSearchConditions(normalizedSearch);
+      const useLegacySensitivePlaintextSearch =
+        shouldUseLegacySensitivePlaintextSearch();
       where[Op.or] = [
         { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
-        { lastName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        ...(useLegacySensitivePlaintextSearch
+          ? [{ lastName: { [Op.iLike]: `%${normalizedSearch}%` } }]
+          : []),
         { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
         ...(digitsSearch
           ? [
@@ -2948,11 +3027,13 @@ export const searchEmployees = async (req, res, next) => {
             ]
           : []),
         ...(docSearch
-          ? [
+          ? useLegacySensitivePlaintextSearch
+            ? [
               { passportNumber: { [Op.iLike]: `%${docSearch}%` } },
               { kig: { [Op.iLike]: `%${docSearch}%` } },
               { patentNumber: { [Op.iLike]: `%${docSearch}%` } },
             ]
+            : []
           : []),
         ...sensitiveHashConditions,
       ];
@@ -3437,12 +3518,21 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
     const where = {};
 
     if (search) {
+      const normalizedSearch = String(search).trim();
+      const useLegacySensitivePlaintextSearch =
+        shouldUseLegacySensitivePlaintextSearch();
+      const lastNameHashCondition =
+        buildLastNameHashSearchCondition(normalizedSearch);
+
       where[Op.or] = [
-        { firstName: { [Op.iLike]: `%${search}%` } },
-        { lastName: { [Op.iLike]: `%${search}%` } },
-        { middleName: { [Op.iLike]: `%${search}%` } },
-        { email: { [Op.iLike]: `%${search}%` } },
-        { phone: { [Op.iLike]: `%${search}%` } },
+        { firstName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        ...(useLegacySensitivePlaintextSearch
+          ? [{ lastName: { [Op.iLike]: `%${normalizedSearch}%` } }]
+          : []),
+        { middleName: { [Op.iLike]: `%${normalizedSearch}%` } },
+        { email: { [Op.iLike]: `%${normalizedSearch}%` } },
+        { phone: { [Op.iLike]: `%${normalizedSearch}%` } },
+        ...(lastNameHashCondition ? [lastNameHashCondition] : []),
       ];
     }
 
