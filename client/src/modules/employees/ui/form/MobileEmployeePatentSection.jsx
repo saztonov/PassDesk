@@ -1,5 +1,6 @@
 import { Form, Input, Typography } from "antd";
 import EmployeeDocumentUpload from "@/components/Employees/EmployeeDocumentUpload";
+import MaskedDateInput from "@/shared/ui/MaskedDateInput";
 import { profileDocumentTypeLabels } from "@/modules/employees/lib/documentTypeProfiles";
 import {
   createDateInputRules,
@@ -87,11 +88,7 @@ export const buildMobileEmployeePatentSection = ({
           rules={createDateInputRules(getFieldProps("kigEndDate").rules)}
           normalize={formatDateInputValue}
         >
-          <Input
-            placeholder="ДД.ММ.ГГГГ"
-            size="large"
-            {...noAutoFillProps}
-          />
+          <MaskedDateInput placeholder="ДД.ММ.ГГГГ" size="large" />
         </Form.Item>
 
         {!getFieldProps("patentNumber").hidden && (
@@ -157,7 +154,7 @@ export const buildMobileEmployeePatentSection = ({
             rules={createDateInputRules(getFieldProps("patentIssueDate").rules)}
             normalize={formatDateInputValue}
           >
-            <Input placeholder="ДД.ММ.ГГГГ" size="large" {...noAutoFillProps} />
+            <MaskedDateInput placeholder="ДД.ММ.ГГГГ" size="large" />
           </Form.Item>
         )}
 
