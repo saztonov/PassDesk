@@ -100,6 +100,7 @@ const TrashListTab = ({
   columns,
   dataSource,
   loading,
+  tableScrollY,
   pagination,
   onChangePage,
   onChangePageSize,
@@ -121,7 +122,7 @@ const TrashListTab = ({
       dataSource={dataSource}
       rowKey="id"
       loading={loading}
-      scroll={{ x: "max-content", y: "calc(100vh - 360px)" }}
+      scroll={{ x: "max-content", y: tableScrollY }}
       pagination={{
         ...pagination,
         onChange: onChangePage,
@@ -136,6 +137,7 @@ const TrashListTab = ({
 
 const TrashPage = () => {
   const { message } = App.useApp();
+  const [tableScrollY, setTableScrollY] = useState(420);
   const [activeTab, setActiveTab] = useState("employees");
   const [employeeState, setEmployeeState] = useState({
     items: [],
@@ -229,6 +231,17 @@ const TrashPage = () => {
     fetchUsers();
   }, [fetchUsers]);
 
+  useEffect(() => {
+    const updateScrollHeight = () => {
+      const computedHeight = window.innerHeight - 360;
+      setTableScrollY(Math.max(260, computedHeight));
+    };
+
+    updateScrollHeight();
+    window.addEventListener("resize", updateScrollHeight);
+    return () => window.removeEventListener("resize", updateScrollHeight);
+  }, []);
+
   const restoreEmployee = async (employee) => {
     try {
       await employeeService.restore(employee.id);
@@ -293,6 +306,7 @@ const TrashPage = () => {
           columns={employeeColumns}
           dataSource={employees}
           loading={employeesLoading}
+          tableScrollY={tableScrollY}
           pagination={employeePagination}
           onChangePage={(page) =>
             setEmployeeState((prev) => ({
@@ -330,6 +344,7 @@ const TrashPage = () => {
           columns={userColumns}
           dataSource={users}
           loading={usersLoading}
+          tableScrollY={tableScrollY}
           pagination={userPagination}
           onChangePage={(page) =>
             setUserState((prev) => ({
