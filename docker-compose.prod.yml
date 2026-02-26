@@ -1,22 +1,4 @@
 services:
-  postgres:
-    image: postgres:17-alpine
-    container_name: passdesk_postgres
-    profiles: ["local-db"]
-    environment:
-      POSTGRES_DB: passdesk
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set_DB_PASSWORD_in_.env}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./dbsu10_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d passdesk"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-
   server:
     build:
       context: ./server
@@ -112,20 +94,3 @@ services:
       interval: 20s
       timeout: 5s
       retries: 10
-
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: passdesk_pgadmin
-    profiles: ["local-db"]
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
-    ports:
-      - "5050:80"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
