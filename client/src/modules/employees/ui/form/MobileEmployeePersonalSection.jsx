@@ -91,6 +91,7 @@ export const buildMobileEmployeePersonalSection = ({
   const uploadsByType = new Map(
     uploads.map((upload) => [upload.documentType, upload]),
   );
+  const hasInlineUpload = (documentType) => uploadsByType.has(documentType);
   const getInlineUploadMeta = (documentType) =>
     uploadsByType.get(documentType) || {
       documentType,
@@ -314,22 +315,26 @@ export const buildMobileEmployeePersonalSection = ({
               {...noAutoFillProps}
             />
           </Form.Item>
-          <EmployeeDocumentUpload
-            employeeId={employee?.id}
-            ensureEmployeeId={ensureEmployeeId}
-            documentType="passport"
-            label={getInlineUploadMeta("passport").label}
-            readonly={false}
-            multiple={getInlineUploadMeta("passport").multiple}
-          />
-          <EmployeeDocumentUpload
-            employeeId={employee?.id}
-            ensureEmployeeId={ensureEmployeeId}
-            documentType="passport_translation"
-            label={getInlineUploadMeta("passport_translation").label}
-            readonly={false}
-            multiple={getInlineUploadMeta("passport_translation").multiple}
-          />
+          {hasInlineUpload("passport") && (
+            <EmployeeDocumentUpload
+              employeeId={employee?.id}
+              ensureEmployeeId={ensureEmployeeId}
+              documentType="passport"
+              label={getInlineUploadMeta("passport").label}
+              readonly={false}
+              multiple={getInlineUploadMeta("passport").multiple}
+            />
+          )}
+          {hasInlineUpload("passport_translation") && (
+            <EmployeeDocumentUpload
+              employeeId={employee?.id}
+              ensureEmployeeId={ensureEmployeeId}
+              documentType="passport_translation"
+              label={getInlineUploadMeta("passport_translation").label}
+              readonly={false}
+              multiple={getInlineUploadMeta("passport_translation").multiple}
+            />
+          )}
         </>
       )}
 
