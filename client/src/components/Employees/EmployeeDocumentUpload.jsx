@@ -8,7 +8,6 @@ import {
   CameraOutlined,
 } from "@ant-design/icons";
 import { employeeService } from "@/services/employeeService";
-import { DocumentScannerModal as DocumentCamera } from "@/features/document-scanner";
 import {
   ALLOWED_MIME_TYPES,
   SUPPORTED_FORMATS,
@@ -40,7 +39,6 @@ const EmployeeDocumentUpload = ({
     uploading: false,
     previewImage: null,
     previewVisible: false,
-    cameraVisible: false,
     resolvedEmployeeId: null,
   });
   const {
@@ -49,11 +47,9 @@ const EmployeeDocumentUpload = ({
     uploading,
     previewImage,
     previewVisible,
-    cameraVisible,
     resolvedEmployeeId,
   } = state;
   const effectiveEmployeeId = employeeId || resolvedEmployeeId;
-  const cameraMode = documentType === "passport" ? "passport" : "document";
 
   // Ссылка на скрытый инпут для системной камеры (резервный вариант)
   const nativeCameraInputRef = useRef(null);
@@ -156,16 +152,6 @@ const EmployeeDocumentUpload = ({
     }
   };
 
-  // Обработка захвата с камеры (OpenCV)
-  const handleCameraCapture = async (blob) => {
-    // Конвертируем Blob в File
-    const file = new File([blob], `document-${Date.now()}.jpg`, {
-      type: "image/jpeg",
-    });
-    setState((prev) => ({ ...prev, cameraVisible: false }));
-    await uploadFile(file);
-  };
-
   // Обработка захвата с системной камеры (Fallback)
   const handleNativeCameraCapture = async (e) => {
     const file = e.target.files[0];
@@ -202,31 +188,13 @@ const EmployeeDocumentUpload = ({
     }
   };
 
-  // Умный запуск камеры
+  // Запуск системной камеры
   const handleStartCamera = async () => {
     const currentEmployeeId = await resolveEmployeeId();
     if (!currentEmployeeId) {
       return;
     }
-    // Проверяем поддержку API и контекст безопасности (HTTPS/localhost)
-    const isApiSupported =
-      navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
-    // const isSecure = window.isSecureContext; // Обычно isApiSupported уже false если не secure
-
-    if (isApiSupported) {
-      setState((prev) => ({ ...prev, cameraVisible: true }));
-    } else {
-      // Если API недоступен (например, HTTP), используем системную камеру
-      console.warn(
-        "Camera API not supported or insecure context. Fallback to native input.",
-      );
-      if (!window.isSecureContext) {
-        message.warning(
-          "Умный режим недоступен по HTTP. Запуск системной камеры.",
-        );
-      }
-      nativeCameraInputRef.current?.click();
-    }
+    nativeCameraInputRef.current?.click();
   };
 
   // Удаление файла
@@ -417,14 +385,6 @@ const EmployeeDocumentUpload = ({
           onVisibleChange: (visible) =>
             setState((prev) => ({ ...prev, previewVisible: visible })),
         }}
-      />
-
-      {/* Компонент камеры с режимом документа */}
-      <DocumentCamera
-        visible={cameraVisible}
-        mode={cameraMode}
-        onCapture={handleCameraCapture}
-        onCancel={() => setState((prev) => ({ ...prev, cameraVisible: false }))}
       />
     </div>
   );
