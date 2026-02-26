@@ -7,14 +7,6 @@ import {
 } from "@ant-design/icons";
 import Webcam from "react-webcam";
 
-const loadImageFromDataUrl = (dataUrl) =>
-  new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = dataUrl;
-  });
-
 const buildFrameStyle = (frame) => ({
   position: "absolute",
   top: `${frame.top * 100}%`,
@@ -25,39 +17,6 @@ const buildFrameStyle = (frame) => ({
   borderRadius: 10,
   pointerEvents: "none",
 });
-
-const cropByFrame = async (dataUrl, frame) => {
-  const img = await loadImageFromDataUrl(dataUrl);
-  const sx = Math.max(0, Math.floor(img.width * frame.left));
-  const sy = Math.max(0, Math.floor(img.height * frame.top));
-  const sw = Math.max(1, Math.floor(img.width * frame.width));
-  const sh = Math.max(1, Math.floor(img.height * frame.height));
-
-  const canvas = document.createElement("canvas");
-  canvas.width = sw;
-  canvas.height = sh;
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    throw new Error("Canvas context unavailable");
-  }
-
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          reject(new Error("Unable to create image blob"));
-          return;
-        }
-        resolve(blob);
-      },
-      "image/jpeg",
-      0.92,
-    );
-  });
-};
 
 export const DocumentScannerModal = ({
   visible,
@@ -118,19 +77,13 @@ export const DocumentScannerModal = ({
 
     setSaving(true);
     try {
-      let blob;
-      try {
-        blob = await cropByFrame(capturedImage, scanFrame);
-      } catch (error) {
-        console.error("Document crop error:", error);
-        blob = await fetch(capturedImage).then((res) => res.blob());
-      }
+      const blob = await fetch(capturedImage).then((res) => res.blob());
       onCapture(blob);
       onCancel();
     } finally {
       setSaving(false);
     }
-  }, [capturedImage, onCancel, onCapture, saving, scanFrame]);
+  }, [capturedImage, onCancel, onCapture, saving]);
 
   return (
     <Modal
@@ -207,7 +160,7 @@ export const DocumentScannerModal = ({
                 fontSize: 12,
               }}
             >
-              Поместите документ в рамку. При сохранении кадр будет обрезан по ней.
+              Поместите документ в рамку.
             </div>
           )}
           {!capturedImage ? (
