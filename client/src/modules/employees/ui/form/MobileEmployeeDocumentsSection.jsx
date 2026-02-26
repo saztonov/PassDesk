@@ -11,6 +11,7 @@ const { Title, Text } = Typography;
 const INLINE_UPLOAD_TYPES = new Set([
   "passport",
   "passport_translation",
+  "kig",
   "snils_card",
   "bank_details",
   "patent_front",
