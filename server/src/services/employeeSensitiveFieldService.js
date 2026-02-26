@@ -44,7 +44,7 @@ const LEGACY_PLAIN_KEYS = Object.freeze([
   "patentNumber",
 ]);
 
-const shouldKeepLegacyPlaintext = () => {
+export const shouldKeepEmployeeSensitiveLegacyPlaintext = () => {
   const commonRaw = process.env.FIELD_ENCRYPTION_KEEP_LEGACY_PLAINTEXT;
   if (commonRaw !== undefined) {
     return String(commonRaw).toLowerCase() === "true";
@@ -52,7 +52,7 @@ const shouldKeepLegacyPlaintext = () => {
 
   const raw = process.env.FIELD_ENCRYPTION_KEEP_LEGACY_DOC_PLAINTEXT;
   if (raw === undefined) {
-    return true;
+    return false;
   }
   return String(raw).toLowerCase() === "true";
 };
@@ -87,7 +87,10 @@ export const buildEmployeeSensitiveFieldsPatch = (payload = {}) => {
 };
 
 export const applyLegacySensitivePlaintextPolicy = (payload = {}) => {
-  if (!isFieldEncryptionEnabled() || shouldKeepLegacyPlaintext()) {
+  if (
+    !isFieldEncryptionEnabled() ||
+    shouldKeepEmployeeSensitiveLegacyPlaintext()
+  ) {
     return payload;
   }
 

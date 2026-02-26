@@ -105,25 +105,10 @@ test("buildEmployeeSensitiveFieldsPatch should clear enc/hash/keyVersion for emp
   assert.equal(patch.kigKeyVersion, null);
 });
 
-test("applyLegacySensitivePlaintextPolicy should keep legacy plaintext by default", () => {
+test("applyLegacySensitivePlaintextPolicy should clear legacy plaintext by default", () => {
   setEncryptionEnv();
   delete process.env.FIELD_ENCRYPTION_KEEP_LEGACY_DOC_PLAINTEXT;
   delete process.env.FIELD_ENCRYPTION_KEEP_LEGACY_PLAINTEXT;
-
-  const payload = {
-    lastName: "Иванов",
-    passportNumber: "4015123456",
-    kig: "AB1234567",
-    patentNumber: "7700123",
-  };
-  const patched = applyLegacySensitivePlaintextPolicy(payload);
-
-  assert.deepEqual(patched, payload);
-});
-
-test("applyLegacySensitivePlaintextPolicy should clear doc plaintext when disabled by env", () => {
-  setEncryptionEnv();
-  process.env.FIELD_ENCRYPTION_KEEP_LEGACY_DOC_PLAINTEXT = "false";
 
   const payload = {
     lastName: "Иванов",
@@ -137,6 +122,21 @@ test("applyLegacySensitivePlaintextPolicy should clear doc plaintext when disabl
   assert.equal(patched.passportNumber, null);
   assert.equal(patched.kig, null);
   assert.equal(patched.patentNumber, null);
+});
+
+test("applyLegacySensitivePlaintextPolicy should keep doc plaintext when enabled by env", () => {
+  setEncryptionEnv();
+  process.env.FIELD_ENCRYPTION_KEEP_LEGACY_DOC_PLAINTEXT = "true";
+
+  const payload = {
+    lastName: "Иванов",
+    passportNumber: "4015123456",
+    kig: "AB1234567",
+    patentNumber: "7700123",
+  };
+  const patched = applyLegacySensitivePlaintextPolicy(payload);
+
+  assert.deepEqual(patched, payload);
 });
 
 test("applyLegacySensitivePlaintextPolicy should support common legacy plaintext flag", () => {
