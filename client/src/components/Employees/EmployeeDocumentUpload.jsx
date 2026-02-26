@@ -32,6 +32,7 @@ const EmployeeDocumentUpload = ({
   readonly = false,
   multiple = true,
   ensureEmployeeId,
+  hideIfEmpty = false,
 }) => {
   const { message } = App.useApp();
   const [state, setState] = useState({
@@ -263,6 +264,10 @@ const EmployeeDocumentUpload = ({
     }
   };
 
+  if (readonly && hideIfEmpty && !loading && files.length === 0) {
+    return null;
+  }
+
   return (
     <div style={{ marginBottom: 16 }}>
       <div
@@ -394,9 +399,11 @@ const EmployeeDocumentUpload = ({
             </>
           )}
 
-          <div style={{ color: "#1890ff", fontSize: "12px", marginTop: 8 }}>
-            ✅ Поддерживаемые форматы: {SUPPORTED_FORMATS} (макс. 100 МБ)
-          </div>
+          {!readonly && (
+            <div style={{ color: "#1890ff", fontSize: "12px", marginTop: 8 }}>
+              ✅ Поддерживаемые форматы: {SUPPORTED_FORMATS} (макс. 100 МБ)
+            </div>
+          )}
         </>
       )}
 

@@ -1,6 +1,6 @@
 import { Form, Input, Select, Typography } from "antd";
 import dayjs from "dayjs";
-import EmployeeFileUpload from "./EmployeeFileUpload";
+import EmployeeDocumentUpload from "./EmployeeDocumentUpload";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -15,7 +15,6 @@ export const buildEmployeeViewDrawerFormData = (employee) => {
     lastName: employee.lastName,
     firstName: employee.firstName,
     middleName: employee.middleName,
-    positionId: employee.positionId,
     citizenshipId: employee.citizenshipId,
     birthDate: employee.birthDate
       ? dayjs(employee.birthDate).format(DATE_FORMAT)
@@ -25,11 +24,16 @@ export const buildEmployeeViewDrawerFormData = (employee) => {
     notes: employee.notes,
     inn: employee.inn,
     snils: employee.snils,
+    bankAccountNumber: employee.bankAccountNumber,
     passportNumber: employee.passportNumber,
     passportDate: employee.passportDate
       ? dayjs(employee.passportDate).format(DATE_FORMAT)
       : null,
     passportIssuer: employee.passportIssuer,
+    kig: employee.kig,
+    kigEndDate: employee.kigEndDate
+      ? dayjs(employee.kigEndDate).format(DATE_FORMAT)
+      : null,
     patentNumber: employee.patentNumber,
     patentIssueDate: employee.patentIssueDate
       ? dayjs(employee.patentIssueDate).format(DATE_FORMAT)
@@ -42,12 +46,90 @@ export const buildEmployeeViewDrawerFormData = (employee) => {
 
 export const buildEmployeeViewDrawerItems = ({
   employee,
-  positions,
   citizenships,
   requiresPatent,
   canViewStatuses,
   getFieldProps,
 }) => {
+  const patentFields = requiresPatent ? (
+    <>
+      {!getFieldProps("kig").hidden && (
+        <>
+          <Form.Item label="КИГ" name="kig">
+            <Input
+              placeholder={employee?.kig ? undefined : ""}
+              size="large"
+              disabled
+            />
+          </Form.Item>
+          <EmployeeDocumentUpload
+            employeeId={employee?.id}
+            documentType="kig"
+            label="Фото КИГ"
+            readonly
+            hideIfEmpty
+          />
+        </>
+      )}
+
+      {!getFieldProps("kigEndDate").hidden && (
+        <Form.Item label="Срок окончания КИГ" name="kigEndDate">
+          <Input size="large" disabled />
+        </Form.Item>
+      )}
+
+      {!getFieldProps("patentNumber").hidden && (
+        <>
+          <Form.Item label="Номер патента" name="patentNumber">
+            <Input
+              placeholder={employee?.patentNumber ? undefined : ""}
+              size="large"
+              disabled
+            />
+          </Form.Item>
+          <EmployeeDocumentUpload
+            employeeId={employee?.id}
+            documentType="patent_front"
+            label="Фото патента (лиц.)"
+            readonly
+            hideIfEmpty
+          />
+          <EmployeeDocumentUpload
+            employeeId={employee?.id}
+            documentType="patent_back"
+            label="Фото патента (спин.)"
+            readonly
+            hideIfEmpty
+          />
+          <EmployeeDocumentUpload
+            employeeId={employee?.id}
+            documentType="patent_payment_receipt"
+            label="Чек оплаты патента"
+            readonly
+            hideIfEmpty
+          />
+        </>
+      )}
+
+      {!getFieldProps("patentIssueDate").hidden && (
+        <Form.Item label="Дата выдачи патента" name="patentIssueDate">
+          <Input size="large" disabled />
+        </Form.Item>
+      )}
+
+      {!getFieldProps("blankNumber").hidden && (
+        <Form.Item label="Номер бланка" name="blankNumber">
+          <Input
+            placeholder={employee?.blankNumber ? undefined : ""}
+            size="large"
+            maxLength={9}
+            disabled
+          />
+        </Form.Item>
+      )}
+    </>
+  ) : null;
+
   const items = [
     {
       key: "personal",
@@ -77,18 +159,6 @@ export const buildEmployeeViewDrawerItems = ({
                 size="large"
                 placeholder={employee?.middleName ? undefined : ""}
               />
-            </Form.Item>
-          )}
-
-          {!getFieldProps("positionId").hidden && (
-            <Form.Item label="Должность" name="positionId">
-              <Select placeholder="Выберите должность" size="large" disabled>
-                {positions.map((position) => (
-                  <Select.Option key={position.id} value={position.id}>
-                    {position.name}
-                  </Select.Option>
-                ))}
-              </Select>
             </Form.Item>
           )}
 
@@ -131,56 +201,30 @@ export const buildEmployeeViewDrawerItems = ({
             </Form.Item>
           )}
 
-          {!getFieldProps("notes").hidden && (
-            <Form.Item label="Примечание" name="notes">
-              <TextArea
-                rows={2}
-                placeholder={employee?.notes ? undefined : ""}
-                size="large"
-                disabled
-              />
-            </Form.Item>
-          )}
-        </>
-      ),
-    },
-    {
-      key: "documents",
-      label: (
-        <Title level={5} style={{ margin: 0 }}>
-          📄 Документы
-        </Title>
-      ),
-      children: (
-        <>
-          {!getFieldProps("inn").hidden && (
-            <Form.Item label="ИНН" name="inn">
-              <Input
-                placeholder={employee?.inn ? undefined : ""}
-                size="large"
-                disabled
-              />
-            </Form.Item>
-          )}
-
-          {!getFieldProps("snils").hidden && (
-            <Form.Item label="СНИЛС" name="snils">
-              <Input
-                placeholder={employee?.snils ? undefined : ""}
-                size="large"
-                disabled
-              />
-            </Form.Item>
-          )}
-
           {!getFieldProps("passportNumber").hidden && (
-            <Form.Item label="Паспорт (серия и номер)" name="passportNumber">
-              <Input
-                placeholder={employee?.passportNumber ? undefined : ""}
-                size="large"
-                disabled
+            <>
+              <Form.Item label="Паспорт (серия и номер)" name="passportNumber">
+                <Input
+                  placeholder={employee?.passportNumber ? undefined : ""}
+                  size="large"
+                  disabled
+                />
+              </Form.Item>
+              <EmployeeDocumentUpload
+                employeeId={employee?.id}
+                documentType="passport"
+                label="Фото паспорта"
+                readonly
+                hideIfEmpty
               />
-            </Form.Item>
+              <EmployeeDocumentUpload
+                employeeId={employee?.id}
+                documentType="passport_translation"
+                label="Фото перевода паспорта"
+                readonly
+                hideIfEmpty
+              />
+            </>
           )}
 
           {!getFieldProps("passportDate").hidden && (
@@ -199,69 +243,91 @@ export const buildEmployeeViewDrawerItems = ({
               />
             </Form.Item>
           )}
+
         </>
       ),
     },
-  ];
-
-  if (requiresPatent) {
-    items.push({
-      key: "patent",
+    {
+      key: "documents",
       label: (
         <Title level={5} style={{ margin: 0 }}>
-          📑 Патент
+          📄 Документы
         </Title>
       ),
       children: (
         <>
-          {!getFieldProps("patentNumber").hidden && (
-            <Form.Item label="Номер патента" name="patentNumber">
-              <Input
-                placeholder={employee?.patentNumber ? undefined : ""}
-                size="large"
-                disabled
+          {!getFieldProps("inn").hidden && (
+            <>
+              <Form.Item label="ИНН" name="inn">
+                <Input
+                  placeholder={employee?.inn ? undefined : ""}
+                  size="large"
+                  disabled
+                />
+              </Form.Item>
+              <EmployeeDocumentUpload
+                employeeId={employee?.id}
+                documentType="inn_document"
+                label="Документ ИНН"
+                readonly
+                hideIfEmpty
               />
-            </Form.Item>
+              <EmployeeDocumentUpload
+                employeeId={employee?.id}
+                documentType="inn"
+                label="Документ ИНН"
+                readonly
+                hideIfEmpty
+              />
+            </>
           )}
 
-          {!getFieldProps("patentIssueDate").hidden && (
-            <Form.Item label="Дата выдачи патента" name="patentIssueDate">
-              <Input size="large" disabled />
-            </Form.Item>
+          {!getFieldProps("snils").hidden && (
+            <>
+              <Form.Item label="СНИЛС" name="snils">
+                <Input
+                  placeholder={employee?.snils ? undefined : ""}
+                  size="large"
+                  disabled
+                />
+              </Form.Item>
+              <EmployeeDocumentUpload
+                employeeId={employee?.id}
+                documentType="snils_card"
+                label="Фото СНИЛС"
+                readonly
+                hideIfEmpty
+              />
+            </>
           )}
 
-          {!getFieldProps("blankNumber").hidden && (
-            <Form.Item label="Номер бланка" name="blankNumber">
-              <Input
-                placeholder={employee?.blankNumber ? undefined : ""}
-                size="large"
-                maxLength={9}
-                disabled
+          {!getFieldProps("bankAccountNumber").hidden && (
+            <>
+              <Form.Item
+                label="Номер банковского счета"
+                name="bankAccountNumber"
+              >
+                <Input
+                  placeholder={employee?.bankAccountNumber ? undefined : ""}
+                  size="large"
+                  disabled
+                />
+              </Form.Item>
+              <EmployeeDocumentUpload
+                employeeId={employee?.id}
+                documentType="bank_details"
+                label="Реквизиты счета"
+                readonly
+                hideIfEmpty
               />
-            </Form.Item>
+            </>
           )}
+
+          {patentFields}
         </>
       ),
-    });
-  }
-
-  if (employee?.id) {
-    items.push({
-      key: "files",
-      label: (
-        <Title level={5} style={{ margin: 0 }}>
-          📸 Фото документов
-        </Title>
-      ),
-      children: (
-        <EmployeeFileUpload
-          employeeId={employee.id}
-          readonly={true}
-          hideUploadButton={true}
-        />
-      ),
-    });
-  }
+    },
+  ];
 
   if (employee?.id && canViewStatuses) {
     items.push({

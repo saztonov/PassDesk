@@ -14,11 +14,10 @@ import {
  */
 const EmployeeViewDrawer = ({ visible, employee, onClose, onEdit }) => {
   const [form] = Form.useForm();
-  const [activeKeys, setActiveKeys] = useState(["personal", "documents", "files"]);
+  const [activeKeys, setActiveKeys] = useState(["personal", "documents"]);
 
   const {
     citizenships,
-    positions,
     requiresPatent,
     user,
     getFieldProps,
@@ -37,7 +36,6 @@ const EmployeeViewDrawer = ({ visible, employee, onClose, onEdit }) => {
     () =>
       buildEmployeeViewDrawerItems({
         employee,
-        positions,
         citizenships,
         requiresPatent,
         canViewStatuses,
@@ -45,7 +43,6 @@ const EmployeeViewDrawer = ({ visible, employee, onClose, onEdit }) => {
       }),
     [
       employee,
-      positions,
       citizenships,
       requiresPatent,
       canViewStatuses,
