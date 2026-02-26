@@ -158,13 +158,14 @@ const TrashListTab = ({
       rowKey="id"
       rowSelection={rowSelection}
       loading={loading}
-      scroll={{ x: "max-content", y: 420 }}
+      scroll={{ x: "max-content" }}
       pagination={{
         ...pagination,
         onChange: onChangePage,
         onShowSizeChange: onChangePageSize,
         showSizeChanger: true,
         pageSizeOptions: ["10", "20", "50", "100"],
+        position: ["bottomRight"],
       }}
       size="small"
     />
