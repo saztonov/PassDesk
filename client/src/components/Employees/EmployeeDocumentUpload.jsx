@@ -8,6 +8,7 @@ import {
   CameraOutlined,
 } from "@ant-design/icons";
 import { employeeService } from "@/services/employeeService";
+import { DocumentScannerModal as DocumentCamera } from "@/features/document-scanner";
 import {
   ALLOWED_MIME_TYPES,
   SUPPORTED_FORMATS,
@@ -39,6 +40,7 @@ const EmployeeDocumentUpload = ({
     uploading: false,
     previewImage: null,
     previewVisible: false,
+    cameraVisible: false,
     resolvedEmployeeId: null,
   });
   const {
@@ -47,9 +49,11 @@ const EmployeeDocumentUpload = ({
     uploading,
     previewImage,
     previewVisible,
+    cameraVisible,
     resolvedEmployeeId,
   } = state;
   const effectiveEmployeeId = employeeId || resolvedEmployeeId;
+  const cameraMode = documentType === "passport" ? "passport" : "document";
 
   // Ссылка на скрытый инпут для системной камеры (резервный вариант)
   const nativeCameraInputRef = useRef(null);
@@ -162,6 +166,15 @@ const EmployeeDocumentUpload = ({
     e.target.value = "";
   };
 
+  // Обработка захвата в модуле scanic
+  const handleCameraCapture = async (blob) => {
+    const file = new File([blob], `document-${Date.now()}.jpg`, {
+      type: "image/jpeg",
+    });
+    setState((prev) => ({ ...prev, cameraVisible: false }));
+    await uploadFile(file);
+  };
+
   // Обработка выбора файлов из файлового менеджера
   const handleFileSelect = async (e) => {
     const files = e.target.files;
@@ -194,6 +207,17 @@ const EmployeeDocumentUpload = ({
     if (!currentEmployeeId) {
       return;
     }
+
+    const supportsScanner =
+      typeof window !== "undefined" &&
+      Boolean(window.isSecureContext) &&
+      Boolean(navigator.mediaDevices?.getUserMedia);
+
+    if (supportsScanner) {
+      setState((prev) => ({ ...prev, cameraVisible: true }));
+      return;
+    }
+
     nativeCameraInputRef.current?.click();
   };
 
@@ -385,6 +409,13 @@ const EmployeeDocumentUpload = ({
           onVisibleChange: (visible) =>
             setState((prev) => ({ ...prev, previewVisible: visible })),
         }}
+      />
+
+      <DocumentCamera
+        visible={cameraVisible}
+        mode={cameraMode}
+        onCapture={handleCameraCapture}
+        onCancel={() => setState((prev) => ({ ...prev, cameraVisible: false }))}
       />
     </div>
   );
