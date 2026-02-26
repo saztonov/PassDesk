@@ -165,10 +165,13 @@ export const useMobileEmployeeFormInteractions = ({
       const filtered = filterCyrillicOnly(value);
       const capitalizedValue = capitalizeFirstLetter(filtered);
       form.setFieldValue(fieldName, capitalizedValue);
-      scheduleAutoSaveDraft();
     },
-    [capitalizeFirstLetter, filterCyrillicOnly, form, scheduleAutoSaveDraft],
+    [capitalizeFirstLetter, filterCyrillicOnly, form],
   );
+
+  const handleLastNameBlur = useCallback(() => {
+    scheduleAutoSaveDraft();
+  }, [scheduleAutoSaveDraft]);
 
   const handleFormFieldsChange = useCallback(() => {
     isFormResetRef.current = false;
@@ -206,6 +209,7 @@ export const useMobileEmployeeFormInteractions = ({
     handleSaveWithReset,
     handleSaveDraftWithReset,
     handleInnBlur,
+    handleLastNameBlur,
     handleFullNameChange,
     handleFormFieldsChange,
   };

@@ -140,6 +140,7 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     handleSaveWithReset,
     handleSaveDraftWithReset,
     handleInnBlur,
+    handleLastNameBlur,
     handleFullNameChange,
     handleFormFieldsChange,
   } = useMobileEmployeeFormInteractions({
@@ -174,6 +175,7 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     getFieldProps,
     formatInn,
     handleInnBlur,
+    handleLastNameBlur,
     noAutoFillProps,
     latinInputError,
     antiAutofillIds,

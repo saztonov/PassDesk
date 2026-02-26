@@ -71,6 +71,7 @@ const renderRequiredLabel = (label, showRequiredMark) =>
 
 export const buildMobileEmployeePersonalSection = ({
   getFieldProps,
+  handleLastNameBlur,
   noAutoFillProps,
   latinInputError,
   antiAutofillIds,
@@ -150,6 +151,7 @@ export const buildMobileEmployeePersonalSection = ({
             size="large"
             {...noAutoFillProps}
             onChange={(e) => handleFullNameChange("lastName", e.target.value)}
+            onBlur={handleLastNameBlur}
           />
         </Form.Item>
       )}
