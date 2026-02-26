@@ -27,11 +27,13 @@ const noAutoFillProps = {
   "data-form-type": "other",
   "data-lpignore": "true",
   onFocus: (e) => {
-    // Убираем readonly с небольшой задержкой
     if (e.target.hasAttribute("readonly")) {
-      setTimeout(() => {
-        e.target.removeAttribute("readonly");
-      }, 120);
+      e.target.removeAttribute("readonly");
+    }
+  },
+  onTouchStart: (e) => {
+    if (e.target.hasAttribute("readonly")) {
+      e.target.removeAttribute("readonly");
     }
   },
   readOnly: true, // Начинаем с readonly чтобы предотвратить автозаполнение
