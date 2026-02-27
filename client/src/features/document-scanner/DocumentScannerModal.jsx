@@ -51,8 +51,8 @@ export const DocumentScannerModal = ({
   const videoConstraints = useMemo(
     () => ({
       facingMode: { ideal: "environment" },
-      width: { ideal: 1920 },
-      height: { ideal: 1080 },
+      width: { ideal: 2560 },
+      height: { ideal: 1440 },
     }),
     [],
   );
@@ -121,6 +121,10 @@ export const DocumentScannerModal = ({
               ref={webcamRef}
               audio={false}
               screenshotFormat="image/jpeg"
+              screenshotQuality={1}
+              forceScreenshotSourceSize
+              minScreenshotWidth={1920}
+              minScreenshotHeight={1080}
               videoConstraints={videoConstraints}
               style={{
                 width: "100%",

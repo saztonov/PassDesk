@@ -225,6 +225,19 @@ const EmployeeDocumentUpload = ({
       return;
     }
 
+    const isMobileUserAgent =
+      typeof navigator !== "undefined" &&
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent || "",
+      );
+
+    // На мобильных предпочитаем нативную камеру, чтобы не терять качество
+    // из-за browser-canvas snapshot в встроенном сканере.
+    if (isMobileUserAgent) {
+      nativeCameraInputRef.current?.click();
+      return;
+    }
+
     const supportsScanner =
       typeof window !== "undefined" &&
       Boolean(window.isSecureContext) &&
