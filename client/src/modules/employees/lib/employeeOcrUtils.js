@@ -51,6 +51,31 @@ const toAlphaNumeric = (value, maxLength = 64) =>
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, maxLength);
 
+const LOOKALIKE_CYRILLIC_TO_LATIN = {
+  А: "A",
+  В: "B",
+  Е: "E",
+  К: "K",
+  М: "M",
+  Н: "H",
+  О: "O",
+  Р: "P",
+  С: "C",
+  Т: "T",
+  У: "Y",
+  Х: "X",
+};
+
+const normalizePassportIdentifier = (value, maxLength = 16) => {
+  const normalized = normalizeString(value)
+    .toUpperCase()
+    .replace(/[АВЕКМНОРСТУХ]/g, (symbol) => LOOKALIKE_CYRILLIC_TO_LATIN[symbol] || symbol)
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, maxLength);
+
+  return normalized || "";
+};
+
 const formatSnils = (value) => {
   const digits = toDigits(value, 11);
   if (!digits) return null;
@@ -221,14 +246,36 @@ const toDateOutputValue = (value, dateOutputMode = "dayjs") => {
 };
 
 const formatPassportNumber = ({ series, number }) => {
-  const seriesDigits = toDigits(series, 4);
-  const numberDigits = toDigits(number, 6);
+  const seriesRaw = normalizeString(series);
+  const numberRaw = normalizeString(number);
+  const rawCandidates = [seriesRaw, numberRaw].filter(Boolean);
+
+  if (rawCandidates.length > 0) {
+    const rawWithLetters = rawCandidates.find((candidate) =>
+      /[A-Za-zА-Яа-яЁё]/.test(candidate),
+    );
+    if (rawWithLetters) {
+      const mergedRaw =
+        seriesRaw && numberRaw && seriesRaw !== numberRaw
+          ? numberRaw.includes(seriesRaw)
+            ? numberRaw
+            : seriesRaw.includes(numberRaw)
+              ? seriesRaw
+              : `${seriesRaw}${numberRaw}`
+          : rawWithLetters;
+      const identifier = normalizePassportIdentifier(mergedRaw, 16);
+      return identifier || null;
+    }
+  }
+
+  const seriesDigits = toDigits(seriesRaw, 4);
+  const numberDigits = toDigits(numberRaw, 16);
 
   if (!seriesDigits && !numberDigits) return null;
   if (!seriesDigits) return numberDigits || null;
   if (!numberDigits) return seriesDigits || null;
 
-  return `${seriesDigits} №${numberDigits}`;
+  return `${seriesDigits} №${numberDigits.slice(0, 6)}`;
 };
 
 const normalizeKig = (value) => {
@@ -394,7 +441,8 @@ export const normalizeFormValueForCompare = (fieldName, value) => {
   }
 
   if (fieldName === "passportNumber") {
-    return toDigits(value, 16);
+    const normalizedPassport = normalizePassportIdentifier(value, 32);
+    return normalizedPassport || toDigits(value, 16);
   }
 
   if (fieldName === "inn") {

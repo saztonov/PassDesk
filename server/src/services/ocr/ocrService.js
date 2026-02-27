@@ -163,13 +163,38 @@ const normalizeDigits = (value, maxLength = 64) => {
   return normalized || null;
 };
 
-const normalizeAlphaNumeric = (value, maxLength = 64) => {
+const LOOKALIKE_CYRILLIC_TO_LATIN = {
+  А: "A",
+  В: "B",
+  Е: "E",
+  К: "K",
+  М: "M",
+  Н: "H",
+  О: "O",
+  Р: "P",
+  С: "C",
+  Т: "T",
+  У: "Y",
+  Х: "X",
+};
+
+const normalizePassportIdentifier = (value, maxLength = 16) => {
   if (!value) return null;
+
   const normalized = String(value)
+    .trim()
     .toUpperCase()
+    .replace(/[АВЕКМНОРСТУХ]/g, (symbol) => LOOKALIKE_CYRILLIC_TO_LATIN[symbol] || symbol)
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, maxLength);
+
   return normalized || null;
+};
+
+const normalizeAlphaNumeric = (value, maxLength = 64) => {
+  if (!value) return null;
+
+  return normalizePassportIdentifier(value, maxLength);
 };
 
 const normalizeKigNumber = (value) => {
@@ -266,6 +291,17 @@ const splitPassportNumber = (combinedValue) => {
 };
 
 const normalizePassportRf = (parsedJson = {}) => {
+  const rawSeries = valueFrom(parsedJson, [
+    "passportSeries",
+    "passport_series",
+    "series",
+  ]);
+  const rawNumberOnly = valueFrom(parsedJson, [
+    "passportNumberOnly",
+    "passport_number_only",
+    "numberOnly",
+    "number_only",
+  ]);
   const passportNumberCombined = valueFrom(parsedJson, [
     "passportNumber",
     "passport_number",
@@ -273,6 +309,13 @@ const normalizePassportRf = (parsedJson = {}) => {
     "seriesNumber",
     "series_number",
   ]);
+  const hasLettersInNumber = /[A-Za-zА-Яа-яЁё]/.test(
+    `${rawSeries || ""}${rawNumberOnly || ""}${passportNumberCombined || ""}`,
+  );
+  const nonRfPassportNumber = normalizePassportIdentifier(
+    rawNumberOnly || passportNumberCombined || rawSeries,
+    16,
+  );
 
   const split = splitPassportNumber(passportNumberCombined || "");
 
@@ -291,21 +334,12 @@ const normalizePassportRf = (parsedJson = {}) => {
     citizenship: normalizeCitizenship(
       valueFrom(parsedJson, ["nationality", "citizenship"]),
     ),
-    passportSeries:
-      normalizeDigits(
-        valueFrom(parsedJson, ["passportSeries", "passport_series", "series"]),
-        4,
-      ) || split.series,
-    passportNumber:
-      normalizeDigits(
-        valueFrom(parsedJson, [
-          "passportNumberOnly",
-          "passport_number_only",
-          "numberOnly",
-          "number_only",
-        ]),
-        6,
-      ) || normalizeDigits(split.number, 6),
+    passportSeries: hasLettersInNumber
+      ? null
+      : normalizeDigits(rawSeries, 4) || split.series,
+    passportNumber: hasLettersInNumber
+      ? nonRfPassportNumber
+      : normalizeDigits(rawNumberOnly, 6) || normalizeDigits(split.number, 6),
     passportIssuedAt: normalizeDate(
       valueFrom(parsedJson, ["issueDate", "issue_date", "passportIssueDate"]),
     ),
