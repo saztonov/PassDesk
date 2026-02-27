@@ -1077,6 +1077,7 @@ export const createEmployee = async (req, res, next) => {
     const {
       counterpartyId,
       constructionSiteId,
+      isDraft,
       statusActive,
       status,
       statusCard,
@@ -1176,10 +1177,10 @@ export const createEmployee = async (req, res, next) => {
 
     const employeeDataWithStatus = createdEmployee.toJSON();
     const formConfig = await getEmployeeFormConfig(employeeDataWithStatus);
-    const calculatedStatusCard = calculateStatusCard(
-      employeeDataWithStatus,
-      formConfig,
-    );
+    const isDraftRequest = Boolean(isDraft);
+    const calculatedStatusCard = isDraftRequest
+      ? "draft"
+      : calculateStatusCard(employeeDataWithStatus, formConfig);
     employeeDataWithStatus.statusCard = calculatedStatusCard;
 
     try {
@@ -1190,6 +1191,7 @@ export const createEmployee = async (req, res, next) => {
         formConfig,
         statusMap,
         req.user.id,
+        { forceDraft: isDraftRequest },
       );
       console.log("✓ Employee statuses updated");
     } catch (statusError) {
@@ -1435,10 +1437,10 @@ export const updateEmployee = async (req, res, next) => {
 
     const employeeDataWithStatus = updatedEmployee.toJSON();
     const formConfig = await getEmployeeFormConfig(employeeDataWithStatus);
-    const calculatedStatusCard = calculateStatusCard(
-      employeeDataWithStatus,
-      formConfig,
-    );
+    const isDraftRequest = Boolean(isDraft) || req.path.endsWith("/draft");
+    const calculatedStatusCard = isDraftRequest
+      ? "draft"
+      : calculateStatusCard(employeeDataWithStatus, formConfig);
     employeeDataWithStatus.statusCard = calculatedStatusCard;
 
     // Обновляем статусы на основе текущего состояния
@@ -1451,6 +1453,7 @@ export const updateEmployee = async (req, res, next) => {
         formConfig,
         statusMap,
         req.user.id,
+        { forceDraft: isDraftRequest },
       );
 
       // НОВАЯ ЛОГИКА: если в группе status_hr есть активный статус с is_upload=true - очищаем группу и активируем status_hr_edited

@@ -230,8 +230,12 @@ export const useEmployeeActions = (onSuccess) => {
       // Удаляем флаг isDraft перед отправкой на сервер
       const isDraft = values.isDraft;
       const valuesToSend = { ...values };
-      delete valuesToSend.isDraft;
       delete valuesToSend.__draftEmployeeId;
+      // Для первичного сохранения черновика передаем isDraft=true на бэкенд,
+      // чтобы статус сотрудника не пересчитывался в completed.
+      if (!isDraft) {
+        delete valuesToSend.isDraft;
+      }
 
       console.log("📤 Creating employee with values:", valuesToSend);
 

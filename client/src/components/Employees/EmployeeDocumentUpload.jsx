@@ -62,6 +62,8 @@ const EmployeeDocumentUpload = ({
 
   // Ссылка на скрытый инпут для выбора файлов
   const fileInputRef = useRef(null);
+  // Защита от параллельного создания нескольких черновиков
+  const ensureEmployeeIdPromiseRef = useRef(null);
 
   const resolveEmployeeId = async () => {
     if (effectiveEmployeeId) {
@@ -71,18 +73,28 @@ const EmployeeDocumentUpload = ({
       message.error("Сначала сохраните черновик сотрудника");
       return null;
     }
-    try {
-      const newEmployeeId = await ensureEmployeeId();
-      if (newEmployeeId) {
-        setState((prev) => ({ ...prev, resolvedEmployeeId: newEmployeeId }));
-        return newEmployeeId;
-      }
-      message.error("Не удалось создать черновик сотрудника");
-      return null;
-    } catch (error) {
-      message.error("Не удалось создать черновик сотрудника");
-      return null;
+    if (ensureEmployeeIdPromiseRef.current) {
+      return ensureEmployeeIdPromiseRef.current;
     }
+
+    ensureEmployeeIdPromiseRef.current = (async () => {
+      try {
+        const newEmployeeId = await ensureEmployeeId();
+        if (newEmployeeId) {
+          setState((prev) => ({ ...prev, resolvedEmployeeId: newEmployeeId }));
+          return newEmployeeId;
+        }
+        message.error("Не удалось создать черновик сотрудника");
+        return null;
+      } catch {
+        message.error("Не удалось создать черновик сотрудника");
+        return null;
+      } finally {
+        ensureEmployeeIdPromiseRef.current = null;
+      }
+    })();
+
+    return ensureEmployeeIdPromiseRef.current;
   };
 
   // Загрузка файлов с сервера

@@ -134,6 +134,14 @@ export const useAddEmployeePage = ({ id, navigate, message, modal }) => {
       setEditingEmployee(updated);
       savedEmployeeIdRef.current = updated?.id || draftEmployeeId;
 
+      // После первого сохранения черновика фиксируемся на route с id,
+      // чтобы последующее редактирование/файлы всегда были в одной карточке.
+      if (!id && valuesToSave.isDraft && (updated?.id || draftEmployeeId)) {
+        navigate(`/employees/edit/${updated?.id || draftEmployeeId}`, {
+          replace: true,
+        });
+      }
+
       if (!valuesToSave.isDraft) {
         setTimeout(() => {
           navigate("/employees");
@@ -144,6 +152,10 @@ export const useAddEmployeePage = ({ id, navigate, message, modal }) => {
       const newEmployee = await createEmployee(valuesToSave);
       setEditingEmployee(newEmployee);
       savedEmployeeIdRef.current = newEmployee?.id;
+
+      if (!id && valuesToSave.isDraft && newEmployee?.id) {
+        navigate(`/employees/edit/${newEmployee.id}`, { replace: true });
+      }
 
       if (!valuesToSave.isDraft) {
         setTimeout(() => {

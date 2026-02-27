@@ -14,17 +14,29 @@ import { isEmployeeCardComplete } from './employeeFieldsConfig.js';
  * @param {string} userId - ID пользователя для createdBy/updatedBy
  * @returns {Promise<{isComplete: boolean, statusNames: {status: string, statusCard: string}, missingFields: Array<string>}>}
  */
-export const updateEmployeeStatusesByCompleteness = async (employee, formConfig, statusMap, userId) => {
+export const updateEmployeeStatusesByCompleteness = async (
+  employee,
+  formConfig,
+  statusMap,
+  userId,
+  options = {},
+) => {
+  const forceDraft = options?.forceDraft === true;
   // Импортируем функцию получения недостающих полей
   const { getMissingRequiredFields } = await import('./employeeFieldsConfig.js');
   
   // Проверяем полноту карточки
-  const isComplete = isEmployeeCardComplete(employee, formConfig, false);
+  const isComplete = forceDraft
+    ? false
+    : isEmployeeCardComplete(employee, formConfig, false);
   const missingFields = !isComplete ? getMissingRequiredFields(employee, formConfig) : [];
 
   console.log(`   📊 ПРОВЕРКА ПОЛНОТЫ ДАННЫХ:`);
   console.log(`      Сотрудник: ${employee.lastName} ${employee.firstName}`);
   console.log(`      Результат: ${isComplete ? '✅ ВСЕ ОБЯЗАТЕЛЬНЫЕ ПОЛЯ ЗАПОЛНЕНЫ' : '⚠️  ЕСТЬ НЕЗАПОЛНЕННЫЕ ОБЯЗАТЕЛЬНЫЕ ПОЛЯ'}`);
+  if (forceDraft) {
+    console.log("      Режим: принудительно сохранить статус черновика");
+  }
   
   if (!isComplete && missingFields.length > 0) {
     console.log(`      Незаполненные поля (${missingFields.length}): ${missingFields.join(', ')}`);
@@ -167,4 +179,3 @@ export const getImportStatuses = async () => {
 
   return statusMap;
 };
-
