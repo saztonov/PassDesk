@@ -94,13 +94,13 @@ const DocumentTypeUploader = ({
     return ensureEmployeeIdPromiseRef.current;
   }, [effectiveEmployeeId, ensureEmployeeId, message]);
 
-  const fetchAllFiles = useCallback(async () => {
+  const fetchAllFiles = useCallback(async (targetEmployeeId = effectiveEmployeeId, options = {}) => {
     try {
-      if (!effectiveEmployeeId) {
+      if (!targetEmployeeId) {
         setDataState((prev) => ({ ...prev, allFiles: [] }));
         return;
       }
-      const response = await employeeService.getFiles(effectiveEmployeeId);
+      const response = await employeeService.getFiles(targetEmployeeId, options);
       const files = response?.data || response || [];
       setDataState((prev) => ({ ...prev, allFiles: files }));
     } catch (error) {
@@ -213,9 +213,7 @@ const DocumentTypeUploader = ({
         }
       }
 
-      setTimeout(() => {
-        fetchAllFiles();
-      }, 300);
+      await fetchAllFiles(currentEmployeeId, { force: true });
 
       if (onFilesUpdated) {
         onFilesUpdated();

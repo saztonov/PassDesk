@@ -98,15 +98,16 @@ const EmployeeDocumentUpload = ({
   };
 
   // Загрузка файлов с сервера
-  const fetchFiles = useCallback(async () => {
+  const fetchFiles = useCallback(
+    async (targetEmployeeId = effectiveEmployeeId, options = {}) => {
     setState((prev) => ({ ...prev, loading: true }));
     try {
-      if (!effectiveEmployeeId) {
+      if (!targetEmployeeId) {
         setState((prev) => ({ ...prev, files: [] }));
         return;
       }
 
-      const response = await employeeService.getFiles(effectiveEmployeeId);
+      const response = await employeeService.getFiles(targetEmployeeId, options);
 
       // Фильтруем файлы по типу документа
       const filteredFiles =
@@ -122,7 +123,9 @@ const EmployeeDocumentUpload = ({
     } finally {
       setState((prev) => ({ ...prev, loading: false }));
     }
-  }, [documentType, effectiveEmployeeId, message]);
+    },
+    [documentType, effectiveEmployeeId, message],
+  );
 
   useEffect(() => {
     fetchFiles();
@@ -197,7 +200,7 @@ const EmployeeDocumentUpload = ({
           });
         }
       }
-      fetchFiles();
+      await fetchFiles(currentEmployeeId, { force: true });
     } catch (error) {
       console.error("Error uploading file:", error);
       message.error(error.response?.data?.message || "Ошибка загрузки файла");

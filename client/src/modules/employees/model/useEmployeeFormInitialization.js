@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import dayjs from "dayjs";
 import { constructionSiteService } from "@/services/constructionSiteService";
 
@@ -28,6 +28,8 @@ export const useEmployeeFormInitialization = ({
   formatPatentNumber,
   formatBlankNumber,
 }) => {
+  const isVisibleSessionInitializedRef = useRef(false);
+
   useEffect(() => {
     const abortController = new AbortController();
 
@@ -54,6 +56,7 @@ export const useEmployeeFormInitialization = ({
 
     const initializeModal = async () => {
       if (!visible) {
+        isVisibleSessionInitializedRef.current = false;
         setDataLoaded(false);
         setCheckingCitizenship(false);
         setSelectedCitizenship(null);
@@ -62,7 +65,11 @@ export const useEmployeeFormInitialization = ({
       }
 
       setDataLoaded(false);
-      setActiveTab("1");
+      const isFirstVisibleInit = !isVisibleSessionInitializedRef.current;
+      if (isFirstVisibleInit) {
+        isVisibleSessionInitializedRef.current = true;
+        setActiveTab("1");
+      }
 
       try {
         const [loadedCitizenships] = await Promise.all([
@@ -159,7 +166,9 @@ export const useEmployeeFormInitialization = ({
           form.setFieldsValue({ counterpartyId: userCounterpartyId });
         }
 
-        setActiveTab("1");
+        if (isFirstVisibleInit) {
+          setActiveTab("1");
+        }
         setTabsValidation({ 1: false, 2: false, 3: false });
         setSelectedCitizenship(null);
         setDataLoaded(true);

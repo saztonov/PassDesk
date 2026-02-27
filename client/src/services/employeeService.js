@@ -113,7 +113,12 @@ export const employeeService = {
   },
 
   // Получить файлы сотрудника
-  getFiles: async (employeeId) => {
+  getFiles: async (employeeId, { force = false } = {}) => {
+    if (force) {
+      const response = await api.get(`/employees/${employeeId}/files`);
+      return response.data;
+    }
+
     const key = `employees:getFiles:${employeeId}`;
     return deduplicateRequest(key, async () => {
       const response = await api.get(`/employees/${employeeId}/files`);
