@@ -32,6 +32,7 @@ const EmployeeDocumentUpload = ({
   readonly = false,
   multiple = true,
   ensureEmployeeId,
+  onUploadComplete,
   hideIfEmpty = false,
 }) => {
   const { message } = App.useApp();
@@ -146,8 +147,23 @@ const EmployeeDocumentUpload = ({
 
     setState((prev) => ({ ...prev, uploading: true }));
     try {
-      await employeeService.uploadFiles(currentEmployeeId, formData);
+      const uploadResult = await employeeService.uploadFiles(
+        currentEmployeeId,
+        formData,
+      );
       message.success("Файл успешно загружен");
+      const uploadedFiles = Array.isArray(uploadResult?.data)
+        ? uploadResult.data
+        : [];
+      if (typeof onUploadComplete === "function" && uploadedFiles.length > 0) {
+        for (const uploadedFile of uploadedFiles) {
+          await onUploadComplete({
+            file: uploadedFile,
+            employeeId: currentEmployeeId,
+            fileDocumentType: documentType,
+          });
+        }
+      }
       fetchFiles();
     } catch (error) {
       console.error("Error uploading file:", error);

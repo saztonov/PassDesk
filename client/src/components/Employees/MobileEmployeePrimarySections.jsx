@@ -24,6 +24,7 @@ export const buildMobilePrimarySections = ({
   citizenships,
   handleCitizenshipChange,
   formatPhoneNumber,
+  onDocumentUploaded,
 }) => {
   const sections = [];
 
@@ -57,6 +58,7 @@ export const buildMobilePrimarySections = ({
       formatPhoneNumber,
       employee,
       ensureEmployeeId,
+      onDocumentUploadComplete: onDocumentUploaded,
       profileCode: documentProfileCode,
       profilesConfig: documentProfilesConfig,
     }),

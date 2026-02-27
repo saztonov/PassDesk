@@ -77,6 +77,7 @@ export const uploadEmployeeFiles = async (req, res, next) => {
       "biometric_consent_developer",
       "bank_details",
       "snils_card",
+      "kig",
       "diploma",
       "arrival_notice",
       "patent_payment_receipt",

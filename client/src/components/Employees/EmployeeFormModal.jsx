@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Modal, Form, App, Tabs } from "antd";
+import { Modal, Form, App, Tabs, Alert } from "antd";
 import {
   capitalizeFirstLetter,
   filterCyrillicOnly,
@@ -32,7 +32,9 @@ import { useEmployeeFormInitialization } from "@/modules/employees/model/useEmpl
 import { useEmployeeFormSaveHandlers } from "@/modules/employees/model/useEmployeeFormSaveHandlers";
 import { useEmployeeFormInputHandlers } from "@/modules/employees/model/useEmployeeFormInputHandlers";
 import { useEmployeeFormTabFlow } from "@/modules/employees/model/useEmployeeFormTabFlow";
+import { useEmployeeOcrHandlers } from "@/modules/employees/model/useEmployeeOcrHandlers";
 import { formatEmployeeFormPayload } from "@/modules/employees/lib/employeeFormPayload";
+import OcrConflictsPanel from "@/modules/employees/ui/OcrConflictsPanel";
 
 const EmployeeFormModal = ({
   visible,
@@ -64,6 +66,22 @@ const EmployeeFormModal = ({
   const [transferModalVisible, setTransferModalVisible] = useState(false); // Модальное окно перевода сотрудника
   const [availableCounterparties, setAvailableCounterparties] = useState([]); // Доступные контрагенты
   const [loadingCounterparties, setLoadingCounterparties] = useState(false); // Загрузка контрагентов
+  const {
+    conflictsList,
+    handleUploadedFileForOcr,
+    keepConflictValue,
+    replaceConflictValue,
+    keepAllConflicts,
+    replaceAllConflicts,
+    clearConflicts,
+    isOcrProcessing,
+  } = useEmployeeOcrHandlers({
+    form,
+    citizenships,
+    getPassportType: () =>
+      form.getFieldValue("passportType") || passportType || employee?.passportType,
+    messageApi: message,
+  });
 
   const {
     fetchCitizenships,
@@ -216,8 +234,15 @@ const EmployeeFormModal = ({
 
   // Обработчик закрытия модального окна
   const handleModalCancel = () => {
+    clearConflicts();
     onCancel();
   };
+
+  useEffect(() => {
+    if (!visible) {
+      clearConflicts();
+    }
+  }, [clearConflicts, visible]);
 
   const tabsItems = useEmployeeFormModalTabs({
     employee,
@@ -243,6 +268,7 @@ const EmployeeFormModal = ({
     availableCounterparties,
     loadingCounterparties,
     handleFilesChange,
+    onDocumentUploaded: handleUploadedFileForOcr,
     ensureEmployeeId,
     tabsValidation,
     documentProfilesConfig: settings?.employeeDocumentProfiles || null,
@@ -268,6 +294,21 @@ const EmployeeFormModal = ({
           </>
         )}
       >
+        {isOcrProcessing && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message="OCR: распознаем документ..."
+          />
+        )}
+        <OcrConflictsPanel
+          conflicts={conflictsList}
+          onKeep={keepConflictValue}
+          onReplace={replaceConflictValue}
+          onKeepAll={keepAllConflicts}
+          onReplaceAll={replaceAllConflicts}
+        />
         <Tabs
           activeKey={activeTab}
           onChange={(key) => {

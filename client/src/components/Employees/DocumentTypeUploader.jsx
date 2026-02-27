@@ -21,6 +21,7 @@ const DocumentTypeUploader = ({
   employeeId,
   ensureEmployeeId,
   onFilesUpdated,
+  onUploadComplete,
   readonly = false,
   profileCode,
   profilesConfig,
@@ -193,8 +194,24 @@ const DocumentTypeUploader = ({
       });
       formData.append("documentType", documentType);
 
-      await employeeService.uploadFiles(currentEmployeeId, formData);
+      const uploadResult = await employeeService.uploadFiles(
+        currentEmployeeId,
+        formData,
+      );
       message.success(`${getDocumentTypeLabel(documentType)} загружен(ы)`);
+
+      const uploadedFiles = Array.isArray(uploadResult?.data)
+        ? uploadResult.data
+        : [];
+      if (typeof onUploadComplete === "function" && uploadedFiles.length > 0) {
+        for (const uploadedFile of uploadedFiles) {
+          await onUploadComplete({
+            file: uploadedFile,
+            employeeId: currentEmployeeId,
+            fileDocumentType: documentType,
+          });
+        }
+      }
 
       setTimeout(() => {
         fetchAllFiles();

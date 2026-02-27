@@ -19,6 +19,7 @@ export const buildMobileDocumentSections = ({
   formatBlankNumber,
   loadingCounterparties,
   availableCounterparties,
+  onDocumentUploaded,
 }) => {
   const showCounterpartySection = false;
   const sections = [];
@@ -32,6 +33,7 @@ export const buildMobileDocumentSections = ({
     formatBlankNumber,
     employee,
     ensureEmployeeId,
+    onDocumentUploadComplete: onDocumentUploaded,
     profileCode: documentProfileCode,
     profilesConfig: documentProfilesConfig,
   });
@@ -47,6 +49,7 @@ export const buildMobileDocumentSections = ({
     noAutoFillProps,
     employee,
     ensureEmployeeId,
+    onDocumentUploadComplete: onDocumentUploaded,
     patentFields: patentSection?.children || null,
   });
 

@@ -10,6 +10,7 @@ const EmployeeFilesTab = ({
   selectedCitizenship,
   userCounterpartyId,
   onFilesUpdated,
+  onUploadComplete,
   ensureEmployeeId,
   documentProfilesConfig,
 }) => {
@@ -30,6 +31,7 @@ const EmployeeFilesTab = ({
       ensureEmployeeId={ensureEmployeeId}
       readonly={false}
       onFilesUpdated={onFilesUpdated}
+      onUploadComplete={onUploadComplete}
       profileCode={profileCode}
       profilesConfig={documentProfilesConfig}
     />

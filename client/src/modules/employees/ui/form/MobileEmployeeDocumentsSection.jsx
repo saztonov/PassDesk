@@ -30,6 +30,7 @@ export const buildMobileEmployeeDocumentsSection = ({
   noAutoFillProps,
   employee,
   ensureEmployeeId,
+  onDocumentUploadComplete,
   profileCode,
   profilesConfig,
   patentFields,
@@ -93,6 +94,7 @@ export const buildMobileEmployeeDocumentsSection = ({
           <EmployeeDocumentUpload
             employeeId={employee?.id}
             ensureEmployeeId={ensureEmployeeId}
+            onUploadComplete={onDocumentUploadComplete}
             documentType={hasUploadType("inn_document") ? "inn_document" : "inn"}
             label={
               hasUploadType("inn_document")
@@ -139,6 +141,7 @@ export const buildMobileEmployeeDocumentsSection = ({
               <EmployeeDocumentUpload
                 employeeId={employee?.id}
                 ensureEmployeeId={ensureEmployeeId}
+                onUploadComplete={onDocumentUploadComplete}
                 documentType="snils_card"
                 label={getInlineUploadMeta("snils_card").label}
                 readonly={false}
@@ -173,6 +176,7 @@ export const buildMobileEmployeeDocumentsSection = ({
             <EmployeeDocumentUpload
               employeeId={employee?.id}
               ensureEmployeeId={ensureEmployeeId}
+              onUploadComplete={onDocumentUploadComplete}
               documentType="bank_details"
               label={getInlineUploadMeta("bank_details").label}
               readonly={false}
@@ -192,6 +196,7 @@ export const buildMobileEmployeeDocumentsSection = ({
               uploads={additionalDocumentUploads}
               employee={employee}
               ensureEmployeeId={ensureEmployeeId}
+              handleDocumentUploadComplete={onDocumentUploadComplete}
             />
           </>
         )}
@@ -205,6 +210,7 @@ export const buildMobileEmployeeDocumentsSection = ({
               uploads={consentUploads}
               employee={employee}
               ensureEmployeeId={ensureEmployeeId}
+              handleDocumentUploadComplete={onDocumentUploadComplete}
             />
           </>
         )}

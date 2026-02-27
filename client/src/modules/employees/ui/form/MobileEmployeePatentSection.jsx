@@ -19,6 +19,7 @@ export const buildMobileEmployeePatentSection = ({
   formatBlankNumber,
   employee,
   ensureEmployeeId,
+  onDocumentUploadComplete,
   profileCode,
   profilesConfig,
 }) => {
@@ -73,6 +74,7 @@ export const buildMobileEmployeePatentSection = ({
             <EmployeeDocumentUpload
               employeeId={employee?.id}
               ensureEmployeeId={ensureEmployeeId}
+              onUploadComplete={onDocumentUploadComplete}
               documentType="kig"
               label={getInlineUploadMeta("kig").label}
               readonly={false}
@@ -122,6 +124,7 @@ export const buildMobileEmployeePatentSection = ({
             <EmployeeDocumentUpload
               employeeId={employee?.id}
               ensureEmployeeId={ensureEmployeeId}
+              onUploadComplete={onDocumentUploadComplete}
               documentType="patent_front"
               label={getInlineUploadMeta("patent_front").label}
               readonly={false}
@@ -130,6 +133,7 @@ export const buildMobileEmployeePatentSection = ({
             <EmployeeDocumentUpload
               employeeId={employee?.id}
               ensureEmployeeId={ensureEmployeeId}
+              onUploadComplete={onDocumentUploadComplete}
               documentType="patent_back"
               label={getInlineUploadMeta("patent_back").label}
               readonly={false}
@@ -138,6 +142,7 @@ export const buildMobileEmployeePatentSection = ({
             <EmployeeDocumentUpload
               employeeId={employee?.id}
               ensureEmployeeId={ensureEmployeeId}
+              onUploadComplete={onDocumentUploadComplete}
               documentType="patent_payment_receipt"
               label={getInlineUploadMeta("patent_payment_receipt").label}
               readonly={false}

@@ -32,6 +32,7 @@ export const useEmployeeFormModalTabs = ({
   availableCounterparties,
   loadingCounterparties,
   handleFilesChange,
+  onDocumentUploaded,
   ensureEmployeeId,
   tabsValidation,
   documentProfilesConfig,
@@ -123,6 +124,7 @@ export const useEmployeeFormModalTabs = ({
           defaultCounterpartyId={defaultCounterpartyId}
           userCounterpartyId={user?.counterpartyId || null}
           onFilesUpdated={handleFilesChange}
+          onUploadComplete={onDocumentUploaded}
           ensureEmployeeId={ensureEmployeeId}
           documentProfilesConfig={documentProfilesConfig}
         />
@@ -142,6 +144,7 @@ export const useEmployeeFormModalTabs = ({
     getFieldProps,
     handleCitizenshipChange,
     handleFilesChange,
+    onDocumentUploaded,
     handleFullNameChange,
     handleInnBlur,
     ensureEmployeeId,

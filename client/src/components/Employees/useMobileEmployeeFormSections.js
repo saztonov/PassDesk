@@ -35,6 +35,7 @@ export const useMobileEmployeeFormSections = ({
   formatBlankNumber,
   loadingCounterparties,
   availableCounterparties,
+  onDocumentUploaded,
 }) => {
   return useMemo(() => {
     const items = [
@@ -61,6 +62,7 @@ export const useMobileEmployeeFormSections = ({
         citizenships,
         handleCitizenshipChange,
         formatPhoneNumber,
+        onDocumentUploaded,
       }),
     ];
 
@@ -82,6 +84,7 @@ export const useMobileEmployeeFormSections = ({
         formatBlankNumber,
         loadingCounterparties,
         availableCounterparties,
+        onDocumentUploaded,
       }),
     );
 
@@ -107,6 +110,7 @@ export const useMobileEmployeeFormSections = ({
     getFieldProps,
     handleActivate,
     handleCitizenshipChange,
+    onDocumentUploaded,
     handleDeactivate,
     handleFire,
     handleFullNameChange,

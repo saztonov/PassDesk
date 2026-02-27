@@ -15,6 +15,7 @@ import positionRoutes from "./position.routes.js";
 import employeeStatusRoutes from "./employeeStatus.routes.js";
 import excelColumnSetRoutes from "./excelColumnSet.routes.js";
 import otRoutes from "./ot.routes.js";
+import ocrRoutes from "./ocr.routes.js";
 
 const router = express.Router();
 
@@ -35,5 +36,6 @@ router.use("/departments", departmentRoutes);
 router.use("/positions", positionRoutes);
 router.use("/excel-column-sets", excelColumnSetRoutes);
 router.use("/ot", otRoutes);
+router.use("/ocr", ocrRoutes);
 
 export default router;

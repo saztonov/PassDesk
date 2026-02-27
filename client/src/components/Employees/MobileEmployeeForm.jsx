@@ -1,4 +1,4 @@
-import { Form, Collapse, App } from "antd";
+import { Form, Collapse, App, Alert } from "antd";
 import { CaretRightOutlined } from "@ant-design/icons";
 import { useMemo, useState, useRef, useCallback } from "react";
 import { useEmployeeForm } from "./useEmployeeForm";
@@ -15,6 +15,8 @@ import {
   resolveEmployeeCounterpartyId,
   resolveEmployeeDocumentProfile,
 } from "@/modules/employees/lib/documentTypeProfiles";
+import { useEmployeeOcrHandlers } from "@/modules/employees/model/useEmployeeOcrHandlers";
+import OcrConflictsPanel from "@/modules/employees/ui/OcrConflictsPanel";
 import BrowserAutofillTrap from "@/modules/employees/ui/form/BrowserAutofillTrap";
 import MobileEmployeeFormActions from "@/modules/employees/ui/form/MobileEmployeeFormActions";
 
@@ -77,6 +79,23 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     getFieldProps,
   } = useEmployeeForm(employee, true, onSuccess);
   const antiAutofillIds = useMemo(() => createAntiAutofillIds(), []);
+  const {
+    conflictsList,
+    handleUploadedFileForOcr,
+    keepConflictValue,
+    replaceConflictValue,
+    keepAllConflicts,
+    replaceAllConflicts,
+    clearConflicts,
+    isOcrProcessing,
+  } = useEmployeeOcrHandlers({
+    form,
+    citizenships,
+    getPassportType: () =>
+      form.getFieldValue("passportType") || employee?.passportType || null,
+    messageApi,
+    dateOutputMode: "string",
+  });
 
   // Состояние для открытых панелей (по умолчанию все открыны)
   const [activeKeys, setActiveKeys] = useState([
@@ -205,7 +224,13 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     formatBlankNumber,
     loadingCounterparties,
     availableCounterparties,
+    onDocumentUploaded: handleUploadedFileForOcr,
   });
+
+  const handleCancelWithCleanup = () => {
+    clearConflicts();
+    handleCancelWithConfirm();
+  };
 
   return (
     <div
@@ -234,6 +259,21 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
           onFieldsChange={handleFormFieldsChange}
           requiredMark={false}
         >
+          {isOcrProcessing && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message="OCR: распознаем документ..."
+            />
+          )}
+          <OcrConflictsPanel
+            conflicts={conflictsList}
+            onKeep={keepConflictValue}
+            onReplace={replaceConflictValue}
+            onKeepAll={keepAllConflicts}
+            onReplaceAll={replaceAllConflicts}
+          />
           <Collapse
             activeKey={activeKeys}
             onChange={setActiveKeys}
@@ -252,7 +292,7 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
         canSave={canSave}
         onSaveDraft={handleSaveDraftWithReset}
         onSave={handleSaveWithReset}
-        onCancel={handleCancelWithConfirm}
+        onCancel={handleCancelWithCleanup}
       />
     </div>
   );

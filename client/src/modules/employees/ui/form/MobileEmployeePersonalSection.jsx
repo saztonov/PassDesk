@@ -82,6 +82,7 @@ export const buildMobileEmployeePersonalSection = ({
   formatPhoneNumber,
   employee,
   ensureEmployeeId,
+  onDocumentUploadComplete,
   profileCode,
   profilesConfig,
 }) => {
@@ -319,6 +320,7 @@ export const buildMobileEmployeePersonalSection = ({
             <EmployeeDocumentUpload
               employeeId={employee?.id}
               ensureEmployeeId={ensureEmployeeId}
+              onUploadComplete={onDocumentUploadComplete}
               documentType="passport"
               label={getInlineUploadMeta("passport").label}
               readonly={false}
@@ -329,6 +331,7 @@ export const buildMobileEmployeePersonalSection = ({
             <EmployeeDocumentUpload
               employeeId={employee?.id}
               ensureEmployeeId={ensureEmployeeId}
+              onUploadComplete={onDocumentUploadComplete}
               documentType="passport_translation"
               label={getInlineUploadMeta("passport_translation").label}
               readonly={false}
