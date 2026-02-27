@@ -123,8 +123,29 @@ const EmployeeDocumentUpload = ({
       return;
     }
 
-    // Проверка типа файла
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    // Проверка типа файла: сначала MIME, затем fallback по расширению
+    // (некоторые Android-камеры возвращают пустой/нестандартный MIME).
+    const mimeType = String(file?.type || "").toLowerCase();
+    const ext = String(file?.name || "")
+      .toLowerCase()
+      .split(".")
+      .pop();
+    const allowedByExtension = new Set([
+      "jpg",
+      "jpeg",
+      "png",
+      "webp",
+      "pdf",
+      "xls",
+      "xlsx",
+      "doc",
+      "docx",
+    ]);
+    const isSupportedType =
+      ALLOWED_MIME_TYPES.includes(mimeType) ||
+      (ext && allowedByExtension.has(ext));
+
+    if (!isSupportedType) {
       message.error(
         `❌ ${file.name}: неподдерживаемый тип файла\n` +
           `✅ Поддерживаются: ${SUPPORTED_FORMATS}`,
@@ -178,25 +199,18 @@ const EmployeeDocumentUpload = ({
     const file = e.target.files[0];
     if (file) {
       const mimeType = String(file.type || "").toLowerCase();
-      const isSupportedMime = ALLOWED_MIME_TYPES.includes(mimeType);
+      const ext = String(file?.name || "")
+        .toLowerCase()
+        .split(".")
+        .pop();
+      const isSupportedMime =
+        ALLOWED_MIME_TYPES.includes(mimeType) ||
+        ["jpg", "jpeg", "png", "webp"].includes(ext);
 
       if (!isSupportedMime) {
-        const supportsScanner =
-          typeof window !== "undefined" &&
-          Boolean(window.isSecureContext) &&
-          Boolean(navigator.mediaDevices?.getUserMedia);
-
-        if (supportsScanner) {
-          message.warning(
-            "Камера вернула неподдерживаемый формат фото. Открыл встроенную камеру для сохранения в JPG.",
-          );
-          setState((prev) => ({ ...prev, cameraVisible: true }));
-        } else {
-          message.error(
-            `Формат фото не поддерживается (${mimeType || "unknown"}). Используйте JPG/PNG.`,
-          );
-        }
-
+        message.error(
+          `Формат фото не поддерживается (${mimeType || "unknown"}). Используйте JPG/PNG/WEBP или загрузите через кнопку "Файлы".`,
+        );
         e.target.value = "";
         return;
       }
@@ -232,20 +246,21 @@ const EmployeeDocumentUpload = ({
   };
 
   // Открыть файловый менеджер
-  const handleOpenFileManager = async () => {
-    const currentEmployeeId = await resolveEmployeeId();
-    if (!currentEmployeeId) {
+  const handleOpenFileManager = () => {
+    if (!effectiveEmployeeId && !ensureEmployeeId) {
+      message.error("Сначала сохраните черновик сотрудника");
       return;
     }
+
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
   };
 
   // Запуск системной камеры
-  const handleStartCamera = async () => {
-    const currentEmployeeId = await resolveEmployeeId();
-    if (!currentEmployeeId) {
+  const handleStartCamera = () => {
+    if (!effectiveEmployeeId && !ensureEmployeeId) {
+      message.error("Сначала сохраните черновик сотрудника");
       return;
     }
 

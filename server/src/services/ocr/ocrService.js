@@ -708,7 +708,9 @@ const getOcrConfig = () => {
   const endpoint =
     process.env.OCR_OPENROUTER_ENDPOINT || DEFAULT_OPENROUTER_ENDPOINT;
   const defaultModel =
-    process.env.OCR_OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
+    process.env.OCR_MODEL ||
+    process.env.OCR_OPENROUTER_MODEL ||
+    DEFAULT_OPENROUTER_MODEL;
   const timeoutMs = Number(process.env.OCR_REQUEST_TIMEOUT_MS || 60000);
   const referer = process.env.OCR_OPENROUTER_HTTP_REFERER || "";
   const appTitle = process.env.OCR_OPENROUTER_APP_TITLE || "";

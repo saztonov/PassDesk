@@ -131,7 +131,7 @@ export const DocumentScannerModal = ({
                 height: "auto",
                 display: "block",
                 maxHeight: isMobileViewport ? "calc(100vh - 240px)" : undefined,
-                objectFit: "cover",
+                objectFit: isMobileViewport ? "contain" : "cover",
               }}
             />
             <div
