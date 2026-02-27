@@ -177,6 +177,30 @@ const EmployeeDocumentUpload = ({
   const handleNativeCameraCapture = async (e) => {
     const file = e.target.files[0];
     if (file) {
+      const mimeType = String(file.type || "").toLowerCase();
+      const isSupportedMime = ALLOWED_MIME_TYPES.includes(mimeType);
+
+      if (!isSupportedMime) {
+        const supportsScanner =
+          typeof window !== "undefined" &&
+          Boolean(window.isSecureContext) &&
+          Boolean(navigator.mediaDevices?.getUserMedia);
+
+        if (supportsScanner) {
+          message.warning(
+            "Камера вернула неподдерживаемый формат фото. Открыл встроенную камеру для сохранения в JPG.",
+          );
+          setState((prev) => ({ ...prev, cameraVisible: true }));
+        } else {
+          message.error(
+            `Формат фото не поддерживается (${mimeType || "unknown"}). Используйте JPG/PNG.`,
+          );
+        }
+
+        e.target.value = "";
+        return;
+      }
+
       await uploadFile(file);
     }
     // Очищаем инпут, чтобы можно было снять то же самое фото снова
@@ -225,15 +249,22 @@ const EmployeeDocumentUpload = ({
       return;
     }
 
-    const isMobileUserAgent =
-      typeof navigator !== "undefined" &&
-      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-        navigator.userAgent || "",
-      );
+    const userAgent =
+      typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
+    const maxTouchPoints =
+      typeof navigator !== "undefined" ? Number(navigator.maxTouchPoints || 0) : 0;
 
-    // На мобильных предпочитаем нативную камеру, чтобы не терять качество
-    // из-за browser-canvas snapshot в встроенном сканере.
-    if (isMobileUserAgent) {
+    const isMobileUserAgent =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        userAgent,
+      );
+    const isIosDevice =
+      /iPhone|iPad|iPod/i.test(userAgent) ||
+      (/Macintosh/i.test(userAgent) && maxTouchPoints > 1);
+
+    // На Android предпочитаем нативную камеру. Для iOS используем встроенный
+    // сканер, потому что нативный capture часто отдает HEIC/HEIF.
+    if (isMobileUserAgent && !isIosDevice) {
       nativeCameraInputRef.current?.click();
       return;
     }
@@ -425,7 +456,7 @@ const EmployeeDocumentUpload = ({
                 {/* Скрытый инпут для выбора файлов */}
                 <input
                   type="file"
-                  accept=".jpg,.jpeg,.png,.pdf,.xls,.xlsx,.doc,.docx"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf,.xls,.xlsx,.doc,.docx"
                   multiple={multiple}
                   style={{ display: "none" }}
                   ref={fileInputRef}

@@ -3,7 +3,7 @@ import { AppError } from "../../middleware/errorHandler.js";
 
 const DEFAULT_OPENROUTER_ENDPOINT =
   "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_OPENROUTER_MODEL = "qwen/qwen3-vl-30b-a3b-instruct";
+const DEFAULT_OPENROUTER_MODEL = "qwen/qwen3.5-35b-a3b";
 
 const DEFAULT_PROMPTS = {
   passport_rf:

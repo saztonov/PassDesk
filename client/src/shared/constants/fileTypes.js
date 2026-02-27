@@ -5,6 +5,7 @@ export const ALLOWED_MIME_TYPES = [
   "image/jpeg",
   "image/jpg",
   "image/png",
+  "image/webp",
   "application/pdf",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -15,9 +16,9 @@ export const ALLOWED_MIME_TYPES = [
 /**
  * Расширения файлов для фильтра
  */
-export const ALLOWED_EXTENSIONS = ".jpg,.jpeg,.png,.pdf,.xls,.xlsx,.doc,.docx";
+export const ALLOWED_EXTENSIONS = ".jpg,.jpeg,.png,.webp,.pdf,.xls,.xlsx,.doc,.docx";
 
 /**
  * Описание поддерживаемых типов файлов для показа пользователю
  */
-export const SUPPORTED_FORMATS = "JPG, PNG, PDF, XLS, XLSX, DOC, DOCX";
+export const SUPPORTED_FORMATS = "JPG, PNG, WEBP, PDF, XLS, XLSX, DOC, DOCX";
