@@ -171,6 +171,12 @@ export class ScannerDoc {
     if (typeof document === "undefined") {
       throw new Error("ScannerDoc requires browser DOM APIs");
     }
+    if (!options?.video) {
+      throw new Error("ScannerDoc requires a mounted video element");
+    }
+    if (options.previewCanvas === null) {
+      throw new Error("ScannerDoc preview canvas is not mounted");
+    }
 
     this.video = options.video;
     this.previewCanvas = options.previewCanvas;

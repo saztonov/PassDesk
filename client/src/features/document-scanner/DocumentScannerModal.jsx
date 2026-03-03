@@ -31,6 +31,22 @@ const clearCanvas = (canvas) => {
   }
 };
 
+const waitForMountedNode = async (ref, timeoutMs = 2000) => {
+  const startedAt = Date.now();
+
+  while (!ref.current) {
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new Error("Scanner viewport is not mounted");
+    }
+
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 16);
+    });
+  }
+
+  return ref.current;
+};
+
 const buildStatusMeta = (confidence) => {
   if (confidence >= 0.55) {
     return {
@@ -155,9 +171,16 @@ export const DocumentScannerModal = ({
       syncCanvasSize(previewCanvasRef.current);
 
       try {
+        const videoNode = await waitForMountedNode(videoRef);
+        const previewCanvasNode = await waitForMountedNode(previewCanvasRef);
+
+        if (cancelled) {
+          return;
+        }
+
         const scanner = new ScannerDoc({
-          video: videoRef.current,
-          previewCanvas: previewCanvasRef.current,
+          video: videoNode,
+          previewCanvas: previewCanvasNode,
           detectIntervalMs: 120,
           detectionWidth: isMobileViewport ? 360 : 480,
           smoothing: 0.72,
