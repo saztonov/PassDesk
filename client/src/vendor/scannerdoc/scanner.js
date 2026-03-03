@@ -6,6 +6,13 @@ const DEFAULT_INTERVAL_MS = 120;
 const DEFAULT_DETECTION_WIDTH = 320;
 const DEFAULT_SMOOTHING = 0.72;
 
+const VIDEO_READY_STATE = {
+  currentData:
+    typeof HTMLMediaElement !== "undefined"
+      ? HTMLMediaElement.HAVE_CURRENT_DATA
+      : 2,
+};
+
 const waitForEvent = (target, eventName, timeoutMs = 4000) =>
   new Promise((resolve, reject) => {
     let timeoutId = null;
@@ -45,9 +52,29 @@ const toBlob = async (canvas, mimeType, quality) => {
   return blob;
 };
 
+const waitForAnyVideoSignal = async (video, timeoutMs = 5000) => {
+  if (video.videoWidth > 0 && video.videoHeight > 0) {
+    return;
+  }
+
+  await Promise.race([
+    waitForEvent(video, "loadedmetadata", timeoutMs),
+    waitForEvent(video, "loadeddata", timeoutMs),
+    waitForEvent(video, "canplay", timeoutMs),
+    waitForEvent(video, "playing", timeoutMs),
+  ]);
+};
+
 const waitForVideoReady = async (video) => {
   if (video.videoWidth > 0 && video.videoHeight > 0) return;
-  await waitForEvent(video, "loadedmetadata");
+
+  try {
+    await waitForAnyVideoSignal(video);
+  } catch {
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 350);
+    });
+  }
 };
 
 const buildConstraintFallbacks = (preferredConstraints) => {
@@ -97,23 +124,23 @@ const attachStreamToVideo = async (video, stream) => {
   video.setAttribute("autoplay", "true");
   video.srcObject = stream;
 
-  await waitForVideoReady(video);
-
   try {
     await video.play();
   } catch (error) {
-    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-      await waitForEvent(video, "canplay");
+    if (video.readyState < VIDEO_READY_STATE.currentData) {
+      await waitForAnyVideoSignal(video);
     }
 
     try {
       await video.play();
     } catch {
-      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      if (video.readyState < VIDEO_READY_STATE.currentData) {
         throw error;
       }
     }
   }
+
+  await waitForVideoReady(video);
 };
 
 const drawOverlay = (canvas, corners, confidence, sourceWidth, sourceHeight) => {

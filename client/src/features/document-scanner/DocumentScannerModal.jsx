@@ -57,6 +57,7 @@ const buildStatusMeta = (confidence) => {
 
 const buildCameraErrorMessage = (error) => {
   const errorName = String(error?.name || "");
+  const errorMessage = String(error?.message || "").trim();
 
   if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
     return "Браузер отклонил доступ к камере. Проверь разрешение для сайта в настройках браузера.";
@@ -72,6 +73,10 @@ const buildCameraErrorMessage = (error) => {
 
   if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
     return "На устройстве не найдена доступная камера.";
+  }
+
+  if (errorMessage) {
+    return `Не удалось открыть камеру в режиме сканера: ${errorMessage}`;
   }
 
   return "Не удалось открыть камеру в режиме сканера. Попробуй еще раз; если не поможет, используем запасной режим.";
