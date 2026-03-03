@@ -232,6 +232,7 @@ export class ScannerDoc {
     this.detectIntervalMs = options.detectIntervalMs ?? DEFAULT_INTERVAL_MS;
     this.detectionWidth = options.detectionWidth ?? DEFAULT_DETECTION_WIDTH;
     this.smoothing = clamp(options.smoothing ?? DEFAULT_SMOOTHING, 0, 0.95);
+    this.documentMode = options.documentMode ?? "document";
     this.constraints = options.constraints;
     this.onDetect = options.onDetect;
     this.stream = null;
@@ -315,6 +316,7 @@ export class ScannerDoc {
 
     this.processingCtx.drawImage(this.video, 0, 0, targetW, targetH);
     const frame = this.processingCtx.getImageData(0, 0, targetW, targetH);
+    this.detector.documentMode = this.documentMode;
     const detected = this.detector.detect(frame);
 
     const scaleX = width / targetW;

@@ -255,6 +255,7 @@ export const DocumentScannerModal = ({
         const scanner = new ScannerDoc({
           video: videoNode,
           previewCanvas: previewCanvasNode,
+          documentMode: mode,
           detectIntervalMs: 120,
           detectionWidth: isMobileViewport ? 360 : 480,
           smoothing: 0.72,
@@ -349,7 +350,7 @@ export const DocumentScannerModal = ({
       cancelled = true;
       stopScanner();
     };
-  }, [capturedImage, captureScan, isMobileViewport, stopScanner, visible]);
+  }, [capturedImage, captureScan, isMobileViewport, mode, stopScanner, visible]);
 
   useEffect(() => {
     if (!visible) {

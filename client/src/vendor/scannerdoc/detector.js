@@ -2,6 +2,33 @@ import { defaultQuad } from "./math";
 
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
+const DOCUMENT_PROFILES = {
+  document: {
+    targetAreaRatio: 0.42,
+    minAreaRatio: 0.08,
+    maxAreaRatio: 0.82,
+    targetAspectRatio: 0.72,
+    aspectWeight: 0.1,
+  },
+  passport: {
+    targetAreaRatio: 0.48,
+    minAreaRatio: 0.12,
+    maxAreaRatio: 0.78,
+    targetAspectRatio: 0.62,
+    aspectWeight: 0.2,
+  },
+};
+
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
+
+const scoreAroundTarget = (value, target, tolerance) => {
+  if (!Number.isFinite(value) || !Number.isFinite(target) || tolerance <= 0) {
+    return 0;
+  }
+
+  return clamp01(1 - Math.abs(value - target) / tolerance);
+};
+
 const toGrayscale = (rgba, out) => {
   for (let i = 0, g = 0; i < rgba.length; i += 4, g += 1) {
     out[g] = (rgba[i] * 77 + rgba[i + 1] * 150 + rgba[i + 2] * 29) >> 8;
@@ -121,7 +148,7 @@ const morphClose = (mask, temp, width, height) => {
   erode3(temp, mask, width, height);
 };
 
-const detectComponent = (mask, visited, queue, width, height) => {
+const detectComponent = (mask, visited, queue, width, height, profile) => {
   visited.fill(0);
   const total = width * height;
   const cx = width * 0.5;
@@ -187,15 +214,50 @@ const detectComponent = (mask, visited, queue, width, height) => {
     }
 
     const boxArea = Math.max(1, (maxX - minX + 1) * (maxY - minY + 1));
+    const boxWidth = maxX - minX + 1;
+    const boxHeight = maxY - minY + 1;
     const fillRatio = area / boxArea;
     const areaRatio = area / total;
+    const aspectRatio = boxWidth / Math.max(1, boxHeight);
     const centerX = (minX + maxX) * 0.5;
     const centerY = (minY + maxY) * 0.5;
     const dist = Math.hypot(centerX - cx, centerY - cy) / maxDist;
     const centerScore = 1 - Math.min(1, dist);
+    const minInset = Math.min(minX, minY, width - 1 - maxX, height - 1 - maxY);
+    const touchesEdge =
+      minX <= 1 || minY <= 1 || maxX >= width - 2 || maxY >= height - 2;
+    const edgeScore = clamp01(minInset / (Math.min(width, height) * 0.12));
+    const areaScore =
+      areaRatio < profile.minAreaRatio || areaRatio > profile.maxAreaRatio
+        ? 0
+        : scoreAroundTarget(
+            areaRatio,
+            profile.targetAreaRatio,
+            (profile.maxAreaRatio - profile.minAreaRatio) * 0.55,
+          );
+    const aspectScore = scoreAroundTarget(
+      aspectRatio,
+      profile.targetAspectRatio,
+      profile.targetAspectRatio * 0.55,
+    );
+    const edgePenalty = touchesEdge ? 0.18 : 1;
 
-    const score = areaRatio * 0.55 + fillRatio * 0.3 + centerScore * 0.15;
-    const confidence = Math.max(0, Math.min(1, fillRatio * 0.55 + areaRatio * 1.4));
+    const score = (
+      fillRatio * 0.28 +
+      centerScore * 0.18 +
+      edgeScore * 0.24 +
+      areaScore * 0.2 +
+      aspectScore * profile.aspectWeight
+    ) * edgePenalty;
+    const confidence = clamp01(
+      (
+        fillRatio * 0.3 +
+        centerScore * 0.15 +
+        edgeScore * 0.3 +
+        areaScore * 0.15 +
+        aspectScore * 0.1
+      ) * edgePenalty,
+    );
 
     if (score > bestScore) {
       bestScore = score;
@@ -238,16 +300,31 @@ export class DocumentDetector {
   detect(imageData) {
     const startedAt = now();
     const { width, height, data } = imageData;
+    const profile = DOCUMENT_PROFILES[this.documentMode] || DOCUMENT_PROFILES.document;
     this.ensureBuffers(width, height);
     toGrayscale(data, this.gray);
     boxBlur3(this.gray, this.blur, width, height);
     const threshold = otsuThreshold(this.blur);
     buildMask(this.blur, this.maskA, width, height, threshold, true);
     morphClose(this.maskA, this.maskB, width, height);
-    const bright = detectComponent(this.maskA, this.visited, this.queue, width, height);
+    const bright = detectComponent(
+      this.maskA,
+      this.visited,
+      this.queue,
+      width,
+      height,
+      profile,
+    );
     buildMask(this.blur, this.maskA, width, height, threshold, false);
     morphClose(this.maskA, this.maskB, width, height);
-    const dark = detectComponent(this.maskA, this.visited, this.queue, width, height);
+    const dark = detectComponent(
+      this.maskA,
+      this.visited,
+      this.queue,
+      width,
+      height,
+      profile,
+    );
     const best = bright.confidence >= dark.confidence ? bright : dark;
     return {
       corners: best.corners,
