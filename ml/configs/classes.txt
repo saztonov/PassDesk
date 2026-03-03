@@ -1,0 +1,3 @@
+passport_open
+card_document
+paper_document

@@ -1,0 +1,9 @@
+path: /Users/denis/Documents/deskpass/PassDesk/ml/dataset/yolo-obb
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: passport_open
+  1: card_document
+  2: paper_document

@@ -1,0 +1,9 @@
+.venv/
+dataset/raw/*
+!dataset/raw/.gitkeep
+dataset/yolo-obb/*
+!dataset/yolo-obb/.gitkeep
+runs/
+models/
+*.pt
+*.onnx
