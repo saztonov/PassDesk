@@ -39,6 +39,7 @@ import TelegramAccount from "./TelegramAccount.js";
 import TelegramLinkCode from "./TelegramLinkCode.js";
 import TelegramCommandLog from "./TelegramCommandLog.js";
 import TelegramNotificationLog from "./TelegramNotificationLog.js";
+import EmployeeOcrConflict from "./EmployeeOcrConflict.js";
 
 // Define associations
 
@@ -223,6 +224,42 @@ Employee.hasMany(TelegramNotificationLog, {
 TelegramNotificationLog.belongsTo(Employee, {
   foreignKey: "employee_id",
   as: "employee",
+});
+
+Employee.hasMany(EmployeeOcrConflict, {
+  foreignKey: "employee_id",
+  as: "ocrConflicts",
+});
+EmployeeOcrConflict.belongsTo(Employee, {
+  foreignKey: "employee_id",
+  as: "employee",
+});
+
+File.hasMany(EmployeeOcrConflict, {
+  foreignKey: "file_id",
+  as: "ocrConflicts",
+});
+EmployeeOcrConflict.belongsTo(File, {
+  foreignKey: "file_id",
+  as: "file",
+});
+
+User.hasMany(EmployeeOcrConflict, {
+  foreignKey: "created_by",
+  as: "createdEmployeeOcrConflicts",
+});
+EmployeeOcrConflict.belongsTo(User, {
+  foreignKey: "created_by",
+  as: "creator",
+});
+
+User.hasMany(EmployeeOcrConflict, {
+  foreignKey: "resolved_by",
+  as: "resolvedEmployeeOcrConflicts",
+});
+EmployeeOcrConflict.belongsTo(User, {
+  foreignKey: "resolved_by",
+  as: "resolver",
 });
 
 // User -> Pass (выдавший/отозвавший)
@@ -759,4 +796,5 @@ export {
   TelegramLinkCode,
   TelegramCommandLog,
   TelegramNotificationLog,
+  EmployeeOcrConflict,
 };

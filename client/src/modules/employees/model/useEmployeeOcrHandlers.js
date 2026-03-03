@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ocrService from "@/services/ocrService";
 import {
   buildFormPatchFromOcr,
@@ -26,68 +26,53 @@ export const useEmployeeOcrHandlers = ({
   getPassportType,
   messageApi,
   dateOutputMode = "dayjs",
+  employeeId = null,
+  visible = true,
 }) => {
-  const [conflictsMap, setConflictsMap] = useState({});
   const [processingMap, setProcessingMap] = useState({});
+  const [conflictSummary, setConflictSummary] = useState(null);
+  const [isConflictSummaryLoading, setIsConflictSummaryLoading] = useState(false);
   const runningFileIdsRef = useRef(new Set());
 
-  const hasConflicts = useMemo(
-    () => Object.keys(conflictsMap).length > 0,
-    [conflictsMap],
-  );
+  const refreshConflictSummary = useCallback(
+    async (targetEmployeeId = employeeId) => {
+      const normalizedEmployeeId = normalizeString(targetEmployeeId);
+      if (!normalizedEmployeeId) {
+        setConflictSummary(null);
+        return null;
+      }
 
-  const conflictsList = useMemo(
-    () => Object.values(conflictsMap),
-    [conflictsMap],
-  );
-
-  const clearConflicts = useCallback(() => {
-    setConflictsMap({});
-  }, []);
-
-  const removeConflict = useCallback((fieldName) => {
-    setConflictsMap((prev) => {
-      if (!prev[fieldName]) return prev;
-      const next = { ...prev };
-      delete next[fieldName];
-      return next;
-    });
-  }, []);
-
-  const keepConflictValue = useCallback(
-    (fieldName) => {
-      removeConflict(fieldName);
+      setIsConflictSummaryLoading(true);
+      try {
+        const response = await ocrService.getEmployeeConflictSummary(
+          normalizedEmployeeId,
+        );
+        const responseData = toResponseData(response);
+        setConflictSummary(responseData);
+        return responseData;
+      } catch (error) {
+        console.error("Failed to load OCR conflict summary:", error);
+        return null;
+      } finally {
+        setIsConflictSummaryLoading(false);
+      }
     },
-    [removeConflict],
+    [employeeId],
   );
 
-  const replaceConflictValue = useCallback(
-    (fieldName) => {
-      const conflict = conflictsMap[fieldName];
-      if (!conflict) return;
-
-      form.setFieldValue(fieldName, conflict.ocrValue);
-      removeConflict(fieldName);
-    },
-    [conflictsMap, form, removeConflict],
-  );
-
-  const keepAllConflicts = useCallback(() => {
-    setConflictsMap({});
-  }, []);
-
-  const replaceAllConflicts = useCallback(() => {
-    const patch = {};
-    Object.values(conflictsMap).forEach((conflict) => {
-      patch[conflict.fieldName] = conflict.ocrValue;
-    });
-
-    if (Object.keys(patch).length > 0) {
-      form.setFieldsValue(patch);
+  useEffect(() => {
+    if (!visible) {
+      setConflictSummary(null);
+      return;
     }
 
-    setConflictsMap({});
-  }, [conflictsMap, form]);
+    if (!employeeId) {
+      setConflictSummary(null);
+      return;
+    }
+
+    refreshConflictSummary(employeeId);
+  }, [employeeId, refreshConflictSummary, visible]);
 
   const handleUploadedFileForOcr = useCallback(
     async ({ file, employeeId, fileDocumentType }) => {
@@ -148,26 +133,6 @@ export const useEmployeeOcrHandlers = ({
           form.setFieldsValue(autoFillPatch);
         }
 
-        if (Object.keys(conflicts).length > 0) {
-          const decoratedConflicts = Object.fromEntries(
-            Object.entries(conflicts).map(([fieldName, conflict]) => [
-              fieldName,
-              {
-                ...conflict,
-                fileId,
-                fileName: file?.fileName || file?.originalName || file?.name || null,
-                fileDocumentType: docType,
-                ocrDocumentType,
-              },
-            ]),
-          );
-
-          setConflictsMap((prev) => ({
-            ...prev,
-            ...decoratedConflicts,
-          }));
-        }
-
         const autoFillCount = Object.keys(autoFillPatch).length;
         const conflictsCount = Object.keys(conflicts).length;
 
@@ -188,6 +153,14 @@ export const useEmployeeOcrHandlers = ({
         try {
           const provider = toProvider(responseData);
           const resultFileId = toFileId(responseData, fileId);
+          const serializedConflicts = Object.values(conflicts).map((conflict) => ({
+            fieldName: conflict.fieldName,
+            fieldLabel: conflict.fieldLabel,
+            currentValue: conflict.currentValue,
+            ocrValue: conflict.ocrValue,
+            fileDocumentType: docType,
+            ocrDocumentType,
+          }));
 
           await ocrService.confirmFileOcr({
             fileId: resultFileId,
@@ -196,7 +169,9 @@ export const useEmployeeOcrHandlers = ({
               documentType: ocrDocumentType,
               normalized,
             },
+            conflicts: serializedConflicts,
           });
+          await refreshConflictSummary(employeeId);
         } catch (confirmError) {
           console.error("Failed to confirm OCR metadata:", confirmError);
         }
@@ -214,20 +189,22 @@ export const useEmployeeOcrHandlers = ({
         });
       }
     },
-    [citizenships, dateOutputMode, form, getPassportType, messageApi],
+    [
+      citizenships,
+      dateOutputMode,
+      form,
+      getPassportType,
+      messageApi,
+      refreshConflictSummary,
+    ],
   );
 
   return {
-    conflictsMap,
-    conflictsList,
-    hasConflicts,
+    conflictSummary,
+    isConflictSummaryLoading,
     isOcrProcessing: Object.keys(processingMap).length > 0,
     handleUploadedFileForOcr,
-    keepConflictValue,
-    replaceConflictValue,
-    keepAllConflicts,
-    replaceAllConflicts,
-    clearConflicts,
+    refreshConflictSummary,
   };
 };
 

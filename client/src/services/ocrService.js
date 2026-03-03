@@ -52,12 +52,28 @@ export const ocrService = {
     return response.data;
   },
 
-  confirmFileOcr: async ({ fileId, provider, result }) => {
+  confirmFileOcr: async ({ fileId, provider, result, conflicts = [] }) => {
     const response = await api.post("/ocr/confirm", {
       fileId,
       provider,
       result,
+      conflicts,
     });
+    return response.data;
+  },
+
+  getEmployeeConflictSummary: async (employeeId) => {
+    const response = await api.get(`/ocr/conflicts/summary/${employeeId}`);
+    return response.data;
+  },
+
+  getConflicts: async (params = {}) => {
+    const response = await api.get("/ocr/conflicts", { params });
+    return response.data;
+  },
+
+  resolveConflict: async (id) => {
+    const response = await api.post(`/ocr/conflicts/${id}/resolve`);
     return response.data;
   },
 };

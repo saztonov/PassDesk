@@ -13,6 +13,13 @@ import {
   normalizeDocumentType,
   recognizeDocument,
 } from "../services/ocr/ocrService.js";
+import {
+  getEmployeeOcrConflictSummary,
+  listEmployeeOcrConflicts,
+  notifyManagersAboutOcrConflicts,
+  resolveEmployeeOcrConflict,
+  saveEmployeeOcrConflicts,
+} from "../services/ocrConflictService.js";
 
 const MAX_IMAGE_SIZE_BYTES = Number(
   process.env.OCR_MAX_FILE_SIZE || 12 * 1024 * 1024,
@@ -251,7 +258,7 @@ export const recognizeDocumentFromImage = async (req, res, next) => {
 
 export const confirmRecognizedDocument = async (req, res, next) => {
   try {
-    const { fileId, provider, result } = req.body || {};
+    const { fileId, provider, result, conflicts } = req.body || {};
 
     if (!fileId) {
       throw new AppError("fileId обязателен", 400);
@@ -293,12 +300,101 @@ export const confirmRecognizedDocument = async (req, res, next) => {
       },
     );
 
+    const persistedConflicts = await saveEmployeeOcrConflicts({
+      employeeId: fileRecord.employee.id,
+      fileId: fileRecord.id,
+      documentType: fileRecord.documentType || null,
+      ocrDocumentType: normalizeString(result?.documentType || null),
+      conflicts: Array.isArray(conflicts) ? conflicts : [],
+      createdBy: req.user.id,
+    });
+
+    const newConflicts = [
+      ...persistedConflicts.created,
+      ...persistedConflicts.reopened,
+    ];
+
+    if (newConflicts.length > 0) {
+      await notifyManagersAboutOcrConflicts({
+        employee: fileRecord.employee,
+        documentType: fileRecord.documentType || null,
+        conflicts: newConflicts,
+      });
+    }
+
     return res.json({
       success: true,
       message: "OCR подтвержден",
       data: {
         fileId: fileRecord.id,
         ocrVerified: true,
+        conflictsCreated: newConflicts.length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const normalizeString = (value) => String(value || "").trim();
+
+export const getEmployeeConflictsSummary = async (req, res, next) => {
+  try {
+    const { employeeId } = req.params;
+    const employee = await fetchEmployeeWithMappings(employeeId);
+
+    if (!employee || employee.isDeleted) {
+      throw new AppError("Сотрудник не найден", 404);
+    }
+
+    await checkEmployeeAccess(req.user, employee, "read");
+
+    const summary = await getEmployeeOcrConflictSummary(employeeId);
+
+    return res.json({
+      success: true,
+      data: summary,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getOcrConflictsList = async (req, res, next) => {
+  try {
+    const { status = "open", page = 1, limit = 50 } = req.query || {};
+    const data = await listEmployeeOcrConflicts({
+      status,
+      page,
+      limit,
+    });
+
+    return res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resolveOcrConflict = async (req, res, next) => {
+  try {
+    const conflict = await resolveEmployeeOcrConflict({
+      conflictId: req.params.id,
+      resolvedBy: req.user.id,
+    });
+
+    if (!conflict) {
+      throw new AppError("OCR-конфликт не найден", 404);
+    }
+
+    return res.json({
+      success: true,
+      message: "OCR-конфликт отмечен как просмотренный",
+      data: {
+        id: conflict.id,
+        status: "resolved",
       },
     });
   } catch (error) {

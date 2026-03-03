@@ -8,6 +8,7 @@ import {
   DownloadOutlined,
   DeleteOutlined,
   FileImageOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 import UsersPage from "./UsersPage";
 import MobileUsersPage from "./MobileUsersPage";
@@ -18,6 +19,7 @@ import MobileCounterpartiesPage from "./MobileCounterpartiesPage";
 import ExportPage from "./ExportPage";
 import TrashPage from "./TrashPage";
 import DocumentSamplesPage from "./DocumentSamplesPage";
+import OcrConflictsAdminSection from "@/components/Admin/OcrConflictsAdminSection";
 
 const { Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -37,6 +39,7 @@ const AdministrationPage = () => {
     "export",
     "trash",
     "document-samples",
+    "ocr-conflicts",
     "settings",
   ];
 
@@ -84,6 +87,11 @@ const AdministrationPage = () => {
       key: "document-samples",
       label: renderTabLabel(FileImageOutlined, "Образцы документов"),
       children: <DocumentSamplesPage />,
+    },
+    {
+      key: "ocr-conflicts",
+      label: renderTabLabel(WarningOutlined, "OCR расхождения"),
+      children: <OcrConflictsAdminSection />,
     },
     {
       key: "settings",

@@ -1,0 +1,234 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  App,
+  Button,
+  Segmented,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
+import { ReloadOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
+import ocrService from "@/services/ocrService";
+import { DEFAULT_DOCUMENT_TYPES } from "@/modules/employees/lib/documentTypeUploaderUtils";
+
+const { Text } = Typography;
+
+const DOCUMENT_LABELS = DEFAULT_DOCUMENT_TYPES.reduce((accumulator, item) => {
+  accumulator[item.value] = item.label;
+  return accumulator;
+}, {});
+
+const getDocumentLabel = (documentType) =>
+  DOCUMENT_LABELS[documentType] || documentType || "Документ";
+
+const toResponseData = (response) => response?.data || response || {};
+
+const formatValue = (value) => {
+  const normalized = String(value || "").trim();
+  return normalized || "—";
+};
+
+const OcrConflictsAdminSection = () => {
+  const { message } = App.useApp();
+  const [statusFilter, setStatusFilter] = useState("open");
+  const [loading, setLoading] = useState(false);
+  const [resolvingId, setResolvingId] = useState(null);
+  const [tableState, setTableState] = useState({
+    items: [],
+    pagination: {
+      page: 1,
+      limit: 50,
+      total: 0,
+      pages: 0,
+    },
+  });
+
+  const loadData = useCallback(
+    async ({ page = 1, limit = tableState.pagination.limit, status = statusFilter } = {}) => {
+      setLoading(true);
+      try {
+        const response = await ocrService.getConflicts({
+          page,
+          limit,
+          status,
+        });
+        const payload = toResponseData(response);
+        setTableState({
+          items: Array.isArray(payload.items) ? payload.items : [],
+          pagination: payload.pagination || {
+            page,
+            limit,
+            total: 0,
+            pages: 0,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to load OCR conflicts:", error);
+        message.error("Не удалось загрузить OCR-расхождения");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [message, statusFilter, tableState.pagination.limit],
+  );
+
+  useEffect(() => {
+    loadData({ page: 1, status: statusFilter });
+  }, [loadData, statusFilter]);
+
+  const handleResolve = useCallback(
+    async (id) => {
+      setResolvingId(id);
+      try {
+        await ocrService.resolveConflict(id);
+        message.success("Конфликт отмечен как просмотренный");
+        await loadData({
+          page: tableState.pagination.page,
+          limit: tableState.pagination.limit,
+          status: statusFilter,
+        });
+      } catch (error) {
+        console.error("Failed to resolve OCR conflict:", error);
+        message.error("Не удалось обновить статус конфликта");
+      } finally {
+        setResolvingId(null);
+      }
+    },
+    [loadData, message, statusFilter, tableState.pagination.limit, tableState.pagination.page],
+  );
+
+  const columns = useMemo(
+    () => [
+      {
+        title: "Когда",
+        dataIndex: "createdAt",
+        key: "createdAt",
+        width: 150,
+        render: (value) => (value ? dayjs(value).format("DD.MM.YYYY HH:mm") : "—"),
+      },
+      {
+        title: "Сотрудник",
+        key: "employee",
+        width: 220,
+        render: (_, record) => (
+          <Space direction="vertical" size={0}>
+            <Text strong>{record.employee?.fullName || "—"}</Text>
+            <Text type="secondary">{record.employee?.counterpartyName || "—"}</Text>
+          </Space>
+        ),
+      },
+      {
+        title: "Документ",
+        key: "document",
+        width: 180,
+        render: (_, record) => (
+          <Space direction="vertical" size={0}>
+            <Tag color="gold">{getDocumentLabel(record.documentType || record.file?.documentType)}</Tag>
+            <Text type="secondary">{record.file?.originalName || record.file?.fileName || "—"}</Text>
+          </Space>
+        ),
+      },
+      {
+        title: "Поле",
+        dataIndex: "fieldLabel",
+        key: "fieldLabel",
+        width: 160,
+      },
+      {
+        title: "В карточке",
+        dataIndex: "currentValue",
+        key: "currentValue",
+        render: (value) => formatValue(value),
+      },
+      {
+        title: "OCR",
+        dataIndex: "ocrValue",
+        key: "ocrValue",
+        render: (value) => formatValue(value),
+      },
+      {
+        title: "Статус",
+        dataIndex: "status",
+        key: "status",
+        width: 140,
+        render: (value) =>
+          value === "resolved" ? (
+            <Tag color="green">Просмотрено</Tag>
+          ) : (
+            <Tag color="orange">Открыт</Tag>
+          ),
+      },
+      {
+        title: "Действие",
+        key: "actions",
+        width: 150,
+        render: (_, record) =>
+          record.status === "open" ? (
+            <Button
+              size="small"
+              type="primary"
+              loading={resolvingId === record.id}
+              onClick={() => handleResolve(record.id)}
+            >
+              Просмотрено
+            </Button>
+          ) : (
+            <Text type="secondary">—</Text>
+          ),
+      },
+    ],
+    [handleResolve, resolvingId],
+  );
+
+  return (
+    <Space direction="vertical" size={16} style={{ width: "100%", padding: 16 }}>
+      <Space style={{ justifyContent: "space-between", width: "100%" }} wrap>
+        <Space direction="vertical" size={0}>
+          <Text strong>OCR-расхождения</Text>
+          <Text type="secondary">
+            Отдельный реестр конфликтов между карточкой сотрудника и распознанными документами.
+          </Text>
+        </Space>
+        <Space>
+          <Segmented
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { label: "Открытые", value: "open" },
+              { label: "Просмотренные", value: "resolved" },
+              { label: "Все", value: "all" },
+            ]}
+          />
+          <Button icon={<ReloadOutlined />} onClick={() => loadData()}>
+            Обновить
+          </Button>
+        </Space>
+      </Space>
+
+      <Table
+        rowKey="id"
+        loading={loading}
+        columns={columns}
+        dataSource={tableState.items}
+        pagination={{
+          current: tableState.pagination.page,
+          pageSize: tableState.pagination.limit,
+          total: tableState.pagination.total,
+          showSizeChanger: true,
+        }}
+        onChange={(pagination) => {
+          loadData({
+            page: pagination.current,
+            limit: pagination.pageSize,
+            status: statusFilter,
+          });
+        }}
+        scroll={{ x: 1200 }}
+      />
+    </Space>
+  );
+};
+
+export default OcrConflictsAdminSection;

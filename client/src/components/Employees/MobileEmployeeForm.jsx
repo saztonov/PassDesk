@@ -16,7 +16,7 @@ import {
   resolveEmployeeDocumentProfile,
 } from "@/modules/employees/lib/documentTypeProfiles";
 import { useEmployeeOcrHandlers } from "@/modules/employees/model/useEmployeeOcrHandlers";
-import OcrConflictsPanel from "@/modules/employees/ui/OcrConflictsPanel";
+import OcrConflictSummaryNotice from "@/modules/employees/ui/OcrConflictSummaryNotice";
 import BrowserAutofillTrap from "@/modules/employees/ui/form/BrowserAutofillTrap";
 import MobileEmployeeFormActions from "@/modules/employees/ui/form/MobileEmployeeFormActions";
 
@@ -80,13 +80,8 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
   } = useEmployeeForm(employee, true, onSuccess);
   const antiAutofillIds = useMemo(() => createAntiAutofillIds(), []);
   const {
-    conflictsList,
+    conflictSummary,
     handleUploadedFileForOcr,
-    keepConflictValue,
-    replaceConflictValue,
-    keepAllConflicts,
-    replaceAllConflicts,
-    clearConflicts,
     isOcrProcessing,
   } = useEmployeeOcrHandlers({
     form,
@@ -95,6 +90,8 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
       form.getFieldValue("passportType") || employee?.passportType || null,
     messageApi,
     dateOutputMode: "string",
+    employeeId: employee?.id || null,
+    visible: true,
   });
 
   // Состояние для открытых панелей (по умолчанию все открыны)
@@ -228,7 +225,6 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
   });
 
   const handleCancelWithCleanup = () => {
-    clearConflicts();
     handleCancelWithConfirm();
   };
 
@@ -267,13 +263,7 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
               message="OCR: распознаем документ..."
             />
           )}
-          <OcrConflictsPanel
-            conflicts={conflictsList}
-            onKeep={keepConflictValue}
-            onReplace={replaceConflictValue}
-            onKeepAll={keepAllConflicts}
-            onReplaceAll={replaceAllConflicts}
-          />
+          <OcrConflictSummaryNotice summary={conflictSummary} />
           <Collapse
             activeKey={activeKeys}
             onChange={setActiveKeys}

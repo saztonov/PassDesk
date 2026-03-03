@@ -34,7 +34,7 @@ import { useEmployeeFormInputHandlers } from "@/modules/employees/model/useEmplo
 import { useEmployeeFormTabFlow } from "@/modules/employees/model/useEmployeeFormTabFlow";
 import { useEmployeeOcrHandlers } from "@/modules/employees/model/useEmployeeOcrHandlers";
 import { formatEmployeeFormPayload } from "@/modules/employees/lib/employeeFormPayload";
-import OcrConflictsPanel from "@/modules/employees/ui/OcrConflictsPanel";
+import OcrConflictSummaryNotice from "@/modules/employees/ui/OcrConflictSummaryNotice";
 
 const EmployeeFormModal = ({
   visible,
@@ -67,13 +67,8 @@ const EmployeeFormModal = ({
   const [availableCounterparties, setAvailableCounterparties] = useState([]); // Доступные контрагенты
   const [loadingCounterparties, setLoadingCounterparties] = useState(false); // Загрузка контрагентов
   const {
-    conflictsList,
+    conflictSummary,
     handleUploadedFileForOcr,
-    keepConflictValue,
-    replaceConflictValue,
-    keepAllConflicts,
-    replaceAllConflicts,
-    clearConflicts,
     isOcrProcessing,
   } = useEmployeeOcrHandlers({
     form,
@@ -81,6 +76,8 @@ const EmployeeFormModal = ({
     getPassportType: () =>
       form.getFieldValue("passportType") || passportType || employee?.passportType,
     messageApi: message,
+    employeeId: employee?.id || null,
+    visible,
   });
 
   const {
@@ -234,15 +231,8 @@ const EmployeeFormModal = ({
 
   // Обработчик закрытия модального окна
   const handleModalCancel = () => {
-    clearConflicts();
     onCancel();
   };
-
-  useEffect(() => {
-    if (!visible) {
-      clearConflicts();
-    }
-  }, [clearConflicts, visible]);
 
   const tabsItems = useEmployeeFormModalTabs({
     employee,
@@ -302,13 +292,7 @@ const EmployeeFormModal = ({
             message="OCR: распознаем документ..."
           />
         )}
-        <OcrConflictsPanel
-          conflicts={conflictsList}
-          onKeep={keepConflictValue}
-          onReplace={replaceConflictValue}
-          onKeepAll={keepAllConflicts}
-          onReplaceAll={replaceAllConflicts}
-        />
+        <OcrConflictSummaryNotice summary={conflictSummary} />
         <Tabs
           activeKey={activeTab}
           onChange={(key) => {
