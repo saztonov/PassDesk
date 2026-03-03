@@ -7,6 +7,10 @@ import {
 } from "@ant-design/icons";
 import { ScannerDoc } from "@/vendor/scannerdoc";
 
+const AUTO_CAPTURE_MIN_CONFIDENCE = 0.62;
+const AUTO_CAPTURE_STABLE_DELTA_RATIO = 0.015;
+const AUTO_CAPTURE_STABLE_FRAMES = 4;
+
 const syncCanvasSize = (canvas) => {
   if (!canvas) {
     return;
@@ -71,6 +75,20 @@ const buildStatusMeta = (confidence) => {
   };
 };
 
+const calculateQuadDeltaRatio = (previousCorners, nextCorners, frameWidth, frameHeight) => {
+  if (!previousCorners || !nextCorners || !frameWidth || !frameHeight) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const diagonal = Math.hypot(frameWidth, frameHeight) || 1;
+  const totalDistance = previousCorners.reduce((sum, point, index) => {
+    const nextPoint = nextCorners[index];
+    return sum + Math.hypot(point.x - nextPoint.x, point.y - nextPoint.y);
+  }, 0);
+
+  return totalDistance / (previousCorners.length * diagonal);
+};
+
 const buildCameraErrorMessage = (error) => {
   const errorName = String(error?.name || "");
   const errorMessage = String(error?.message || "").trim();
@@ -110,13 +128,22 @@ export const DocumentScannerModal = ({
   const viewportRef = useRef(null);
   const scannerRef = useRef(null);
   const resizeObserverRef = useRef(null);
+  const autoCaptureLockRef = useRef(false);
+  const autoCaptureTimeoutRef = useRef(null);
+  const lastDetectionRef = useRef(null);
+  const stableFramesRef = useRef(0);
 
   const [capturedImage, setCapturedImage] = useState(null);
   const [capturedBlob, setCapturedBlob] = useState(null);
   const [saving, setSaving] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState("");
-  const [detection, setDetection] = useState({ confidence: 0, processingMs: 0 });
+  const [detection, setDetection] = useState({
+    confidence: 0,
+    processingMs: 0,
+    stableFrames: 0,
+    autoCaptureArmed: false,
+  });
 
   const isPassportMode = mode === "passport";
   const isMobileViewport =
@@ -130,6 +157,14 @@ export const DocumentScannerModal = ({
   const stopScanner = useCallback(() => {
     resizeObserverRef.current?.disconnect?.();
     resizeObserverRef.current = null;
+    lastDetectionRef.current = null;
+    stableFramesRef.current = 0;
+    autoCaptureLockRef.current = false;
+
+    if (autoCaptureTimeoutRef.current) {
+      window.clearTimeout(autoCaptureTimeoutRef.current);
+      autoCaptureTimeoutRef.current = null;
+    }
 
     if (scannerRef.current) {
       scannerRef.current.stop();
@@ -144,13 +179,47 @@ export const DocumentScannerModal = ({
 
     clearCanvas(previewCanvasRef.current);
     setCameraReady(false);
-    setDetection({ confidence: 0, processingMs: 0 });
+    setDetection({
+      confidence: 0,
+      processingMs: 0,
+      stableFrames: 0,
+      autoCaptureArmed: false,
+    });
   }, []);
 
   const resetCapture = useCallback(() => {
     setCapturedImage(null);
     setCapturedBlob(null);
   }, []);
+
+  const captureScan = useCallback(async () => {
+    if (!scannerRef.current || saving || autoCaptureLockRef.current) {
+      return false;
+    }
+
+    autoCaptureLockRef.current = true;
+
+    try {
+      await scannerRef.current.detectOnce();
+      const result = await scannerRef.current.capture({
+        filter: "color",
+        mimeType: "image/jpeg",
+        quality: 0.95,
+        maxWidth: isPassportMode ? 2200 : 2400,
+        maxHeight: isPassportMode ? 1600 : 2400,
+      });
+
+      setCapturedBlob(result.blob);
+      setCapturedImage(result.dataUrl);
+      stopScanner();
+      return true;
+    } catch (error) {
+      console.error("Failed to capture document scan:", error);
+      setCameraError("Не удалось снять фото. Попробуйте еще раз.");
+      autoCaptureLockRef.current = false;
+      return false;
+    }
+  }, [isPassportMode, saving, stopScanner]);
 
   useEffect(() => {
     if (!visible || capturedImage) {
@@ -167,7 +236,12 @@ export const DocumentScannerModal = ({
 
       setCameraError("");
       setCameraReady(false);
-      setDetection({ confidence: 0, processingMs: 0 });
+      setDetection({
+        confidence: 0,
+        processingMs: 0,
+        stableFrames: 0,
+        autoCaptureArmed: false,
+      });
       syncCanvasSize(previewCanvasRef.current);
 
       try {
@@ -196,9 +270,45 @@ export const DocumentScannerModal = ({
             if (cancelled) {
               return;
             }
+
+            const previousDetection = lastDetectionRef.current;
+            const deltaRatio = calculateQuadDeltaRatio(
+              previousDetection?.corners,
+              result.corners,
+              result.frameWidth,
+              result.frameHeight,
+            );
+            const isStable =
+              result.confidence >= AUTO_CAPTURE_MIN_CONFIDENCE &&
+              deltaRatio <= AUTO_CAPTURE_STABLE_DELTA_RATIO;
+
+            stableFramesRef.current = isStable ? stableFramesRef.current + 1 : 0;
+            lastDetectionRef.current = result;
+
+            if (
+              isStable &&
+              stableFramesRef.current >= AUTO_CAPTURE_STABLE_FRAMES &&
+              !autoCaptureLockRef.current &&
+              !autoCaptureTimeoutRef.current &&
+              !capturedImage
+            ) {
+              autoCaptureTimeoutRef.current = window.setTimeout(() => {
+                autoCaptureTimeoutRef.current = null;
+                void captureScan();
+              }, 250);
+            }
+
+            if (!isStable && autoCaptureTimeoutRef.current) {
+              window.clearTimeout(autoCaptureTimeoutRef.current);
+              autoCaptureTimeoutRef.current = null;
+            }
+
             setDetection({
               confidence: result.confidence,
               processingMs: result.processingMs,
+              stableFrames: stableFramesRef.current,
+              autoCaptureArmed:
+                isStable && stableFramesRef.current >= AUTO_CAPTURE_STABLE_FRAMES,
             });
           },
         });
@@ -239,7 +349,7 @@ export const DocumentScannerModal = ({
       cancelled = true;
       stopScanner();
     };
-  }, [capturedImage, isMobileViewport, stopScanner, visible]);
+  }, [capturedImage, captureScan, isMobileViewport, stopScanner, visible]);
 
   useEffect(() => {
     if (!visible) {
@@ -254,24 +364,8 @@ export const DocumentScannerModal = ({
       return;
     }
 
-    try {
-      await scannerRef.current.detectOnce();
-      const result = await scannerRef.current.capture({
-        filter: "color",
-        mimeType: "image/jpeg",
-        quality: 0.95,
-        maxWidth: isPassportMode ? 2200 : 2400,
-        maxHeight: isPassportMode ? 1600 : 2400,
-      });
-
-      setCapturedBlob(result.blob);
-      setCapturedImage(result.dataUrl);
-      stopScanner();
-    } catch (error) {
-      console.error("Failed to capture document scan:", error);
-      setCameraError("Не удалось снять фото. Попробуйте еще раз.");
-    }
-  }, [cameraReady, isPassportMode, saving, stopScanner]);
+    await captureScan();
+  }, [cameraReady, captureScan, saving]);
 
   const handleRetake = useCallback(() => {
     resetCapture();
@@ -408,6 +502,13 @@ export const DocumentScannerModal = ({
                   {detection.processingMs > 0
                     ? ` · ${Math.round(detection.processingMs)} мс`
                     : ""}
+                </div>
+                <div style={{ color: "#8c8c8c", fontSize: 11, marginTop: 4 }}>
+                  {detection.autoCaptureArmed
+                    ? "Автоснимок сейчас сработает"
+                    : detection.stableFrames > 0
+                      ? `Автоснимок: ${detection.stableFrames}/${AUTO_CAPTURE_STABLE_FRAMES}`
+                      : "Автоснимок ждёт ровный и стабильный контур"}
                 </div>
               </div>
               <Button

@@ -292,6 +292,8 @@ export class ScannerDoc {
       corners: this.corners,
       confidence: this.confidence,
       processingMs: detected.processingMs,
+      frameWidth: width,
+      frameHeight: height,
     };
     if (typeof this.onDetect === "function") {
       this.onDetect(result);
