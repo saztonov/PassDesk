@@ -7,9 +7,10 @@ import {
 } from "@ant-design/icons";
 import { ScannerDoc } from "@/vendor/scannerdoc";
 
-const AUTO_CAPTURE_MIN_CONFIDENCE = 0.62;
+const AUTO_CAPTURE_MIN_CONFIDENCE = 0.58;
 const AUTO_CAPTURE_STABLE_DELTA_RATIO = 0.015;
-const AUTO_CAPTURE_STABLE_FRAMES = 4;
+const AUTO_CAPTURE_STABLE_FRAMES = 2;
+const AUTO_CAPTURE_DELAY_MS = 80;
 
 const syncCanvasSize = (canvas) => {
   if (!canvas) {
@@ -200,13 +201,16 @@ export const DocumentScannerModal = ({
     autoCaptureLockRef.current = true;
 
     try {
-      await scannerRef.current.detectOnce();
+      if (!scannerRef.current.getCorners()) {
+        await scannerRef.current.detectOnce();
+      }
+
       const result = await scannerRef.current.capture({
         filter: "color",
         mimeType: "image/jpeg",
-        quality: 0.95,
-        maxWidth: isPassportMode ? 2200 : 2400,
-        maxHeight: isPassportMode ? 1600 : 2400,
+        quality: 0.9,
+        maxWidth: isPassportMode ? 1800 : 2000,
+        maxHeight: isPassportMode ? 1300 : 1800,
       });
 
       setCapturedBlob(result.blob);
@@ -256,15 +260,15 @@ export const DocumentScannerModal = ({
           video: videoNode,
           previewCanvas: previewCanvasNode,
           documentMode: mode,
-          detectIntervalMs: 120,
+          detectIntervalMs: 90,
           detectionWidth: isMobileViewport ? 360 : 480,
           smoothing: 0.72,
           constraints: {
             audio: false,
             video: {
               facingMode: { ideal: "environment" },
-              width: { ideal: 2560 },
-              height: { ideal: 1440 },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
             },
           },
           onDetect: (result) => {
@@ -296,7 +300,7 @@ export const DocumentScannerModal = ({
               autoCaptureTimeoutRef.current = window.setTimeout(() => {
                 autoCaptureTimeoutRef.current = null;
                 void captureScan();
-              }, 250);
+              }, AUTO_CAPTURE_DELAY_MS);
             }
 
             if (!isStable && autoCaptureTimeoutRef.current) {
