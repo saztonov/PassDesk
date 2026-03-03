@@ -236,7 +236,7 @@ const EmployeeDocumentUpload = ({
     e.target.value = "";
   };
 
-  // Обработка захвата в модуле scanic
+  // Обработка захвата в нашем document scanner
   const handleCameraCapture = async (blob) => {
     const file = new File([blob], `document-${Date.now()}.jpg`, {
       type: "image/jpeg",
@@ -272,30 +272,10 @@ const EmployeeDocumentUpload = ({
     }
   };
 
-  // Запуск системной камеры
+  // Запуск собственного document scanner с fallback на системную камеру
   const handleStartCamera = () => {
     if (!effectiveEmployeeId && !ensureEmployeeId) {
       message.error("Сначала сохраните черновик сотрудника");
-      return;
-    }
-
-    const userAgent =
-      typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
-    const maxTouchPoints =
-      typeof navigator !== "undefined" ? Number(navigator.maxTouchPoints || 0) : 0;
-
-    const isMobileUserAgent =
-      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-        userAgent,
-      );
-    const isIosDevice =
-      /iPhone|iPad|iPod/i.test(userAgent) ||
-      (/Macintosh/i.test(userAgent) && maxTouchPoints > 1);
-
-    // На Android предпочитаем нативную камеру. Для iOS используем встроенный
-    // сканер, потому что нативный capture часто отдает HEIC/HEIF.
-    if (isMobileUserAgent && !isIosDevice) {
-      nativeCameraInputRef.current?.click();
       return;
     }
 
