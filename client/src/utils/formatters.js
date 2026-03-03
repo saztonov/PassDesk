@@ -64,6 +64,10 @@ export const formatKig = (kig) => {
   // Убираем все символы кроме букв и цифр
   const kigClean = kig.replace(/[^A-Z0-9]/gi, "").toUpperCase();
 
+  if (/^\d{10,16}$/.test(kigClean)) {
+    return kigClean;
+  }
+
   // Форматируем: АА 1234567
   if (kigClean.length === 9) {
     return `${kigClean.slice(0, 2)} ${kigClean.slice(2)}`;

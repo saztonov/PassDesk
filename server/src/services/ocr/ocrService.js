@@ -16,9 +16,11 @@ const DEFAULT_PROMPTS = {
     "passportNumber, issueDate, authority, expiryDate, birthPlace.",
   patent:
     "Распознай патент на работу на фото (включая сложные условия съемки). " +
+    "Если это оборотная сторона и виден номер бланка вида 2 буквы + 7 цифр, верни его в поле blankNumber и НЕ записывай его в patentNumber. " +
     "Верни строго JSON без markdown и пояснений. Поля: patentNumber, issueDate, expiryDate, surname, givenNames, middleName, birthDate, nationality, blankNumber.",
   kig:
     "Распознай карту иностранного гражданина (КИГ) на фото. " +
+    "Верни ПОЛНЫЙ номер карты в поле kigNumber, не сокращай его до 7 цифр и не обрезай хвост. " +
     "Верни строго JSON без markdown и пояснений. Поля: kigNumber, expiryDate, surname, givenNames, middleName, birthDate, nationality.",
   inn:
     "Распознай свидетельство ИНН на фото. " +
@@ -200,10 +202,28 @@ const normalizeAlphaNumeric = (value, maxLength = 64) => {
 const normalizeKigNumber = (value) => {
   if (!value) return null;
   const raw = String(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const letters = raw.replace(/[^A-Z]/g, "").slice(0, 2);
-  const digits = raw.replace(/[^\d]/g, "").slice(0, 7);
-  const result = `${letters}${digits}`.slice(0, 9);
+  const letters = raw.replace(/[^A-Z]/g, "");
+  const digits = raw.replace(/[^\d]/g, "");
+
+  if (!letters && digits) {
+    return digits.slice(0, 16) || null;
+  }
+
+  const result = `${letters.slice(0, 2)}${digits.slice(0, 7)}`.slice(0, 9);
   return result || null;
+};
+
+const normalizeBlankIdentifier = (value) => {
+  if (!value) return null;
+
+  const normalized = String(value)
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/[^A-ZА-ЯЁ0-9]/g, "");
+
+  const match = normalized.match(/[A-ZА-ЯЁ]{2}\d{6,8}/);
+  return match ? match[0] : null;
 };
 
 const normalizeLookupKey = (value) =>
@@ -405,62 +425,20 @@ const normalizeForeignPassport = (parsedJson = {}) => ({
   ),
 });
 
-const normalizePatent = (parsedJson = {}) => ({
-  lastName: valueFrom(parsedJson, ["surname", "lastName", "last_name"]),
-  firstName: valueFrom(parsedJson, ["givenNames", "firstName", "first_name"]),
-  middleName: valueFrom(parsedJson, ["middleName", "middle_name", "patronymic"]),
-  birthDate: normalizeDate(
-    valueFrom(parsedJson, ["birthDate", "birth_date", "dateOfBirth"]),
-  ),
-  citizenship: normalizeCitizenship(
-    valueFrom(parsedJson, ["nationality", "citizenship"]),
-  ),
-  patentNumber: normalizeDigits(
-    valueFrom(parsedJson, [
-      "patentNumber",
-      "patent_number",
-      "number",
-      "documentNumber",
-      "document_number",
-      "patentNo",
-      "patent_no",
-      "numberPatent",
-      "номерПатента",
-      "номер патента",
-    ]),
-    12,
-  ),
-  patentIssueDate: normalizeDate(
-    valueFrom(parsedJson, [
-      "issueDate",
-      "issue_date",
-      "patentIssueDate",
-      "dateIssue",
-      "date_issue",
-      "issuedAt",
-      "issued_at",
-      "dateOfIssue",
-      "date_of_issue",
-      "датаВыдачи",
-      "дата выдачи",
-    ]),
-  ),
-  patentExpiryDate: normalizeDate(
-    valueFrom(parsedJson, [
-      "expiryDate",
-      "expiry_date",
-      "patentExpiryDate",
-      "dateExpiry",
-      "date_expiry",
-      "validUntil",
-      "valid_until",
-      "датаОкончания",
-      "дата окончания",
-      "действителенДо",
-      "действителен до",
-    ]),
-  ),
-  blankNumber: valueFrom(parsedJson, [
+const normalizePatent = (parsedJson = {}) => {
+  const rawPatentNumber = valueFrom(parsedJson, [
+    "patentNumber",
+    "patent_number",
+    "number",
+    "documentNumber",
+    "document_number",
+    "patentNo",
+    "patent_no",
+    "numberPatent",
+    "номерПатента",
+    "номер патента",
+  ]);
+  const rawBlankNumber = valueFrom(parsedJson, [
     "blankNumber",
     "blank_number",
     "blankNo",
@@ -469,8 +447,61 @@ const normalizePatent = (parsedJson = {}) => ({
     "номерБланка",
     "номер бланка",
     "бланк",
-  ]),
-});
+  ]);
+
+  const normalizedBlankNumber =
+    normalizeBlankIdentifier(rawBlankNumber) ||
+    normalizeBlankIdentifier(rawPatentNumber);
+  const normalizedPatentNumber = normalizeDigits(rawPatentNumber, 12);
+  const patentNumber =
+    normalizedBlankNumber && normalizedPatentNumber?.length <= 8
+      ? null
+      : normalizedPatentNumber;
+
+  return {
+    lastName: valueFrom(parsedJson, ["surname", "lastName", "last_name"]),
+    firstName: valueFrom(parsedJson, ["givenNames", "firstName", "first_name"]),
+    middleName: valueFrom(parsedJson, ["middleName", "middle_name", "patronymic"]),
+    birthDate: normalizeDate(
+      valueFrom(parsedJson, ["birthDate", "birth_date", "dateOfBirth"]),
+    ),
+    citizenship: normalizeCitizenship(
+      valueFrom(parsedJson, ["nationality", "citizenship"]),
+    ),
+    patentNumber,
+    patentIssueDate: normalizeDate(
+      valueFrom(parsedJson, [
+        "issueDate",
+        "issue_date",
+        "patentIssueDate",
+        "dateIssue",
+        "date_issue",
+        "issuedAt",
+        "issued_at",
+        "dateOfIssue",
+        "date_of_issue",
+        "датаВыдачи",
+        "дата выдачи",
+      ]),
+    ),
+    patentExpiryDate: normalizeDate(
+      valueFrom(parsedJson, [
+        "expiryDate",
+        "expiry_date",
+        "patentExpiryDate",
+        "dateExpiry",
+        "date_expiry",
+        "validUntil",
+        "valid_until",
+        "датаОкончания",
+        "дата окончания",
+        "действителенДо",
+        "действителен до",
+      ]),
+    ),
+    blankNumber: normalizedBlankNumber,
+  };
+};
 
 const normalizeKig = (parsedJson = {}) => ({
   lastName: valueFrom(parsedJson, ["surname", "lastName", "last_name"]),

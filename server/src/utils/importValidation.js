@@ -151,7 +151,9 @@ export const validateFio = (firstName, lastName, middleName) => {
 };
 
 /**
- * Валидирует КИГ (2 латинские буквы + 7 цифр)
+ * Валидирует КИГ:
+ * - legacy: 2 латинские буквы + 7 цифр
+ * - новый формат карты: длинный цифровой номер
  * Автоматически убирает пробелы и лишние символы
  */
 export const validateKig = (kig) => {
@@ -174,10 +176,15 @@ export const validateKig = (kig) => {
   const letters = cleaned.replace(/[^A-Z]/g, "");
   const numbers = cleaned.replace(/[^0-9]/g, "");
 
+  if (!letters && numbers.length >= 10 && numbers.length <= 16) {
+    return { valid: true, normalizedKig: numbers };
+  }
+
   if (letters.length !== 2 || numbers.length !== 7) {
     return {
       valid: false,
-      error: `КИГ: должен быть в формате АА1234567 (2 латинские буквы + 7 цифр), получено ${letters.length} букв и ${numbers.length} цифр`,
+      error:
+        "КИГ: должен быть либо в формате АА1234567, либо длинным цифровым номером карты",
     };
   }
 

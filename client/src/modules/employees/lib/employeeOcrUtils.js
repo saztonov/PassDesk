@@ -45,12 +45,6 @@ const toDisplayName = (value) => {
 const toDigits = (value, maxLength = 64) =>
   normalizeString(value).replace(/[^\d]/g, "").slice(0, maxLength);
 
-const toAlphaNumeric = (value, maxLength = 64) =>
-  normalizeString(value)
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, maxLength);
-
 const LOOKALIKE_CYRILLIC_TO_LATIN = {
   А: "A",
   В: "B",
@@ -282,10 +276,14 @@ const normalizeKig = (value) => {
   const raw = normalizeString(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (!raw) return null;
 
-  const letters = raw.replace(/[^A-Z]/g, "").slice(0, 2);
-  const digits = raw.replace(/[^\d]/g, "").slice(0, 7);
+  const letters = raw.replace(/[^A-Z]/g, "");
+  const digits = raw.replace(/[^\d]/g, "");
 
-  return `${letters}${digits}`.slice(0, 9) || null;
+  if (!letters && digits) {
+    return digits.slice(0, 16) || null;
+  }
+
+  return `${letters.slice(0, 2)}${digits.slice(0, 7)}`.slice(0, 9) || null;
 };
 
 export const resolveOcrDocumentTypeByFile = (

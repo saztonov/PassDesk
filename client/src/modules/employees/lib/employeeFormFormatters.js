@@ -1,6 +1,14 @@
 export const formatKig = (value) => {
   if (!value) return value;
-  return value.replace(/[^\d]/g, "").slice(0, 7);
+  const normalized = String(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const letters = normalized.replace(/[^A-Z]/g, "");
+  const digits = normalized.replace(/[^\d]/g, "");
+
+  if (!letters && digits) {
+    return digits.slice(0, 16);
+  }
+
+  return `${letters.slice(0, 2)}${digits.slice(0, 7)}`.slice(0, 9);
 };
 
 export const normalizePhoneNumber = (value) => {
@@ -11,7 +19,15 @@ export const normalizePhoneNumber = (value) => {
 
 export const normalizeKig = (value) => {
   if (!value) return value;
-  return value.replace(/[^\d]/g, "");
+  const normalized = String(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const letters = normalized.replace(/[^A-Z]/g, "");
+  const digits = normalized.replace(/[^\d]/g, "");
+
+  if (!letters && digits) {
+    return digits.slice(0, 16);
+  }
+
+  return `${letters.slice(0, 2)}${digits.slice(0, 7)}`.slice(0, 9);
 };
 
 export const formatBankAccountNumber = (value) => {

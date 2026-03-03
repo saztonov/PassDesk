@@ -6,6 +6,9 @@ export const formatKigDisplay = (kig) => {
   }
 
   const cleaned = kig.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  if (/^\d{10,16}$/.test(cleaned)) {
+    return cleaned;
+  }
   if (cleaned.length === 9) {
     return `${cleaned.slice(0, 2)} ${cleaned.slice(2)}`;
   }
