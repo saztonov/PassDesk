@@ -1,131 +1,58 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Button, Modal, Space } from "antd";
+import { Alert, Button, Modal, Space, Tag } from "antd";
 import {
   CameraOutlined,
   RetweetOutlined,
   SaveOutlined,
 } from "@ant-design/icons";
+import { ScannerDoc } from "@/vendor/scannerdoc";
 
-const buildFrameStyle = (frame) => ({
-  position: "absolute",
-  top: `${frame.top * 100}%`,
-  left: `${frame.left * 100}%`,
-  width: `${frame.width * 100}%`,
-  height: `${frame.height * 100}%`,
-  border: "2px dashed rgba(82, 196, 26, 0.95)",
-  borderRadius: 14,
-  boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.35)",
-  pointerEvents: "none",
-});
+const syncCanvasSize = (canvas) => {
+  if (!canvas) {
+    return;
+  }
 
-const resolveCoveredVideoGeometry = ({
-  sourceWidth,
-  sourceHeight,
-  viewportWidth,
-  viewportHeight,
-}) => {
-  const sourceAspect = sourceWidth / sourceHeight;
-  const viewportAspect = viewportWidth / viewportHeight;
+  const width = Math.max(1, Math.round(canvas.clientWidth || 1));
+  const height = Math.max(1, Math.round(canvas.clientHeight || 1));
+  const pixelRatio = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  const targetWidth = Math.max(1, Math.round(width * pixelRatio));
+  const targetHeight = Math.max(1, Math.round(height * pixelRatio));
 
-  if (viewportAspect > sourceAspect) {
-    const renderedWidth = viewportWidth;
-    const renderedHeight = viewportWidth / sourceAspect;
+  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+  }
+}
+
+const clearCanvas = (canvas) => {
+  const context = canvas?.getContext?.("2d");
+  if (context) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+  }
+};
+
+const buildStatusMeta = (confidence) => {
+  if (confidence >= 0.55) {
     return {
-      renderedWidth,
-      renderedHeight,
-      offsetX: 0,
-      offsetY: (viewportHeight - renderedHeight) / 2,
+      color: "success",
+      label: "Контур найден",
+      hint: "Сканер видит документ и выровняет снимок по углам.",
     };
   }
 
-  const renderedHeight = viewportHeight;
-  const renderedWidth = viewportHeight * sourceAspect;
+  if (confidence >= 0.25) {
+    return {
+      color: "warning",
+      label: "Контур ищется",
+      hint: "Подровняйте документ, чтобы все 4 угла попали в кадр.",
+    };
+  }
+
   return {
-    renderedWidth,
-    renderedHeight,
-    offsetX: (viewportWidth - renderedWidth) / 2,
-    offsetY: 0,
+    color: "default",
+    label: "Нет контура",
+    hint: "Положите документ на контрастный фон и держите камеру ровно сверху.",
   };
-};
-
-const captureVideoFrame = async ({
-  video,
-  frame,
-  mimeType = "image/jpeg",
-  viewportWidth,
-  viewportHeight,
-}) => {
-  const sourceWidth = video.videoWidth;
-  const sourceHeight = video.videoHeight;
-
-  if (!sourceWidth || !sourceHeight) {
-    throw new Error("Видео с камеры еще не готово");
-  }
-
-  const safeViewportWidth = Math.max(1, viewportWidth || video.clientWidth || sourceWidth);
-  const safeViewportHeight = Math.max(
-    1,
-    viewportHeight || video.clientHeight || sourceHeight,
-  );
-  const geometry = resolveCoveredVideoGeometry({
-    sourceWidth,
-    sourceHeight,
-    viewportWidth: safeViewportWidth,
-    viewportHeight: safeViewportHeight,
-  });
-
-  const frameLeftPx = safeViewportWidth * frame.left;
-  const frameTopPx = safeViewportHeight * frame.top;
-  const frameWidthPx = safeViewportWidth * frame.width;
-  const frameHeightPx = safeViewportHeight * frame.height;
-
-  const visibleLeft = frameLeftPx - geometry.offsetX;
-  const visibleTop = frameTopPx - geometry.offsetY;
-  const scaleX = sourceWidth / geometry.renderedWidth;
-  const scaleY = sourceHeight / geometry.renderedHeight;
-
-  const cropX = Math.max(0, Math.round(visibleLeft * scaleX));
-  const cropY = Math.max(0, Math.round(visibleTop * scaleY));
-  const cropWidth = Math.min(
-    sourceWidth - cropX,
-    Math.max(1, Math.round(frameWidthPx * scaleX)),
-  );
-  const cropHeight = Math.min(
-    sourceHeight - cropY,
-    Math.max(1, Math.round(frameHeightPx * scaleY)),
-  );
-
-  const canvas = document.createElement("canvas");
-  canvas.width = cropWidth;
-  canvas.height = cropHeight;
-
-  const context = canvas.getContext("2d", { alpha: false });
-  if (!context) {
-    throw new Error("Canvas context недоступен");
-  }
-
-  context.drawImage(
-    video,
-    cropX,
-    cropY,
-    cropWidth,
-    cropHeight,
-    0,
-    0,
-    cropWidth,
-    cropHeight,
-  );
-
-  const blob = await new Promise((resolve) => {
-    canvas.toBlob(resolve, mimeType, 0.96);
-  });
-
-  if (!blob) {
-    throw new Error("Не удалось сохранить снимок");
-  }
-
-  const previewUrl = canvas.toDataURL(mimeType, 0.96);
-  return { blob, previewUrl };
 };
 
 export const DocumentScannerModal = ({
@@ -135,34 +62,34 @@ export const DocumentScannerModal = ({
   mode = "document",
 }) => {
   const videoRef = useRef(null);
+  const previewCanvasRef = useRef(null);
   const viewportRef = useRef(null);
-  const streamRef = useRef(null);
+  const scannerRef = useRef(null);
+  const resizeObserverRef = useRef(null);
+
   const [capturedImage, setCapturedImage] = useState(null);
   const [capturedBlob, setCapturedBlob] = useState(null);
   const [saving, setSaving] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState("");
+  const [detection, setDetection] = useState({ confidence: 0, processingMs: 0 });
 
   const isPassportMode = mode === "passport";
   const isMobileViewport =
     typeof window !== "undefined" ? window.innerWidth < 768 : false;
 
-  const scanFrame = useMemo(() => {
-    if (isPassportMode) {
-      return isMobileViewport
-        ? { top: 0.24, left: 0.08, width: 0.84, height: 0.5 }
-        : { top: 0.16, left: 0.16, width: 0.68, height: 0.58 };
-    }
+  const statusMeta = useMemo(
+    () => buildStatusMeta(detection.confidence),
+    [detection.confidence],
+  );
 
-    return isMobileViewport
-      ? { top: 0.09, left: 0.08, width: 0.84, height: 0.8 }
-      : { top: 0.08, left: 0.2, width: 0.6, height: 0.82 };
-  }, [isMobileViewport, isPassportMode]);
+  const stopScanner = useCallback(() => {
+    resizeObserverRef.current?.disconnect?.();
+    resizeObserverRef.current = null;
 
-  const stopStream = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
+    if (scannerRef.current) {
+      scannerRef.current.stop();
+      scannerRef.current = null;
     }
 
     const video = videoRef.current;
@@ -170,7 +97,10 @@ export const DocumentScannerModal = ({
       video.pause();
       video.srcObject = null;
     }
+
+    clearCanvas(previewCanvasRef.current);
     setCameraReady(false);
+    setDetection({ confidence: 0, processingMs: 0 });
   }, []);
 
   const resetCapture = useCallback(() => {
@@ -185,7 +115,7 @@ export const DocumentScannerModal = ({
 
     let cancelled = false;
 
-    const startCamera = async () => {
+    const startScanner = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
         setCameraError("Камера не поддерживается в этом браузере");
         return;
@@ -193,77 +123,106 @@ export const DocumentScannerModal = ({
 
       setCameraError("");
       setCameraReady(false);
+      setDetection({ confidence: 0, processingMs: 0 });
+      syncCanvasSize(previewCanvasRef.current);
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 2560 },
-            height: { ideal: 1440 },
+        const scanner = new ScannerDoc({
+          video: videoRef.current,
+          previewCanvas: previewCanvasRef.current,
+          detectIntervalMs: 120,
+          detectionWidth: isMobileViewport ? 360 : 480,
+          smoothing: 0.72,
+          constraints: {
+            audio: false,
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 2560 },
+              height: { ideal: 1440 },
+            },
+          },
+          onDetect: (result) => {
+            if (cancelled) {
+              return;
+            }
+            setDetection({
+              confidence: result.confidence,
+              processingMs: result.processingMs,
+            });
           },
         });
 
+        scannerRef.current = scanner;
+        await scanner.start();
+
         if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
+          scanner.stop();
           return;
         }
 
-        streamRef.current = stream;
-        const video = videoRef.current;
-        if (!video) {
-          return;
-        }
+        syncCanvasSize(previewCanvasRef.current);
+        await scanner.detectOnce();
+        setCameraReady(true);
 
-        video.srcObject = stream;
-        await video.play();
-        if (!cancelled) {
-          setCameraReady(true);
+        if (
+          typeof window !== "undefined" &&
+          typeof ResizeObserver !== "undefined" &&
+          viewportRef.current
+        ) {
+          const observer = new ResizeObserver(() => {
+            syncCanvasSize(previewCanvasRef.current);
+          });
+          observer.observe(viewportRef.current);
+          resizeObserverRef.current = observer;
         }
       } catch (error) {
-        console.error("Failed to start custom document scanner:", error);
+        console.error("Failed to start document scanner:", error);
         setCameraError(
           "Не удалось открыть камеру. Проверь разрешение браузера и HTTPS.",
         );
+        stopScanner();
       }
     };
 
-    startCamera();
+    startScanner();
 
     return () => {
       cancelled = true;
-      stopStream();
+      stopScanner();
     };
-  }, [capturedImage, stopStream, visible]);
+  }, [capturedImage, isMobileViewport, stopScanner, visible]);
 
   useEffect(() => {
     if (!visible) {
       resetCapture();
       setCameraError("");
-      stopStream();
+      stopScanner();
     }
-  }, [resetCapture, stopStream, visible]);
+  }, [resetCapture, stopScanner, visible]);
 
   const handleCapture = useCallback(async () => {
-    if (!videoRef.current || saving || !cameraReady) {
+    if (!scannerRef.current || saving || !cameraReady) {
       return;
     }
 
     try {
-      const { blob, previewUrl } = await captureVideoFrame({
-        video: videoRef.current,
-        frame: scanFrame,
-        viewportWidth: viewportRef.current?.clientWidth,
-        viewportHeight: viewportRef.current?.clientHeight,
+      await scannerRef.current.detectOnce();
+      const result = await scannerRef.current.capture({
+        filter: "color",
+        mimeType: "image/jpeg",
+        quality: 0.95,
+        maxWidth: isPassportMode ? 2200 : 2400,
+        maxHeight: isPassportMode ? 1600 : 2400,
       });
-      setCapturedBlob(blob);
-      setCapturedImage(previewUrl);
-      stopStream();
+
+      setCapturedBlob(result.blob);
+      setCapturedImage(result.dataUrl);
+      stopScanner();
     } catch (error) {
-      console.error("Failed to capture custom scanner image:", error);
+      console.error("Failed to capture document scan:", error);
       setCameraError("Не удалось снять фото. Попробуйте еще раз.");
     }
-  }, [cameraReady, saving, scanFrame, stopStream]);
+  }, [cameraReady, isPassportMode, saving, stopScanner]);
 
   const handleRetake = useCallback(() => {
     resetCapture();
@@ -290,17 +249,19 @@ export const DocumentScannerModal = ({
 
   return (
     <Modal
-      title={isPassportMode ? "Фото паспорта" : "Фото документа"}
+      title={isPassportMode ? "Скан паспорта" : "Скан документа"}
       open={visible}
       onCancel={handleClose}
       footer={null}
-      width={isMobileViewport ? "100vw" : 860}
+      width={isMobileViewport ? "100vw" : 920}
       centered={!isMobileViewport}
-      style={isMobileViewport ? { top: 0, maxWidth: "100vw", paddingBottom: 0 } : undefined}
+      style={
+        isMobileViewport ? { top: 0, maxWidth: "100vw", paddingBottom: 0 } : undefined
+      }
       styles={{
         body: {
           padding: isMobileViewport ? 8 : 12,
-          maxHeight: isMobileViewport ? "calc(100vh - 56px)" : undefined,
+          maxHeight: isMobileViewport ? "calc(100dvh - 56px)" : undefined,
           overflowY: isMobileViewport ? "auto" : undefined,
         },
       }}
@@ -308,90 +269,84 @@ export const DocumentScannerModal = ({
       maskClosable={false}
     >
       <Space direction="vertical" style={{ width: "100%" }} size={12}>
-        {cameraError ? (
-          <Alert type="error" showIcon message={cameraError} />
-        ) : null}
+        {cameraError ? <Alert type="error" showIcon message={cameraError} /> : null}
 
         {!capturedImage ? (
-          <div
-            ref={viewportRef}
-            style={{
-              position: "relative",
-              width: "100%",
-              borderRadius: 12,
-              overflow: "hidden",
-              background: "#000",
-              minHeight: isMobileViewport ? 420 : 520,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
+          <>
+            <div
+              ref={viewportRef}
               style={{
+                position: "relative",
                 width: "100%",
-                height: "100%",
-                display: "block",
-                objectFit: "cover",
-                background: "#000",
+                minHeight: isMobileViewport ? 460 : 560,
+                borderRadius: 16,
+                overflow: "hidden",
+                background: "#050505",
               }}
-            />
-            <div style={buildFrameStyle(scanFrame)} />
-            {!cameraReady ? (
-              <div
+            >
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
                 style={{
                   position: "absolute",
                   inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#fff",
-                  fontSize: 14,
-                  background: "rgba(0, 0, 0, 0.35)",
-                }}
-              >
-                Открываем камеру...
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <img
-            src={capturedImage}
-            alt="scan-preview"
-            style={{
-              width: "100%",
-              borderRadius: 12,
-              maxHeight: isMobileViewport ? "60vh" : "68vh",
-              objectFit: "contain",
-              background: "#111",
-            }}
-          />
-        )}
-
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: 8,
-            flexWrap: "wrap",
-            width: "100%",
-          }}
-        >
-          {!capturedImage ? (
-            <>
-              <div
-                style={{
                   width: "100%",
-                  textAlign: "center",
-                  color: "#8c8c8c",
-                  fontSize: 12,
+                  height: "100%",
+                  display: "block",
+                  objectFit: "contain",
+                  background: "#000",
                 }}
-              >
-                Поместите документ в рамку. Снимок будет сохранен по области рамки.
+              />
+              <canvas
+                ref={previewCanvasRef}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  pointerEvents: "none",
+                }}
+              />
+              {!cameraReady ? (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
+                    fontSize: 14,
+                    background: "rgba(0, 0, 0, 0.35)",
+                  }}
+                >
+                  Открываем камеру...
+                </div>
+              ) : null}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: isMobileViewport ? "flex-start" : "center",
+                justifyContent: "space-between",
+                gap: 12,
+                flexDirection: isMobileViewport ? "column" : "row",
+              }}
+            >
+              <div>
+                <Tag color={statusMeta.color}>{statusMeta.label}</Tag>
+                <div style={{ color: "#8c8c8c", fontSize: 12, marginTop: 6 }}>
+                  {statusMeta.hint}
+                </div>
+                <div style={{ color: "#bfbfbf", fontSize: 11, marginTop: 4 }}>
+                  Качество детекции: {Math.round(detection.confidence * 100)}%
+                  {detection.processingMs > 0
+                    ? ` · ${Math.round(detection.processingMs)} мс`
+                    : ""}
+                </div>
               </div>
               <Button
                 type="primary"
@@ -403,9 +358,30 @@ export const DocumentScannerModal = ({
               >
                 Снять
               </Button>
-            </>
-          ) : (
-            <>
+            </div>
+          </>
+        ) : (
+          <>
+            <img
+              src={capturedImage}
+              alt="scan-preview"
+              style={{
+                width: "100%",
+                borderRadius: 16,
+                maxHeight: isMobileViewport ? "60dvh" : "70dvh",
+                objectFit: "contain",
+                background: "#111",
+              }}
+            />
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: 8,
+                flexWrap: "wrap",
+                width: "100%",
+              }}
+            >
               <Button
                 icon={<RetweetOutlined />}
                 onClick={handleRetake}
@@ -422,9 +398,9 @@ export const DocumentScannerModal = ({
               >
                 Сохранить
               </Button>
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </Space>
     </Modal>
   );
