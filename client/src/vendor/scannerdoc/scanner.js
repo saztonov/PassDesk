@@ -143,6 +143,36 @@ const attachStreamToVideo = async (video, stream) => {
   await waitForVideoReady(video);
 };
 
+const resolveContainedVideoGeometry = ({
+  sourceWidth,
+  sourceHeight,
+  targetWidth,
+  targetHeight,
+}) => {
+  const sourceAspect = sourceWidth / sourceHeight;
+  const targetAspect = targetWidth / targetHeight;
+
+  if (targetAspect > sourceAspect) {
+    const renderedHeight = targetHeight;
+    const renderedWidth = renderedHeight * sourceAspect;
+    return {
+      renderedWidth,
+      renderedHeight,
+      offsetX: (targetWidth - renderedWidth) / 2,
+      offsetY: 0,
+    };
+  }
+
+  const renderedWidth = targetWidth;
+  const renderedHeight = renderedWidth / sourceAspect;
+  return {
+    renderedWidth,
+    renderedHeight,
+    offsetX: 0,
+    offsetY: (targetHeight - renderedHeight) / 2,
+  };
+};
+
 const drawOverlay = (canvas, corners, confidence, sourceWidth, sourceHeight) => {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -150,18 +180,36 @@ const drawOverlay = (canvas, corners, confidence, sourceWidth, sourceHeight) => 
   const height = canvas.height;
   if (width <= 0 || height <= 0) return;
 
-  const sx = width / sourceWidth;
-  const sy = height / sourceHeight;
+  const geometry = resolveContainedVideoGeometry({
+    sourceWidth,
+    sourceHeight,
+    targetWidth: width,
+    targetHeight: height,
+  });
+  const sx = geometry.renderedWidth / sourceWidth;
+  const sy = geometry.renderedHeight / sourceHeight;
   ctx.clearRect(0, 0, width, height);
 
   const stroke = confidence > 0.45 ? "#22c55e" : "#f59e0b";
   ctx.strokeStyle = stroke;
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(corners[0].x * sx, corners[0].y * sy);
-  ctx.lineTo(corners[1].x * sx, corners[1].y * sy);
-  ctx.lineTo(corners[2].x * sx, corners[2].y * sy);
-  ctx.lineTo(corners[3].x * sx, corners[3].y * sy);
+  ctx.moveTo(
+    geometry.offsetX + corners[0].x * sx,
+    geometry.offsetY + corners[0].y * sy,
+  );
+  ctx.lineTo(
+    geometry.offsetX + corners[1].x * sx,
+    geometry.offsetY + corners[1].y * sy,
+  );
+  ctx.lineTo(
+    geometry.offsetX + corners[2].x * sx,
+    geometry.offsetY + corners[2].y * sy,
+  );
+  ctx.lineTo(
+    geometry.offsetX + corners[3].x * sx,
+    geometry.offsetY + corners[3].y * sy,
+  );
   ctx.closePath();
   ctx.stroke();
 };
