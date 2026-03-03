@@ -55,10 +55,33 @@ const buildStatusMeta = (confidence) => {
   };
 };
 
+const buildCameraErrorMessage = (error) => {
+  const errorName = String(error?.name || "");
+
+  if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
+    return "Браузер отклонил доступ к камере. Проверь разрешение для сайта в настройках браузера.";
+  }
+
+  if (errorName === "NotReadableError" || errorName === "TrackStartError") {
+    return "Камера уже занята другим приложением или браузер не смог получить видеопоток.";
+  }
+
+  if (errorName === "OverconstrainedError" || errorName === "ConstraintNotSatisfiedError") {
+    return "Телефон не поддержал запрошенный режим камеры. Переключил сканер на более совместимый режим.";
+  }
+
+  if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+    return "На устройстве не найдена доступная камера.";
+  }
+
+  return "Не удалось открыть камеру в режиме сканера. Попробуй еще раз; если не поможет, используем запасной режим.";
+};
+
 export const DocumentScannerModal = ({
   visible,
   onCapture,
   onCancel,
+  onFallback,
   mode = "document",
 }) => {
   const videoRef = useRef(null);
@@ -177,9 +200,7 @@ export const DocumentScannerModal = ({
         }
       } catch (error) {
         console.error("Failed to start document scanner:", error);
-        setCameraError(
-          "Не удалось открыть камеру. Проверь разрешение браузера и HTTPS.",
-        );
+        setCameraError(buildCameraErrorMessage(error));
         stopScanner();
       }
     };
@@ -269,7 +290,20 @@ export const DocumentScannerModal = ({
       maskClosable={false}
     >
       <Space direction="vertical" style={{ width: "100%" }} size={12}>
-        {cameraError ? <Alert type="error" showIcon message={cameraError} /> : null}
+        {cameraError ? (
+          <Alert
+            type="error"
+            showIcon
+            message={cameraError}
+            action={
+              typeof onFallback === "function" ? (
+                <Button size="small" onClick={onFallback}>
+                  Системная камера
+                </Button>
+              ) : null
+            }
+          />
+        ) : null}
 
         {!capturedImage ? (
           <>

@@ -292,6 +292,13 @@ const EmployeeDocumentUpload = ({
     nativeCameraInputRef.current?.click();
   };
 
+  const handleScannerFallback = useCallback(() => {
+    setState((prev) => ({ ...prev, cameraVisible: false }));
+    window.setTimeout(() => {
+      nativeCameraInputRef.current?.click();
+    }, 0);
+  }, []);
+
   // Удаление файла
   const handleDelete = async (fileId) => {
     try {
@@ -499,6 +506,7 @@ const EmployeeDocumentUpload = ({
         visible={cameraVisible}
         mode={cameraMode}
         onCapture={handleCameraCapture}
+        onFallback={handleScannerFallback}
         onCancel={() => setState((prev) => ({ ...prev, cameraVisible: false }))}
       />
     </div>

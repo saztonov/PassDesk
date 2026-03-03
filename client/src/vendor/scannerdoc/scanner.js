@@ -6,6 +6,37 @@ const DEFAULT_INTERVAL_MS = 120;
 const DEFAULT_DETECTION_WIDTH = 320;
 const DEFAULT_SMOOTHING = 0.72;
 
+const waitForEvent = (target, eventName, timeoutMs = 4000) =>
+  new Promise((resolve, reject) => {
+    let timeoutId = null;
+
+    const cleanup = () => {
+      target.removeEventListener(eventName, handleSuccess);
+      target.removeEventListener("error", handleError);
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+
+    const handleSuccess = () => {
+      cleanup();
+      resolve();
+    };
+
+    const handleError = (error) => {
+      cleanup();
+      reject(error instanceof Error ? error : new Error(`Failed waiting for ${eventName}`));
+    };
+
+    target.addEventListener(eventName, handleSuccess, { once: true });
+    target.addEventListener("error", handleError, { once: true });
+
+    timeoutId = window.setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for ${eventName}`));
+    }, timeoutMs);
+  });
+
 const toBlob = async (canvas, mimeType, quality) => {
   const blob = await new Promise((resolve) => {
     canvas.toBlob(resolve, mimeType, quality);
@@ -16,13 +47,73 @@ const toBlob = async (canvas, mimeType, quality) => {
 
 const waitForVideoReady = async (video) => {
   if (video.videoWidth > 0 && video.videoHeight > 0) return;
-  await new Promise((resolve) => {
-    const onReady = () => {
-      video.removeEventListener("loadedmetadata", onReady);
-      resolve();
-    };
-    video.addEventListener("loadedmetadata", onReady, { once: true });
-  });
+  await waitForEvent(video, "loadedmetadata");
+};
+
+const buildConstraintFallbacks = (preferredConstraints) => {
+  const preferredVideo = preferredConstraints?.video;
+
+  return [
+    preferredConstraints,
+    {
+      audio: false,
+      video:
+        typeof preferredVideo === "object" && preferredVideo
+          ? { ...preferredVideo, width: undefined, height: undefined }
+          : { facingMode: { ideal: "environment" } },
+    },
+    {
+      audio: false,
+      video: { facingMode: "environment" },
+    },
+    {
+      audio: false,
+      video: true,
+    },
+  ].filter(Boolean);
+};
+
+const openMediaStream = async (preferredConstraints) => {
+  const attempts = buildConstraintFallbacks(preferredConstraints);
+  let lastError = null;
+
+  for (const constraints of attempts) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError ?? new Error("Unable to open camera stream");
+};
+
+const attachStreamToVideo = async (video, stream) => {
+  video.playsInline = true;
+  video.muted = true;
+  video.autoplay = true;
+  video.setAttribute("playsinline", "true");
+  video.setAttribute("muted", "true");
+  video.setAttribute("autoplay", "true");
+  video.srcObject = stream;
+
+  await waitForVideoReady(video);
+
+  try {
+    await video.play();
+  } catch (error) {
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      await waitForEvent(video, "canplay");
+    }
+
+    try {
+      await video.play();
+    } catch {
+      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        throw error;
+      }
+    }
+  }
 };
 
 const drawOverlay = (canvas, corners, confidence, sourceWidth, sourceHeight) => {
@@ -91,11 +182,8 @@ export class ScannerDoc {
         },
       };
 
-      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
-      this.video.srcObject = this.stream;
-      this.video.playsInline = true;
-      this.video.muted = true;
-      await this.video.play();
+      this.stream = await openMediaStream(constraints);
+      await attachStreamToVideo(this.video, this.stream);
     }
 
     await waitForVideoReady(this.video);
