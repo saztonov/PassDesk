@@ -8,6 +8,7 @@ import upload, {
 } from "../middleware/upload.js";
 import { validate } from "../middleware/validator.js";
 import {
+  applyOcrConflict,
   confirmRecognizedDocument,
   getEmployeeConflictsSummary,
   getOcrConflictsList,
@@ -41,6 +42,12 @@ router.post(
   authorize("admin"),
   conflictIdParamValidation,
   resolveOcrConflict,
+);
+router.post(
+  "/conflicts/:id/apply",
+  authorize("admin"),
+  conflictIdParamValidation,
+  applyOcrConflict,
 );
 
 router.post(

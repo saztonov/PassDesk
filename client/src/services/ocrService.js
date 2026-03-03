@@ -76,6 +76,11 @@ export const ocrService = {
     const response = await api.post(`/ocr/conflicts/${id}/resolve`);
     return response.data;
   },
+
+  applyConflict: async (id) => {
+    const response = await api.post(`/ocr/conflicts/${id}/apply`);
+    return response.data;
+  },
 };
 
 export default ocrService;

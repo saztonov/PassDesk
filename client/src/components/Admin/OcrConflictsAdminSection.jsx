@@ -35,6 +35,7 @@ const OcrConflictsAdminSection = () => {
   const [statusFilter, setStatusFilter] = useState("open");
   const [loading, setLoading] = useState(false);
   const [resolvingId, setResolvingId] = useState(null);
+  const [applyingId, setApplyingId] = useState(null);
   const [tableState, setTableState] = useState({
     items: [],
     pagination: {
@@ -99,6 +100,27 @@ const OcrConflictsAdminSection = () => {
     [loadData, message, statusFilter, tableState.pagination.limit, tableState.pagination.page],
   );
 
+  const handleApply = useCallback(
+    async (id) => {
+      setApplyingId(id);
+      try {
+        await ocrService.applyConflict(id);
+        message.success("OCR применен к карточке, конфликт закрыт");
+        await loadData({
+          page: tableState.pagination.page,
+          limit: tableState.pagination.limit,
+          status: statusFilter,
+        });
+      } catch (error) {
+        console.error("Failed to apply OCR conflict:", error);
+        message.error("Не удалось применить OCR к карточке");
+      } finally {
+        setApplyingId(null);
+      }
+    },
+    [loadData, message, statusFilter, tableState.pagination.limit, tableState.pagination.page],
+  );
+
   const columns = useMemo(
     () => [
       {
@@ -155,31 +177,40 @@ const OcrConflictsAdminSection = () => {
         width: 140,
         render: (value) =>
           value === "resolved" ? (
-            <Tag color="green">Просмотрено</Tag>
+            <Tag color="green">Решен</Tag>
           ) : (
-            <Tag color="orange">Открыт</Tag>
+            <Tag color="orange">Требует решения</Tag>
           ),
       },
       {
         title: "Действие",
         key: "actions",
-        width: 150,
+        width: 260,
         render: (_, record) =>
           record.status === "open" ? (
-            <Button
-              size="small"
-              type="primary"
-              loading={resolvingId === record.id}
-              onClick={() => handleResolve(record.id)}
-            >
-              Просмотрено
-            </Button>
+            <Space wrap>
+              <Button
+                size="small"
+                loading={resolvingId === record.id}
+                onClick={() => handleResolve(record.id)}
+              >
+                Оставить карточку
+              </Button>
+              <Button
+                size="small"
+                type="primary"
+                loading={applyingId === record.id}
+                onClick={() => handleApply(record.id)}
+              >
+                Принять OCR
+              </Button>
+            </Space>
           ) : (
             <Text type="secondary">—</Text>
           ),
       },
     ],
-    [handleResolve, resolvingId],
+    [applyingId, handleApply, handleResolve, resolvingId],
   );
 
   return (

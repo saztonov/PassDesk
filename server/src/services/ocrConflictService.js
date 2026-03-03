@@ -8,6 +8,10 @@ import {
   Counterparty,
   User,
 } from "../models/index.js";
+import {
+  applyLegacySensitivePlaintextPolicy,
+  buildEmployeeSensitiveFieldsPatch,
+} from "./employeeSensitiveFieldService.js";
 
 const normalizeString = (value) => String(value || "").trim();
 
@@ -31,6 +35,81 @@ const getEmployeeFullName = (employee) =>
 
 const getCounterpartyName = (employee) =>
   employee?.employeeCounterpartyMappings?.[0]?.counterparty?.name || "Без контрагента";
+
+const DATE_FIELDS = new Set([
+  "birthDate",
+  "passportDate",
+  "passportExpiryDate",
+  "kigEndDate",
+  "patentIssueDate",
+]);
+
+const DIGITS_ONLY_FIELDS = new Map([
+  ["inn", 12],
+  ["snils", 11],
+  ["bankAccountNumber", 20],
+]);
+
+const parseDateValue = (value) => {
+  const normalized = normalizeString(value);
+  if (!normalized) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return normalized;
+  }
+
+  if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(normalized)) {
+    const [day, month, year] = normalized.split(".");
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString().slice(0, 10);
+};
+
+const normalizeConflictValueForEmployeeField = (fieldName, value) => {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  if (DATE_FIELDS.has(fieldName)) {
+    return parseDateValue(value);
+  }
+
+  if (DIGITS_ONLY_FIELDS.has(fieldName)) {
+    return normalizeString(value)
+      .replace(/[^\d]/g, "")
+      .slice(0, DIGITS_ONLY_FIELDS.get(fieldName));
+  }
+
+  if (fieldName === "citizenshipId") {
+    const normalized = normalizeString(value);
+    return normalized || null;
+  }
+
+  if (fieldName === "gender") {
+    const normalized = normalizeString(value).toLowerCase();
+    return normalized === "male" || normalized === "female" ? normalized : null;
+  }
+
+  const normalized = normalizeString(value);
+  return normalized || null;
+};
+
+const buildEmployeePatchForConflict = (conflict) => {
+  const normalizedValue = normalizeConflictValueForEmployeeField(
+    conflict.fieldName,
+    conflict.ocrValue,
+  );
+
+  return {
+    [conflict.fieldName]: normalizedValue,
+  };
+};
 
 const toConflictPayload = (conflict = {}) => {
   const fieldName = normalizeString(conflict.fieldName);
@@ -325,6 +404,48 @@ export const resolveEmployeeOcrConflict = async ({ conflictId, resolvedBy }) => 
     status: "resolved",
     resolvedBy,
     resolvedAt: new Date(),
+    metadata: {
+      ...(conflict.metadata || {}),
+      resolution: "keep_current",
+    },
+  });
+
+  return conflict;
+};
+
+export const applyEmployeeOcrConflict = async ({ conflictId, resolvedBy }) => {
+  const conflict = await EmployeeOcrConflict.findByPk(conflictId, {
+    include: [
+      {
+        model: Employee,
+        as: "employee",
+        attributes: ["id"],
+      },
+    ],
+  });
+
+  if (!conflict || !conflict.employee) {
+    return null;
+  }
+
+  const rawPatch = buildEmployeePatchForConflict(conflict);
+  const encryptedPatch = buildEmployeeSensitiveFieldsPatch(rawPatch);
+  const normalizedPatch = applyLegacySensitivePlaintextPolicy(rawPatch);
+
+  await conflict.employee.update({
+    ...normalizedPatch,
+    ...encryptedPatch,
+    updatedBy: resolvedBy,
+  });
+
+  await conflict.update({
+    status: "resolved",
+    resolvedBy,
+    resolvedAt: new Date(),
+    metadata: {
+      ...(conflict.metadata || {}),
+      resolution: "apply_ocr",
+    },
   });
 
   return conflict;

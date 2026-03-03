@@ -14,6 +14,7 @@ import {
   recognizeDocument,
 } from "../services/ocr/ocrService.js";
 import {
+  applyEmployeeOcrConflict,
   getEmployeeOcrConflictSummary,
   listEmployeeOcrConflicts,
   notifyManagersAboutOcrConflicts,
@@ -391,7 +392,31 @@ export const resolveOcrConflict = async (req, res, next) => {
 
     return res.json({
       success: true,
-      message: "OCR-конфликт отмечен как просмотренный",
+      message: "Конфликт закрыт, данные карточки сохранены",
+      data: {
+        id: conflict.id,
+        status: "resolved",
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const applyOcrConflict = async (req, res, next) => {
+  try {
+    const conflict = await applyEmployeeOcrConflict({
+      conflictId: req.params.id,
+      resolvedBy: req.user.id,
+    });
+
+    if (!conflict) {
+      throw new AppError("OCR-конфликт не найден", 404);
+    }
+
+    return res.json({
+      success: true,
+      message: "Значение OCR применено к карточке сотрудника",
       data: {
         id: conflict.id,
         status: "resolved",
