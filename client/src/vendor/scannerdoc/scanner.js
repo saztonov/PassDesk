@@ -115,6 +115,66 @@ const openMediaStream = async (preferredConstraints) => {
   throw lastError ?? new Error("Unable to open camera stream");
 };
 
+const buildFocusConstraintAttempts = (capabilities = {}) => {
+  const focusModes = Array.isArray(capabilities.focusMode) ? capabilities.focusMode : [];
+  const attempts = [];
+
+  if (focusModes.includes("continuous")) {
+    attempts.push({ advanced: [{ focusMode: "continuous" }] });
+  }
+  if (focusModes.includes("single-shot")) {
+    attempts.push({ advanced: [{ focusMode: "single-shot" }] });
+  }
+
+  const minFocusDistance = Number.isFinite(capabilities.focusDistance?.min)
+    ? capabilities.focusDistance.min
+    : null;
+  const maxFocusDistance = Number.isFinite(capabilities.focusDistance?.max)
+    ? capabilities.focusDistance.max
+    : null;
+
+  if (maxFocusDistance !== null) {
+    attempts.push({ advanced: [{ focusDistance: maxFocusDistance }] });
+  }
+  if (
+    minFocusDistance !== null &&
+    maxFocusDistance !== null &&
+    maxFocusDistance > minFocusDistance
+  ) {
+    attempts.push({
+      advanced: [{ focusDistance: minFocusDistance + (maxFocusDistance - minFocusDistance) * 0.85 }],
+    });
+  }
+
+  return attempts;
+};
+
+const tryEnableAutoFocus = async (stream) => {
+  const [videoTrack] = stream?.getVideoTracks?.() ?? [];
+  if (!videoTrack || typeof videoTrack.applyConstraints !== "function") {
+    return;
+  }
+
+  let capabilities = {};
+  if (typeof videoTrack.getCapabilities === "function") {
+    try {
+      capabilities = videoTrack.getCapabilities() ?? {};
+    } catch {
+      capabilities = {};
+    }
+  }
+
+  const attempts = buildFocusConstraintAttempts(capabilities);
+  for (const constraints of attempts) {
+    try {
+      await videoTrack.applyConstraints(constraints);
+      return;
+    } catch {
+      // Ignore unsupported focus constraints and fall through to browser defaults.
+    }
+  }
+};
+
 const attachStreamToVideo = async (video, stream) => {
   video.playsInline = true;
   video.muted = true;
@@ -273,6 +333,7 @@ export class ScannerDoc {
       };
 
       this.stream = await openMediaStream(constraints);
+      await tryEnableAutoFocus(this.stream);
       await attachStreamToVideo(this.video, this.stream);
     }
 
