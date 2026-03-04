@@ -6,7 +6,6 @@ import {
   SaveOutlined,
 } from "@ant-design/icons";
 import { ScannerDoc } from "@/vendor/scannerdoc";
-import { createScannerDetector } from "./lib/createScannerDetector";
 
 const AUTO_CAPTURE_MIN_CONFIDENCE = 0.58;
 const AUTO_CAPTURE_STABLE_DELTA_RATIO = 0.015;
@@ -140,10 +139,6 @@ export const DocumentScannerModal = ({
   const [saving, setSaving] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState("");
-  const [detectorMeta, setDetectorMeta] = useState({
-    kind: "heuristic",
-    provider: "builtin",
-  });
   const [detection, setDetection] = useState({
     confidence: 0,
     processingMs: 0,
@@ -185,10 +180,6 @@ export const DocumentScannerModal = ({
 
     clearCanvas(previewCanvasRef.current);
     setCameraReady(false);
-    setDetectorMeta({
-      kind: "heuristic",
-      provider: "builtin",
-    });
     setDetection({
       confidence: 0,
       processingMs: 0,
@@ -255,28 +246,20 @@ export const DocumentScannerModal = ({
         stableFrames: 0,
         autoCaptureArmed: false,
       });
-      setDetectorMeta({
-        kind: "heuristic",
-        provider: "builtin",
-      });
       syncCanvasSize(previewCanvasRef.current);
 
       try {
         const videoNode = await waitForMountedNode(videoRef);
         const previewCanvasNode = await waitForMountedNode(previewCanvasRef);
-        const detectorSetup = await createScannerDetector({ mode });
 
         if (cancelled) {
           return;
         }
 
-        setDetectorMeta(detectorSetup.meta);
-
         const scanner = new ScannerDoc({
           video: videoNode,
           previewCanvas: previewCanvasNode,
           documentMode: mode,
-          detector: detectorSetup.detector ?? undefined,
           detectIntervalMs: 90,
           detectionWidth: isMobileViewport ? 360 : 480,
           smoothing: 0.72,
@@ -524,10 +507,6 @@ export const DocumentScannerModal = ({
                   {detection.processingMs > 0
                     ? ` · ${Math.round(detection.processingMs)} мс`
                     : ""}
-                </div>
-                <div style={{ color: "#8c8c8c", fontSize: 11, marginTop: 4 }}>
-                  Детектор: {detectorMeta.kind === "onnx" ? "ONNX" : "Builtin"}
-                  {detectorMeta.provider ? ` · ${detectorMeta.provider}` : ""}
                 </div>
                 <div style={{ color: "#8c8c8c", fontSize: 11, marginTop: 4 }}>
                   {detection.autoCaptureArmed
