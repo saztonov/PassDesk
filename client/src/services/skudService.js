@@ -18,6 +18,11 @@ const skudService = {
     return toData(response);
   },
 
+  pullEvents: async (payload = {}) => {
+    const response = await api.post("/skud/events/pull", payload);
+    return toData(response);
+  },
+
   getSyncJobs: async (params = {}) => {
     const response = await api.get("/skud/sync-jobs", { params });
     return toData(response);

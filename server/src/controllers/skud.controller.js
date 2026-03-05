@@ -25,6 +25,7 @@ import {
   verifySkudQrToken,
 } from "../services/skud/SkudQrService.js";
 import { enqueueSkudEventsIngestJob } from "../queues/skud/queue.js";
+import { getSkudProvider } from "../integrations/skud/SkudProviderRegistry.js";
 
 const ensureSkudModuleEnabled = () => {
   if (!isSkudEnabled()) {
@@ -54,6 +55,79 @@ const parsePagination = (query = {}) => {
   const limit = Math.min(Math.max(Number.parseInt(String(query.limit || "50"), 10) || 50, 1), 200);
   const offset = Math.max(Number.parseInt(String(query.offset || "0"), 10) || 0, 0);
   return { limit, offset };
+};
+
+const parsePullParams = (body = {}, query = {}) => {
+  const source = body && typeof body === "object" ? body : {};
+  const merged = { ...query, ...source };
+  const limit = Math.min(
+    Math.max(Number.parseInt(String(merged.limit || "100"), 10) || 100, 1),
+    500,
+  );
+  const offset = Math.max(Number.parseInt(String(merged.offset || "0"), 10) || 0, 0);
+  return {
+    limit,
+    offset,
+    from: merged.from,
+    to: merged.to,
+  };
+};
+
+const normalizeProviderEvent = (item) => {
+  const toNullableInt = (value) => {
+    if (value === null || value === undefined || value === "") {
+      return null;
+    }
+    const parsed = Number.parseInt(String(value), 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const mapDirection = (value) => {
+    if (value === null || value === undefined || value === "") {
+      return null;
+    }
+    const raw = String(value).trim().toUpperCase();
+    if (raw === "IN") return 1;
+    if (raw === "OUT") return 2;
+    return toNullableInt(value);
+  };
+
+  const data = item?.data || {};
+  const additionalData = item?.additionalData || {};
+  const accessPoint = additionalData?.accessPoint || {};
+  const externalEmpIdRaw =
+    data?.employeeId ??
+    data?.personId ??
+    data?.userId ??
+    item?.employeeId ??
+    item?.personId ??
+    item?.userId ??
+    null;
+
+  const accessPointRaw = data?.accessPointId ?? accessPoint?.id ?? item?.accessPointId ?? null;
+  const directionRaw = data?.direction ?? item?.direction ?? null;
+  const allowRaw = data?.allow ?? data?.allowed ?? item?.allow ?? item?.allowed ?? null;
+  const keyHexRaw = data?.keyHex ?? data?.key ?? item?.keyHex ?? item?.key ?? null;
+
+  return {
+    logId: item?.logId ?? item?.id ?? null,
+    externalEmpId:
+      externalEmpIdRaw === null || externalEmpIdRaw === undefined
+        ? null
+        : String(externalEmpIdRaw),
+    accessPoint: toNullableInt(accessPointRaw),
+    direction: mapDirection(directionRaw),
+    allow:
+      allowRaw === null || allowRaw === undefined
+        ? null
+        : Boolean(allowRaw),
+    keyHex:
+      keyHexRaw === null || keyHexRaw === undefined ? null : String(keyHexRaw),
+    eventType: item?.eventType || item?.type || "sigur_event",
+    eventTime: item?.timestamp || item?.receivedTime || new Date().toISOString(),
+    source: "sigur_pull",
+    rawItem: item,
+  };
 };
 
 const parseBasicAuthHeader = (headerValue) => {
@@ -178,6 +252,44 @@ export const skudController = {
             offset,
             total: result.count,
           },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async pullEvents(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const provider = getSkudProvider();
+      const { from, to, limit, offset } = parsePullParams(req.body, req.query);
+
+      const result = await provider.getEvents({ from, to, limit, offset });
+      const items = Array.isArray(result)
+        ? result
+        : Array.isArray(result?.items)
+          ? result.items
+          : [];
+
+      for (const item of items) {
+        const payload = normalizeProviderEvent(item);
+        await ingestSkudEvent({
+          payload,
+          source: "sigur_pull",
+          externalSystem: "sigur",
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          fetched: items.length,
+          imported: items.length,
+          from: from || null,
+          to: to || null,
+          limit,
+          offset,
         },
       });
     } catch (error) {

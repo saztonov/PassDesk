@@ -41,6 +41,16 @@ router.get(
   paginationValidation,
   skudController.events,
 );
+router.post(
+  "/events/pull",
+  authorize("admin", "manager"),
+  body("limit").optional().isInt({ min: 1, max: 500 }),
+  body("offset").optional().isInt({ min: 0 }),
+  body("from").optional().isISO8601(),
+  body("to").optional().isISO8601(),
+  validate,
+  skudController.pullEvents,
+);
 router.get(
   "/sync-jobs",
   authorize("admin", "manager"),

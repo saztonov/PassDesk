@@ -12,7 +12,7 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { ReloadOutlined, SyncOutlined } from "@ant-design/icons";
+import { DownloadOutlined, ReloadOutlined, SyncOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import skudService from "@/services/skudService";
 
@@ -21,6 +21,7 @@ const { Text } = Typography;
 const SkudAdminSection = () => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
+  const [pullingEvents, setPullingEvents] = useState(false);
   const [syncingEmployeeId, setSyncingEmployeeId] = useState("");
   const [state, setState] = useState({
     health: null,
@@ -87,6 +88,20 @@ const SkudAdminSection = () => {
     }
   }, [loadData, message, syncingEmployeeId]);
 
+  const handlePullEvents = useCallback(async () => {
+    setPullingEvents(true);
+    try {
+      const result = await skudService.pullEvents({ limit: 200 });
+      message.success(`События подтянуты из Sigur: ${result?.imported || 0}`);
+      await loadData();
+    } catch (error) {
+      console.error("Failed to pull events from Sigur:", error);
+      message.error("Не удалось подтянуть события из Sigur");
+    } finally {
+      setPullingEvents(false);
+    }
+  }, [loadData, message]);
+
   const eventsColumns = useMemo(
     () => [
       {
@@ -121,8 +136,8 @@ const SkudAdminSection = () => {
         key: "direction",
         width: 90,
         render: (value) => {
-          if (value === 1) return <Tag color="blue">IN</Tag>;
-          if (value === 2) return <Tag color="geekblue">OUT</Tag>;
+          if (value === 1) return <Tag color="blue">Вход</Tag>;
+          if (value === 2) return <Tag color="geekblue">Выход</Tag>;
           return <Tag>—</Tag>;
         },
       },
@@ -135,9 +150,9 @@ const SkudAdminSection = () => {
           value === null || value === undefined ? (
             <Tag>—</Tag>
           ) : value ? (
-            <Tag color="green">ALLOW</Tag>
+            <Tag color="green">Разрешено</Tag>
           ) : (
-            <Tag color="red">DENY</Tag>
+            <Tag color="red">Отказ</Tag>
           ),
       },
       {
@@ -171,10 +186,10 @@ const SkudAdminSection = () => {
         key: "status",
         width: 130,
         render: (value) => {
-          if (value === "success") return <Tag color="green">success</Tag>;
-          if (value === "failed") return <Tag color="red">failed</Tag>;
-          if (value === "processing") return <Tag color="blue">processing</Tag>;
-          return <Tag color="orange">pending</Tag>;
+          if (value === "success") return <Tag color="green">Успешно</Tag>;
+          if (value === "failed") return <Tag color="red">Ошибка</Tag>;
+          if (value === "processing") return <Tag color="blue">В процессе</Tag>;
+          return <Tag color="orange">Ожидает</Tag>;
         },
       },
       {
@@ -218,9 +233,9 @@ const SkudAdminSection = () => {
         key: "status",
         width: 130,
         render: (value) => {
-          if (value === "active") return <Tag color="green">active</Tag>;
-          if (value === "blocked") return <Tag color="red">blocked</Tag>;
-          if (value === "unbound") return <Tag color="gold">unbound</Tag>;
+          if (value === "active") return <Tag color="green">Активна</Tag>;
+          if (value === "blocked") return <Tag color="red">Заблокирована</Tag>;
+          if (value === "unbound") return <Tag color="gold">Отвязана</Tag>;
           return <Tag>{value || "—"}</Tag>;
         },
       },
@@ -246,7 +261,9 @@ const SkudAdminSection = () => {
       <Space style={{ justifyContent: "space-between", width: "100%" }} wrap>
         <Space direction="vertical" size={0}>
           <Text strong>СКУД (Sigur)</Text>
-          <Text type="secondary">Мониторинг проходов, задач синхронизации и состояния карт.</Text>
+          <Text type="secondary">
+            Мониторинг проходов, задач синхронизации и состояния карт.
+          </Text>
         </Space>
 
         <Space>
@@ -259,6 +276,13 @@ const SkudAdminSection = () => {
           <Button type="primary" icon={<SyncOutlined />} onClick={handleSyncEmployee}>
             Пересинхронизировать
           </Button>
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={handlePullEvents}
+            loading={pullingEvents}
+          >
+            Подтянуть события
+          </Button>
           <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
             Обновить
           </Button>
@@ -269,8 +293,8 @@ const SkudAdminSection = () => {
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
-              title="Auth"
-              value={state.health?.authOk ? "OK" : "FAIL"}
+              title="Авторизация"
+              value={state.health?.authOk ? "Успех" : "Ошибка"}
               valueStyle={{ color: state.health?.authOk ? "#3f8600" : "#cf1322" }}
             />
             <Text type="secondary">Провайдер: {state.health?.provider || "—"}</Text>
@@ -279,19 +303,19 @@ const SkudAdminSection = () => {
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic title="Проходы" value={state.stats?.events?.total || 0} />
-            <Text type="secondary">Denied: {state.stats?.events?.denied || 0}</Text>
+            <Text type="secondary">Отказов: {state.stats?.events?.denied || 0}</Text>
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
           <Card>
-            <Statistic title="Sync failed" value={state.stats?.syncJobs?.failed || 0} />
-            <Text type="secondary">Pending: {state.stats?.syncJobs?.pending || 0}</Text>
+            <Statistic title="Ошибки синхронизации" value={state.stats?.syncJobs?.failed || 0} />
+            <Text type="secondary">Ожидают: {state.stats?.syncJobs?.pending || 0}</Text>
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic title="Заблокировано" value={state.stats?.blockedEmployees || 0} />
-            <Text type="secondary">Deny rate: {state.stats?.events?.denyRate || 0}%</Text>
+            <Text type="secondary">Доля отказов: {state.stats?.events?.denyRate || 0}%</Text>
           </Card>
         </Col>
       </Row>
