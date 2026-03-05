@@ -79,6 +79,26 @@ router.post(
   employeeIdParamValidation,
   skudController.syncEmployee,
 );
+router.post(
+  "/sync/employee/:employeeId/block",
+  authorize("admin", "manager"),
+  employeeIdParamValidation,
+  body("reasonCode").optional().isString().trim(),
+  body("statusReason").optional().isString().trim(),
+  body("priority").optional().isIn(["normal", "high"]),
+  validate,
+  skudController.blockEmployee,
+);
+router.post(
+  "/sync/employee/:employeeId/unblock",
+  authorize("admin", "manager"),
+  employeeIdParamValidation,
+  body("reasonCode").optional().isString().trim(),
+  body("statusReason").optional().isString().trim(),
+  body("priority").optional().isIn(["normal", "high"]),
+  validate,
+  skudController.unblockEmployee,
+);
 
 router.get(
   "/cards",

@@ -33,8 +33,23 @@ const skudService = {
     return toData(response);
   },
 
+  blockEmployee: async (employeeId, payload = {}) => {
+    const response = await api.post(`/skud/sync/employee/${employeeId}/block`, payload);
+    return toData(response);
+  },
+
+  unblockEmployee: async (employeeId, payload = {}) => {
+    const response = await api.post(`/skud/sync/employee/${employeeId}/unblock`, payload);
+    return toData(response);
+  },
+
   upsertBinding: async (employeeId, payload) => {
     const response = await api.post(`/skud/bindings/employee/${employeeId}`, payload);
+    return toData(response);
+  },
+
+  getEmployeeBinding: async (employeeId) => {
+    const response = await api.get(`/skud/bindings/employee/${employeeId}`);
     return toData(response);
   },
 

@@ -13,6 +13,7 @@ import {
   Table,
   Tag,
   Typography,
+  Popconfirm,
 } from "antd";
 import { DownloadOutlined, ReloadOutlined, SyncOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -77,7 +78,18 @@ const SkudAdminSection = () => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [pullingEvents, setPullingEvents] = useState(false);
-  const [syncingEmployeeId, setSyncingEmployeeId] = useState("");
+  const [employeeIdInput, setEmployeeIdInput] = useState("");
+  const [externalEmpIdInput, setExternalEmpIdInput] = useState("");
+  const [employeeReasonInput, setEmployeeReasonInput] = useState("");
+  const [employeeActionLoading, setEmployeeActionLoading] = useState(false);
+  const [bindingLookupLoading, setBindingLookupLoading] = useState(false);
+  const [bindingInfo, setBindingInfo] = useState(null);
+  const [assigningCard, setAssigningCard] = useState(false);
+  const [cardActionLoadingId, setCardActionLoadingId] = useState(null);
+  const [cardEmployeeIdInput, setCardEmployeeIdInput] = useState("");
+  const [cardNumberInput, setCardNumberInput] = useState("");
+  const [cardTypeInput, setCardTypeInput] = useState("rfid");
+  const [cardNotesInput, setCardNotesInput] = useState("");
   const [showOnlyPassages, setShowOnlyPassages] = useState(true);
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [state, setState] = useState({
@@ -133,22 +145,184 @@ const SkudAdminSection = () => {
   }, [loadData]);
 
   const handleSyncEmployee = useCallback(async () => {
-    const employeeId = String(syncingEmployeeId || "").trim();
+    const employeeId = String(employeeIdInput || "").trim();
     if (!employeeId) {
       message.warning("Введите employeeId");
       return;
     }
 
+    setEmployeeActionLoading(true);
     try {
       await skudService.syncEmployee(employeeId);
       message.success("Задача синхронизации поставлена в очередь");
-      setSyncingEmployeeId("");
       await loadData();
     } catch (error) {
       console.error("Failed to enqueue employee sync:", error);
       message.error("Не удалось поставить синхронизацию в очередь");
+    } finally {
+      setEmployeeActionLoading(false);
     }
-  }, [loadData, message, syncingEmployeeId]);
+  }, [employeeIdInput, loadData, message]);
+
+  const handleBlockEmployee = useCallback(async () => {
+    const employeeId = String(employeeIdInput || "").trim();
+    if (!employeeId) {
+      message.warning("Введите employeeId");
+      return;
+    }
+
+    setEmployeeActionLoading(true);
+    try {
+      await skudService.blockEmployee(employeeId, {
+        statusReason: employeeReasonInput || "Ручная блокировка",
+      });
+      message.success("Задача блокировки поставлена в очередь");
+      await loadData();
+    } catch (error) {
+      console.error("Failed to enqueue employee block:", error);
+      message.error("Не удалось поставить блокировку в очередь");
+    } finally {
+      setEmployeeActionLoading(false);
+    }
+  }, [employeeIdInput, employeeReasonInput, loadData, message]);
+
+  const handleUnblockEmployee = useCallback(async () => {
+    const employeeId = String(employeeIdInput || "").trim();
+    if (!employeeId) {
+      message.warning("Введите employeeId");
+      return;
+    }
+
+    setEmployeeActionLoading(true);
+    try {
+      await skudService.unblockEmployee(employeeId, {
+        statusReason: employeeReasonInput || "Ручная разблокировка",
+      });
+      message.success("Задача разблокировки поставлена в очередь");
+      await loadData();
+    } catch (error) {
+      console.error("Failed to enqueue employee unblock:", error);
+      message.error("Не удалось поставить разблокировку в очередь");
+    } finally {
+      setEmployeeActionLoading(false);
+    }
+  }, [employeeIdInput, employeeReasonInput, loadData, message]);
+
+  const handleLoadBinding = useCallback(async () => {
+    const employeeId = String(employeeIdInput || "").trim();
+    if (!employeeId) {
+      message.warning("Введите employeeId");
+      return;
+    }
+
+    setBindingLookupLoading(true);
+    try {
+      const binding = await skudService.getEmployeeBinding(employeeId);
+      setBindingInfo(binding || null);
+      setExternalEmpIdInput(binding?.externalEmpId || "");
+      if (binding?.externalEmpId) {
+        message.success("Привязка загружена");
+      } else {
+        message.info("Активная привязка не найдена");
+      }
+    } catch (error) {
+      console.error("Failed to load employee binding:", error);
+      setBindingInfo(null);
+      message.error("Не удалось загрузить привязку");
+    } finally {
+      setBindingLookupLoading(false);
+    }
+  }, [employeeIdInput, message]);
+
+  const handleSaveBinding = useCallback(async () => {
+    const employeeId = String(employeeIdInput || "").trim();
+    const externalEmpId = String(externalEmpIdInput || "").trim();
+    if (!employeeId || !externalEmpId) {
+      message.warning("Введите employeeId и externalEmpId");
+      return;
+    }
+
+    setBindingLookupLoading(true);
+    try {
+      const binding = await skudService.upsertBinding(employeeId, {
+        externalSystem: "sigur",
+        externalEmpId,
+        source: "manual",
+      });
+      setBindingInfo(binding || null);
+      message.success("Привязка сохранена");
+      await loadData();
+    } catch (error) {
+      console.error("Failed to save employee binding:", error);
+      message.error("Не удалось сохранить привязку");
+    } finally {
+      setBindingLookupLoading(false);
+    }
+  }, [employeeIdInput, externalEmpIdInput, loadData, message]);
+
+  const handleAssignCard = useCallback(async () => {
+    const employeeId = String(cardEmployeeIdInput || "").trim();
+    const cardNumber = String(cardNumberInput || "").trim();
+    if (!employeeId || !cardNumber) {
+      message.warning("Введите employeeId и номер карты");
+      return;
+    }
+
+    setAssigningCard(true);
+    try {
+      await skudService.assignCard({
+        employeeId,
+        cardNumber,
+        cardType: cardTypeInput || "rfid",
+        notes: cardNotesInput || "",
+      });
+      message.success("Карта поставлена в очередь на привязку");
+      setCardNumberInput("");
+      setCardNotesInput("");
+      await loadData();
+    } catch (error) {
+      console.error("Failed to assign card:", error);
+      message.error("Не удалось привязать карту");
+    } finally {
+      setAssigningCard(false);
+    }
+  }, [cardEmployeeIdInput, cardNumberInput, cardTypeInput, cardNotesInput, loadData, message]);
+
+  const handleBlockCard = useCallback(
+    async (cardId) => {
+      if (!cardId) return;
+      setCardActionLoadingId(cardId);
+      try {
+        await skudService.blockCard(cardId);
+        message.success("Карта поставлена в очередь на блокировку");
+        await loadData();
+      } catch (error) {
+        console.error("Failed to block card:", error);
+        message.error("Не удалось заблокировать карту");
+      } finally {
+        setCardActionLoadingId(null);
+      }
+    },
+    [loadData, message],
+  );
+
+  const handleUnbindCard = useCallback(
+    async (cardId) => {
+      if (!cardId) return;
+      setCardActionLoadingId(cardId);
+      try {
+        await skudService.unbindCard(cardId);
+        message.success("Карта поставлена в очередь на отвязку");
+        await loadData();
+      } catch (error) {
+        console.error("Failed to unbind card:", error);
+        message.error("Не удалось отвязать карту");
+      } finally {
+        setCardActionLoadingId(null);
+      }
+    },
+    [loadData, message],
+  );
 
   const handlePullEvents = useCallback(async () => {
     setPullingEvents(true);
@@ -412,8 +586,46 @@ const SkudAdminSection = () => {
         width: 170,
         render: (value) => (value ? dayjs(value).format("DD.MM.YYYY HH:mm:ss") : "—"),
       },
+      {
+        title: "Действия",
+        key: "actions",
+        width: 220,
+        render: (_, record) => (
+          <Space>
+            <Popconfirm
+              title="Заблокировать карту?"
+              okText="Да"
+              cancelText="Нет"
+              onConfirm={() => handleBlockCard(record.id)}
+            >
+              <Button
+                size="small"
+                danger
+                loading={cardActionLoadingId === record.id}
+                disabled={record.status === "blocked"}
+              >
+                Блокировать
+              </Button>
+            </Popconfirm>
+            <Popconfirm
+              title="Отвязать карту?"
+              okText="Да"
+              cancelText="Нет"
+              onConfirm={() => handleUnbindCard(record.id)}
+            >
+              <Button
+                size="small"
+                loading={cardActionLoadingId === record.id}
+                disabled={record.status === "unbound"}
+              >
+                Отвязать
+              </Button>
+            </Popconfirm>
+          </Space>
+        ),
+      },
     ],
-    [],
+    [cardActionLoadingId, handleBlockCard, handleUnbindCard],
   );
 
   return (
@@ -437,15 +649,6 @@ const SkudAdminSection = () => {
             value={eventTypeFilter}
             onChange={setEventTypeFilter}
           />
-          <Input
-            placeholder="employeeId"
-            value={syncingEmployeeId}
-            onChange={(event) => setSyncingEmployeeId(event.target.value)}
-            style={{ width: 260 }}
-          />
-          <Button type="primary" icon={<SyncOutlined />} onClick={handleSyncEmployee}>
-            Пересинхронизировать
-          </Button>
           <Button
             icon={<DownloadOutlined />}
             onClick={handlePullEvents}
@@ -486,6 +689,112 @@ const SkudAdminSection = () => {
           <Card>
             <Statistic title="Заблокировано" value={state.stats?.blockedEmployees || 0} />
             <Text type="secondary">Доля отказов: {state.stats?.events?.denyRate || 0}%</Text>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[12, 12]}>
+        <Col xs={24} xl={12}>
+          <Card title="Управление сотрудником в СКУД">
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <Input
+                placeholder="employeeId (UUID сотрудника в PassDesk)"
+                value={employeeIdInput}
+                onChange={(event) => setEmployeeIdInput(event.target.value)}
+              />
+              <Input
+                placeholder="Причина (опционально)"
+                value={employeeReasonInput}
+                onChange={(event) => setEmployeeReasonInput(event.target.value)}
+              />
+              <Space wrap>
+                <Button
+                  type="primary"
+                  icon={<SyncOutlined />}
+                  onClick={handleSyncEmployee}
+                  loading={employeeActionLoading}
+                >
+                  Синхронизировать
+                </Button>
+                <Button
+                  danger
+                  onClick={handleBlockEmployee}
+                  loading={employeeActionLoading}
+                >
+                  Блокировать
+                </Button>
+                <Button
+                  onClick={handleUnblockEmployee}
+                  loading={employeeActionLoading}
+                >
+                  Разблокировать
+                </Button>
+              </Space>
+
+              <Input
+                placeholder="externalEmpId (ID сотрудника в Sigur)"
+                value={externalEmpIdInput}
+                onChange={(event) => setExternalEmpIdInput(event.target.value)}
+              />
+              <Space wrap>
+                <Button onClick={handleLoadBinding} loading={bindingLookupLoading}>
+                  Загрузить привязку
+                </Button>
+                <Button
+                  type="primary"
+                  onClick={handleSaveBinding}
+                  loading={bindingLookupLoading}
+                >
+                  Сохранить привязку
+                </Button>
+              </Space>
+
+              {bindingInfo ? (
+                <Text type="secondary">
+                  Текущая привязка: Sigur ID {bindingInfo.externalEmpId}
+                </Text>
+              ) : (
+                <Text type="secondary">Текущая привязка: не задана</Text>
+              )}
+            </Space>
+          </Card>
+        </Col>
+
+        <Col xs={24} xl={12}>
+          <Card title="Привязка карты">
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <Input
+                placeholder="employeeId (UUID сотрудника в PassDesk)"
+                value={cardEmployeeIdInput}
+                onChange={(event) => setCardEmployeeIdInput(event.target.value)}
+              />
+              <Input
+                placeholder="Номер карты"
+                value={cardNumberInput}
+                onChange={(event) => setCardNumberInput(event.target.value)}
+              />
+              <Select
+                value={cardTypeInput}
+                onChange={setCardTypeInput}
+                options={[
+                  { value: "rfid", label: "RFID" },
+                  { value: "nfc", label: "NFC" },
+                  { value: "other", label: "Другое" },
+                ]}
+              />
+              <Input
+                placeholder="Комментарий (опционально)"
+                value={cardNotesInput}
+                onChange={(event) => setCardNotesInput(event.target.value)}
+              />
+              <Button
+                type="primary"
+                onClick={handleAssignCard}
+                loading={assigningCard}
+              >
+                Привязать карту
+              </Button>
+            </Space>
           </Card>
         </Col>
       </Row>

@@ -355,6 +355,58 @@ export const skudController = {
     }
   },
 
+  async blockEmployee(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const { employeeId } = req.params;
+      const employee = await fetchEmployeeForAccess(employeeId);
+      if (!employee || employee.isDeleted) {
+        throw new AppError("Сотрудник не найден", 404);
+      }
+      await checkEmployeeAccess(req.user, employee, "write");
+
+      const syncJob = await enqueueSkudSyncForEmployee({
+        employeeId,
+        operation: "block_employee",
+        userId: req.user.id,
+        source: "manual_block",
+        reasonCode: req.body?.reasonCode || "manual_block",
+        statusReason: req.body?.statusReason || "Ручная блокировка из SKUD",
+        priority: req.body?.priority || "normal",
+      });
+
+      res.status(202).json({ success: true, data: syncJob });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async unblockEmployee(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const { employeeId } = req.params;
+      const employee = await fetchEmployeeForAccess(employeeId);
+      if (!employee || employee.isDeleted) {
+        throw new AppError("Сотрудник не найден", 404);
+      }
+      await checkEmployeeAccess(req.user, employee, "write");
+
+      const syncJob = await enqueueSkudSyncForEmployee({
+        employeeId,
+        operation: "unblock_employee",
+        userId: req.user.id,
+        source: "manual_unblock",
+        reasonCode: req.body?.reasonCode || "manual_unblock",
+        statusReason: req.body?.statusReason || "Ручная разблокировка из SKUD",
+        priority: req.body?.priority || "normal",
+      });
+
+      res.status(202).json({ success: true, data: syncJob });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async listCards(req, res, next) {
     try {
       ensureSkudModuleEnabled();
