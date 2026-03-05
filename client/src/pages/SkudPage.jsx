@@ -29,7 +29,6 @@ const SkudPage = () => {
           minHeight: 0,
           display: "flex",
           flexDirection: "column",
-          overflow: "hidden",
           margin: 0,
           padding: 0,
         }}
@@ -38,7 +37,8 @@ const SkudPage = () => {
             display: "flex",
             flexDirection: "column",
             flex: 1,
-            overflow: "hidden",
+            overflowY: "auto",
+            overflowX: "hidden",
             minHeight: 0,
             padding: 0,
           },
