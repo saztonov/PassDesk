@@ -5,7 +5,6 @@ import {
   SkudPersonBinding,
 } from "../models/index.js";
 import { AppError } from "../middleware/errorHandler.js";
-import { Op } from "sequelize";
 import { checkEmployeeAccess } from "../utils/permissionUtils.js";
 import { isSkudEnabled, skudConfig } from "../services/skud/skudConfig.js";
 import {

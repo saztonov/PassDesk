@@ -11,6 +11,7 @@ import {
   Statistic,
   Switch,
   Table,
+  Tabs,
   Tag,
   Typography,
   Popconfirm,
@@ -90,6 +91,7 @@ const SkudAdminSection = () => {
   const [cardNumberInput, setCardNumberInput] = useState("");
   const [cardTypeInput, setCardTypeInput] = useState("rfid");
   const [cardNotesInput, setCardNotesInput] = useState("");
+  const [activeTab, setActiveTab] = useState("events");
   const [localEmployeeSearch, setLocalEmployeeSearch] = useState("");
   const [providerEmployeeSearch, setProviderEmployeeSearch] = useState("");
   const [mappingLoading, setMappingLoading] = useState(false);
@@ -782,267 +784,299 @@ const SkudAdminSection = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%", padding: 16 }}>
-      <Space style={{ justifyContent: "space-between", width: "100%" }} wrap>
-        <Space direction="vertical" size={0}>
-          <Text strong>СКУД (Sigur)</Text>
-          <Text type="secondary">
-            Мониторинг проходов, задач синхронизации и состояния карт.
-          </Text>
-        </Space>
-
-        <Space>
-          <Space size={8}>
-            <Text type="secondary">Только проходы</Text>
-            <Switch checked={showOnlyPassages} onChange={setShowOnlyPassages} />
-          </Space>
-          <Select
-            style={{ width: 220 }}
-            options={eventTypeOptions}
-            value={eventTypeFilter}
-            onChange={setEventTypeFilter}
-          />
-          <Button
-            icon={<DownloadOutlined />}
-            onClick={handlePullEvents}
-            loading={pullingEvents}
-          >
-            Подтянуть события
-          </Button>
-          <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
-            Обновить
-          </Button>
-        </Space>
+      <Space direction="vertical" size={0}>
+        <Text strong>СКУД (Sigur)</Text>
+        <Text type="secondary">
+          Мониторинг проходов, задач синхронизации и состояния карт.
+        </Text>
       </Space>
 
-      <Row gutter={[12, 12]}>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Авторизация"
-              value={state.health?.authOk ? "Успех" : "Ошибка"}
-              valueStyle={{ color: state.health?.authOk ? "#3f8600" : "#cf1322" }}
-            />
-            <Text type="secondary">Провайдер: {state.health?.provider || "—"}</Text>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic title="Проходы" value={state.stats?.events?.total || 0} />
-            <Text type="secondary">Отказов: {state.stats?.events?.denied || 0}</Text>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic title="Ошибки синхронизации" value={state.stats?.syncJobs?.failed || 0} />
-            <Text type="secondary">Ожидают: {state.stats?.syncJobs?.pending || 0}</Text>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic title="Заблокировано" value={state.stats?.blockedEmployees || 0} />
-            <Text type="secondary">Доля отказов: {state.stats?.events?.denyRate || 0}%</Text>
-          </Card>
-        </Col>
-      </Row>
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: "events",
+            label: "События",
+            children: (
+              <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                <Space wrap>
+                  <Space size={8}>
+                    <Text type="secondary">Только проходы</Text>
+                    <Switch checked={showOnlyPassages} onChange={setShowOnlyPassages} />
+                  </Space>
+                  <Select
+                    style={{ width: 220 }}
+                    options={eventTypeOptions}
+                    value={eventTypeFilter}
+                    onChange={setEventTypeFilter}
+                  />
+                  <Button
+                    icon={<DownloadOutlined />}
+                    onClick={handlePullEvents}
+                    loading={pullingEvents}
+                  >
+                    Подтянуть события
+                  </Button>
+                  <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
+                    Обновить
+                  </Button>
+                </Space>
 
-      <Row gutter={[12, 12]}>
-        <Col xs={24} xl={12}>
-          <Card title="Управление сотрудником в СКУД">
-            <Space direction="vertical" size={12} style={{ width: "100%" }}>
-              <Input
-                placeholder="employeeId (UUID сотрудника в PassDesk)"
-                value={employeeIdInput}
-                onChange={(event) => setEmployeeIdInput(event.target.value)}
-              />
-              <Input
-                placeholder="Причина (опционально)"
-                value={employeeReasonInput}
-                onChange={(event) => setEmployeeReasonInput(event.target.value)}
-              />
-              <Space wrap>
-                <Button
-                  type="primary"
-                  icon={<SyncOutlined />}
-                  onClick={handleSyncEmployee}
-                  loading={employeeActionLoading}
-                >
-                  Синхронизировать
-                </Button>
-                <Button
-                  danger
-                  onClick={handleBlockEmployee}
-                  loading={employeeActionLoading}
-                >
-                  Блокировать
-                </Button>
-                <Button
-                  onClick={handleUnblockEmployee}
-                  loading={employeeActionLoading}
-                >
-                  Разблокировать
-                </Button>
+                <Row gutter={[12, 12]}>
+                  <Col xs={24} sm={12} md={6}>
+                    <Card>
+                      <Statistic
+                        title="Авторизация"
+                        value={state.health?.authOk ? "Успех" : "Ошибка"}
+                        valueStyle={{ color: state.health?.authOk ? "#3f8600" : "#cf1322" }}
+                      />
+                      <Text type="secondary">Провайдер: {state.health?.provider || "—"}</Text>
+                    </Card>
+                  </Col>
+                  <Col xs={24} sm={12} md={6}>
+                    <Card>
+                      <Statistic title="Проходы" value={state.stats?.events?.total || 0} />
+                      <Text type="secondary">Отказов: {state.stats?.events?.denied || 0}</Text>
+                    </Card>
+                  </Col>
+                  <Col xs={24} sm={12} md={6}>
+                    <Card>
+                      <Statistic title="Ошибки синхронизации" value={state.stats?.syncJobs?.failed || 0} />
+                      <Text type="secondary">Ожидают: {state.stats?.syncJobs?.pending || 0}</Text>
+                    </Card>
+                  </Col>
+                  <Col xs={24} sm={12} md={6}>
+                    <Card>
+                      <Statistic title="Заблокировано" value={state.stats?.blockedEmployees || 0} />
+                      <Text type="secondary">Доля отказов: {state.stats?.events?.denyRate || 0}%</Text>
+                    </Card>
+                  </Col>
+                </Row>
+
+                <Card title="Последние события проходов">
+                  <Table
+                    rowKey="id"
+                    columns={eventsColumns}
+                    dataSource={state.events?.items || []}
+                    loading={loading}
+                    pagination={false}
+                    scroll={{ x: 1500 }}
+                  />
+                </Card>
               </Space>
+            ),
+          },
+          {
+            key: "employees",
+            label: "Сотрудники",
+            children: (
+              <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                <Space wrap>
+                  <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
+                    Обновить
+                  </Button>
+                </Space>
 
-              <Input
-                placeholder="externalEmpId (ID сотрудника в Sigur)"
-                value={externalEmpIdInput}
-                onChange={(event) => setExternalEmpIdInput(event.target.value)}
-              />
-              <Space wrap>
-                <Button onClick={handleLoadBinding} loading={bindingLookupLoading}>
-                  Загрузить привязку
-                </Button>
-                <Button
-                  type="primary"
-                  onClick={handleSaveBinding}
-                  loading={bindingLookupLoading}
-                >
-                  Сохранить привязку
-                </Button>
+                <Card title="Управление сотрудником в СКУД">
+                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                    <Input
+                      placeholder="employeeId (UUID сотрудника в PassDesk)"
+                      value={employeeIdInput}
+                      onChange={(event) => setEmployeeIdInput(event.target.value)}
+                    />
+                    <Input
+                      placeholder="Причина (опционально)"
+                      value={employeeReasonInput}
+                      onChange={(event) => setEmployeeReasonInput(event.target.value)}
+                    />
+                    <Space wrap>
+                      <Button
+                        type="primary"
+                        icon={<SyncOutlined />}
+                        onClick={handleSyncEmployee}
+                        loading={employeeActionLoading}
+                      >
+                        Синхронизировать
+                      </Button>
+                      <Button
+                        danger
+                        onClick={handleBlockEmployee}
+                        loading={employeeActionLoading}
+                      >
+                        Блокировать
+                      </Button>
+                      <Button
+                        onClick={handleUnblockEmployee}
+                        loading={employeeActionLoading}
+                      >
+                        Разблокировать
+                      </Button>
+                    </Space>
+
+                    <Input
+                      placeholder="externalEmpId (ID сотрудника в Sigur)"
+                      value={externalEmpIdInput}
+                      onChange={(event) => setExternalEmpIdInput(event.target.value)}
+                    />
+                    <Space wrap>
+                      <Button onClick={handleLoadBinding} loading={bindingLookupLoading}>
+                        Загрузить привязку
+                      </Button>
+                      <Button
+                        type="primary"
+                        onClick={handleSaveBinding}
+                        loading={bindingLookupLoading}
+                      >
+                        Сохранить привязку
+                      </Button>
+                    </Space>
+
+                    {bindingInfo ? (
+                      <Text type="secondary">
+                        Текущая привязка: Sigur ID {bindingInfo.externalEmpId}
+                      </Text>
+                    ) : (
+                      <Text type="secondary">Текущая привязка: не задана</Text>
+                    )}
+                  </Space>
+                </Card>
+
+                <Card title="Массовое сопоставление PassDesk ↔ Sigur">
+                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                    <Space wrap>
+                      <Input
+                        placeholder="Поиск PassDesk (ФИО / UUID / ИНН / Sigur ID)"
+                        value={localEmployeeSearch}
+                        onChange={(event) => setLocalEmployeeSearch(event.target.value)}
+                        style={{ width: 360 }}
+                      />
+                      <Input
+                        placeholder="Поиск Sigur (имя / ID / отдел)"
+                        value={providerEmployeeSearch}
+                        onChange={(event) => setProviderEmployeeSearch(event.target.value)}
+                        style={{ width: 320 }}
+                      />
+                      <Button onClick={loadMappingLists} loading={mappingLoading}>
+                        Найти
+                      </Button>
+                      <Button
+                        type="primary"
+                        onClick={handleBindSelectedEmployees}
+                        loading={bindingActionLoading}
+                      >
+                        Связать выбранных
+                      </Button>
+                    </Space>
+
+                    <Row gutter={[12, 12]}>
+                      <Col xs={24} xl={12}>
+                        <Card size="small" title="Сотрудники PassDesk">
+                          <Table
+                            rowKey="id"
+                            size="small"
+                            rowSelection={localRowSelection}
+                            columns={localEmployeeColumns}
+                            dataSource={localEmployees}
+                            loading={mappingLoading}
+                            pagination={false}
+                            scroll={{ x: 700, y: 360 }}
+                          />
+                        </Card>
+                      </Col>
+                      <Col xs={24} xl={12}>
+                        <Card size="small" title="Сотрудники Sigur">
+                          <Table
+                            rowKey={(record) => record.id || `sigur-${record.name}`}
+                            size="small"
+                            rowSelection={providerRowSelection}
+                            columns={providerEmployeeColumns}
+                            dataSource={providerEmployees}
+                            loading={mappingLoading}
+                            pagination={false}
+                            scroll={{ x: 700, y: 360 }}
+                          />
+                        </Card>
+                      </Col>
+                    </Row>
+                  </Space>
+                </Card>
+
+                <Card title="Очередь синхронизации">
+                  <Table
+                    rowKey="id"
+                    columns={syncColumns}
+                    dataSource={state.syncJobs?.items || []}
+                    loading={loading}
+                    pagination={false}
+                    scroll={{ x: 1000 }}
+                  />
+                </Card>
               </Space>
+            ),
+          },
+          {
+            key: "cards",
+            label: "Карты",
+            children: (
+              <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                <Space wrap>
+                  <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
+                    Обновить
+                  </Button>
+                </Space>
 
-              {bindingInfo ? (
-                <Text type="secondary">
-                  Текущая привязка: Sigur ID {bindingInfo.externalEmpId}
-                </Text>
-              ) : (
-                <Text type="secondary">Текущая привязка: не задана</Text>
-              )}
-            </Space>
-          </Card>
-        </Col>
+                <Card title="Привязка карты">
+                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                    <Input
+                      placeholder="employeeId (UUID сотрудника в PassDesk)"
+                      value={cardEmployeeIdInput}
+                      onChange={(event) => setCardEmployeeIdInput(event.target.value)}
+                    />
+                    <Input
+                      placeholder="Номер карты"
+                      value={cardNumberInput}
+                      onChange={(event) => setCardNumberInput(event.target.value)}
+                    />
+                    <Select
+                      value={cardTypeInput}
+                      onChange={setCardTypeInput}
+                      options={[
+                        { value: "rfid", label: "RFID" },
+                        { value: "nfc", label: "NFC" },
+                        { value: "other", label: "Другое" },
+                      ]}
+                    />
+                    <Input
+                      placeholder="Комментарий (опционально)"
+                      value={cardNotesInput}
+                      onChange={(event) => setCardNotesInput(event.target.value)}
+                    />
+                    <Button
+                      type="primary"
+                      onClick={handleAssignCard}
+                      loading={assigningCard}
+                    >
+                      Привязать карту
+                    </Button>
+                  </Space>
+                </Card>
 
-        <Col xs={24} xl={12}>
-          <Card title="Привязка карты">
-            <Space direction="vertical" size={12} style={{ width: "100%" }}>
-              <Input
-                placeholder="employeeId (UUID сотрудника в PassDesk)"
-                value={cardEmployeeIdInput}
-                onChange={(event) => setCardEmployeeIdInput(event.target.value)}
-              />
-              <Input
-                placeholder="Номер карты"
-                value={cardNumberInput}
-                onChange={(event) => setCardNumberInput(event.target.value)}
-              />
-              <Select
-                value={cardTypeInput}
-                onChange={setCardTypeInput}
-                options={[
-                  { value: "rfid", label: "RFID" },
-                  { value: "nfc", label: "NFC" },
-                  { value: "other", label: "Другое" },
-                ]}
-              />
-              <Input
-                placeholder="Комментарий (опционально)"
-                value={cardNotesInput}
-                onChange={(event) => setCardNotesInput(event.target.value)}
-              />
-              <Button
-                type="primary"
-                onClick={handleAssignCard}
-                loading={assigningCard}
-              >
-                Привязать карту
-              </Button>
-            </Space>
-          </Card>
-        </Col>
-      </Row>
-
-      <Card title="Массовое сопоставление PassDesk ↔ Sigur">
-        <Space direction="vertical" size={12} style={{ width: "100%" }}>
-          <Space wrap>
-            <Input
-              placeholder="Поиск PassDesk (ФИО / UUID / ИНН / Sigur ID)"
-              value={localEmployeeSearch}
-              onChange={(event) => setLocalEmployeeSearch(event.target.value)}
-              style={{ width: 360 }}
-            />
-            <Input
-              placeholder="Поиск Sigur (имя / ID / отдел)"
-              value={providerEmployeeSearch}
-              onChange={(event) => setProviderEmployeeSearch(event.target.value)}
-              style={{ width: 320 }}
-            />
-            <Button onClick={loadMappingLists} loading={mappingLoading}>
-              Найти
-            </Button>
-            <Button
-              type="primary"
-              onClick={handleBindSelectedEmployees}
-              loading={bindingActionLoading}
-            >
-              Связать выбранных
-            </Button>
-          </Space>
-
-          <Row gutter={[12, 12]}>
-            <Col xs={24} xl={12}>
-              <Card size="small" title="Сотрудники PassDesk">
-                <Table
-                  rowKey="id"
-                  size="small"
-                  rowSelection={localRowSelection}
-                  columns={localEmployeeColumns}
-                  dataSource={localEmployees}
-                  loading={mappingLoading}
-                  pagination={false}
-                  scroll={{ x: 700, y: 360 }}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} xl={12}>
-              <Card size="small" title="Сотрудники Sigur">
-                <Table
-                  rowKey={(record) => record.id || `sigur-${record.name}`}
-                  size="small"
-                  rowSelection={providerRowSelection}
-                  columns={providerEmployeeColumns}
-                  dataSource={providerEmployees}
-                  loading={mappingLoading}
-                  pagination={false}
-                  scroll={{ x: 700, y: 360 }}
-                />
-              </Card>
-            </Col>
-          </Row>
-        </Space>
-      </Card>
-
-      <Card title="Последние события проходов">
-        <Table
-          rowKey="id"
-          columns={eventsColumns}
-          dataSource={state.events?.items || []}
-          loading={loading}
-          pagination={false}
-          scroll={{ x: 1500 }}
-        />
-      </Card>
-
-      <Card title="Очередь синхронизации">
-        <Table
-          rowKey="id"
-          columns={syncColumns}
-          dataSource={state.syncJobs?.items || []}
-          loading={loading}
-          pagination={false}
-          scroll={{ x: 1000 }}
-        />
-      </Card>
-
-      <Card title="Физические карты">
-        <Table
-          rowKey="id"
-          columns={cardColumns}
-          dataSource={state.cards?.items || []}
-          loading={loading}
-          pagination={false}
-          scroll={{ x: 900 }}
-        />
-      </Card>
+                <Card title="Физические карты">
+                  <Table
+                    rowKey="id"
+                    columns={cardColumns}
+                    dataSource={state.cards?.items || []}
+                    loading={loading}
+                    pagination={false}
+                    scroll={{ x: 900 }}
+                  />
+                </Card>
+              </Space>
+            ),
+          },
+        ]}
+      />
     </Space>
   );
 };
