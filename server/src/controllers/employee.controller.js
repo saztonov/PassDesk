@@ -36,6 +36,8 @@ import {
   applyLegacySensitivePlaintextPolicy,
   buildEmployeeSensitiveFieldsPatch,
 } from "../services/employeeSensitiveFieldService.js";
+import { enqueueSkudSyncForEmployee } from "../services/skud/SkudSyncService.js";
+import { isSkudEnabled } from "../services/skud/skudConfig.js";
 
 // Опции для загрузки сотрудника с маппингами (для проверки прав)
 const employeeAccessInclude = [
@@ -2592,6 +2594,18 @@ export const fireEmployee = async (req, res, next) => {
     }
     console.log("✓ status_active_fired activated with is_upload=false");
 
+    if (isSkudEnabled()) {
+      await enqueueSkudSyncForEmployee({
+        employeeId: id,
+        operation: "block_employee",
+        userId,
+        source: "fire_employee",
+        reasonCode: "status_active_fired",
+        statusReason: "Employee fired in PassDesk",
+        priority: "high",
+      });
+    }
+
     res.json({
       success: true,
       message: `Сотрудник ${employee.firstName} ${employee.lastName} уволен`,
@@ -2688,6 +2702,23 @@ export const reinstateEmployee = async (req, res, next) => {
     );
     console.log("✓ status_active_employed activated");
 
+    if (isSkudEnabled()) {
+      await enqueueSkudSyncForEmployee({
+        employeeId: id,
+        operation: "sync_employee",
+        userId,
+        source: "reinstate_employee",
+      });
+      await enqueueSkudSyncForEmployee({
+        employeeId: id,
+        operation: "unblock_employee",
+        userId,
+        source: "reinstate_employee",
+        reasonCode: "status_active_employed",
+        statusReason: "Employee reinstated in PassDesk",
+      });
+    }
+
     res.json({
       success: true,
       message: `Сотрудник ${employee.firstName} ${employee.lastName} восстановлен`,
@@ -2735,6 +2766,18 @@ export const deactivateEmployee = async (req, res, next) => {
       userId,
     );
     console.log("✓ status_active_inactive activated");
+
+    if (isSkudEnabled()) {
+      await enqueueSkudSyncForEmployee({
+        employeeId: id,
+        operation: "block_employee",
+        userId,
+        source: "deactivate_employee",
+        reasonCode: "status_active_inactive",
+        statusReason: "Employee deactivated in PassDesk",
+        priority: "high",
+      });
+    }
 
     res.json({
       success: true,
@@ -2797,6 +2840,23 @@ export const activateEmployee = async (req, res, next) => {
       userId,
     );
     console.log("✓ status_active_employed activated");
+
+    if (isSkudEnabled()) {
+      await enqueueSkudSyncForEmployee({
+        employeeId: id,
+        operation: "sync_employee",
+        userId,
+        source: "activate_employee",
+      });
+      await enqueueSkudSyncForEmployee({
+        employeeId: id,
+        operation: "unblock_employee",
+        userId,
+        source: "activate_employee",
+        reasonCode: "status_active_employed",
+        statusReason: "Employee activated in PassDesk",
+      });
+    }
 
     res.json({
       success: true,

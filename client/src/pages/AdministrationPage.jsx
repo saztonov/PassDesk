@@ -20,6 +20,7 @@ import ExportPage from "./ExportPage";
 import TrashPage from "./TrashPage";
 import DocumentSamplesPage from "./DocumentSamplesPage";
 import OcrConflictsAdminSection from "@/components/Admin/OcrConflictsAdminSection";
+import SkudAdminSection from "@/components/Admin/Skud/SkudAdminSection";
 
 const { Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -39,6 +40,7 @@ const AdministrationPage = () => {
     "export",
     "trash",
     "document-samples",
+    "skud",
     "ocr-conflicts",
     "settings",
   ];
@@ -92,6 +94,11 @@ const AdministrationPage = () => {
       key: "ocr-conflicts",
       label: renderTabLabel(WarningOutlined, "OCR расхождения"),
       children: <OcrConflictsAdminSection />,
+    },
+    {
+      key: "skud",
+      label: renderTabLabel(WarningOutlined, "СКУД"),
+      children: <SkudAdminSection />,
     },
     {
       key: "settings",

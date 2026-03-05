@@ -1,6 +1,9 @@
 import EmployeeStatusService from "../services/employeeStatusService.js";
 import { getAccessibleEmployeeIds } from "../utils/permissionUtils.js";
 import { AppError } from "../middleware/errorHandler.js";
+import { Status } from "../models/index.js";
+import { handleSkudStatusTrigger } from "../services/skud/SkudSyncService.js";
+import { isSkudEnabled } from "../services/skud/skudConfig.js";
 
 /**
  * Контроллер для управления статусами сотрудников
@@ -113,6 +116,21 @@ export const employeeStatusController = {
         statusId,
         userId,
       );
+
+      if (isSkudEnabled()) {
+        const status = await Status.findByPk(statusId, {
+          attributes: ["id", "name", "group"],
+        });
+        if (status?.group === "status_secure") {
+          await handleSkudStatusTrigger({
+            employeeId,
+            statusName: status.name,
+            userId,
+            source: "set_employee_status",
+          });
+        }
+      }
+
       res.json(mapping);
     } catch (error) {
       next(error);

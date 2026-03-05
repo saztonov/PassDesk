@@ -11,6 +11,8 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import routes from "./routes/index.js";
 import { attachTranslator } from "./middleware/i18n.js";
 import { startTelegramBot } from "./telegram/bot.js";
+import { startSkudWorkers } from "./queues/skud/queue.js";
+import { isSkudEnabled } from "./services/skud/skudConfig.js";
 
 // Загружаем переменные окружения
 dotenv.config();
@@ -205,6 +207,16 @@ const startServer = async () => {
       startTelegramBot().catch((error) => {
         console.error("Telegram bot startup failed:", error.message);
       });
+
+      if (isSkudEnabled()) {
+        startSkudWorkers()
+          .then(() => {
+            console.log("✅ SKUD queue workers started");
+          })
+          .catch((error) => {
+            console.error("❌ SKUD workers startup failed:", error.message);
+          });
+      }
     });
   } catch (error) {
     console.error("❌ Unable to start server:", error);

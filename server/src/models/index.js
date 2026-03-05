@@ -40,6 +40,12 @@ import TelegramLinkCode from "./TelegramLinkCode.js";
 import TelegramCommandLog from "./TelegramCommandLog.js";
 import TelegramNotificationLog from "./TelegramNotificationLog.js";
 import EmployeeOcrConflict from "./EmployeeOcrConflict.js";
+import SkudPersonBinding from "./SkudPersonBinding.js";
+import SkudAccessState from "./SkudAccessState.js";
+import SkudCard from "./SkudCard.js";
+import SkudAccessEvent from "./SkudAccessEvent.js";
+import SkudSyncJob from "./SkudSyncJob.js";
+import SkudQrToken from "./SkudQrToken.js";
 
 // Define associations
 
@@ -260,6 +266,118 @@ User.hasMany(EmployeeOcrConflict, {
 EmployeeOcrConflict.belongsTo(User, {
   foreignKey: "resolved_by",
   as: "resolver",
+});
+
+// Employee -> SKUD entities
+Employee.hasMany(SkudPersonBinding, {
+  foreignKey: "employee_id",
+  as: "skudBindings",
+});
+SkudPersonBinding.belongsTo(Employee, {
+  foreignKey: "employee_id",
+  as: "employee",
+});
+
+User.hasMany(SkudPersonBinding, {
+  foreignKey: "created_by",
+  as: "createdSkudBindings",
+});
+SkudPersonBinding.belongsTo(User, {
+  foreignKey: "created_by",
+  as: "creator",
+});
+User.hasMany(SkudPersonBinding, {
+  foreignKey: "updated_by",
+  as: "updatedSkudBindings",
+});
+SkudPersonBinding.belongsTo(User, {
+  foreignKey: "updated_by",
+  as: "updater",
+});
+
+Employee.hasOne(SkudAccessState, {
+  foreignKey: "employee_id",
+  as: "skudAccessState",
+});
+SkudAccessState.belongsTo(Employee, {
+  foreignKey: "employee_id",
+  as: "employee",
+});
+User.hasMany(SkudAccessState, {
+  foreignKey: "changed_by",
+  as: "changedSkudAccessStates",
+});
+SkudAccessState.belongsTo(User, {
+  foreignKey: "changed_by",
+  as: "changedByUser",
+});
+
+Employee.hasMany(SkudCard, {
+  foreignKey: "employee_id",
+  as: "skudCards",
+});
+SkudCard.belongsTo(Employee, {
+  foreignKey: "employee_id",
+  as: "employee",
+});
+User.hasMany(SkudCard, {
+  foreignKey: "created_by",
+  as: "createdSkudCards",
+});
+SkudCard.belongsTo(User, {
+  foreignKey: "created_by",
+  as: "creator",
+});
+User.hasMany(SkudCard, {
+  foreignKey: "updated_by",
+  as: "updatedSkudCards",
+});
+SkudCard.belongsTo(User, {
+  foreignKey: "updated_by",
+  as: "updater",
+});
+
+Employee.hasMany(SkudAccessEvent, {
+  foreignKey: "employee_id",
+  as: "skudAccessEvents",
+});
+SkudAccessEvent.belongsTo(Employee, {
+  foreignKey: "employee_id",
+  as: "employee",
+});
+
+Employee.hasMany(SkudSyncJob, {
+  foreignKey: "employee_id",
+  as: "skudSyncJobs",
+});
+SkudSyncJob.belongsTo(Employee, {
+  foreignKey: "employee_id",
+  as: "employee",
+});
+User.hasMany(SkudSyncJob, {
+  foreignKey: "created_by",
+  as: "createdSkudSyncJobs",
+});
+SkudSyncJob.belongsTo(User, {
+  foreignKey: "created_by",
+  as: "creator",
+});
+
+Employee.hasMany(SkudQrToken, {
+  foreignKey: "employee_id",
+  as: "skudQrTokens",
+});
+SkudQrToken.belongsTo(Employee, {
+  foreignKey: "employee_id",
+  as: "employee",
+});
+User.hasMany(SkudQrToken, {
+  foreignKey: "issued_by",
+  as: "issuedSkudQrTokens",
+});
+SkudQrToken.belongsTo(User, {
+  foreignKey: "issued_by",
+  as: "issuer",
 });
 
 // User -> Pass (выдавший/отозвавший)
@@ -797,4 +915,10 @@ export {
   TelegramCommandLog,
   TelegramNotificationLog,
   EmployeeOcrConflict,
+  SkudPersonBinding,
+  SkudAccessState,
+  SkudCard,
+  SkudAccessEvent,
+  SkudSyncJob,
+  SkudQrToken,
 };

@@ -17,6 +17,17 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: passdesk_redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # pgAdmin для управления БД (опционально)
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -101,6 +112,23 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_LINK_CODE_TTL_MINUTES: ${TELEGRAM_LINK_CODE_TTL_MINUTES:-10}
       TELEGRAM_EXPIRY_CHECK_INTERVAL_MS: ${TELEGRAM_EXPIRY_CHECK_INTERVAL_MS:-3600000}
+      SKUD_ENABLED: ${SKUD_ENABLED:-false}
+      SKUD_PROVIDER: ${SKUD_PROVIDER:-sigur}
+      SKUD_SIGUR_BASE_URL: ${SKUD_SIGUR_BASE_URL:-}
+      SKUD_SIGUR_USERNAME: ${SKUD_SIGUR_USERNAME:-}
+      SKUD_SIGUR_PASSWORD: ${SKUD_SIGUR_PASSWORD:-}
+      SKUD_SIGUR_TIMEOUT_MS: ${SKUD_SIGUR_TIMEOUT_MS:-15000}
+      SKUD_WEBHOOK_BASIC_USER: ${SKUD_WEBHOOK_BASIC_USER:-}
+      SKUD_WEBHOOK_BASIC_PASS: ${SKUD_WEBHOOK_BASIC_PASS:-}
+      SKUD_WEBHOOK_ALLOWED_IPS: ${SKUD_WEBHOOK_ALLOWED_IPS:-}
+      SKUD_QR_HMAC_SECRET: ${SKUD_QR_HMAC_SECRET:-}
+      SKUD_QR_PERSISTENT_TTL_SECONDS: ${SKUD_QR_PERSISTENT_TTL_SECONDS:-3600}
+      SKUD_QR_ONE_TIME_TTL_SECONDS: ${SKUD_QR_ONE_TIME_TTL_SECONDS:-300}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      SKUD_SYNC_CONCURRENCY: ${SKUD_SYNC_CONCURRENCY:-2}
+      SKUD_SYNC_RETRY_LIMIT: ${SKUD_SYNC_RETRY_LIMIT:-5}
       CHOKIDAR_USEPOLLING: "true"
     ports:
       - "5003:5000"
@@ -110,6 +138,8 @@ services:
       npm run db:migrate && npm run dev"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       server_sync:
         condition: service_started
