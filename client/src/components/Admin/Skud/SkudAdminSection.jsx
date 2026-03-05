@@ -102,6 +102,8 @@ const SkudAdminSection = () => {
   const [bindingActionLoading, setBindingActionLoading] = useState(false);
   const [showOnlyPassages, setShowOnlyPassages] = useState(true);
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
+  const [eventsPage, setEventsPage] = useState(1);
+  const [eventsPageSize, setEventsPageSize] = useState(20);
   const [state, setState] = useState({
     health: null,
     stats: null,
@@ -126,8 +128,8 @@ const SkudAdminSection = () => {
         skudService.getHealth(),
         skudService.getStats(),
         skudService.getEvents({
-          limit: 50,
-          offset: 0,
+          limit: eventsPageSize,
+          offset: (eventsPage - 1) * eventsPageSize,
           passageOnly: showOnlyPassages,
           ...(eventTypeFilter !== "all" ? { eventType: eventTypeFilter } : {}),
         }),
@@ -148,11 +150,37 @@ const SkudAdminSection = () => {
     } finally {
       setLoading(false);
     }
-  }, [eventTypeFilter, message, showOnlyPassages]);
+  }, [eventTypeFilter, eventsPage, eventsPageSize, message, showOnlyPassages]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const handleShowOnlyPassagesChange = useCallback((checked) => {
+    setEventsPage(1);
+    setShowOnlyPassages(checked);
+  }, []);
+
+  const handleEventTypeFilterChange = useCallback((value) => {
+    setEventsPage(1);
+    setEventTypeFilter(value);
+  }, []);
+
+  const handleEventsTableChange = useCallback(
+    (pagination) => {
+      const nextPageSize = Number(pagination?.pageSize || 20);
+      const nextPage = Number(pagination?.current || 1);
+
+      if (nextPageSize !== eventsPageSize) {
+        setEventsPageSize(nextPageSize);
+        setEventsPage(1);
+        return;
+      }
+
+      setEventsPage(nextPage);
+    },
+    [eventsPageSize],
+  );
 
   const handleSyncEmployee = useCallback(async () => {
     const employeeId = String(employeeIdInput || "").trim();
@@ -803,13 +831,13 @@ const SkudAdminSection = () => {
                 <Space wrap>
                   <Space size={8}>
                     <Text type="secondary">Только проходы</Text>
-                    <Switch checked={showOnlyPassages} onChange={setShowOnlyPassages} />
+                    <Switch checked={showOnlyPassages} onChange={handleShowOnlyPassagesChange} />
                   </Space>
                   <Select
                     style={{ width: 220 }}
                     options={eventTypeOptions}
                     value={eventTypeFilter}
-                    onChange={setEventTypeFilter}
+                    onChange={handleEventTypeFilterChange}
                   />
                   <Button
                     icon={<DownloadOutlined />}
@@ -860,7 +888,15 @@ const SkudAdminSection = () => {
                     columns={eventsColumns}
                     dataSource={state.events?.items || []}
                     loading={loading}
-                    pagination={false}
+                    onChange={handleEventsTableChange}
+                    pagination={{
+                      current: eventsPage,
+                      pageSize: eventsPageSize,
+                      total: Number(state.events?.pagination?.total || 0),
+                      showSizeChanger: true,
+                      pageSizeOptions: ["20", "50", "150", "200"],
+                      showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+                    }}
                     scroll={{ x: 1500 }}
                   />
                 </Card>
