@@ -14,6 +14,7 @@ import CounterpartiesPage from "./pages/CounterpartiesPage";
 import CounterpartyDocumentsPage from "./pages/CounterpartyDocumentsPage";
 import UserProfilePage from "./pages/UserProfilePage";
 import AdministrationPage from "./pages/AdministrationPage";
+import SkudPage from "./pages/SkudPage";
 import DirectoriesPage from "./pages/DirectoriesPage";
 import DebugPage from "./pages/DebugPage";
 import NotFoundPage from "./pages/NotFoundPage";
@@ -181,6 +182,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
                   <AdministrationPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="skud"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                  <SkudPage />
                 </ProtectedRoute>
               }
             />

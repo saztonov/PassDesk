@@ -16,6 +16,7 @@ import {
   MenuOutlined,
   SettingOutlined,
   TeamOutlined,
+  KeyOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/store/authStore";
 import { usePageTitleStore } from "@/store/pageTitleStore";
@@ -54,6 +55,29 @@ const Header = () => {
             icon: <SettingOutlined />,
             onClick: () => {
               navigate("/admin");
+            },
+          },
+          {
+            key: "skud",
+            label: t("menu.skud"),
+            icon: <KeyOutlined />,
+            onClick: () => {
+              navigate("/skud");
+            },
+          },
+          {
+            type: "divider",
+          },
+        ]
+      : []),
+    ...(user?.role === "manager"
+      ? [
+          {
+            key: "skud",
+            label: t("menu.skud"),
+            icon: <KeyOutlined />,
+            onClick: () => {
+              navigate("/skud");
             },
           },
           {

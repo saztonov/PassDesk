@@ -7,6 +7,7 @@ import {
   SettingOutlined,
   TeamOutlined,
   SafetyCertificateOutlined,
+  KeyOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/store/authStore";
 import { useTranslation } from "react-i18next";
@@ -24,6 +25,7 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
   const [defaultCounterpartyId, setDefaultCounterpartyId] = useState(null);
   const isOtEngineer = user?.role === "ot_engineer";
   const isOtAdmin = user?.role === "ot_admin";
+  const isManager = user?.role === "manager";
 
   useEffect(() => {
     const loadDefaultCounterpartyId = async () => {
@@ -74,6 +76,14 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
       key: "/admin",
       icon: <SettingOutlined />,
       label: t("menu.administration"),
+    });
+  }
+
+  if (user?.role === "admin" || isManager) {
+    topMenuItems.push({
+      key: "/skud",
+      icon: <KeyOutlined />,
+      label: t("menu.skud"),
     });
   }
 

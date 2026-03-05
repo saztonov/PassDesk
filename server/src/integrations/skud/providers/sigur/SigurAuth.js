@@ -1,11 +1,22 @@
 import axios from "axios";
+import https from "https";
 
 export class SigurAuth {
-  constructor({ baseUrl, username, password, timeoutMs = 15000 }) {
+  constructor({
+    baseUrl,
+    username,
+    password,
+    timeoutMs = 15000,
+    insecureTls = false,
+  }) {
     this.baseUrl = String(baseUrl || "").replace(/\/+$/, "");
     this.username = username;
     this.password = password;
     this.timeoutMs = timeoutMs;
+    this.insecureTls = Boolean(insecureTls);
+    this.httpsAgent = this.insecureTls
+      ? new https.Agent({ rejectUnauthorized: false })
+      : undefined;
     this.token = null;
     this.refreshToken = null;
     this.expiresAt = null;
@@ -34,6 +45,7 @@ export class SigurAuth {
         headers: {
           "Content-Type": "application/json",
         },
+        httpsAgent: this.httpsAgent,
       },
     );
 

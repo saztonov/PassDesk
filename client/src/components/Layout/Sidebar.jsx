@@ -9,6 +9,7 @@ import {
   BankOutlined,
   ControlOutlined,
   SafetyCertificateOutlined,
+  KeyOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/store/authStore";
 import settingsService from "@/services/settingsService";
@@ -118,6 +119,11 @@ const Sidebar = () => {
       icon: <ControlOutlined />,
       label: t("menu.administration"),
     },
+    {
+      key: "/skud",
+      icon: <KeyOutlined />,
+      label: t("menu.skud"),
+    },
   ];
 
   const engineerMenuItems = [
@@ -129,7 +135,13 @@ const Sidebar = () => {
   ];
 
   const otAdminMenuItems = [...engineerMenuItems];
-  const managerMenuItems = [];
+  const managerMenuItems = [
+    {
+      key: "/skud",
+      icon: <KeyOutlined />,
+      label: t("menu.skud"),
+    },
+  ];
 
   // Выбираем меню на основе роли пользователя
   let menuItems = [];

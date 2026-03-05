@@ -1,4 +1,5 @@
 import axios from "axios";
+import https from "https";
 import { SigurAuth } from "./SigurAuth.js";
 
 const toNumber = (value) => {
@@ -7,15 +8,31 @@ const toNumber = (value) => {
 };
 
 export class SigurClient {
-  constructor({ baseUrl, username, password, timeoutMs = 15000 }) {
+  constructor({
+    baseUrl,
+    username,
+    password,
+    timeoutMs = 15000,
+    insecureTls = false,
+  }) {
     this.baseUrl = String(baseUrl || "").replace(/\/+$/, "");
-    this.auth = new SigurAuth({ baseUrl: this.baseUrl, username, password, timeoutMs });
+    this.httpsAgent = insecureTls
+      ? new https.Agent({ rejectUnauthorized: false })
+      : undefined;
+    this.auth = new SigurAuth({
+      baseUrl: this.baseUrl,
+      username,
+      password,
+      timeoutMs,
+      insecureTls,
+    });
     this.http = axios.create({
       baseURL: this.baseUrl,
       timeout: timeoutMs,
       headers: {
         "Content-Type": "application/json",
       },
+      httpsAgent: this.httpsAgent,
     });
   }
 

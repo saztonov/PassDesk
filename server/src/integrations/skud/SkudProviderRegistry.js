@@ -14,6 +14,7 @@ export const getSkudProvider = () => {
       username: skudConfig.sigur.username,
       password: skudConfig.sigur.password,
       timeoutMs: skudConfig.sigur.timeoutMs,
+      insecureTls: skudConfig.sigur.insecureTls,
     });
   }
 
