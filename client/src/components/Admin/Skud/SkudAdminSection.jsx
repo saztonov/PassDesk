@@ -170,8 +170,12 @@ const SkudAdminSection = () => {
         title: "Время",
         dataIndex: "eventTime",
         key: "eventTime",
-        width: 170,
-        render: (value) => (value ? dayjs(value).format("DD.MM.YYYY HH:mm:ss") : "—"),
+        width: 190,
+        render: (value) => (
+          <span style={{ whiteSpace: "nowrap" }}>
+            {value ? dayjs(value).format("DD.MM.YYYY HH:mm:ss") : "—"}
+          </span>
+        ),
       },
       {
         title: "Сотрудник",
