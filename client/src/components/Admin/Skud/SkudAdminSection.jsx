@@ -90,6 +90,14 @@ const SkudAdminSection = () => {
   const [cardNumberInput, setCardNumberInput] = useState("");
   const [cardTypeInput, setCardTypeInput] = useState("rfid");
   const [cardNotesInput, setCardNotesInput] = useState("");
+  const [localEmployeeSearch, setLocalEmployeeSearch] = useState("");
+  const [providerEmployeeSearch, setProviderEmployeeSearch] = useState("");
+  const [mappingLoading, setMappingLoading] = useState(false);
+  const [localEmployees, setLocalEmployees] = useState([]);
+  const [providerEmployees, setProviderEmployees] = useState([]);
+  const [selectedLocalEmployeeId, setSelectedLocalEmployeeId] = useState(null);
+  const [selectedProviderEmployeeId, setSelectedProviderEmployeeId] = useState(null);
+  const [bindingActionLoading, setBindingActionLoading] = useState(false);
   const [showOnlyPassages, setShowOnlyPassages] = useState(true);
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [state, setState] = useState({
@@ -337,6 +345,62 @@ const SkudAdminSection = () => {
       setPullingEvents(false);
     }
   }, [loadData, message]);
+
+  const loadMappingLists = useCallback(async () => {
+    setMappingLoading(true);
+    try {
+      const [localResult, providerResult] = await Promise.all([
+        skudService.getLocalEmployees({
+          limit: 30,
+          offset: 0,
+          search: localEmployeeSearch || undefined,
+        }),
+        skudService.getProviderEmployees({
+          limit: 30,
+          offset: 0,
+          search: providerEmployeeSearch || undefined,
+        }),
+      ]);
+
+      setLocalEmployees(localResult?.items || []);
+      setProviderEmployees(providerResult?.items || []);
+    } catch (error) {
+      console.error("Failed to load mapping lists:", error);
+      message.error("Не удалось загрузить списки для сопоставления");
+    } finally {
+      setMappingLoading(false);
+    }
+  }, [localEmployeeSearch, message, providerEmployeeSearch]);
+
+  useEffect(() => {
+    loadMappingLists();
+  }, [loadMappingLists]);
+
+  const handleBindSelectedEmployees = useCallback(async () => {
+    const employeeId = String(selectedLocalEmployeeId || "").trim();
+    const externalEmpId = String(selectedProviderEmployeeId || "").trim();
+
+    if (!employeeId || !externalEmpId) {
+      message.warning("Выбери сотрудника PassDesk и сотрудника Sigur");
+      return;
+    }
+
+    setBindingActionLoading(true);
+    try {
+      await skudService.upsertBinding(employeeId, {
+        externalSystem: "sigur",
+        externalEmpId,
+        source: "manual",
+      });
+      message.success("Сотрудники успешно сопоставлены");
+      await Promise.all([loadData(), loadMappingLists()]);
+    } catch (error) {
+      console.error("Failed to bind selected employees:", error);
+      message.error("Не удалось сохранить сопоставление");
+    } finally {
+      setBindingActionLoading(false);
+    }
+  }, [loadData, loadMappingLists, message, selectedLocalEmployeeId, selectedProviderEmployeeId]);
 
   const eventsColumns = useMemo(
     () => [
@@ -628,6 +692,94 @@ const SkudAdminSection = () => {
     [cardActionLoadingId, handleBlockCard, handleUnbindCard],
   );
 
+  const localEmployeeColumns = useMemo(
+    () => [
+      {
+        title: "Сотрудник PassDesk",
+        key: "fullName",
+        render: (_, record) => (
+          <Space direction="vertical" size={0}>
+            <Text>{record.fullName || "—"}</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {record.id}
+            </Text>
+          </Space>
+        ),
+      },
+      {
+        title: "ИНН",
+        dataIndex: "inn",
+        key: "inn",
+        width: 130,
+        render: (value) => value || "—",
+      },
+      {
+        title: "Sigur ID",
+        key: "binding",
+        width: 130,
+        render: (_, record) => record?.binding?.externalEmpId || "—",
+      },
+    ],
+    [],
+  );
+
+  const providerEmployeeColumns = useMemo(
+    () => [
+      {
+        title: "Sigur ID",
+        dataIndex: "id",
+        key: "id",
+        width: 120,
+        render: (value) => value || "—",
+      },
+      {
+        title: "Сотрудник Sigur",
+        dataIndex: "name",
+        key: "name",
+        render: (value, record) => (
+          <Space direction="vertical" size={0}>
+            <Text>{value || "—"}</Text>
+            {record?.departmentName ? (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {record.departmentName}
+              </Text>
+            ) : null}
+          </Space>
+        ),
+      },
+      {
+        title: "Статус",
+        dataIndex: "status",
+        key: "status",
+        width: 140,
+        render: (value) => value || "—",
+      },
+    ],
+    [],
+  );
+
+  const localRowSelection = useMemo(
+    () => ({
+      type: "radio",
+      selectedRowKeys: selectedLocalEmployeeId ? [selectedLocalEmployeeId] : [],
+      onChange: (selectedKeys) => {
+        setSelectedLocalEmployeeId(selectedKeys?.[0] || null);
+      },
+    }),
+    [selectedLocalEmployeeId],
+  );
+
+  const providerRowSelection = useMemo(
+    () => ({
+      type: "radio",
+      selectedRowKeys: selectedProviderEmployeeId ? [selectedProviderEmployeeId] : [],
+      onChange: (selectedKeys) => {
+        setSelectedProviderEmployeeId(selectedKeys?.[0] || null);
+      },
+    }),
+    [selectedProviderEmployeeId],
+  );
+
   return (
     <Space direction="vertical" size={16} style={{ width: "100%", padding: 16 }}>
       <Space style={{ justifyContent: "space-between", width: "100%" }} wrap>
@@ -798,6 +950,66 @@ const SkudAdminSection = () => {
           </Card>
         </Col>
       </Row>
+
+      <Card title="Массовое сопоставление PassDesk ↔ Sigur">
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Space wrap>
+            <Input
+              placeholder="Поиск PassDesk (ФИО / UUID / ИНН / Sigur ID)"
+              value={localEmployeeSearch}
+              onChange={(event) => setLocalEmployeeSearch(event.target.value)}
+              style={{ width: 360 }}
+            />
+            <Input
+              placeholder="Поиск Sigur (имя / ID / отдел)"
+              value={providerEmployeeSearch}
+              onChange={(event) => setProviderEmployeeSearch(event.target.value)}
+              style={{ width: 320 }}
+            />
+            <Button onClick={loadMappingLists} loading={mappingLoading}>
+              Найти
+            </Button>
+            <Button
+              type="primary"
+              onClick={handleBindSelectedEmployees}
+              loading={bindingActionLoading}
+            >
+              Связать выбранных
+            </Button>
+          </Space>
+
+          <Row gutter={[12, 12]}>
+            <Col xs={24} xl={12}>
+              <Card size="small" title="Сотрудники PassDesk">
+                <Table
+                  rowKey="id"
+                  size="small"
+                  rowSelection={localRowSelection}
+                  columns={localEmployeeColumns}
+                  dataSource={localEmployees}
+                  loading={mappingLoading}
+                  pagination={false}
+                  scroll={{ x: 700, y: 360 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} xl={12}>
+              <Card size="small" title="Сотрудники Sigur">
+                <Table
+                  rowKey={(record) => record.id || `sigur-${record.name}`}
+                  size="small"
+                  rowSelection={providerRowSelection}
+                  columns={providerEmployeeColumns}
+                  dataSource={providerEmployees}
+                  loading={mappingLoading}
+                  pagination={false}
+                  scroll={{ x: 700, y: 360 }}
+                />
+              </Card>
+            </Col>
+          </Row>
+        </Space>
+      </Card>
 
       <Card title="Последние события проходов">
         <Table

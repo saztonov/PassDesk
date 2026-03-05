@@ -1,5 +1,11 @@
-import { Employee, EmployeeCounterpartyMapping, Counterparty } from "../models/index.js";
+import {
+  Employee,
+  EmployeeCounterpartyMapping,
+  Counterparty,
+  SkudPersonBinding,
+} from "../models/index.js";
 import { AppError } from "../middleware/errorHandler.js";
+import { Op } from "sequelize";
 import { checkEmployeeAccess } from "../utils/permissionUtils.js";
 import { isSkudEnabled, skudConfig } from "../services/skud/skudConfig.js";
 import {
@@ -64,6 +70,12 @@ const parseBooleanParam = (value, fallback = false) => {
   if (["false", "0", "no", "off"].includes(normalized)) return false;
   return fallback;
 };
+
+const buildEmployeeDisplayName = (employee) =>
+  [employee?.lastName, employee?.firstName, employee?.middleName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 
 const parsePullParams = (body = {}, query = {}) => {
   const source = body && typeof body === "object" ? body : {};
@@ -261,6 +273,136 @@ export const skudController = {
             limit,
             offset,
             total: result.count,
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async localEmployees(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const { limit, offset } = parsePagination(req.query);
+      const search = String(req.query.search || "").trim().toLowerCase();
+
+      const rows = await Employee.findAll({
+        where: {
+          isDeleted: false,
+          markedForDeletion: false,
+        },
+        attributes: ["id", "firstName", "lastName", "middleName", "inn", "isActive", "updatedAt"],
+        include: [
+          {
+            model: SkudPersonBinding,
+            as: "skudBindings",
+            required: false,
+            where: {
+              externalSystem: "sigur",
+              isActive: true,
+            },
+            attributes: ["id", "externalEmpId", "updatedAt"],
+          },
+        ],
+        order: [["updatedAt", "DESC"]],
+        limit: Math.min(limit * 4, 500),
+        offset,
+      });
+
+      const filtered = search
+        ? rows.filter((employee) => {
+            const fullName = buildEmployeeDisplayName(employee).toLowerCase();
+            const extId = String(employee?.skudBindings?.[0]?.externalEmpId || "").toLowerCase();
+            return (
+              String(employee?.id || "").toLowerCase().includes(search) ||
+              String(employee?.inn || "").toLowerCase().includes(search) ||
+              fullName.includes(search) ||
+              extId.includes(search)
+            );
+          })
+        : rows;
+
+      const items = filtered.slice(0, limit).map((employee) => ({
+        id: employee.id,
+        fullName: buildEmployeeDisplayName(employee) || "—",
+        inn: employee.inn || null,
+        isActive: employee.isActive,
+        binding: employee?.skudBindings?.[0]
+          ? {
+              id: employee.skudBindings[0].id,
+              externalEmpId: employee.skudBindings[0].externalEmpId,
+              updatedAt: employee.skudBindings[0].updatedAt,
+            }
+          : null,
+      }));
+
+      res.json({
+        success: true,
+        data: {
+          items,
+          pagination: {
+            limit,
+            offset,
+            total: search ? filtered.length : items.length,
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async providerEmployees(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const provider = getSkudProvider();
+      const { limit, offset } = parsePagination(req.query);
+      const search = String(req.query.search || "").trim().toLowerCase();
+
+      const response = await provider.getEmployees({
+        limit,
+        offset,
+      });
+
+      const rows = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.items)
+          ? response.items
+          : [];
+
+      const mapped = rows.map((item) => ({
+        id:
+          item?.id === undefined || item?.id === null
+            ? null
+            : String(item.id),
+        name: String(item?.name || "").trim() || "—",
+        description: String(item?.description || "").trim() || null,
+        status: String(item?.status || "").trim() || null,
+        departmentName:
+          String(item?.departmentName || item?.department_name || "").trim() || null,
+        raw: item,
+      }));
+
+      const filtered = search
+        ? mapped.filter((item) => {
+            return (
+              String(item.id || "").toLowerCase().includes(search) ||
+              String(item.name || "").toLowerCase().includes(search) ||
+              String(item.description || "").toLowerCase().includes(search) ||
+              String(item.departmentName || "").toLowerCase().includes(search)
+            );
+          })
+        : mapped;
+
+      res.json({
+        success: true,
+        data: {
+          items: filtered,
+          pagination: {
+            limit,
+            offset,
+            total: filtered.length,
           },
         },
       });

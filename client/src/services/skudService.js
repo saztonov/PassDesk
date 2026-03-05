@@ -13,6 +13,16 @@ const skudService = {
     return toData(response);
   },
 
+  getLocalEmployees: async (params = {}) => {
+    const response = await api.get("/skud/local/employees", { params });
+    return toData(response);
+  },
+
+  getProviderEmployees: async (params = {}) => {
+    const response = await api.get("/skud/provider/employees", { params });
+    return toData(response);
+  },
+
   getEvents: async (params = {}) => {
     const response = await api.get("/skud/events", { params });
     return toData(response);

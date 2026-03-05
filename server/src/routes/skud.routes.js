@@ -38,6 +38,18 @@ router.use(authenticate);
 router.get("/health", authorize("admin", "manager"), skudController.health);
 router.get("/stats", authorize("admin", "manager"), skudController.stats);
 router.get(
+  "/local/employees",
+  authorize("admin", "manager"),
+  paginationValidation,
+  skudController.localEmployees,
+);
+router.get(
+  "/provider/employees",
+  authorize("admin", "manager"),
+  paginationValidation,
+  skudController.providerEmployees,
+);
+router.get(
   "/events",
   authorize("admin", "manager"),
   paginationValidation,
