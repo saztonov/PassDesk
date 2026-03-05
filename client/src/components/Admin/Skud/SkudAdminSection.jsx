@@ -6,8 +6,10 @@ import {
   Col,
   Input,
   Row,
+  Select,
   Space,
   Statistic,
+  Switch,
   Table,
   Tag,
   Typography,
@@ -18,11 +20,66 @@ import skudService from "@/services/skudService";
 
 const { Text } = Typography;
 
+const EVENT_TYPE_LABELS = {
+  PASS_DETECTED: "Проход",
+  PASS_GRANTED: "Разрешенный проход",
+  PASS_DENIED: "Запрещенный проход",
+  AP_ONLINE_STATUS: "Статус контроллера",
+};
+
+const toRecord = (value) => (value && typeof value === "object" ? value : {});
+
+const getRawEventItem = (record) => {
+  const rawPayload = toRecord(record?.rawPayload);
+  return toRecord(rawPayload.rawItem || rawPayload);
+};
+
+const getSigurPersonName = (record) => {
+  const rawItem = getRawEventItem(record);
+  const fromAdditionalData = rawItem?.additionalData?.accessObject?.data?.name;
+  const fromData =
+    rawItem?.data?.employeeName ||
+    rawItem?.data?.personName ||
+    rawItem?.data?.name ||
+    null;
+  const value = fromAdditionalData || fromData;
+  return value ? String(value).trim() : "";
+};
+
+const getAccessPointName = (record) => {
+  const rawItem = getRawEventItem(record);
+  const value =
+    rawItem?.additionalData?.accessPoint?.name ||
+    rawItem?.additionalData?.access_point?.name ||
+    rawItem?.data?.accessPointName ||
+    rawItem?.data?.access_point_name ||
+    null;
+  return value ? String(value).trim() : "";
+};
+
+const getPassReason = (record) => {
+  const rawItem = getRawEventItem(record);
+  const value =
+    rawItem?.data?.passReason ||
+    rawItem?.data?.reason ||
+    rawItem?.data?.result ||
+    null;
+  return value ? String(value).trim() : "";
+};
+
+const getCardKey = (record) => {
+  const rawItem = getRawEventItem(record);
+  const value = rawItem?.data?.cardKey || rawItem?.data?.keyHex || record?.keyHex || null;
+  return value ? String(value).trim() : "";
+};
+
 const SkudAdminSection = () => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [pullingEvents, setPullingEvents] = useState(false);
   const [syncingEmployeeId, setSyncingEmployeeId] = useState("");
+  const [showOnlyPassages, setShowOnlyPassages] = useState(true);
+  const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [state, setState] = useState({
     health: null,
     stats: null,
@@ -46,7 +103,12 @@ const SkudAdminSection = () => {
       const [health, stats, events, syncJobs, cards] = await Promise.all([
         skudService.getHealth(),
         skudService.getStats(),
-        skudService.getEvents({ limit: 20, offset: 0 }),
+        skudService.getEvents({
+          limit: 50,
+          offset: 0,
+          passageOnly: showOnlyPassages,
+          ...(eventTypeFilter !== "all" ? { eventType: eventTypeFilter } : {}),
+        }),
         skudService.getSyncJobs({ limit: 20, offset: 0 }),
         skudService.getCards({ limit: 20, offset: 0 }),
       ]);
@@ -64,7 +126,7 @@ const SkudAdminSection = () => {
     } finally {
       setLoading(false);
     }
-  }, [message]);
+  }, [eventTypeFilter, message, showOnlyPassages]);
 
   useEffect(() => {
     loadData();
@@ -116,19 +178,69 @@ const SkudAdminSection = () => {
         key: "employee",
         render: (_, record) => {
           const employee = record.employee;
-          const fullName = [employee?.lastName, employee?.firstName, employee?.middleName]
+          const localFullName = [employee?.lastName, employee?.firstName, employee?.middleName]
             .filter(Boolean)
             .join(" ")
             .trim();
-          return fullName || record.externalEmpId || "—";
+          const sigurName = getSigurPersonName(record);
+          const ext = record.externalEmpId ? `ID ${record.externalEmpId}` : "—";
+
+          if (localFullName) {
+            return (
+              <Space direction="vertical" size={0}>
+                <Text>{localFullName}</Text>
+                {record.externalEmpId ? (
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Sigur: {ext}
+                  </Text>
+                ) : null}
+              </Space>
+            );
+          }
+
+          if (sigurName) {
+            return (
+              <Space direction="vertical" size={0}>
+                <Text>{sigurName}</Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Sigur: {ext}
+                </Text>
+              </Space>
+            );
+          }
+
+          return ext;
         },
       },
       {
         title: "Точка",
         dataIndex: "accessPoint",
         key: "accessPoint",
-        width: 100,
-        render: (value) => (value === null || value === undefined ? "—" : value),
+        width: 220,
+        render: (value, record) => {
+          const pointName = getAccessPointName(record);
+          if (!pointName) {
+            return value === null || value === undefined ? "—" : `#${value}`;
+          }
+
+          return (
+            <Space direction="vertical" size={0}>
+              <Text>{pointName}</Text>
+              {value !== null && value !== undefined ? (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  ID: {value}
+                </Text>
+              ) : null}
+            </Space>
+          );
+        },
+      },
+      {
+        title: "Тип события",
+        dataIndex: "eventType",
+        key: "eventType",
+        width: 180,
+        render: (value) => EVENT_TYPE_LABELS[value] || value || "—",
       },
       {
         title: "Напр.",
@@ -156,6 +268,27 @@ const SkudAdminSection = () => {
           ),
       },
       {
+        title: "Причина / Карта",
+        key: "reason",
+        width: 280,
+        render: (_, record) => {
+          const reason = getPassReason(record);
+          const cardKey = getCardKey(record);
+          if (!reason && !cardKey) return "—";
+
+          return (
+            <Space direction="vertical" size={0}>
+              {reason ? <Text>{reason}</Text> : null}
+              {cardKey ? (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Ключ: {cardKey}
+                </Text>
+              ) : null}
+            </Space>
+          );
+        },
+      },
+      {
         title: "Сообщение",
         dataIndex: "decisionMessage",
         key: "decisionMessage",
@@ -164,6 +297,29 @@ const SkudAdminSection = () => {
     ],
     [],
   );
+
+  const eventTypeOptions = useMemo(() => {
+    const baseOptions = [
+      { value: "all", label: "Все типы" },
+      { value: "PASS_DETECTED", label: "Проход" },
+      { value: "PASS_GRANTED", label: "Разрешенный проход" },
+      { value: "PASS_DENIED", label: "Запрещенный проход" },
+      { value: "AP_ONLINE_STATUS", label: "Статус контроллера" },
+    ];
+
+    const seen = new Set(baseOptions.map((item) => item.value));
+    for (const item of state.events?.items || []) {
+      const type = item?.eventType;
+      if (!type || seen.has(type)) continue;
+      seen.add(type);
+      baseOptions.push({
+        value: type,
+        label: EVENT_TYPE_LABELS[type] || type,
+      });
+    }
+
+    return baseOptions;
+  }, [state.events?.items]);
 
   const syncColumns = useMemo(
     () => [
@@ -267,6 +423,16 @@ const SkudAdminSection = () => {
         </Space>
 
         <Space>
+          <Space size={8}>
+            <Text type="secondary">Только проходы</Text>
+            <Switch checked={showOnlyPassages} onChange={setShowOnlyPassages} />
+          </Space>
+          <Select
+            style={{ width: 220 }}
+            options={eventTypeOptions}
+            value={eventTypeFilter}
+            onChange={setEventTypeFilter}
+          />
           <Input
             placeholder="employeeId"
             value={syncingEmployeeId}
@@ -327,7 +493,7 @@ const SkudAdminSection = () => {
           dataSource={state.events?.items || []}
           loading={loading}
           pagination={false}
-          scroll={{ x: 1000 }}
+          scroll={{ x: 1500 }}
         />
       </Card>
 

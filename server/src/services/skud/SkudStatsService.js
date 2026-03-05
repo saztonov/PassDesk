@@ -22,6 +22,8 @@ const buildDateFilter = ({ from, to }) => {
   return where;
 };
 
+const PASSAGE_EVENT_TYPES = ["PASS_DETECTED", "PASS_GRANTED", "PASS_DENIED", "PASS_ATTEMPT"];
+
 export const getSkudHealth = async () => {
   const provider = getSkudProvider();
   let auth = null;
@@ -99,7 +101,17 @@ export const getSkudStats = async ({ from, to }) => {
   };
 };
 
-export const listSkudEvents = async ({ from, to, employeeId, accessPoint, direction, limit = 50, offset = 0 }) => {
+export const listSkudEvents = async ({
+  from,
+  to,
+  employeeId,
+  accessPoint,
+  direction,
+  eventType,
+  passageOnly = false,
+  limit = 50,
+  offset = 0,
+}) => {
   const where = buildDateFilter({ from, to });
   if (employeeId) where.employeeId = employeeId;
   if (accessPoint !== undefined && accessPoint !== null && accessPoint !== "") {
@@ -107,6 +119,15 @@ export const listSkudEvents = async ({ from, to, employeeId, accessPoint, direct
   }
   if (direction !== undefined && direction !== null && direction !== "") {
     where.direction = Number.parseInt(String(direction), 10);
+  }
+  if (eventType) {
+    where.eventType = String(eventType).trim();
+  }
+  if (passageOnly) {
+    where[Op.or] = [
+      { direction: { [Op.in]: [1, 2] } },
+      { eventType: { [Op.in]: PASSAGE_EVENT_TYPES } },
+    ];
   }
 
   return SkudAccessEvent.findAndCountAll({
@@ -150,6 +171,24 @@ export const listSkudSyncJobs = async ({ status, operation, employeeId, limit = 
 };
 
 export const ingestSkudEvent = async ({ payload, source = "webdel", externalSystem = "sigur" }) => {
+  const toNullableInt = (value) => {
+    if (value === null || value === undefined || value === "") {
+      return null;
+    }
+    const parsed = Number.parseInt(String(value), 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const toDirection = (value) => {
+    if (value === null || value === undefined || value === "") {
+      return null;
+    }
+    const normalized = String(value).trim().toUpperCase();
+    if (normalized === "IN") return 1;
+    if (normalized === "OUT") return 2;
+    return toNullableInt(value);
+  };
+
   const logIdRaw = payload?.logId ?? payload?.id ?? payload?.eventId ?? null;
   const logId =
     logIdRaw === null || logIdRaw === undefined || logIdRaw === ""
@@ -193,14 +232,8 @@ export const ingestSkudEvent = async ({ payload, source = "webdel", externalSyst
     logId,
     employeeId,
     externalEmpId: externalEmpId || null,
-    accessPoint:
-      payload?.accessPoint === undefined || payload?.accessPoint === null
-        ? null
-        : Number.parseInt(String(payload.accessPoint), 10),
-    direction:
-      payload?.direction === undefined || payload?.direction === null
-        ? null
-        : Number.parseInt(String(payload.direction), 10),
+    accessPoint: toNullableInt(payload?.accessPoint),
+    direction: toDirection(payload?.direction),
     keyHex: payload?.keyHex ? String(payload.keyHex) : null,
     allow:
       payload?.allow === undefined || payload?.allow === null

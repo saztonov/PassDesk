@@ -57,6 +57,14 @@ const parsePagination = (query = {}) => {
   return { limit, offset };
 };
 
+const parseBooleanParam = (value, fallback = false) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  return fallback;
+};
+
 const parsePullParams = (body = {}, query = {}) => {
   const source = body && typeof body === "object" ? body : {};
   const merged = { ...query, ...source };
@@ -211,6 +219,8 @@ export const skudController = {
         employeeId: req.query.employeeId,
         accessPoint: req.query.accessPoint,
         direction: req.query.direction,
+        eventType: req.query.eventType,
+        passageOnly: parseBooleanParam(req.query.passageOnly, false),
         limit,
         offset,
       });

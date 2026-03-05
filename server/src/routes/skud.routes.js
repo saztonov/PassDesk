@@ -12,6 +12,8 @@ const webhookRouter = express.Router();
 const paginationValidation = [
   query("limit").optional().isInt({ min: 1, max: 200 }),
   query("offset").optional().isInt({ min: 0 }),
+  query("eventType").optional().isString().trim().notEmpty(),
+  query("passageOnly").optional().isBoolean(),
   validate,
 ];
 
