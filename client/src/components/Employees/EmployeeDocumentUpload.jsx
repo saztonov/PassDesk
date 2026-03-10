@@ -8,6 +8,7 @@ import {
   CameraOutlined,
 } from "@ant-design/icons";
 import { employeeService } from "@/services/employeeService";
+import DocumentCaptureModal from "@/modules/employees/ui/DocumentCaptureModal";
 import createAiScannedDocument from "@/shared/lib/aiDocumentScanner";
 import {
   ALLOWED_MIME_TYPES,
@@ -42,6 +43,7 @@ const EmployeeDocumentUpload = ({
     uploading: false,
     previewImage: null,
     previewVisible: false,
+    cameraVisible: false,
     resolvedEmployeeId: null,
   });
   const {
@@ -50,9 +52,11 @@ const EmployeeDocumentUpload = ({
     uploading,
     previewImage,
     previewVisible,
+    cameraVisible,
     resolvedEmployeeId,
   } = state;
   const effectiveEmployeeId = employeeId || resolvedEmployeeId;
+  const cameraMode = documentType === "passport" ? "passport" : "document";
 
   // Ссылка на скрытый инпут для системной камеры
   const nativeCameraInputRef = useRef(null);
@@ -266,6 +270,14 @@ const EmployeeDocumentUpload = ({
     e.target.value = "";
   };
 
+  const handleCameraCapture = async (blob) => {
+    const file = new File([blob], `document-${Date.now()}.jpg`, {
+      type: "image/jpeg",
+    });
+    setState((prev) => ({ ...prev, cameraVisible: false }));
+    await uploadFile(file);
+  };
+
   // Обработка выбора файлов из файлового менеджера
   const handleFileSelect = async (e) => {
     const files = e.target.files;
@@ -293,10 +305,20 @@ const EmployeeDocumentUpload = ({
     }
   };
 
-  // Открыть системную камеру
+  // Открыть камеру с live-предпросмотром и статичной рамкой
   const handleStartCamera = () => {
     if (!effectiveEmployeeId && !ensureEmployeeId) {
       message.error("Сначала сохраните черновик сотрудника");
+      return;
+    }
+
+    const supportsLiveCamera =
+      typeof window !== "undefined" &&
+      Boolean(window.isSecureContext) &&
+      Boolean(navigator.mediaDevices?.getUserMedia);
+
+    if (supportsLiveCamera) {
+      setState((prev) => ({ ...prev, cameraVisible: true }));
       return;
     }
 
@@ -504,6 +526,12 @@ const EmployeeDocumentUpload = ({
           onVisibleChange: (visible) =>
             setState((prev) => ({ ...prev, previewVisible: visible })),
         }}
+      />
+      <DocumentCaptureModal
+        open={cameraVisible}
+        mode={cameraMode}
+        onCancel={() => setState((prev) => ({ ...prev, cameraVisible: false }))}
+        onCapture={handleCameraCapture}
       />
     </div>
   );
