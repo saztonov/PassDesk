@@ -1,31 +1,33 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Table,
+  App,
   Button,
+  DatePicker,
+  Form,
   Input,
+  Modal,
+  Select,
   Space,
-  Typography,
+  Table,
   Tag,
   Tooltip,
-  Modal,
-  Form,
-  Select,
-  DatePicker,
-  message,
+  Typography,
 } from "antd";
 import {
-  PlusOutlined,
-  SearchOutlined,
-  EditOutlined,
-  DeleteOutlined,
   CloseCircleOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  QrcodeOutlined,
+  ReloadOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import customParseFormat from "dayjs/plugin/customParseFormat";
+import { passService } from "@/services/passService";
+import { employeeService } from "@/services/employeeService";
+import skudService from "@/services/skudService";
 
-dayjs.extend(customParseFormat);
-
-const { Title } = Typography;
+const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
 
 const DATE_FORMAT = "DD.MM.YYYY";
@@ -52,12 +54,6 @@ const STATUS_LABELS = {
   pending: "Ожидание",
 };
 
-const EMPLOYEE_OPTIONS = [
-  { value: 1, label: "Алексей Смирнов" },
-  { value: 2, label: "Мария Петрова" },
-  { value: 3, label: "Дмитрий Козлов" },
-];
-
 const ACCESS_ZONE_OPTIONS = [
   { label: "Здание А", value: "building_a" },
   { label: "Здание Б", value: "building_b" },
@@ -68,58 +64,10 @@ const ACCESS_ZONE_OPTIONS = [
   { label: "Парковка", value: "parking" },
 ];
 
-const PASS_MOCKS = [
-  {
-    id: 1,
-    passNumber: "PASS-1731676800974-001",
-    employeeName: "Алексей Смирнов",
-    passType: "permanent",
-    validFrom: "2024-11-15",
-    validUntil: "2025-05-15",
-    accessZones: ["building_a", "floor_1", "floor_2"],
-    status: "active",
-  },
-  {
-    id: 2,
-    passNumber: "PASS-1731676800974-002",
-    employeeName: "Мария Петрова",
-    passType: "permanent",
-    validFrom: "2024-11-15",
-    validUntil: "2025-05-15",
-    accessZones: ["building_a", "floor_3"],
-    status: "active",
-  },
-  {
-    id: 3,
-    passNumber: "PASS-1731676800974-003",
-    employeeName: "Дмитрий Козлов",
-    passType: "permanent",
-    validFrom: "2024-11-15",
-    validUntil: "2025-05-15",
-    accessZones: ["building_b", "server_room"],
-    status: "active",
-  },
-  {
-    id: 4,
-    passNumber: "PASS-1731676800974-004",
-    employeeName: "Елена Новикова",
-    passType: "temporary",
-    validFrom: "2024-10-15",
-    validUntil: "2024-11-15",
-    accessZones: ["building_a", "floor_1"],
-    status: "expired",
-  },
-  {
-    id: 5,
-    passNumber: "PASS-1731676800974-005",
-    employeeName: "Сергей Волков",
-    passType: "permanent",
-    validFrom: "2024-11-15",
-    validUntil: "2025-05-15",
-    accessZones: ["building_a", "building_b", "parking"],
-    status: "active",
-  },
-];
+const QR_TOKEN_TYPE_LABELS = {
+  persistent: "На 1 час",
+  one_time: "Одноразовый",
+};
 
 const loadPassesPageState = () => {
   try {
@@ -148,7 +96,22 @@ const loadPassesPageState = () => {
   }
 };
 
-const PassesToolbar = ({ searchText, onSearchChange, onAdd }) => (
+const buildEmployeeName = (employee) =>
+  [employee?.lastName, employee?.firstName, employee?.middleName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+const normalizePassRecord = (pass) => ({
+  ...pass,
+  employeeName:
+    buildEmployeeName(pass?.employee) ||
+    pass?.employeeName ||
+    pass?.employee?.fullName ||
+    "Без имени",
+});
+
+const PassesToolbar = ({ searchText, onSearchChange, onAdd, onRefresh, loading }) => (
   <>
     <div
       style={{
@@ -163,9 +126,14 @@ const PassesToolbar = ({ searchText, onSearchChange, onAdd }) => (
       <Title level={2} style={{ margin: 0 }}>
         Пропуска
       </Title>
-      <Button type="primary" icon={<PlusOutlined />} onClick={onAdd}>
-        Создать пропуск
-      </Button>
+      <Space wrap>
+        <Button icon={<ReloadOutlined />} onClick={onRefresh} loading={loading}>
+          Обновить
+        </Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={onAdd}>
+          Создать пропуск
+        </Button>
+      </Space>
     </div>
 
     <Space style={{ marginBottom: 16, width: "100%" }} direction="vertical">
@@ -181,14 +149,19 @@ const PassesToolbar = ({ searchText, onSearchChange, onAdd }) => (
   </>
 );
 
-const PassModalFormFields = () => (
+const PassModalFormFields = ({ employeeOptions }) => (
   <>
     <Form.Item
       name="employeeId"
       label="Сотрудник"
       rules={[{ required: true, message: "Выберите сотрудника" }]}
     >
-      <Select placeholder="Выберите сотрудника" options={EMPLOYEE_OPTIONS} />
+      <Select
+        showSearch
+        placeholder="Выберите сотрудника"
+        options={employeeOptions}
+        optionFilterProp="label"
+      />
     </Form.Item>
 
     <Form.Item
@@ -199,6 +172,20 @@ const PassModalFormFields = () => (
       <Select
         placeholder="Выберите тип"
         options={Object.entries(PASS_TYPE_LABELS).map(([value, label]) => ({
+          value,
+          label,
+        }))}
+      />
+    </Form.Item>
+
+    <Form.Item
+      name="status"
+      label="Статус"
+      rules={[{ required: true, message: "Выберите статус" }]}
+    >
+      <Select
+        placeholder="Выберите статус"
+        options={Object.entries(STATUS_LABELS).map(([value, label]) => ({
           value,
           label,
         }))}
@@ -217,26 +204,96 @@ const PassModalFormFields = () => (
       />
     </Form.Item>
 
-    <Form.Item
-      name="accessZones"
-      label="Зоны доступа"
-      rules={[{ required: true, message: "Выберите зоны доступа" }]}
-    >
+    <Form.Item name="accessZones" label="Зоны доступа">
       <Select
         mode="multiple"
         placeholder="Выберите зоны доступа"
         options={ACCESS_ZONE_OPTIONS}
       />
     </Form.Item>
+
+    <Form.Item name="notes" label="Комментарий">
+      <Input.TextArea rows={3} placeholder="Комментарий к пропуску" />
+    </Form.Item>
   </>
 );
 
-const createPassColumns = ({ tableFilters, onEdit, onRevoke, onDelete }) => [
+const QrIssueModal = ({
+  open,
+  loading,
+  qrState,
+  tokenType,
+  onTokenTypeChange,
+  onGenerate,
+  onClose,
+  onCopyToken,
+}) => (
+  <Modal
+    open={open}
+    onCancel={onClose}
+    footer={null}
+    title="QR для прохода"
+    destroyOnClose
+  >
+    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <Select
+        value={tokenType}
+        onChange={onTokenTypeChange}
+        options={Object.entries(QR_TOKEN_TYPE_LABELS).map(([value, label]) => ({
+          value,
+          label,
+        }))}
+      />
+
+      <Button type="primary" icon={<QrcodeOutlined />} onClick={onGenerate} loading={loading}>
+        Выпустить QR
+      </Button>
+
+      {qrState?.qrImageDataUrl ? (
+        <Space direction="vertical" style={{ width: "100%" }} size={12}>
+          <div
+            style={{
+              border: "1px solid #f0f0f0",
+              borderRadius: 12,
+              padding: 16,
+              display: "flex",
+              justifyContent: "center",
+              background: "#fff",
+            }}
+          >
+            <img
+              src={qrState.qrImageDataUrl}
+              alt="QR код доступа"
+              style={{ width: 240, height: 240, display: "block" }}
+            />
+          </div>
+          <Text type="secondary">
+            Действует до: {qrState.expiresAt ? dayjs(qrState.expiresAt).format("DD.MM.YYYY HH:mm") : "-"}
+          </Text>
+          <Input.TextArea value={qrState.token || ""} rows={4} readOnly />
+          <Button onClick={onCopyToken}>Скопировать токен</Button>
+        </Space>
+      ) : (
+        <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+          Выпустите QR, чтобы показать его сотруднику или передать дальше.
+        </Paragraph>
+      )}
+    </Space>
+  </Modal>
+);
+
+const createPassColumns = ({
+  tableFilters,
+  onEdit,
+  onRevoke,
+  onDelete,
+  onIssueQr,
+}) => [
   {
     title: "№ Пропуска",
     dataIndex: "passNumber",
     key: "passNumber",
-    width: 200,
+    width: 220,
   },
   {
     title: "Сотрудник",
@@ -248,26 +305,28 @@ const createPassColumns = ({ tableFilters, onEdit, onRevoke, onDelete }) => [
     title: "Тип",
     dataIndex: "passType",
     key: "passType",
-    render: (type) => PASS_TYPE_LABELS[type],
-    filters: Object.entries(PASS_TYPE_LABELS).map(([key, label]) => ({
+    render: (type) => PASS_TYPE_LABELS[type] || type || "-",
+    filters: Object.entries(PASS_TYPE_LABELS).map(([value, label]) => ({
       text: label,
-      value: key,
+      value,
     })),
     filteredValue: tableFilters.passType || null,
     onFilter: (value, record) => record.passType === value,
   },
   {
-    title: "Действителен до",
-    dataIndex: "validUntil",
+    title: "Период",
     key: "validUntil",
+    render: (_, record) =>
+      `${record.validFrom ? dayjs(record.validFrom).format(DATE_FORMAT) : "-"} - ${
+        record.validUntil ? dayjs(record.validUntil).format(DATE_FORMAT) : "-"
+      }`,
     sorter: (a, b) => new Date(a.validUntil) - new Date(b.validUntil),
-    render: (date) => (date ? dayjs(date).format(DATE_FORMAT) : "-"),
   },
   {
     title: "Зоны доступа",
     dataIndex: "accessZones",
     key: "accessZones",
-    render: (zones) => (
+    render: (zones = []) => (
       <Space size={4} wrap>
         {zones.slice(0, 2).map((zone) => (
           <Tag key={zone} color="blue">
@@ -282,10 +341,14 @@ const createPassColumns = ({ tableFilters, onEdit, onRevoke, onDelete }) => [
     title: "Статус",
     dataIndex: "status",
     key: "status",
-    render: (status) => <Tag color={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Tag>,
-    filters: Object.entries(STATUS_LABELS).map(([key, label]) => ({
+    render: (status) => (
+      <Tag color={STATUS_COLORS[status] || "default"}>
+        {STATUS_LABELS[status] || status || "-"}
+      </Tag>
+    ),
+    filters: Object.entries(STATUS_LABELS).map(([value, label]) => ({
       text: label,
-      value: key,
+      value,
     })),
     filteredValue: tableFilters.status || null,
     onFilter: (value, record) => record.status === value,
@@ -293,9 +356,12 @@ const createPassColumns = ({ tableFilters, onEdit, onRevoke, onDelete }) => [
   {
     title: "Действия",
     key: "actions",
-    width: 150,
+    width: 190,
     render: (_, record) => (
       <Space>
+        <Tooltip title="Выпустить QR">
+          <Button type="text" icon={<QrcodeOutlined />} onClick={() => onIssueQr(record)} />
+        </Tooltip>
         <Tooltip title="Редактировать">
           <Button type="text" icon={<EditOutlined />} onClick={() => onEdit(record)} />
         </Tooltip>
@@ -318,17 +384,37 @@ const createPassColumns = ({ tableFilters, onEdit, onRevoke, onDelete }) => [
 ];
 
 const PassesPage = () => {
+  const { message } = App.useApp();
   const initialState = useMemo(loadPassesPageState, []);
+  const [form] = Form.useForm();
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [passes, setPasses] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [uiState, setUiState] = useState(() => ({
     searchText: initialState.searchText,
     tableFilters: initialState.tableFilters,
     pagination: initialState.pagination,
     isModalOpen: false,
     editingPass: null,
+    qrModalOpen: false,
+    qrPass: null,
+    qrTokenType: "persistent",
+    qrState: null,
   }));
-  const [form] = Form.useForm();
 
-  const { searchText, tableFilters, pagination, isModalOpen, editingPass } = uiState;
+  const {
+    searchText,
+    tableFilters,
+    pagination,
+    isModalOpen,
+    editingPass,
+    qrModalOpen,
+    qrPass,
+    qrTokenType,
+    qrState,
+  } = uiState;
 
   useEffect(() => {
     localStorage.setItem(
@@ -342,19 +428,73 @@ const PassesPage = () => {
         },
       }),
     );
-  }, [searchText, tableFilters, pagination.current, pagination.pageSize]);
+  }, [pagination, searchText, tableFilters]);
+
+  const employeeOptions = useMemo(
+    () =>
+      employees.map((employee) => ({
+        value: employee.id,
+        label:
+          buildEmployeeName(employee) ||
+          employee.fullName ||
+          employee.email ||
+          String(employee.id),
+      })),
+    [employees],
+  );
+
+  const loadPageData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [passesResponse, employeesResponse] = await Promise.all([
+        passService.getAll({ page: 1, limit: 1000 }),
+        employeeService.getAll({ page: 1, limit: 10000, activeOnly: "true" }),
+      ]);
+
+      const nextPasses = Array.isArray(passesResponse?.passes)
+        ? passesResponse.passes.map(normalizePassRecord)
+        : [];
+      const nextEmployees = Array.isArray(employeesResponse?.data?.employees)
+        ? employeesResponse.data.employees
+        : [];
+
+      setPasses(nextPasses);
+      setEmployees(nextEmployees);
+    } catch (error) {
+      console.error("Failed to load passes page:", error);
+      message.error("Не удалось загрузить пропуска");
+    } finally {
+      setLoading(false);
+    }
+  }, [message]);
+
+  useEffect(() => {
+    loadPageData();
+  }, [loadPageData]);
 
   const handleAdd = () => {
-    setUiState((prev) => ({ ...prev, editingPass: null, isModalOpen: true }));
     form.resetFields();
+    form.setFieldsValue({
+      passType: "temporary",
+      status: "active",
+      accessZones: [],
+    });
+    setUiState((prev) => ({ ...prev, editingPass: null, isModalOpen: true }));
   };
 
   const handleEdit = (pass) => {
-    setUiState((prev) => ({ ...prev, editingPass: pass, isModalOpen: true }));
     form.setFieldsValue({
-      ...pass,
-      dateRange: [dayjs(pass.validFrom), dayjs(pass.validUntil)],
+      employeeId: pass.employeeId,
+      passType: pass.passType,
+      status: pass.status,
+      accessZones: pass.accessZones || [],
+      notes: pass.notes || "",
+      dateRange:
+        pass.validFrom && pass.validUntil
+          ? [dayjs(pass.validFrom), dayjs(pass.validUntil)]
+          : undefined,
     });
+    setUiState((prev) => ({ ...prev, editingPass: pass, isModalOpen: true }));
   };
 
   const handleRevoke = (pass) => {
@@ -364,8 +504,15 @@ const PassesPage = () => {
       okText: "Отозвать",
       okType: "danger",
       cancelText: "Отмена",
-      onOk: () => {
-        message.success("Пропуск отозван");
+      onOk: async () => {
+        try {
+          await passService.revoke(pass.id);
+          message.success("Пропуск отозван");
+          await loadPageData();
+        } catch (error) {
+          console.error("Failed to revoke pass:", error);
+          message.error("Не удалось отозвать пропуск");
+        }
       },
     });
   };
@@ -377,62 +524,149 @@ const PassesPage = () => {
       okText: "Удалить",
       okType: "danger",
       cancelText: "Отмена",
-      onOk: () => {
-        message.success("Пропуск удален");
+      onOk: async () => {
+        try {
+          await passService.delete(pass.id);
+          message.success("Пропуск удален");
+          await loadPageData();
+        } catch (error) {
+          console.error("Failed to delete pass:", error);
+          message.error("Не удалось удалить пропуск");
+        }
       },
     });
+  };
+
+  const handleIssueQrOpen = (pass) => {
+    setUiState((prev) => ({
+      ...prev,
+      qrModalOpen: true,
+      qrPass: pass,
+      qrState: null,
+      qrTokenType: "persistent",
+    }));
+  };
+
+  const handleGenerateQr = async () => {
+    if (!qrPass?.employeeId) {
+      message.warning("Не удалось определить сотрудника для QR");
+      return;
+    }
+
+    setQrLoading(true);
+    try {
+      const result = await skudService.issueQr({
+        employeeId: qrPass.employeeId,
+        tokenType: qrTokenType,
+        channel: "web",
+      });
+      setUiState((prev) => ({ ...prev, qrState: result || null }));
+      message.success("QR выпущен");
+    } catch (error) {
+      console.error("Failed to issue QR:", error);
+      message.error("Не удалось выпустить QR");
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  const handleCopyQrToken = async () => {
+    if (!qrState?.token) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(qrState.token);
+      message.success("Токен скопирован");
+    } catch (error) {
+      console.error("Failed to copy QR token:", error);
+      message.error("Не удалось скопировать токен");
+    }
   };
 
   const handleModalOk = async () => {
     try {
       const values = await form.validateFields();
-      console.log("Form values:", values);
-      message.success(editingPass ? "Пропуск обновлен" : "Пропуск создан");
-      setUiState((prev) => ({ ...prev, isModalOpen: false }));
+      setSubmitting(true);
+      const payload = {
+        employeeId: values.employeeId,
+        passType: values.passType,
+        status: values.status,
+        validFrom: values.dateRange?.[0]?.startOf("day")?.toISOString(),
+        validUntil: values.dateRange?.[1]?.endOf("day")?.toISOString(),
+        accessZones: values.accessZones || [],
+        notes: values.notes || "",
+      };
+
+      if (editingPass?.id) {
+        await passService.update(editingPass.id, payload);
+        message.success("Пропуск обновлен");
+      } else {
+        await passService.create(payload);
+        message.success("Пропуск создан");
+      }
+
+      setUiState((prev) => ({ ...prev, isModalOpen: false, editingPass: null }));
+      form.resetFields();
+      await loadPageData();
     } catch (error) {
-      console.error("Validation failed:", error);
+      if (error?.errorFields) {
+        return;
+      }
+      console.error("Failed to save pass:", error);
+      message.error("Не удалось сохранить пропуск");
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleModalCancel = () => {
-    setUiState((prev) => ({ ...prev, isModalOpen: false }));
     form.resetFields();
+    setUiState((prev) => ({ ...prev, isModalOpen: false, editingPass: null }));
   };
 
-  const columns = useMemo(
-    () =>
-      createPassColumns({
-        tableFilters,
-        onEdit: handleEdit,
-        onRevoke: handleRevoke,
-        onDelete: handleDelete,
-      }),
-    [tableFilters],
-  );
-
   const filteredPasses = useMemo(() => {
-    const searchLower = searchText.toLowerCase();
-    return PASS_MOCKS.filter(
-      (pass) =>
-        pass.passNumber.toLowerCase().includes(searchLower) ||
-        pass.employeeName.toLowerCase().includes(searchLower),
-    );
-  }, [searchText]);
+    const searchLower = searchText.trim().toLowerCase();
+    if (!searchLower) {
+      return passes;
+    }
+
+    return passes.filter((pass) => {
+      const passNumber = String(pass.passNumber || "").toLowerCase();
+      const employeeName = String(pass.employeeName || "").toLowerCase();
+      return passNumber.includes(searchLower) || employeeName.includes(searchLower);
+    });
+  }, [passes, searchText]);
+
+  const columns = createPassColumns({
+    tableFilters,
+    onEdit: handleEdit,
+    onRevoke: handleRevoke,
+    onDelete: handleDelete,
+    onIssueQr: handleIssueQrOpen,
+  });
 
   return (
     <div>
       <PassesToolbar
         searchText={searchText}
         onSearchChange={(e) =>
-          setUiState((prev) => ({ ...prev, searchText: e.target.value }))
+          setUiState((prev) => ({
+            ...prev,
+            searchText: e.target.value,
+            pagination: { ...prev.pagination, current: 1 },
+          }))
         }
         onAdd={handleAdd}
+        onRefresh={loadPageData}
+        loading={loading}
       />
 
       <Table
         columns={columns}
         dataSource={filteredPasses}
         rowKey="id"
+        loading={loading}
         onChange={(nextPagination, nextFilters) => {
           setUiState((prev) => ({
             ...prev,
@@ -457,14 +691,36 @@ const PassesPage = () => {
         open={isModalOpen}
         onOk={handleModalOk}
         onCancel={handleModalCancel}
-        width={600}
+        width={640}
         okText={editingPass ? "Сохранить" : "Создать"}
         cancelText="Отмена"
+        confirmLoading={submitting}
+        destroyOnClose
       >
         <Form form={form} layout="vertical" style={{ marginTop: 24 }}>
-          <PassModalFormFields />
+          <PassModalFormFields employeeOptions={employeeOptions} />
         </Form>
       </Modal>
+
+      <QrIssueModal
+        open={qrModalOpen}
+        loading={qrLoading}
+        qrState={qrState}
+        tokenType={qrTokenType}
+        onTokenTypeChange={(value) =>
+          setUiState((prev) => ({ ...prev, qrTokenType: value, qrState: null }))
+        }
+        onGenerate={handleGenerateQr}
+        onClose={() =>
+          setUiState((prev) => ({
+            ...prev,
+            qrModalOpen: false,
+            qrPass: null,
+            qrState: null,
+          }))
+        }
+        onCopyToken={handleCopyQrToken}
+      />
     </div>
   );
 };

@@ -6,12 +6,12 @@ class Pass extends Model {}
 Pass.init(
   {
     id: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
       primaryKey: true,
-      autoIncrement: true
+      defaultValue: DataTypes.UUIDV4,
     },
     employeeId: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
       allowNull: false,
       field: 'employee_id',
       references: {
@@ -70,7 +70,7 @@ Pass.init(
       type: DataTypes.TEXT
     },
     issuedBy: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
       field: 'issued_by',
       references: {
         model: 'users',
@@ -78,7 +78,7 @@ Pass.init(
       }
     },
     revokedBy: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
       field: 'revoked_by',
       references: {
         model: 'users',
@@ -129,4 +129,3 @@ Pass.init(
 );
 
 export default Pass;
-

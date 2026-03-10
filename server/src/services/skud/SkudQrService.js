@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import QRCode from "qrcode";
 import {
   Employee,
   EmployeeStatusMapping,
@@ -144,10 +145,17 @@ export const issueSkudQrToken = async ({
     },
   });
 
+  const qrImageDataUrl = await QRCode.toDataURL(token, {
+    errorCorrectionLevel: "M",
+    margin: 1,
+    width: 320,
+  });
+
   return {
     token,
     expiresAt: new Date(exp * 1000).toISOString(),
     qrPayload: payload,
+    qrImageDataUrl,
   };
 };
 

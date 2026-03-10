@@ -82,6 +82,16 @@ const skudService = {
     const response = await api.post("/skud/cards/unbind", { cardId });
     return toData(response);
   },
+
+  issueQr: async (payload) => {
+    const response = await api.post("/skud/qr/issue", payload);
+    return toData(response);
+  },
+
+  verifyQr: async (payload) => {
+    const response = await api.post("/skud/qr/verify", payload);
+    return toData(response);
+  },
 };
 
 export default skudService;
