@@ -15,6 +15,7 @@ import { isSkudEnabled } from "../services/skud/skudConfig.js";
 import { issueSkudQrTokenForPass } from "../services/skud/SkudQrService.js";
 
 const PASS_SYNCABLE_STATUSES = new Set(["active", "expired", "revoked"]);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const parsePagination = (query = {}) => {
   const page = Math.max(Number.parseInt(String(query.page || "1"), 10) || 1, 1);
@@ -61,9 +62,9 @@ const normalizePassPayload = (source = {}, { isUpdate = false } = {}) => {
   const payload = {};
 
   if (!isUpdate || source.employeeId !== undefined) {
-    const employeeId = Number.parseInt(String(source.employeeId || ""), 10);
-    if (!Number.isInteger(employeeId) || employeeId <= 0) {
-      throw new AppError("employeeId обязателен и должен быть числом", 400);
+    const employeeId = String(source.employeeId || "").trim();
+    if (!UUID_RE.test(employeeId)) {
+      throw new AppError("employeeId обязателен и должен быть UUID", 400);
     }
     payload.employeeId = employeeId;
   }

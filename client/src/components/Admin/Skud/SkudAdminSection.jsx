@@ -16,11 +16,18 @@ import {
   Typography,
   Popconfirm,
 } from "antd";
-import { DownloadOutlined, ReloadOutlined, SyncOutlined } from "@ant-design/icons";
+import {
+  CopyOutlined,
+  DownloadOutlined,
+  QrcodeOutlined,
+  ReloadOutlined,
+  SyncOutlined,
+} from "@ant-design/icons";
 import dayjs from "dayjs";
 import skudService from "@/services/skudService";
 
 const { Text } = Typography;
+const { TextArea } = Input;
 
 const EVENT_TYPE_LABELS = {
   PASS_DETECTED: "Проход",
@@ -100,6 +107,14 @@ const SkudAdminSection = () => {
   const [selectedLocalEmployeeId, setSelectedLocalEmployeeId] = useState(null);
   const [selectedProviderEmployeeId, setSelectedProviderEmployeeId] = useState(null);
   const [bindingActionLoading, setBindingActionLoading] = useState(false);
+  const [qrEmployeeIdInput, setQrEmployeeIdInput] = useState("");
+  const [qrTokenTypeInput, setQrTokenTypeInput] = useState("persistent");
+  const [qrChannelInput, setQrChannelInput] = useState("web");
+  const [qrActionLoading, setQrActionLoading] = useState(false);
+  const [qrState, setQrState] = useState(null);
+  const [qrVerifyToken, setQrVerifyToken] = useState("");
+  const [qrVerifyResult, setQrVerifyResult] = useState(null);
+  const [qrVerifyLoading, setQrVerifyLoading] = useState(false);
   const [showOnlyPassages, setShowOnlyPassages] = useState(true);
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [eventsPage, setEventsPage] = useState(1);
@@ -431,6 +446,73 @@ const SkudAdminSection = () => {
       setBindingActionLoading(false);
     }
   }, [loadData, loadMappingLists, message, selectedLocalEmployeeId, selectedProviderEmployeeId]);
+
+  const handleIssueQr = useCallback(async () => {
+    const employeeId = String(qrEmployeeIdInput || "").trim();
+    if (!employeeId) {
+      message.warning("Введите employeeId");
+      return;
+    }
+
+    setQrActionLoading(true);
+    try {
+      const data = await skudService.issueQr({
+        employeeId,
+        tokenType: qrTokenTypeInput,
+        channel: qrChannelInput,
+      });
+
+      setQrState(data || null);
+      setQrVerifyToken(data?.token || "");
+      setQrVerifyResult(null);
+      message.success("QR выпущен");
+    } catch (error) {
+      console.error("Failed to issue QR:", error);
+      message.error("Не удалось выпустить QR");
+    } finally {
+      setQrActionLoading(false);
+    }
+  }, [message, qrChannelInput, qrEmployeeIdInput, qrTokenTypeInput]);
+
+  const handleCopyQrToken = useCallback(async () => {
+    if (!qrState?.token) {
+      message.warning("Сначала выпустите QR");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(qrState.token);
+      message.success("Токен скопирован");
+    } catch (error) {
+      console.error("Failed to copy QR token:", error);
+      message.error("Не удалось скопировать токен");
+    }
+  }, [message, qrState?.token]);
+
+  const handleVerifyQr = useCallback(async () => {
+    const token = String(qrVerifyToken || "").trim();
+    if (!token) {
+      message.warning("Вставьте токен для проверки");
+      return;
+    }
+
+    setQrVerifyLoading(true);
+    try {
+      const data = await skudService.verifyQr({
+        token,
+        markUsed: qrTokenTypeInput === "one_time",
+      });
+
+      setQrVerifyResult(data || null);
+      message.success(data?.allow ? "Проход разрешен" : "Получен отказ");
+    } catch (error) {
+      console.error("Failed to verify QR:", error);
+      setQrVerifyResult(null);
+      message.error("Не удалось проверить QR");
+    } finally {
+      setQrVerifyLoading(false);
+    }
+  }, [message, qrTokenTypeInput, qrVerifyToken]);
 
   const eventsColumns = useMemo(
     () => [
@@ -1107,6 +1189,130 @@ const SkudAdminSection = () => {
                     pagination={false}
                     scroll={{ x: 900 }}
                   />
+                </Card>
+              </Space>
+            ),
+          },
+          {
+            key: "qr",
+            label: "QR",
+            children: (
+              <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                <Card title="Выпуск QR для СКУД">
+                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                    <Input
+                      placeholder="employeeId (UUID сотрудника в PassDesk)"
+                      value={qrEmployeeIdInput}
+                      onChange={(event) => setQrEmployeeIdInput(event.target.value)}
+                    />
+                    <Select
+                      value={qrTokenTypeInput}
+                      onChange={setQrTokenTypeInput}
+                      options={[
+                        { value: "persistent", label: "Постоянный" },
+                        { value: "one_time", label: "Одноразовый" },
+                      ]}
+                    />
+                    <Select
+                      value={qrChannelInput}
+                      onChange={setQrChannelInput}
+                      options={[
+                        { value: "web", label: "Web" },
+                        { value: "mobile", label: "Mobile" },
+                        { value: "telegram", label: "Telegram" },
+                      ]}
+                    />
+                    <Space wrap>
+                      <Button
+                        type="primary"
+                        icon={<QrcodeOutlined />}
+                        onClick={handleIssueQr}
+                        loading={qrActionLoading}
+                      >
+                        Выпустить QR
+                      </Button>
+                      <Button
+                        icon={<CopyOutlined />}
+                        onClick={handleCopyQrToken}
+                        disabled={!qrState?.token}
+                      >
+                        Скопировать токен
+                      </Button>
+                    </Space>
+
+                    {qrState?.qrImageDataUrl ? (
+                      <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                        <div
+                          style={{
+                            border: "1px solid #f0f0f0",
+                            borderRadius: 12,
+                            padding: 16,
+                            display: "flex",
+                            justifyContent: "center",
+                            background: "#fff",
+                          }}
+                        >
+                          <img
+                            src={qrState.qrImageDataUrl}
+                            alt="QR код доступа"
+                            style={{ width: 240, height: 240, display: "block" }}
+                          />
+                        </div>
+                        <Text type="secondary">
+                          Действует до:{" "}
+                          {qrState.expiresAt
+                            ? dayjs(qrState.expiresAt).format("DD.MM.YYYY HH:mm")
+                            : "не ограничен"}
+                        </Text>
+                        <TextArea value={qrState.token || ""} rows={4} readOnly />
+                      </Space>
+                    ) : (
+                      <Text type="secondary">
+                        Выпущенный QR появится здесь после запроса к backend.
+                      </Text>
+                    )}
+                  </Space>
+                </Card>
+
+                <Card title="Проверка QR токена">
+                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                    <TextArea
+                      rows={4}
+                      placeholder="Вставьте token из QR или payload считывателя"
+                      value={qrVerifyToken}
+                      onChange={(event) => setQrVerifyToken(event.target.value)}
+                    />
+                    <Button onClick={handleVerifyQr} loading={qrVerifyLoading}>
+                      Проверить QR
+                    </Button>
+
+                    {qrVerifyResult ? (
+                      <Space direction="vertical" size={4} style={{ width: "100%" }}>
+                        <Tag color={qrVerifyResult.allow ? "green" : "red"}>
+                          {qrVerifyResult.allow ? "Разрешено" : "Отказ"}
+                        </Tag>
+                        <Text type="secondary">
+                          Сотрудник: {qrVerifyResult.employeeId || "—"}
+                        </Text>
+                        <Text type="secondary">
+                          Тип токена: {qrVerifyResult.tokenType || "—"}
+                        </Text>
+                        <Text type="secondary">
+                          Истекает:{" "}
+                          {qrVerifyResult.expiresAt
+                            ? dayjs(qrVerifyResult.expiresAt).format("DD.MM.YYYY HH:mm:ss")
+                            : "не ограничен"}
+                        </Text>
+                        <Text type="secondary">
+                          Сообщение: {qrVerifyResult.message || "—"}
+                        </Text>
+                      </Space>
+                    ) : (
+                      <Text type="secondary">
+                        Здесь будет результат проверки токена и решение allow/deny.
+                      </Text>
+                    )}
+                  </Space>
                 </Card>
               </Space>
             ),

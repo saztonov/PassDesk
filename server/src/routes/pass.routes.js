@@ -11,7 +11,7 @@ router.use(authenticate);
 
 // Validation rules
 const createPassValidation = [
-  body("employeeId").isInt().withMessage("Employee ID must be an integer"),
+  body("employeeId").isUUID().withMessage("Employee ID must be a UUID"),
   body("passType").notEmpty().trim(),
   body("validFrom").isISO8601().toDate(),
   body("validUntil").isISO8601().toDate(),
