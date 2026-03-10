@@ -28,8 +28,8 @@ const DocumentCaptureDebugPage = () => {
         Document Capture Debug
       </Title>
       <Paragraph type="secondary">
-        Изолированная страница для проверки камеры, live OpenCV contour и
-        статической детекции по загруженной фотке.
+        Изолированная страница для проверки Scandit ID Capture без привязки к
+        форме сотрудника и без OpenCV.
       </Paragraph>
 
       <DocumentCaptureDebugLab />

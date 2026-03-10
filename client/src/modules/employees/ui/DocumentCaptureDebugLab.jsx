@@ -1,589 +1,546 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
   Card,
   Descriptions,
-  Divider,
+  Image,
+  Input,
   Space,
   Tag,
   Typography,
 } from "antd";
-import Webcam from "react-webcam";
 import {
   CameraOutlined,
+  PauseCircleOutlined,
   ReloadOutlined,
-  ScanOutlined,
-  UploadOutlined,
 } from "@ant-design/icons";
-import { detectDocumentCornersWithOpenCv } from "@/shared/lib/openCvDocumentScanner";
 
 const { Paragraph, Text, Title } = Typography;
 
-const VIDEO_CONSTRAINTS = {
-  facingMode: { ideal: "environment" },
-  width: { ideal: 1920 },
-  height: { ideal: 1080 },
-  aspectRatio: { ideal: 4 / 3 },
+const SCANDIT_LIBRARY_LOCATION =
+  "https://cdn.jsdelivr.net/npm/@scandit/web-datacapture-id@8.2.1/sdc-lib/";
+const LICENSE_STORAGE_KEY = "document-capture-debug:scandit-license";
+const DEFAULT_LICENSE_KEY = import.meta.env.VITE_SCANDIT_LICENSE_KEY || "";
+
+const STATUS_LABELS = {
+  idle: { color: "default", text: "Не запущен" },
+  loading: { color: "processing", text: "Инициализация" },
+  running: { color: "success", text: "Сканер запущен" },
+  captured: { color: "success", text: "Документ считан" },
+  rejected: { color: "warning", text: "Документ отклонен" },
+  error: { color: "error", text: "Ошибка" },
+  stopping: { color: "default", text: "Останавливаю" },
 };
 
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const createEmptySession = () => ({
+  core: null,
+  context: null,
+  view: null,
+  camera: null,
+  idCapture: null,
+  overlay: null,
+  listener: null,
+});
 
-const loadImageFromUrl = (url) =>
-  new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Не удалось открыть изображение"));
-    image.src = url;
-  });
+const disposeSession = async (sessionRef) => {
+  const session = sessionRef.current;
+  sessionRef.current = createEmptySession();
 
-const loadImageFromFile = (file) =>
-  new Promise((resolve, reject) => {
-    const image = new Image();
-    const url = URL.createObjectURL(file);
-
-    image.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(image);
-    };
-
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Не удалось открыть изображение"));
-    };
-
-    image.src = url;
-  });
-
-const createObjectUrl = (blob) => URL.createObjectURL(blob);
-
-const waitForPaint = () =>
-  new Promise((resolve) => {
-    window.setTimeout(resolve, 0);
-  });
-
-const buildReducedCanvas = (image, maxDimension = 640) => {
-  const sourceWidth = image.naturalWidth || image.width;
-  const sourceHeight = image.naturalHeight || image.height;
-  const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(sourceWidth * scale));
-  canvas.height = Math.max(1, Math.round(sourceHeight * scale));
-  const context = canvas.getContext("2d");
-
-  if (!context) {
-    throw new Error("Canvas недоступен для уменьшения изображения");
+  if (session.idCapture && session.listener) {
+    session.idCapture.removeListener(session.listener);
   }
 
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  try {
+    if (session.camera && session.core?.FrameSourceState?.Off) {
+      await session.camera.switchToDesiredState(session.core.FrameSourceState.Off);
+    }
+  } catch (stopError) {
+    console.error("Failed to stop Scandit camera", stopError);
+  }
 
-  return {
-    canvas,
-    scaleX: sourceWidth / canvas.width,
-    scaleY: sourceHeight / canvas.height,
-    width: sourceWidth,
-    height: sourceHeight,
-  };
+  try {
+    session.view?.detachFromElement();
+  } catch (detachError) {
+    console.error("Failed to detach Scandit view", detachError);
+  }
+
+  try {
+    await session.context?.dispose?.();
+  } catch (disposeError) {
+    console.error("Failed to dispose Scandit context", disposeError);
+  }
 };
 
-const detectCornersForDebugImage = async (image) => {
-  const reduced = buildReducedCanvas(image, 640);
-  const reducedCorners = await detectDocumentCornersWithOpenCv(
-    reduced.canvas,
-    "passport",
-    {
-      preview: true,
-      allowWeak: true,
-    },
-  );
+const getInitialLicenseKey = () => {
+  if (DEFAULT_LICENSE_KEY) {
+    return DEFAULT_LICENSE_KEY;
+  }
 
-  return {
-    corners: reducedCorners.map((point) => ({
-      x: point.x * reduced.scaleX,
-      y: point.y * reduced.scaleY,
-    })),
-    dimensions: {
-      width: reduced.width,
-      height: reduced.height,
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return window.localStorage.getItem(LICENSE_STORAGE_KEY) || "";
+};
+
+const formatDateResult = (dateResult) => {
+  if (!dateResult?.year) {
+    return "n/a";
+  }
+
+  const day = String(dateResult.day || 1).padStart(2, "0");
+  const month = String(dateResult.month || 1).padStart(2, "0");
+
+  return `${day}.${month}.${dateResult.year}`;
+};
+
+const createCapturedIdSummary = (capturedId) => ({
+  "Тип документа": capturedId.document?.documentType || "unknown",
+  "Полное имя": capturedId.fullName || "n/a",
+  Имя: capturedId.firstName || "n/a",
+  Фамилия: capturedId.lastName || "n/a",
+  "Номер документа": capturedId.documentNumber || "n/a",
+  "Страна выдачи": capturedId.issuingCountryIso || "n/a",
+  Гражданство: capturedId.nationalityISO || "n/a",
+  "Дата рождения": formatDateResult(capturedId.dateOfBirth),
+  "Дата выдачи": formatDateResult(capturedId.dateOfIssue),
+  "Дата окончания": formatDateResult(capturedId.dateOfExpiry),
+  Адрес: capturedId.address || "n/a",
+  "Полнота захвата": capturedId.isCapturingComplete ? "complete" : "partial",
+});
+
+const createImagePreviews = (capturedId, idSideEnum) => {
+  const previews = [
+    {
+      key: "front",
+      title: "Cropped document",
+      src: capturedId.images.getCroppedDocument(idSideEnum.Front),
     },
-  };
+    {
+      key: "frame",
+      title: "Frame",
+      src: capturedId.images.frame,
+    },
+    {
+      key: "face",
+      title: "Face",
+      src: capturedId.images.face,
+    },
+  ];
+
+  return previews.filter((image) => image.src);
+};
+
+const formatError = (error) => {
+  if (!error) {
+    return "Unknown error";
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  return error.message || error.name || "Unknown error";
 };
 
 const DocumentCaptureDebugLab = () => {
-  const webcamRef = useRef(null);
-  const liveFrameUrlRef = useRef("");
-  const staticImageUrlRef = useRef("");
-  const [cameraError, setCameraError] = useState("");
-  const [cameraFrame, setCameraFrame] = useState({
-    url: "",
-    dimensions: null,
-    corners: [],
-    loading: false,
-    error: "",
-  });
-  const [staticImage, setStaticImage] = useState({
-    url: "",
-    meta: null,
-    dimensions: null,
-    corners: [],
-    loading: false,
-    error: "",
-  });
+  const scannerHostRef = useRef(null);
+  const sessionRef = useRef(createEmptySession());
+  const startRequestIdRef = useRef(0);
+  const mountedRef = useRef(true);
 
-  useEffect(
-    () => () => {
-      if (liveFrameUrlRef.current) {
-        URL.revokeObjectURL(liveFrameUrlRef.current);
-      }
-      if (staticImageUrlRef.current) {
-        URL.revokeObjectURL(staticImageUrlRef.current);
-      }
-    },
-    [],
-  );
+  const [licenseKey, setLicenseKey] = useState(getInitialLicenseKey);
+  const [status, setStatus] = useState("idle");
+  const [error, setError] = useState("");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [capturedSummary, setCapturedSummary] = useState(null);
+  const [capturedImages, setCapturedImages] = useState([]);
+  const [events, setEvents] = useState([]);
 
-  const cameraOverlayPolygon = useMemo(() => {
-    if (cameraFrame.corners.length !== 4 || !cameraFrame.dimensions) {
-      return "";
-    }
+  const pushEvent = (message) => {
+    const timestamp = new Date().toLocaleTimeString("ru-RU");
 
-    return cameraFrame.corners
-      .map((point) => {
-        const x = (point.x / cameraFrame.dimensions.width) * 100;
-        const y = (point.y / cameraFrame.dimensions.height) * 100;
-        return `${clamp(x, 0, 100)},${clamp(y, 0, 100)}`;
-      })
-      .join(" ");
-  }, [cameraFrame.corners, cameraFrame.dimensions]);
-
-  const staticOverlayPolygon = useMemo(() => {
-    if (staticImage.corners.length !== 4 || !staticImage.dimensions) {
-      return "";
-    }
-
-    return staticImage.corners
-      .map((point) => {
-        const x = (point.x / staticImage.dimensions.width) * 100;
-        const y = (point.y / staticImage.dimensions.height) * 100;
-        return `${clamp(x, 0, 100)},${clamp(y, 0, 100)}`;
-      })
-      .join(" ");
-  }, [staticImage.corners, staticImage.dimensions]);
-
-  const resetCameraFrame = () => {
-    if (liveFrameUrlRef.current) {
-      URL.revokeObjectURL(liveFrameUrlRef.current);
-      liveFrameUrlRef.current = "";
-    }
-    setCameraFrame({
-      url: "",
-      dimensions: null,
-      corners: [],
-      loading: false,
-      error: "",
-    });
+    setEvents((previous) => [`${timestamp} ${message}`, ...previous].slice(0, 10));
   };
 
-  const captureCameraFrame = async () => {
-    const dataUrl = webcamRef.current?.getScreenshot();
-    if (!dataUrl) {
-      setCameraError("Не удалось снять кадр с камеры");
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+      void disposeSession(sessionRef);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
       return;
     }
 
-    setCameraError("");
-    resetCameraFrame();
+    if (licenseKey) {
+      window.localStorage.setItem(LICENSE_STORAGE_KEY, licenseKey);
+      return;
+    }
+
+    window.localStorage.removeItem(LICENSE_STORAGE_KEY);
+  }, [licenseKey]);
+
+  const startScanner = async () => {
+    const trimmedLicenseKey = licenseKey.trim();
+
+    if (!trimmedLicenseKey) {
+      setError("Добавь Scandit license key");
+      return;
+    }
+
+    if (!scannerHostRef.current) {
+      setError("Контейнер сканера не готов");
+      return;
+    }
+
+    const requestId = startRequestIdRef.current + 1;
+    startRequestIdRef.current = requestId;
+
+    setStatus("loading");
+    setError("");
+    setRejectionReason("");
+    setCapturedSummary(null);
+    setCapturedImages([]);
+    setEvents([]);
+    pushEvent("Запускаю Scandit");
+
+    await disposeSession(sessionRef);
 
     try {
-      const response = await fetch(dataUrl);
-      const blob = await response.blob();
-      const url = createObjectUrl(blob);
-      const image = await loadImageFromUrl(dataUrl);
-      liveFrameUrlRef.current = url;
+      const [core, idCaptureSdk] = await Promise.all([
+        import("@scandit/web-datacapture-core"),
+        import("@scandit/web-datacapture-id"),
+      ]);
 
-      setCameraFrame({
-        url,
-        dimensions: {
-          width: image.naturalWidth || image.width,
-          height: image.naturalHeight || image.height,
+      if (!mountedRef.current || requestId !== startRequestIdRef.current) {
+        return;
+      }
+
+      const context = await core.DataCaptureContext.forLicenseKey(
+        trimmedLicenseKey,
+        {
+          libraryLocation: SCANDIT_LIBRARY_LOCATION,
+          moduleLoaders: [
+            idCaptureSdk.idCaptureLoader({
+              enableVIZDocuments: true,
+            }),
+          ],
         },
-        corners: [],
-        loading: false,
-        error: "",
-      });
-    } catch (error) {
-      setCameraError(error?.message || "Не удалось подготовить кадр");
+      );
+      sessionRef.current.context = context;
+
+      const view = await core.DataCaptureView.forContext(context);
+      sessionRef.current.view = view;
+      view.connectToElement(scannerHostRef.current);
+
+      const settings = new idCaptureSdk.IdCaptureSettings();
+      settings.scanner = new idCaptureSdk.FullDocumentScanner();
+      settings.acceptedDocuments = [
+        new idCaptureSdk.Passport(idCaptureSdk.Region.Russia),
+      ];
+      settings.setShouldPassImageTypeToResult(
+        idCaptureSdk.IdImageType.CroppedDocument,
+        true,
+      );
+      settings.setShouldPassImageTypeToResult(
+        idCaptureSdk.IdImageType.Frame,
+        true,
+      );
+
+      const idCapture = await idCaptureSdk.IdCapture.forContext(
+        context,
+        settings,
+      );
+      sessionRef.current.idCapture = idCapture;
+
+      const overlay = await idCaptureSdk.IdCaptureOverlay.withIdCaptureForView(
+        idCapture,
+        view,
+      );
+      sessionRef.current.overlay = overlay;
+      overlay.showTextHints = true;
+      overlay.idLayoutStyle = idCaptureSdk.IdLayoutStyle.Rounded;
+      overlay.idLayoutLineStyle = idCaptureSdk.IdLayoutLineStyle.Bold;
+
+      const listener = {
+        didLocalizeId: () => {
+          if (!mountedRef.current) {
+            return;
+          }
+
+          pushEvent("Документ локализован");
+        },
+        didCaptureId: async (capturedId) => {
+          if (!mountedRef.current) {
+            return;
+          }
+
+          pushEvent("Документ считан");
+          setStatus("captured");
+          setError("");
+          setRejectionReason("");
+          setCapturedSummary(createCapturedIdSummary(capturedId));
+          setCapturedImages(
+            createImagePreviews(capturedId, idCaptureSdk.IdSide),
+          );
+
+          try {
+            await idCapture.setEnabled(false);
+          } catch (disableError) {
+            console.error("Failed to disable Scandit after capture", disableError);
+          }
+        },
+        didRejectId: (_, reason) => {
+          if (!mountedRef.current) {
+            return;
+          }
+
+          pushEvent(`Документ отклонен: ${reason}`);
+          setStatus("rejected");
+          setRejectionReason(reason);
+        },
+        didFailWithError: (_, sdkError) => {
+          if (!mountedRef.current) {
+            return;
+          }
+
+          const message = formatError(sdkError);
+          pushEvent(`Ошибка: ${message}`);
+          setStatus("error");
+          setError(message);
+        },
+      };
+
+      idCapture.addListener(listener);
+      sessionRef.current.listener = listener;
+      sessionRef.current.core = core;
+
+      const camera = core.Camera.pickBestGuessForPosition(
+        core.CameraPosition.WorldFacing,
+      );
+      sessionRef.current.camera = camera;
+      await camera.applySettings(idCaptureSdk.IdCapture.recommendedCameraSettings);
+      await context.setFrameSource(camera);
+      await camera.switchToDesiredState(core.FrameSourceState.On);
+
+      if (!mountedRef.current || requestId !== startRequestIdRef.current) {
+        await disposeSession(sessionRef);
+        return;
+      }
+
+      setStatus("running");
+      pushEvent("Камера запущена");
+    } catch (startError) {
+      await disposeSession(sessionRef);
+
+      if (!mountedRef.current) {
+        return;
+      }
+
+      const message = formatError(startError);
+      setStatus("error");
+      setError(message);
+      pushEvent(`Старт не удался: ${message}`);
     }
   };
 
-  const analyzeCameraFrame = async () => {
-    if (!cameraFrame.url) {
-      setCameraError("Сначала снимите кадр");
+  const handleStop = async () => {
+    setStatus("stopping");
+    pushEvent("Останавливаю сканер");
+    await disposeSession(sessionRef);
+
+    if (!mountedRef.current) {
       return;
     }
 
-    setCameraFrame((prev) => ({
-      ...prev,
-      loading: true,
-      error: "",
-      corners: [],
-    }));
-
-    try {
-      await waitForPaint();
-      const image = await loadImageFromUrl(cameraFrame.url);
-      const { corners, dimensions } = await detectCornersForDebugImage(image);
-
-      setCameraFrame((prev) => ({
-        ...prev,
-        loading: false,
-        corners,
-        dimensions,
-      }));
-    } catch (error) {
-      setCameraFrame((prev) => ({
-        ...prev,
-        loading: false,
-        error: error?.message || "OpenCV не смог найти контур",
-      }));
-    }
+    setStatus("idle");
   };
 
-  const handleStaticFile = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
+  const handleReset = async () => {
+    setCapturedSummary(null);
+    setCapturedImages([]);
+    setRejectionReason("");
+    setError("");
+    setEvents([]);
 
-    if (!file) {
+    if (sessionRef.current.idCapture) {
+      try {
+        await sessionRef.current.idCapture.reset();
+        await sessionRef.current.idCapture.setEnabled(true);
+      } catch (resetError) {
+        setError(formatError(resetError));
+        setStatus("error");
+        return;
+      }
+
+      pushEvent("Сессия сканирования сброшена");
+      setStatus("running");
       return;
     }
 
-    if (staticImageUrlRef.current) {
-      URL.revokeObjectURL(staticImageUrlRef.current);
-      staticImageUrlRef.current = "";
-    }
-
-    const url = createObjectUrl(file);
-    staticImageUrlRef.current = url;
-    setStaticImage({
-      url,
-      meta: {
-        name: file.name,
-        size: file.size,
-        type: file.type || "unknown",
-        updatedAt: new Date().toLocaleTimeString(),
-      },
-      dimensions: null,
-      corners: [],
-      loading: true,
-      error: "",
-    });
-
-    try {
-      await waitForPaint();
-      const image = await loadImageFromFile(file);
-      const { corners, dimensions } = await detectCornersForDebugImage(image);
-
-      setStaticImage((prev) => ({
-        ...prev,
-        loading: false,
-        corners,
-        dimensions,
-      }));
-    } catch (error) {
-      setStaticImage((prev) => ({
-        ...prev,
-        loading: false,
-        error: error?.message || "OpenCV не смог найти контур",
-      }));
-    }
+    setStatus("idle");
   };
 
-  const resetStaticImage = () => {
-    if (staticImageUrlRef.current) {
-      URL.revokeObjectURL(staticImageUrlRef.current);
-      staticImageUrlRef.current = "";
-    }
-    setStaticImage({
-      url: "",
-      meta: null,
-      dimensions: null,
-      corners: [],
-      loading: false,
-      error: "",
-    });
-  };
+  const statusMeta = STATUS_LABELS[status] || STATUS_LABELS.idle;
+  const isBusy = status === "loading" || status === "stopping";
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
       <Card>
-        <Title level={4} style={{ marginTop: 0 }}>
-          Camera Frame Test
-        </Title>
-        <Paragraph type="secondary" style={{ marginTop: 0 }}>
-          Здесь нет live auto-detection. Сначала просто снимается кадр с камеры,
-          потом отдельной кнопкой запускается OpenCV. Если этот экран работает
-          стабильно, значит фриз был именно в цикле live detection.
-        </Paragraph>
-
-        {cameraError ? (
-          <Alert
-            style={{ marginBottom: 16 }}
-            type="warning"
-            message={cameraError}
-            showIcon
-          />
-        ) : null}
-
-        <div
-          style={{
-            position: "relative",
-            width: "100%",
-            maxWidth: 720,
-            overflow: "hidden",
-            borderRadius: 12,
-            background: "#101418",
-          }}
+        <Space
+          direction="vertical"
+          size={12}
+          style={{ width: "100%" }}
         >
-          {cameraFrame.url ? (
-            <>
-              <img
-                src={cameraFrame.url}
-                alt="Camera frame"
-                style={{ display: "block", width: "100%" }}
-              />
-              {cameraOverlayPolygon ? (
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    width: "100%",
-                    height: "100%",
-                    pointerEvents: "none",
-                  }}
-                >
-                  <polygon
-                    points={cameraOverlayPolygon}
-                    fill="rgba(31, 232, 151, 0.16)"
-                    stroke="rgba(31, 232, 151, 0.98)"
-                    strokeWidth="0.45"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              ) : null}
-            </>
-          ) : (
-            <Webcam
-              ref={webcamRef}
-              audio={false}
-              mirrored={false}
-              screenshotFormat="image/jpeg"
-              screenshotQuality={1}
-              forceScreenshotSourceSize
-              imageSmoothing
-              minScreenshotWidth={1600}
-              minScreenshotHeight={1200}
-              videoConstraints={VIDEO_CONSTRAINTS}
-              onUserMediaError={() =>
-                setCameraError("Не удалось открыть live-камеру")
-              }
-              style={{
-                display: "block",
-                width: "100%",
-                aspectRatio: "4 / 3",
-                objectFit: "cover",
-              }}
-            />
-          )}
-        </div>
+          <div>
+            <Title level={3} style={{ marginTop: 0, marginBottom: 8 }}>
+              Scandit ID Capture Test
+            </Title>
+            <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+              OpenCV полностью убран с этой страницы. Камера запускается только
+              по кнопке и работает через Scandit ID Capture.
+            </Paragraph>
+          </div>
 
-        <Space wrap style={{ marginTop: 16 }}>
-          <Button
-            type="primary"
-            icon={<CameraOutlined />}
-            onClick={captureCameraFrame}
-          >
-            Снять кадр
-          </Button>
-          <Button
-            icon={<ScanOutlined />}
-            disabled={!cameraFrame.url}
-            loading={cameraFrame.loading}
-            onClick={analyzeCameraFrame}
-          >
-            Найти контур
-          </Button>
-          <Button icon={<ReloadOutlined />} onClick={resetCameraFrame}>
-            Сбросить
-          </Button>
-        </Space>
-
-        {cameraFrame.error ? (
-          <Alert
-            style={{ marginTop: 16 }}
-            type="warning"
-            message={cameraFrame.error}
-            showIcon
+          <Input.TextArea
+            autoSize={{ minRows: 3, maxRows: 6 }}
+            disabled={isBusy}
+            placeholder="Scandit license key"
+            value={licenseKey}
+            onChange={(event) => setLicenseKey(event.target.value)}
           />
-        ) : null}
 
-        {cameraFrame.url ? (
-          <>
-            <Space style={{ marginTop: 12 }} wrap>
-              <Tag color={cameraOverlayPolygon ? "green" : "orange"}>
-                {cameraOverlayPolygon ? "Контур найден" : "Контур не найден"}
-              </Tag>
-              {cameraFrame.dimensions ? (
-                <Tag>
-                  {cameraFrame.dimensions.width}x{cameraFrame.dimensions.height}
-                </Tag>
-              ) : null}
-            </Space>
+          <Space wrap>
+            <Button
+              type="primary"
+              icon={<CameraOutlined />}
+              loading={status === "loading"}
+              disabled={status === "running" || status === "captured"}
+              onClick={startScanner}
+            >
+              Запустить сканер
+            </Button>
+            <Button
+              icon={<PauseCircleOutlined />}
+              disabled={status === "idle" || status === "loading"}
+              onClick={handleStop}
+            >
+              Остановить
+            </Button>
+            <Button
+              icon={<ReloadOutlined />}
+              disabled={isBusy}
+              onClick={handleReset}
+            >
+              Сбросить
+            </Button>
+            <Tag color={statusMeta.color}>{statusMeta.text}</Tag>
+          </Space>
 
-            {cameraFrame.dimensions ? (
-              <Descriptions
-                column={1}
-                size="small"
-                bordered
-                style={{ marginTop: 12, maxWidth: 720 }}
-              >
-                <Descriptions.Item label="Ширина">
-                  {cameraFrame.dimensions.width}
-                </Descriptions.Item>
-                <Descriptions.Item label="Высота">
-                  {cameraFrame.dimensions.height}
-                </Descriptions.Item>
-              </Descriptions>
-            ) : null}
-          </>
-        ) : null}
+          <Alert
+            type="info"
+            showIcon
+            message="Что проверяем"
+            description={
+              <span>
+                Страница специально стартует Scandit вручную, чтобы не морозить
+                браузер на заходе. Assets грузятся с jsDelivr только для этой
+                test page.
+              </span>
+            }
+          />
+
+          {error ? (
+            <Alert type="error" showIcon message="Scandit error" description={error} />
+          ) : null}
+
+          {rejectionReason ? (
+            <Alert
+              type="warning"
+              showIcon
+              message="Документ отклонен"
+              description={rejectionReason}
+            />
+          ) : null}
+        </Space>
       </Card>
 
-      <Card>
-        <Title level={4} style={{ marginTop: 0 }}>
-          Static Image Test
-        </Title>
-        <Paragraph type="secondary" style={{ marginTop: 0 }}>
-          Загружает фото и показывает, какой контур OpenCV нашёл на статичном
-          изображении.
-        </Paragraph>
+      <Card
+        bodyStyle={{ padding: 0, overflow: "hidden" }}
+        title="Camera Preview"
+      >
+        <div
+          ref={scannerHostRef}
+          style={{
+            width: "100%",
+            minHeight: 640,
+            background:
+              "linear-gradient(180deg, rgba(12,17,29,0.92), rgba(12,17,29,0.78))",
+          }}
+        />
+      </Card>
 
-        <Space wrap>
-          <Button icon={<UploadOutlined />}>
-            <label style={{ cursor: "pointer" }}>
-              Загрузить фото
-              <input
-                type="file"
-                accept="image/*"
-                style={{ display: "none" }}
-                onChange={handleStaticFile}
-              />
-            </label>
-          </Button>
-          <Button icon={<ReloadOutlined />} onClick={resetStaticImage}>
-            Очистить
-          </Button>
+      <Card title="События">
+        {events.length ? (
+          <Space direction="vertical" size={8} style={{ width: "100%" }}>
+            {events.map((item) => (
+              <Text key={item}>{item}</Text>
+            ))}
+          </Space>
+        ) : (
+          <Text type="secondary">Пока пусто</Text>
+        )}
+      </Card>
+
+      <Card title="Результат">
+        {capturedSummary ? (
+          <Descriptions
+            bordered
+            column={1}
+            size="small"
+            items={Object.entries(capturedSummary).map(([label, value]) => ({
+              key: label,
+              label,
+              children: value,
+            }))}
+          />
+        ) : (
+          <Text type="secondary">Считанный документ пока не получен</Text>
+        )}
+      </Card>
+
+      {capturedImages.length ? (
+        <Card title="Изображения от Scandit">
+          <Space wrap size={16}>
+            {capturedImages.map((image) => (
+              <div key={image.key} style={{ width: 220 }}>
+                <Text strong style={{ display: "block", marginBottom: 8 }}>
+                  {image.title}
+                </Text>
+                <Image
+                  src={image.src}
+                  alt={image.title}
+                  width={220}
+                  style={{ objectFit: "contain" }}
+                />
+              </div>
+            ))}
+          </Space>
+        </Card>
+      ) : null}
+
+      <Card title="Технические заметки">
+        <Space direction="vertical" size={4}>
+          <Text code>libraryLocation: {SCANDIT_LIBRARY_LOCATION}</Text>
+          <Text code>acceptedDocuments: Passport(Region.Russia)</Text>
+          <Text code>scanner: FullDocumentScanner</Text>
         </Space>
-
-        {staticImage.loading ? (
-          <Alert
-            style={{ marginTop: 16 }}
-            type="info"
-            message="OpenCV анализирует изображение"
-            showIcon
-          />
-        ) : null}
-
-        {staticImage.error ? (
-          <Alert
-            style={{ marginTop: 16 }}
-            type="warning"
-            message={staticImage.error}
-            showIcon
-          />
-        ) : null}
-
-        {staticImage.url ? (
-          <>
-            <Divider />
-            <div
-              style={{
-                position: "relative",
-                width: "100%",
-                maxWidth: 720,
-                borderRadius: 12,
-                overflow: "hidden",
-              }}
-            >
-              <img
-                src={staticImage.url}
-                alt="Static OpenCV test"
-                style={{
-                  display: "block",
-                  width: "100%",
-                  borderRadius: 12,
-                }}
-              />
-              {staticOverlayPolygon ? (
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    width: "100%",
-                    height: "100%",
-                    pointerEvents: "none",
-                  }}
-                >
-                  <polygon
-                    points={staticOverlayPolygon}
-                    fill="rgba(31, 232, 151, 0.16)"
-                    stroke="rgba(31, 232, 151, 0.98)"
-                    strokeWidth="0.45"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              ) : null}
-            </div>
-
-            <Space style={{ marginTop: 12 }} wrap>
-              <Tag color={staticOverlayPolygon ? "green" : "orange"}>
-                {staticOverlayPolygon ? "Контур найден" : "Контур не найден"}
-              </Tag>
-              {staticImage.dimensions ? (
-                <Tag>
-                  {staticImage.dimensions.width}x{staticImage.dimensions.height}
-                </Tag>
-              ) : null}
-            </Space>
-
-            {staticImage.meta ? (
-              <Descriptions
-                column={1}
-                size="small"
-                bordered
-                style={{ marginTop: 12, maxWidth: 720 }}
-              >
-                <Descriptions.Item label="Файл">
-                  <Text copyable>{staticImage.meta.name}</Text>
-                </Descriptions.Item>
-                <Descriptions.Item label="Тип">
-                  {staticImage.meta.type}
-                </Descriptions.Item>
-                <Descriptions.Item label="Размер">
-                  {staticImage.meta.size} bytes
-                </Descriptions.Item>
-                <Descriptions.Item label="Проверено">
-                  {staticImage.meta.updatedAt}
-                </Descriptions.Item>
-              </Descriptions>
-            ) : null}
-          </>
-        ) : null}
       </Card>
     </Space>
   );
