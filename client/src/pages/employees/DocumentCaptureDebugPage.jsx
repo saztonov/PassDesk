@@ -28,8 +28,9 @@ const DocumentCaptureDebugPage = () => {
         Document Capture Debug
       </Title>
       <Paragraph type="secondary">
-        Изолированная страница для проверки Scandit ID Capture без привязки к
-        форме сотрудника и без OpenCV.
+        Изолированная страница для проверки захвата документа без SDK:
+        локализация контура через OpenCV, выравнивание снимка в scan-копию и
+        последующее OCR-распознавание.
       </Paragraph>
 
       <DocumentCaptureDebugLab />

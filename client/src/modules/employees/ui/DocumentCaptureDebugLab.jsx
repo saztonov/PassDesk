@@ -1,545 +1,680 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  App,
   Button,
   Card,
   Descriptions,
+  Empty,
   Image,
   Input,
+  Select,
   Space,
   Tag,
   Typography,
 } from "antd";
+import Webcam from "react-webcam";
 import {
   CameraOutlined,
-  PauseCircleOutlined,
   ReloadOutlined,
+  ScanOutlined,
 } from "@ant-design/icons";
+import {
+  BASE_VIDEO_CONSTRAINTS,
+  buildVisiblePreviewCanvas,
+  captureLayoutByMode,
+  clamp,
+  createPreviewUrl,
+  prepareCaptureBlob,
+} from "@/modules/employees/lib/documentCaptureUtils";
+import ocrService from "@/services/ocrService";
+import { detectDocumentCornersWithOpenCv } from "@/shared/lib/openCvDocumentScanner";
 
 const { Paragraph, Text, Title } = Typography;
 
-const SCANDIT_LIBRARY_LOCATION =
-  "https://cdn.jsdelivr.net/npm/@scandit/web-datacapture-id@8.2.1/sdc-lib/";
-const LICENSE_STORAGE_KEY = "document-capture-debug:scandit-license";
-const DEFAULT_LICENSE_KEY = import.meta.env.VITE_SCANDIT_LICENSE_KEY || "";
+const OCR_DOCUMENT_OPTIONS = [
+  { label: "Паспорт РФ", value: "passport_rf" },
+  { label: "Иностранный паспорт", value: "foreign_passport" },
+  { label: "Патент", value: "patent" },
+  { label: "КИГ", value: "kig" },
+  { label: "ИНН", value: "inn" },
+  { label: "СНИЛС", value: "snils" },
+  { label: "Банковские реквизиты", value: "bank_details" },
+  { label: "Виза", value: "visa" },
+];
 
-const STATUS_LABELS = {
-  idle: { color: "default", text: "Не запущен" },
-  loading: { color: "processing", text: "Инициализация" },
-  running: { color: "success", text: "Сканер запущен" },
-  captured: { color: "success", text: "Документ считан" },
-  rejected: { color: "warning", text: "Документ отклонен" },
-  error: { color: "error", text: "Ошибка" },
-  stopping: { color: "default", text: "Останавливаю" },
+const CAPTURE_MODE_OPTIONS = [
+  { label: "Паспорт", value: "passport" },
+  { label: "Документ", value: "document" },
+];
+
+const DETECTION_STATUS_META = {
+  idle: { color: "default", text: "Ожидание камеры" },
+  searching: { color: "processing", text: "Ищу контур" },
+  detected: { color: "success", text: "Контур найден" },
+  not_found: { color: "warning", text: "Контур не найден" },
 };
 
-const createEmptySession = () => ({
-  core: null,
-  context: null,
-  view: null,
-  camera: null,
-  idCapture: null,
-  overlay: null,
-  listener: null,
-});
+const OCR_STATUS_META = {
+  idle: { color: "default", text: "OCR не запускался" },
+  processing: { color: "processing", text: "OCR выполняется" },
+  success: { color: "success", text: "OCR завершен" },
+  error: { color: "error", text: "Ошибка OCR" },
+};
 
-const disposeSession = async (sessionRef) => {
-  const session = sessionRef.current;
-  sessionRef.current = createEmptySession();
+const toResponseData = (response) => response?.data || response || {};
 
-  if (session.idCapture && session.listener) {
-    session.idCapture.removeListener(session.listener);
+const toNormalizedPayload = (responseData = {}) =>
+  responseData.normalized || responseData?.data?.normalized || null;
+
+const formatError = (error) =>
+  error?.response?.data?.message || error?.message || "Неизвестная ошибка";
+
+const createCapturedFile = (blob) =>
+  new File([blob], `document-capture-${Date.now()}.jpg`, {
+    type: blob.type || "image/jpeg",
+    lastModified: Date.now(),
+  });
+
+const flattenNormalizedPayload = (value, prefix = "") => {
+  if (!value || typeof value !== "object") {
+    return [];
   }
 
-  try {
-    if (session.camera && session.core?.FrameSourceState?.Off) {
-      await session.camera.switchToDesiredState(session.core.FrameSourceState.Off);
+  return Object.entries(value).flatMap(([key, entryValue]) => {
+    const nextKey = prefix ? `${prefix}.${key}` : key;
+
+    if (entryValue === null || entryValue === undefined || entryValue === "") {
+      return [];
     }
-  } catch (stopError) {
-    console.error("Failed to stop Scandit camera", stopError);
-  }
 
-  try {
-    session.view?.detachFromElement();
-  } catch (detachError) {
-    console.error("Failed to detach Scandit view", detachError);
-  }
+    if (Array.isArray(entryValue)) {
+      const arrayValue = entryValue
+        .map((item) =>
+          typeof item === "object" ? JSON.stringify(item, null, 0) : String(item),
+        )
+        .join(", ");
+      return arrayValue ? [{ key: nextKey, value: arrayValue }] : [];
+    }
 
-  try {
-    await session.context?.dispose?.();
-  } catch (disposeError) {
-    console.error("Failed to dispose Scandit context", disposeError);
-  }
-};
+    if (typeof entryValue === "object") {
+      return flattenNormalizedPayload(entryValue, nextKey);
+    }
 
-const getInitialLicenseKey = () => {
-  if (DEFAULT_LICENSE_KEY) {
-    return DEFAULT_LICENSE_KEY;
-  }
-
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return window.localStorage.getItem(LICENSE_STORAGE_KEY) || "";
-};
-
-const formatDateResult = (dateResult) => {
-  if (!dateResult?.year) {
-    return "n/a";
-  }
-
-  const day = String(dateResult.day || 1).padStart(2, "0");
-  const month = String(dateResult.month || 1).padStart(2, "0");
-
-  return `${day}.${month}.${dateResult.year}`;
-};
-
-const createCapturedIdSummary = (capturedId) => ({
-  "Тип документа": capturedId.document?.documentType || "unknown",
-  "Полное имя": capturedId.fullName || "n/a",
-  Имя: capturedId.firstName || "n/a",
-  Фамилия: capturedId.lastName || "n/a",
-  "Номер документа": capturedId.documentNumber || "n/a",
-  "Страна выдачи": capturedId.issuingCountryIso || "n/a",
-  Гражданство: capturedId.nationalityISO || "n/a",
-  "Дата рождения": formatDateResult(capturedId.dateOfBirth),
-  "Дата выдачи": formatDateResult(capturedId.dateOfIssue),
-  "Дата окончания": formatDateResult(capturedId.dateOfExpiry),
-  Адрес: capturedId.address || "n/a",
-  "Полнота захвата": capturedId.isCapturingComplete ? "complete" : "partial",
-});
-
-const createImagePreviews = (capturedId, idSideEnum) => {
-  const previews = [
-    {
-      key: "front",
-      title: "Cropped document",
-      src: capturedId.images.getCroppedDocument(idSideEnum.Front),
-    },
-    {
-      key: "frame",
-      title: "Frame",
-      src: capturedId.images.frame,
-    },
-    {
-      key: "face",
-      title: "Face",
-      src: capturedId.images.face,
-    },
-  ];
-
-  return previews.filter((image) => image.src);
-};
-
-const formatError = (error) => {
-  if (!error) {
-    return "Unknown error";
-  }
-
-  if (typeof error === "string") {
-    return error;
-  }
-
-  return error.message || error.name || "Unknown error";
+    return [{ key: nextKey, value: String(entryValue) }];
+  });
 };
 
 const DocumentCaptureDebugLab = () => {
-  const scannerHostRef = useRef(null);
-  const sessionRef = useRef(createEmptySession());
-  const startRequestIdRef = useRef(0);
-  const mountedRef = useRef(true);
+  const { message } = App.useApp();
+  const webcamRef = useRef(null);
+  const detectionInFlightRef = useRef(false);
+  const previewUrlRef = useRef("");
 
-  const [licenseKey, setLicenseKey] = useState(getInitialLicenseKey);
-  const [status, setStatus] = useState("idle");
-  const [error, setError] = useState("");
-  const [rejectionReason, setRejectionReason] = useState("");
-  const [capturedSummary, setCapturedSummary] = useState(null);
-  const [capturedImages, setCapturedImages] = useState([]);
+  const [captureMode, setCaptureMode] = useState("passport");
+  const [ocrDocumentType, setOcrDocumentType] = useState("passport_rf");
+  const [cameraError, setCameraError] = useState("");
+  const [shooting, setShooting] = useState(false);
+  const [ocrStatus, setOcrStatus] = useState("idle");
+  const [ocrError, setOcrError] = useState("");
+  const [ocrResult, setOcrResult] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [events, setEvents] = useState([]);
+  const [detection, setDetection] = useState({
+    status: "idle",
+    corners: [],
+    misses: 0,
+  });
 
-  const pushEvent = (message) => {
+  const captureLayout = useMemo(
+    () => captureLayoutByMode[captureMode] || captureLayoutByMode.document,
+    [captureMode],
+  );
+  const videoConstraints = useMemo(
+    () => ({
+      ...BASE_VIDEO_CONSTRAINTS,
+      aspectRatio:
+        captureMode === "passport"
+          ? { ideal: captureLayout.viewportAspect }
+          : undefined,
+    }),
+    [captureLayout.viewportAspect, captureMode],
+  );
+
+  const pushEvent = useCallback((messageText) => {
     const timestamp = new Date().toLocaleTimeString("ru-RU");
-
-    setEvents((previous) => [`${timestamp} ${message}`, ...previous].slice(0, 10));
-  };
-
-  useEffect(() => {
-    mountedRef.current = true;
-
-    return () => {
-      mountedRef.current = false;
-      void disposeSession(sessionRef);
-    };
+    setEvents((previous) => [`${timestamp} ${messageText}`, ...previous].slice(0, 12));
   }, []);
 
+  const releasePreview = useCallback(() => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = "";
+    }
+  }, []);
+
+  const resetPreview = useCallback(() => {
+    releasePreview();
+    setPreview(null);
+    setOcrStatus("idle");
+    setOcrError("");
+    setOcrResult(null);
+  }, [releasePreview]);
+
+  useEffect(
+    () => () => {
+      releasePreview();
+    },
+    [releasePreview],
+  );
+
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (preview?.url || cameraError) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    let timerId = null;
+
+    const schedule = (delay) => {
+      timerId = window.setTimeout(runDetection, delay);
+    };
+
+    const runDetection = async () => {
+      if (cancelled || detectionInFlightRef.current) {
+        return;
+      }
+
+      const video = webcamRef.current?.video;
+      if (!video || video.readyState < 2) {
+        schedule(250);
+        return;
+      }
+
+      const previewCanvas = buildVisiblePreviewCanvas(
+        video,
+        captureLayout.viewportAspect,
+        captureLayout.previewMaxDimension,
+      );
+      if (!previewCanvas) {
+        schedule(250);
+        return;
+      }
+
+      detectionInFlightRef.current = true;
+
+      try {
+        const corners = await detectDocumentCornersWithOpenCv(
+          previewCanvas.canvas,
+          captureMode,
+          { preview: true },
+        );
+        if (cancelled) {
+          return;
+        }
+
+        const normalizedCorners = corners.map((point) => ({
+          x: clamp(point.x / previewCanvas.canvas.width, 0, 1),
+          y: clamp(point.y / previewCanvas.canvas.height, 0, 1),
+        }));
+
+        setDetection({
+          status: "detected",
+          corners: normalizedCorners,
+          misses: 0,
+        });
+      } catch {
+        if (!cancelled) {
+          setDetection((previous) => ({
+            status: previous.misses >= 3 ? "not_found" : "searching",
+            corners: [],
+            misses: previous.misses + 1,
+          }));
+        }
+      } finally {
+        detectionInFlightRef.current = false;
+        if (!cancelled) {
+          schedule(350);
+        }
+      }
+    };
+
+    setDetection((previous) => ({
+      status: previous.status === "detected" ? "detected" : "searching",
+      corners: previous.corners,
+      misses: previous.misses,
+    }));
+    schedule(120);
+
+    return () => {
+      cancelled = true;
+      detectionInFlightRef.current = false;
+      if (timerId) {
+        window.clearTimeout(timerId);
+      }
+    };
+  }, [
+    cameraError,
+    captureLayout.previewMaxDimension,
+    captureLayout.viewportAspect,
+    captureMode,
+    preview?.url,
+  ]);
+
+  const handleTakePhoto = async () => {
+    const dataUrl = webcamRef.current?.getScreenshot();
+    if (!dataUrl) {
+      message.error("Не удалось получить кадр с камеры");
       return;
     }
 
-    if (licenseKey) {
-      window.localStorage.setItem(LICENSE_STORAGE_KEY, licenseKey);
-      return;
-    }
-
-    window.localStorage.removeItem(LICENSE_STORAGE_KEY);
-  }, [licenseKey]);
-
-  const startScanner = async () => {
-    const trimmedLicenseKey = licenseKey.trim();
-
-    if (!trimmedLicenseKey) {
-      setError("Добавь Scandit license key");
-      return;
-    }
-
-    if (!scannerHostRef.current) {
-      setError("Контейнер сканера не готов");
-      return;
-    }
-
-    const requestId = startRequestIdRef.current + 1;
-    startRequestIdRef.current = requestId;
-
-    setStatus("loading");
-    setError("");
-    setRejectionReason("");
-    setCapturedSummary(null);
-    setCapturedImages([]);
-    setEvents([]);
-    pushEvent("Запускаю Scandit");
-
-    await disposeSession(sessionRef);
+    setShooting(true);
+    pushEvent("Снимаю кадр");
 
     try {
-      const [core, idCaptureSdk] = await Promise.all([
-        import("@scandit/web-datacapture-core"),
-        import("@scandit/web-datacapture-id"),
-      ]);
-
-      if (!mountedRef.current || requestId !== startRequestIdRef.current) {
-        return;
-      }
-
-      const context = await core.DataCaptureContext.forLicenseKey(
-        trimmedLicenseKey,
-        {
-          libraryLocation: SCANDIT_LIBRARY_LOCATION,
-          moduleLoaders: [
-            idCaptureSdk.idCaptureLoader({
-              enableVIZDocuments: true,
-            }),
-          ],
-        },
+      const blob = await prepareCaptureBlob({
+        dataUrl,
+        normalizedCorners: detection.corners,
+        viewportAspect: captureLayout.viewportAspect,
+        layout: captureLayout,
+      });
+      const url = createPreviewUrl(blob);
+      const file = createCapturedFile(blob);
+      releasePreview();
+      previewUrlRef.current = url;
+      setPreview({
+        url,
+        file,
+        scanStrategy:
+          detection.corners.length === 4 ? "perspective_warp" : "guide_crop",
+      });
+      setOcrStatus("idle");
+      setOcrError("");
+      setOcrResult(null);
+      pushEvent(
+        detection.corners.length === 4
+          ? "Контур найден, снимок выровнен по перспективе"
+          : "Контур не найден, снимок обрезан по рамке",
       );
-      sessionRef.current.context = context;
-
-      const view = await core.DataCaptureView.forContext(context);
-      sessionRef.current.view = view;
-      view.connectToElement(scannerHostRef.current);
-
-      const settings = new idCaptureSdk.IdCaptureSettings();
-      settings.scanner = new idCaptureSdk.FullDocumentScanner();
-      settings.acceptedDocuments = [
-        new idCaptureSdk.Passport(idCaptureSdk.Region.Russia),
-      ];
-      settings.setShouldPassImageTypeToResult(
-        idCaptureSdk.IdImageType.CroppedDocument,
-        true,
-      );
-      settings.setShouldPassImageTypeToResult(
-        idCaptureSdk.IdImageType.Frame,
-        true,
-      );
-
-      const idCapture = await idCaptureSdk.IdCapture.forContext(
-        context,
-        settings,
-      );
-      sessionRef.current.idCapture = idCapture;
-
-      const overlay = await idCaptureSdk.IdCaptureOverlay.withIdCaptureForView(
-        idCapture,
-        view,
-      );
-      sessionRef.current.overlay = overlay;
-      overlay.showTextHints = true;
-      overlay.idLayoutStyle = idCaptureSdk.IdLayoutStyle.Rounded;
-      overlay.idLayoutLineStyle = idCaptureSdk.IdLayoutLineStyle.Bold;
-
-      const listener = {
-        didLocalizeId: () => {
-          if (!mountedRef.current) {
-            return;
-          }
-
-          pushEvent("Документ локализован");
-        },
-        didCaptureId: async (capturedId) => {
-          if (!mountedRef.current) {
-            return;
-          }
-
-          pushEvent("Документ считан");
-          setStatus("captured");
-          setError("");
-          setRejectionReason("");
-          setCapturedSummary(createCapturedIdSummary(capturedId));
-          setCapturedImages(
-            createImagePreviews(capturedId, idCaptureSdk.IdSide),
-          );
-
-          try {
-            await idCapture.setEnabled(false);
-          } catch (disableError) {
-            console.error("Failed to disable Scandit after capture", disableError);
-          }
-        },
-        didRejectId: (_, reason) => {
-          if (!mountedRef.current) {
-            return;
-          }
-
-          pushEvent(`Документ отклонен: ${reason}`);
-          setStatus("rejected");
-          setRejectionReason(reason);
-        },
-        didFailWithError: (_, sdkError) => {
-          if (!mountedRef.current) {
-            return;
-          }
-
-          const message = formatError(sdkError);
-          pushEvent(`Ошибка: ${message}`);
-          setStatus("error");
-          setError(message);
-        },
-      };
-
-      idCapture.addListener(listener);
-      sessionRef.current.listener = listener;
-      sessionRef.current.core = core;
-
-      const camera = core.Camera.pickBestGuessForPosition(
-        core.CameraPosition.WorldFacing,
-      );
-      sessionRef.current.camera = camera;
-      await camera.applySettings(idCaptureSdk.IdCapture.recommendedCameraSettings);
-      await context.setFrameSource(camera);
-      await camera.switchToDesiredState(core.FrameSourceState.On);
-
-      if (!mountedRef.current || requestId !== startRequestIdRef.current) {
-        await disposeSession(sessionRef);
-        return;
-      }
-
-      setStatus("running");
-      pushEvent("Камера запущена");
-    } catch (startError) {
-      await disposeSession(sessionRef);
-
-      if (!mountedRef.current) {
-        return;
-      }
-
-      const message = formatError(startError);
-      setStatus("error");
-      setError(message);
-      pushEvent(`Старт не удался: ${message}`);
+    } catch (error) {
+      const messageText = formatError(error);
+      setOcrError(messageText);
+      setOcrStatus("error");
+      pushEvent(`Ошибка подготовки снимка: ${messageText}`);
+      message.error(messageText);
+    } finally {
+      setShooting(false);
     }
   };
 
-  const handleStop = async () => {
-    setStatus("stopping");
-    pushEvent("Останавливаю сканер");
-    await disposeSession(sessionRef);
-
-    if (!mountedRef.current) {
+  const handleRecognize = async () => {
+    if (!preview?.file) {
       return;
     }
 
-    setStatus("idle");
+    setOcrStatus("processing");
+    setOcrError("");
+    pushEvent(`Запускаю OCR для ${ocrDocumentType}`);
+
+    try {
+      const response = await ocrService.recognizeDocument({
+        documentType: ocrDocumentType,
+        file: preview.file,
+      });
+      const responseData = toResponseData(response);
+      const normalized = toNormalizedPayload(responseData);
+
+      setOcrResult(responseData);
+      setOcrStatus("success");
+      pushEvent(
+        normalized
+          ? `OCR завершен, распознано полей: ${flattenNormalizedPayload(normalized).length}`
+          : "OCR завершен, но нормализованных полей нет",
+      );
+      message.success("OCR распознавание завершено");
+    } catch (error) {
+      const messageText = formatError(error);
+      setOcrStatus("error");
+      setOcrError(messageText);
+      pushEvent(`Ошибка OCR: ${messageText}`);
+      message.error(messageText);
+    }
   };
 
-  const handleReset = async () => {
-    setCapturedSummary(null);
-    setCapturedImages([]);
-    setRejectionReason("");
-    setError("");
+  const handleReset = () => {
+    resetPreview();
+    setCameraError("");
+    setDetection({ status: "idle", corners: [], misses: 0 });
     setEvents([]);
-
-    if (sessionRef.current.idCapture) {
-      try {
-        await sessionRef.current.idCapture.reset();
-        await sessionRef.current.idCapture.setEnabled(true);
-      } catch (resetError) {
-        setError(formatError(resetError));
-        setStatus("error");
-        return;
-      }
-
-      pushEvent("Сессия сканирования сброшена");
-      setStatus("running");
-      return;
-    }
-
-    setStatus("idle");
   };
 
-  const statusMeta = STATUS_LABELS[status] || STATUS_LABELS.idle;
-  const isBusy = status === "loading" || status === "stopping";
+  const handleCameraError = () => {
+    setCameraError("Не удалось открыть live-камеру. Проверьте разрешения браузера.");
+    pushEvent("Браузер не дал доступ к камере");
+  };
+
+  const normalizedResult = toNormalizedPayload(ocrResult) || {};
+  const normalizedEntries = flattenNormalizedPayload(normalizedResult);
+  const detectionPolygon =
+    detection.corners.length === 4
+      ? detection.corners.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")
+      : "";
+  const detectionMeta =
+    DETECTION_STATUS_META[detection.status] || DETECTION_STATUS_META.idle;
+  const ocrMeta = OCR_STATUS_META[ocrStatus] || OCR_STATUS_META.idle;
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
       <Card>
-        <Space
-          direction="vertical"
-          size={12}
-          style={{ width: "100%" }}
-        >
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
           <div>
             <Title level={3} style={{ marginTop: 0, marginBottom: 8 }}>
-              Scandit ID Capture Test
+              Computer Vision Document Capture
             </Title>
             <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-              OpenCV полностью убран с этой страницы. Камера запускается только
-              по кнопке и работает через Scandit ID Capture.
+              Страница работает без SDK: OpenCV ищет контур документа, кадр
+              выравнивается в scan-копию, после чего этот снимок отправляется в
+              OCR.
             </Paragraph>
           </div>
 
-          <Input.TextArea
-            autoSize={{ minRows: 3, maxRows: 6 }}
-            disabled={isBusy}
-            placeholder="Scandit license key"
-            value={licenseKey}
-            onChange={(event) => setLicenseKey(event.target.value)}
-          />
+          <Space wrap>
+            <div>
+              <Text type="secondary">Режим захвата</Text>
+              <Select
+                options={CAPTURE_MODE_OPTIONS}
+                style={{ width: 180, display: "block", marginTop: 4 }}
+                value={captureMode}
+                onChange={setCaptureMode}
+              />
+            </div>
+            <div>
+              <Text type="secondary">Тип OCR</Text>
+              <Select
+                options={OCR_DOCUMENT_OPTIONS}
+                style={{ width: 220, display: "block", marginTop: 4 }}
+                value={ocrDocumentType}
+                onChange={setOcrDocumentType}
+              />
+            </div>
+          </Space>
 
           <Space wrap>
-            <Button
-              type="primary"
-              icon={<CameraOutlined />}
-              loading={status === "loading"}
-              disabled={status === "running" || status === "captured"}
-              onClick={startScanner}
-            >
-              Запустить сканер
-            </Button>
-            <Button
-              icon={<PauseCircleOutlined />}
-              disabled={status === "idle" || status === "loading"}
-              onClick={handleStop}
-            >
-              Остановить
-            </Button>
-            <Button
-              icon={<ReloadOutlined />}
-              disabled={isBusy}
-              onClick={handleReset}
-            >
-              Сбросить
-            </Button>
-            <Tag color={statusMeta.color}>{statusMeta.text}</Tag>
+            <Tag color={detectionMeta.color}>{detectionMeta.text}</Tag>
+            <Tag color={ocrMeta.color}>{ocrMeta.text}</Tag>
+            {preview?.scanStrategy === "perspective_warp" ? (
+              <Tag color="success">Scan: perspective warp</Tag>
+            ) : null}
+            {preview?.scanStrategy === "guide_crop" ? (
+              <Tag color="warning">Scan: guide crop</Tag>
+            ) : null}
           </Space>
 
           <Alert
             type="info"
             showIcon
-            message="Что проверяем"
+            message="Как это работает"
             description={
               <span>
-                Страница специально стартует Scandit вручную, чтобы не морозить
-                браузер на заходе. Assets грузятся с jsDelivr только для этой
-                test page.
+                1. OpenCV в live-потоке ищет внешний контур документа.
+                <br />
+                2. По кнопке `Снять` текущий кадр выравнивается в scan-копию.
+                <br />
+                3. По кнопке `Распознать` scan-копия отправляется в OCR.
               </span>
             }
           />
 
-          {error ? (
-            <Alert type="error" showIcon message="Scandit error" description={error} />
+          {cameraError ? (
+            <Alert type="error" showIcon message="Камера" description={cameraError} />
           ) : null}
 
-          {rejectionReason ? (
-            <Alert
-              type="warning"
-              showIcon
-              message="Документ отклонен"
-              description={rejectionReason}
-            />
+          {ocrError ? (
+            <Alert type="error" showIcon message="OCR" description={ocrError} />
           ) : null}
         </Space>
       </Card>
 
-      <Card
-        bodyStyle={{ padding: 0, overflow: "hidden" }}
-        title="Camera Preview"
-      >
+      <Card bodyStyle={{ padding: 0, overflow: "hidden" }} title="Live Capture">
         <div
-          ref={scannerHostRef}
           style={{
+            position: "relative",
             width: "100%",
             minHeight: 640,
             background:
               "linear-gradient(180deg, rgba(12,17,29,0.92), rgba(12,17,29,0.78))",
           }}
-        />
+        >
+          {preview?.url ? (
+            <img
+              src={preview.url}
+              alt="Scan preview"
+              style={{
+                display: "block",
+                width: "100%",
+                minHeight: 640,
+                maxHeight: 820,
+                objectFit: "contain",
+                background: "#0d1217",
+              }}
+            />
+          ) : (
+            <Webcam
+              ref={webcamRef}
+              audio={false}
+              mirrored={false}
+              screenshotFormat="image/jpeg"
+              screenshotQuality={1}
+              forceScreenshotSourceSize
+              imageSmoothing
+              minScreenshotWidth={1920}
+              minScreenshotHeight={1080}
+              videoConstraints={videoConstraints}
+              onUserMedia={() => pushEvent("Камера готова")}
+              onUserMediaError={handleCameraError}
+              style={{
+                display: "block",
+                width: "100%",
+                minHeight: 640,
+                objectFit: "cover",
+              }}
+            />
+          )}
+
+          {!preview?.url ? (
+            <>
+              <div
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "grid",
+                  placeItems: "center",
+                  pointerEvents: "none",
+                  background:
+                    "linear-gradient(rgba(10,14,18,0.46), rgba(10,14,18,0.28))",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${captureLayout.frameWidth * 100}%`,
+                    height: `${captureLayout.frameHeight * 100}%`,
+                    borderRadius: captureMode === "passport" ? 8 : 24,
+                    border: "2px solid rgba(255,255,255,0.94)",
+                    boxShadow:
+                      "0 0 0 999px rgba(6, 10, 14, 0.36), 0 0 0 1px rgba(255,255,255,0.12) inset",
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  position: "absolute",
+                  top: 12,
+                  left: 12,
+                  zIndex: 2,
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  background:
+                    detection.status === "detected"
+                      ? "rgba(31, 232, 151, 0.16)"
+                      : "rgba(255, 184, 0, 0.18)",
+                  border:
+                    detection.status === "detected"
+                      ? "1px solid rgba(31, 232, 151, 0.48)"
+                      : "1px solid rgba(255, 184, 0, 0.4)",
+                  color: "#fff",
+                  fontSize: 12,
+                  lineHeight: 1.2,
+                  fontWeight: 600,
+                }}
+              >
+                {detection.status === "detected"
+                  ? "OpenCV: контур найден"
+                  : detection.status === "not_found"
+                    ? "OpenCV: контур не найден"
+                    : "OpenCV: ищу контур"}
+              </div>
+
+              <svg
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  pointerEvents: "none",
+                }}
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                {detectionPolygon ? (
+                  <>
+                    <polygon
+                      points={detectionPolygon}
+                      fill="rgba(31, 232, 151, 0.16)"
+                      stroke="rgba(31, 232, 151, 0.98)"
+                      strokeWidth="0.45"
+                      strokeLinejoin="round"
+                    />
+                    {detection.corners.map((point, index) => (
+                      <circle
+                        key={`${point.x}-${point.y}-${index}`}
+                        cx={point.x * 100}
+                        cy={point.y * 100}
+                        r="0.8"
+                        fill="rgba(31, 232, 151, 1)"
+                        stroke="rgba(6, 10, 14, 0.72)"
+                        strokeWidth="0.24"
+                      />
+                    ))}
+                  </>
+                ) : null}
+              </svg>
+            </>
+          ) : null}
+        </div>
+
+        <div style={{ padding: 16 }}>
+          <Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
+            {preview?.url
+              ? "Ниже показана scan-копия после выравнивания документа."
+              : detection.status === "detected"
+                ? "OpenCV нашел контур. При съемке будет использовано перспективное выравнивание."
+                : detection.status === "not_found"
+                  ? `${captureLayout.helperText} Если контур не находится, сработает обрезка по рамке.`
+                  : "OpenCV анализирует live-кадр. Держите документ ровно и уменьшите блики."}
+          </Text>
+
+          <Space wrap>
+            {preview?.url ? (
+              <>
+                <Button icon={<ReloadOutlined />} onClick={resetPreview}>
+                  Переснять
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<ScanOutlined />}
+                  loading={ocrStatus === "processing"}
+                  onClick={handleRecognize}
+                >
+                  Распознать
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="primary"
+                icon={<CameraOutlined />}
+                loading={shooting}
+                disabled={Boolean(cameraError)}
+                onClick={handleTakePhoto}
+              >
+                Снять
+              </Button>
+            )}
+            <Button icon={<ReloadOutlined />} onClick={handleReset}>
+              Сбросить все
+            </Button>
+          </Space>
+        </div>
+      </Card>
+
+      <Card title="OCR Result">
+        {ocrStatus === "success" && normalizedEntries.length > 0 ? (
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+            {preview?.url ? (
+              <Image
+                src={preview.url}
+                alt="Recognized scan"
+                style={{ maxWidth: 420, width: "100%" }}
+              />
+            ) : null}
+
+            <Descriptions bordered size="small" column={1}>
+              {normalizedEntries.map((entry) => (
+                <Descriptions.Item key={entry.key} label={entry.key}>
+                  {entry.value}
+                </Descriptions.Item>
+              ))}
+            </Descriptions>
+
+            <div>
+              <Text type="secondary">Raw normalized JSON</Text>
+              <Input.TextArea
+                readOnly
+                autoSize={{ minRows: 8, maxRows: 18 }}
+                value={JSON.stringify(normalizedResult, null, 2)}
+              />
+            </div>
+          </Space>
+        ) : ocrStatus === "success" ? (
+          <Empty description="OCR завершен, но нормализованных полей нет" />
+        ) : (
+          <Empty description="Снимите документ и запустите OCR" />
+        )}
       </Card>
 
       <Card title="События">
-        {events.length ? (
-          <Space direction="vertical" size={8} style={{ width: "100%" }}>
-            {events.map((item) => (
-              <Text key={item}>{item}</Text>
-            ))}
-          </Space>
-        ) : (
-          <Text type="secondary">Пока пусто</Text>
-        )}
+        <Space direction="vertical" size={8} style={{ width: "100%" }}>
+          {events.length === 0 ? (
+            <Text type="secondary">Событий пока нет</Text>
+          ) : (
+            events.map((entry) => (
+              <Text key={entry} code>
+                {entry}
+              </Text>
+            ))
+          )}
+        </Space>
       </Card>
-
-      <Card title="Результат">
-        {capturedSummary ? (
-          <Descriptions
-            bordered
-            column={1}
-            size="small"
-            items={Object.entries(capturedSummary).map(([label, value]) => ({
-              key: label,
-              label,
-              children: value,
-            }))}
-          />
-        ) : (
-          <Text type="secondary">Считанный документ пока не получен</Text>
-        )}
-      </Card>
-
-      {capturedImages.length ? (
-        <Card title="Изображения от Scandit">
-          <Space wrap size={16}>
-            {capturedImages.map((image) => (
-              <div key={image.key} style={{ width: 220 }}>
-                <Text strong style={{ display: "block", marginBottom: 8 }}>
-                  {image.title}
-                </Text>
-                <Image
-                  src={image.src}
-                  alt={image.title}
-                  width={220}
-                  style={{ objectFit: "contain" }}
-                />
-              </div>
-            ))}
-          </Space>
-        </Card>
-      ) : null}
 
       <Card title="Технические заметки">
         <Space direction="vertical" size={4}>
-          <Text code>libraryLocation: {SCANDIT_LIBRARY_LOCATION}</Text>
-          <Text code>acceptedDocuments: Passport(Region.Russia)</Text>
-          <Text code>scanner: FullDocumentScanner</Text>
+          <Text code>detector: OpenCV contour detection</Text>
+          <Text code>scan output: perspective warp or guide crop</Text>
+          <Text code>ocr endpoint: POST /ocr/recognize</Text>
+          <Text code>capture mode: {captureMode}</Text>
+          <Text code>ocr document type: {ocrDocumentType}</Text>
         </Space>
       </Card>
     </Space>
