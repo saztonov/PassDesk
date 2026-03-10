@@ -1,4 +1,5 @@
 import ocrService from "@/services/ocrService";
+import { detectAndExtractDocumentWithOpenCv } from "@/shared/lib/openCvDocumentScanner";
 import {
   extractDocument as scanicExtractDocument,
   scanDocument as scanicScanDocument,
@@ -421,6 +422,16 @@ export const createAiScannedDocument = async ({
     return await createScanWithScanic(image, fileNameBase, documentType);
   } catch (scanicError) {
     console.warn("Scanic fallback to OCR scan:", scanicError);
+  }
+
+  try {
+    const { canvas } = await detectAndExtractDocumentWithOpenCv(
+      image,
+      documentType,
+    );
+    return processCanvasToScanFile(canvas, fileNameBase);
+  } catch (openCvError) {
+    console.warn("OpenCV fallback to OCR scan:", openCvError);
   }
 
   const response = await ocrService.scanDocument({ file, documentType });
