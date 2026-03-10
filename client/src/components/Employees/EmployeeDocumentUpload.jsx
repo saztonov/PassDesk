@@ -8,7 +8,6 @@ import {
   CameraOutlined,
 } from "@ant-design/icons";
 import { employeeService } from "@/services/employeeService";
-import { DocumentScannerModal as DocumentCamera } from "@/features/document-scanner";
 import {
   ALLOWED_MIME_TYPES,
   SUPPORTED_FORMATS,
@@ -42,7 +41,6 @@ const EmployeeDocumentUpload = ({
     uploading: false,
     previewImage: null,
     previewVisible: false,
-    cameraVisible: false,
     resolvedEmployeeId: null,
   });
   const {
@@ -51,13 +49,11 @@ const EmployeeDocumentUpload = ({
     uploading,
     previewImage,
     previewVisible,
-    cameraVisible,
     resolvedEmployeeId,
   } = state;
   const effectiveEmployeeId = employeeId || resolvedEmployeeId;
-  const cameraMode = documentType === "passport" ? "passport" : "document";
 
-  // Ссылка на скрытый инпут для системной камеры (резервный вариант)
+  // Ссылка на скрытый инпут для системной камеры
   const nativeCameraInputRef = useRef(null);
 
   // Ссылка на скрытый инпут для выбора файлов
@@ -236,15 +232,6 @@ const EmployeeDocumentUpload = ({
     e.target.value = "";
   };
 
-  // Обработка захвата в нашем document scanner
-  const handleCameraCapture = async (blob) => {
-    const file = new File([blob], `document-${Date.now()}.jpg`, {
-      type: "image/jpeg",
-    });
-    setState((prev) => ({ ...prev, cameraVisible: false }));
-    await uploadFile(file);
-  };
-
   // Обработка выбора файлов из файлового менеджера
   const handleFileSelect = async (e) => {
     const files = e.target.files;
@@ -272,32 +259,15 @@ const EmployeeDocumentUpload = ({
     }
   };
 
-  // Запуск собственного document scanner с fallback на системную камеру
+  // Открыть системную камеру
   const handleStartCamera = () => {
     if (!effectiveEmployeeId && !ensureEmployeeId) {
       message.error("Сначала сохраните черновик сотрудника");
       return;
     }
 
-    const supportsScanner =
-      typeof window !== "undefined" &&
-      Boolean(window.isSecureContext) &&
-      Boolean(navigator.mediaDevices?.getUserMedia);
-
-    if (supportsScanner) {
-      setState((prev) => ({ ...prev, cameraVisible: true }));
-      return;
-    }
-
     nativeCameraInputRef.current?.click();
   };
-
-  const handleScannerFallback = useCallback(() => {
-    setState((prev) => ({ ...prev, cameraVisible: false }));
-    window.setTimeout(() => {
-      nativeCameraInputRef.current?.click();
-    }, 0);
-  }, []);
 
   // Удаление файла
   const handleDelete = async (fileId) => {
@@ -500,14 +470,6 @@ const EmployeeDocumentUpload = ({
           onVisibleChange: (visible) =>
             setState((prev) => ({ ...prev, previewVisible: visible })),
         }}
-      />
-
-      <DocumentCamera
-        visible={cameraVisible}
-        mode={cameraMode}
-        onCapture={handleCameraCapture}
-        onFallback={handleScannerFallback}
-        onCancel={() => setState((prev) => ({ ...prev, cameraVisible: false }))}
       />
     </div>
   );
