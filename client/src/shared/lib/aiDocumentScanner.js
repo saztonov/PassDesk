@@ -1,4 +1,5 @@
 import ocrService from "@/services/ocrService";
+import { scanDocument as scanicScanDocument } from "scanic";
 
 const clamp = (value, min, max) => {
   if (value < min) return min;
@@ -263,22 +264,66 @@ const canvasToBlob = (canvas, mimeType = "image/jpeg", quality = 0.92) =>
     }, mimeType, quality);
   });
 
+const processCanvasToScanFile = async (canvas, fileNameBase) => {
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) {
+    throw new Error("Canvas недоступен для сборки scan-копии");
+  }
+
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  enhanceScanLikeAppearance(imageData);
+  context.putImageData(imageData, 0, 0);
+
+  const blob = await canvasToBlob(canvas);
+
+  return new File([blob], `${fileNameBase}-scan.jpg`, {
+    type: "image/jpeg",
+    lastModified: Date.now(),
+  });
+};
+
+const createScanWithScanic = async (image, fileNameBase) => {
+  const result = await scanicScanDocument(image, {
+    mode: "extract",
+    output: "canvas",
+    maxProcessingDimension: 1600,
+    minArea: 4000,
+  });
+
+  if (!result?.success || !result.output) {
+    throw new Error(result?.message || "Локальный detector не нашел документ");
+  }
+
+  return processCanvasToScanFile(result.output, fileNameBase);
+};
+
 export const createAiScannedDocument = async ({
   file,
   documentType,
 }) => {
-  const response = await ocrService.scanDocument({
-    file,
-    documentType,
-  });
+  const fileNameBase = String(file.name || "document")
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^\w.-]+/g, "_");
+  const image = await loadImageFromFile(file);
+
+  try {
+    return await createScanWithScanic(image, fileNameBase);
+  } catch (scanicError) {
+    console.warn("Scanic fallback to OCR scan:", scanicError);
+  }
+
+  const response = await ocrService.scanDocument({ file, documentType });
 
   const payload = response?.data || response || {};
   const normalized = payload?.normalized || {};
-  if (!normalized?.detected || !Array.isArray(normalized?.corners) || normalized.corners.length !== 4) {
+  if (
+    !normalized?.detected ||
+    !Array.isArray(normalized?.corners) ||
+    normalized.corners.length !== 4
+  ) {
     throw new Error("AI не смог уверенно определить границы документа");
   }
 
-  const image = await loadImageFromFile(file);
   const sourceCanvas = document.createElement("canvas");
   sourceCanvas.width = image.naturalWidth || image.width;
   sourceCanvas.height = image.naturalHeight || image.height;
@@ -309,15 +354,8 @@ export const createAiScannedDocument = async ({
   }
 
   outputCtx.putImageData(warped, 0, 0);
-  const blob = await canvasToBlob(outputCanvas);
-  const fileNameBase = String(file.name || "document")
-    .replace(/\.[^.]+$/, "")
-    .replace(/[^\w.-]+/g, "_");
 
-  return new File([blob], `${fileNameBase}-scan.jpg`, {
-    type: "image/jpeg",
-    lastModified: Date.now(),
-  });
+  return processCanvasToScanFile(outputCanvas, fileNameBase);
 };
 
 export default createAiScannedDocument;
