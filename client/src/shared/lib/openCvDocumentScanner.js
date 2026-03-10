@@ -82,12 +82,26 @@ const normalizePoints = (points, scaleX, scaleY, maxWidth, maxHeight) => {
   return ordered;
 };
 
-const getDetectorAttempts = (documentType) => {
+const getDetectorAttempts = (documentType, { preview = false } = {}) => {
   if (documentType === "passport") {
+    if (preview) {
+      return [
+        { maxDimension: 960, blur: 5, lower: 18, upper: 72, close: 5, minAreaRatio: 0.16 },
+        { maxDimension: 800, blur: 5, lower: 12, upper: 54, close: 7, minAreaRatio: 0.12 },
+      ];
+    }
+
     return [
       { maxDimension: 1600, blur: 5, lower: 20, upper: 80, close: 5, minAreaRatio: 0.18 },
       { maxDimension: 1400, blur: 5, lower: 14, upper: 64, close: 7, minAreaRatio: 0.14 },
       { maxDimension: 1200, blur: 7, lower: 10, upper: 48, close: 9, minAreaRatio: 0.1 },
+    ];
+  }
+
+  if (preview) {
+    return [
+      { maxDimension: 960, blur: 5, lower: 26, upper: 96, close: 5, minAreaRatio: 0.1 },
+      { maxDimension: 800, blur: 5, lower: 16, upper: 64, close: 7, minAreaRatio: 0.08 },
     ];
   }
 
@@ -302,12 +316,13 @@ const createCanvasFromWarp = (cv, image, points) => {
   }
 };
 
-export const detectAndExtractDocumentWithOpenCv = async (
+export const detectDocumentCornersWithOpenCv = async (
   image,
   documentType = "document",
+  options = {},
 ) => {
   const cv = await getOpenCv();
-  const attempts = getDetectorAttempts(documentType);
+  const attempts = getDetectorAttempts(documentType, options);
   let points = null;
 
   for (const attempt of attempts) {
@@ -321,9 +336,17 @@ export const detectAndExtractDocumentWithOpenCv = async (
     throw new Error("OpenCV не смог определить контур документа");
   }
 
-  return {
-    corners: points,
-    canvas: createCanvasFromWarp(cv, image, points),
-  };
+  return points;
 };
 
+export const detectAndExtractDocumentWithOpenCv = async (
+  image,
+  documentType = "document",
+) => {
+  const points = await detectDocumentCornersWithOpenCv(image, documentType);
+
+  return {
+    corners: points,
+    canvas: createCanvasFromWarp(await getOpenCv(), image, points),
+  };
+};

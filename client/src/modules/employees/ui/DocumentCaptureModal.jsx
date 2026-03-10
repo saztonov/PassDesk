@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Grid, Modal, Space, Typography } from "antd";
 import Webcam from "react-webcam";
 import {
@@ -6,6 +6,7 @@ import {
   CheckOutlined,
   ReloadOutlined,
 } from "@ant-design/icons";
+import { detectDocumentCornersWithOpenCv } from "@/shared/lib/openCvDocumentScanner";
 
 const BASE_VIDEO_CONSTRAINTS = {
   facingMode: { ideal: "environment" },
@@ -62,6 +63,43 @@ const computeVisibleSourceRect = (
     width: sourceWidth,
     height: visibleHeight,
   };
+};
+
+const buildPreviewFrameCanvas = (video, maxDimension = 960) => {
+  const sourceWidth = video.videoWidth || video.clientWidth || 0;
+  const sourceHeight = video.videoHeight || video.clientHeight || 0;
+  if (!sourceWidth || !sourceHeight) {
+    return null;
+  }
+
+  const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+  canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) {
+    return null;
+  }
+
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return canvas;
+};
+
+const mapCornersToViewport = (corners, sourceWidth, sourceHeight, viewportRect) => {
+  if (!Array.isArray(corners) || corners.length !== 4) {
+    return [];
+  }
+
+  const visibleRect = computeVisibleSourceRect(
+    sourceWidth,
+    sourceHeight,
+    viewportRect.width / viewportRect.height,
+  );
+
+  return corners.map((point) => ({
+    x: ((point.x - visibleRect.x) / visibleRect.width) * viewportRect.width,
+    y: ((point.y - visibleRect.y) / visibleRect.height) * viewportRect.height,
+  }));
 };
 
 const cropDataUrlByOverlay = async (dataUrl, layout, viewportAspect) => {
@@ -140,9 +178,12 @@ const DocumentCaptureModal = ({
   const isMobile = !screens.md;
   const webcamRef = useRef(null);
   const viewportRef = useRef(null);
+  const detectionInFlightRef = useRef(false);
   const [capturing, setCapturing] = useState(false);
   const [capturedDataUrl, setCapturedDataUrl] = useState("");
   const [cameraError, setCameraError] = useState("");
+  const [detectedCorners, setDetectedCorners] = useState([]);
+  const [detectionStatus, setDetectionStatus] = useState("idle");
 
   const captureLayout = useMemo(
     () => captureLayoutByMode[mode] || captureLayoutByMode.document,
@@ -174,7 +215,101 @@ const DocumentCaptureModal = ({
   const resetPreview = () => {
     setCapturedDataUrl("");
     setCameraError("");
+    setDetectedCorners([]);
+    setDetectionStatus("idle");
   };
+
+  useEffect(() => {
+    if (!open || capturedDataUrl || cameraError) {
+      setDetectedCorners([]);
+      setDetectionStatus("idle");
+      return undefined;
+    }
+
+    let cancelled = false;
+    let timerId = null;
+
+    const runDetection = async () => {
+      if (cancelled || detectionInFlightRef.current) {
+        return;
+      }
+
+      const video = webcamRef.current?.video;
+      const viewportElement = viewportRef.current;
+      if (
+        !video ||
+        video.readyState < 2 ||
+        !viewportElement ||
+        viewportElement.clientWidth === 0 ||
+        viewportElement.clientHeight === 0
+      ) {
+        timerId = window.setTimeout(runDetection, 250);
+        return;
+      }
+
+      const previewCanvas = buildPreviewFrameCanvas(video, mode === "passport" ? 960 : 840);
+      if (!previewCanvas) {
+        timerId = window.setTimeout(runDetection, 250);
+        return;
+      }
+
+      detectionInFlightRef.current = true;
+
+      try {
+        const corners = await detectDocumentCornersWithOpenCv(
+          previewCanvas,
+          mode,
+          { preview: true },
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        const viewportRect = {
+          width: viewportElement.clientWidth,
+          height: viewportElement.clientHeight,
+        };
+        const projectedCorners = mapCornersToViewport(
+          corners,
+          previewCanvas.width,
+          previewCanvas.height,
+          viewportRect,
+        ).filter(
+          (point) =>
+            Number.isFinite(point.x) &&
+            Number.isFinite(point.y) &&
+            point.x >= 0 &&
+            point.y >= 0 &&
+            point.x <= viewportRect.width &&
+            point.y <= viewportRect.height,
+        );
+
+        setDetectedCorners(projectedCorners.length === 4 ? projectedCorners : []);
+        setDetectionStatus(projectedCorners.length === 4 ? "detected" : "searching");
+      } catch {
+        if (!cancelled) {
+          setDetectedCorners([]);
+          setDetectionStatus("searching");
+        }
+      } finally {
+        detectionInFlightRef.current = false;
+        if (!cancelled) {
+          timerId = window.setTimeout(runDetection, 280);
+        }
+      }
+    };
+
+    timerId = window.setTimeout(runDetection, 120);
+
+    return () => {
+      cancelled = true;
+      detectionInFlightRef.current = false;
+      if (timerId) {
+        window.clearTimeout(timerId);
+      }
+    };
+  }, [cameraError, capturedDataUrl, mode, open]);
 
   const handleTakePhoto = async () => {
     const dataUrl = webcamRef.current?.getScreenshot();
@@ -351,6 +486,46 @@ const DocumentCaptureModal = ({
             ) : null}
           </div>
         </div>
+
+        {!capturedDataUrl ? (
+          <svg
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+            }}
+            viewBox={`0 0 ${viewportRef.current?.clientWidth || 1} ${
+              viewportRef.current?.clientHeight || 1
+            }`}
+            preserveAspectRatio="none"
+          >
+            {detectedCorners.length === 4 ? (
+              <>
+                <polygon
+                  points={detectedCorners.map((point) => `${point.x},${point.y}`).join(" ")}
+                  fill="rgba(31, 232, 151, 0.12)"
+                  stroke="rgba(31, 232, 151, 0.96)"
+                  strokeWidth="3"
+                  strokeLinejoin="round"
+                />
+                {detectedCorners.map((point, index) => (
+                  <circle
+                    key={`${point.x}-${point.y}-${index}`}
+                    cx={point.x}
+                    cy={point.y}
+                    r="5"
+                    fill="rgba(31, 232, 151, 1)"
+                    stroke="rgba(6, 10, 14, 0.64)"
+                    strokeWidth="2"
+                  />
+                ))}
+              </>
+            ) : null}
+          </svg>
+        ) : null}
       </div>
 
       <Typography.Text
@@ -362,7 +537,12 @@ const DocumentCaptureModal = ({
           fontSize: isMobile ? 16 : undefined,
         }}
       >
-        {cameraError || captureLayout.helperText}
+        {cameraError ||
+          (capturedDataUrl
+            ? captureLayout.helperText
+            : detectionStatus === "detected"
+              ? "OpenCV нашёл границы документа. Зелёная рамка показывает область захвата."
+              : "OpenCV ищет границы документа. Держите телефон ровно и уменьшите блики.")}
       </Typography.Text>
 
       <Space
