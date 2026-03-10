@@ -40,6 +40,8 @@ import TelegramLinkCode from "./TelegramLinkCode.js";
 import TelegramCommandLog from "./TelegramCommandLog.js";
 import TelegramNotificationLog from "./TelegramNotificationLog.js";
 import EmployeeOcrConflict from "./EmployeeOcrConflict.js";
+import EmployeeMobileAuthCode from "./EmployeeMobileAuthCode.js";
+import EmployeeMobileSession from "./EmployeeMobileSession.js";
 import SkudPersonBinding from "./SkudPersonBinding.js";
 import SkudAccessState from "./SkudAccessState.js";
 import SkudCard from "./SkudCard.js";
@@ -266,6 +268,24 @@ User.hasMany(EmployeeOcrConflict, {
 EmployeeOcrConflict.belongsTo(User, {
   foreignKey: "resolved_by",
   as: "resolver",
+});
+
+Employee.hasMany(EmployeeMobileAuthCode, {
+  foreignKey: "employee_id",
+  as: "mobileAuthCodes",
+});
+EmployeeMobileAuthCode.belongsTo(Employee, {
+  foreignKey: "employee_id",
+  as: "employee",
+});
+
+Employee.hasMany(EmployeeMobileSession, {
+  foreignKey: "employee_id",
+  as: "mobileSessions",
+});
+EmployeeMobileSession.belongsTo(Employee, {
+  foreignKey: "employee_id",
+  as: "employee",
 });
 
 // Employee -> SKUD entities
@@ -915,6 +935,8 @@ export {
   TelegramCommandLog,
   TelegramNotificationLog,
   EmployeeOcrConflict,
+  EmployeeMobileAuthCode,
+  EmployeeMobileSession,
   SkudPersonBinding,
   SkudAccessState,
   SkudCard,

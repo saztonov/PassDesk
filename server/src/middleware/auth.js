@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import { AppError } from "./errorHandler.js";
 import { User } from "../models/index.js";
 import { getTranslator } from "../i18n/index.js";
+import { resolveMobileEmployeeSession } from "../services/mobileEmployeeAccessService.js";
 
 const SUPPORTED_LANGUAGES = new Set(["ru", "uz", "tj", "kz"]);
 
@@ -201,4 +202,31 @@ export const authorize = (...roles) => {
 
     next();
   };
+};
+
+export const authenticateMobileEmployeeSession = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      throw new AppError("Необходима мобильная авторизация", 401);
+    }
+
+    const token = authHeader.split(" ")[1];
+    const session = await resolveMobileEmployeeSession(token);
+
+    req.mobileEmployeeSession = session;
+    req.mobileEmployee = {
+      sessionId: session.id,
+      employeeId: session.employeeId,
+      phoneNormalized: session.phoneNormalized,
+    };
+
+    next();
+  } catch (error) {
+    if (error instanceof AppError) {
+      return next(error);
+    }
+    next(new AppError("Мобильная сессия недействительна", 401));
+  }
 };

@@ -16,7 +16,10 @@ import employeeStatusRoutes from "./employeeStatus.routes.js";
 import excelColumnSetRoutes from "./excelColumnSet.routes.js";
 import otRoutes from "./ot.routes.js";
 import ocrRoutes from "./ocr.routes.js";
-import skudRoutes, { webhookRouter as skudWebhookRoutes } from "./skud.routes.js";
+import mobileEmployeeAccessRoutes from "./mobileEmployeeAccess.routes.js";
+import skudRoutes, {
+  webhookRouter as skudWebhookRoutes,
+} from "./skud.routes.js";
 
 const router = express.Router();
 
@@ -38,6 +41,7 @@ router.use("/positions", positionRoutes);
 router.use("/excel-column-sets", excelColumnSetRoutes);
 router.use("/ot", otRoutes);
 router.use("/ocr", ocrRoutes);
+router.use("/mobile-access", mobileEmployeeAccessRoutes);
 router.use("/skud", skudRoutes);
 router.use("/integrations/skud", skudWebhookRoutes);
 
