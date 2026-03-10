@@ -16,10 +16,7 @@ import {
   ScanOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
-import {
-  detectDocumentCornersWithOpenCv,
-  warmupOpenCv,
-} from "@/shared/lib/openCvDocumentScanner";
+import { detectDocumentCornersWithOpenCv } from "@/shared/lib/openCvDocumentScanner";
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -144,33 +141,6 @@ const DocumentCaptureDebugLab = () => {
     },
     [],
   );
-
-  useEffect(() => {
-    let cancelled = false;
-    const scheduleWarmup =
-      typeof window !== "undefined" && "requestIdleCallback" in window
-        ? window.requestIdleCallback.bind(window)
-        : (callback) => window.setTimeout(callback, 300);
-
-    const warmupId = scheduleWarmup(async () => {
-      try {
-        await warmupOpenCv();
-      } catch {
-        if (!cancelled) {
-          // ignore debug warmup errors, explicit detect will surface them
-        }
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      if (typeof window !== "undefined" && "cancelIdleCallback" in window) {
-        window.cancelIdleCallback(warmupId);
-      } else {
-        window.clearTimeout(warmupId);
-      }
-    };
-  }, []);
 
   const cameraOverlayPolygon = useMemo(() => {
     if (cameraFrame.corners.length !== 4 || !cameraFrame.dimensions) {
