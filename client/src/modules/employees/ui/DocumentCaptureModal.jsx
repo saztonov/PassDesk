@@ -64,14 +64,14 @@ const computeVisibleSourceRect = (
   };
 };
 
-const cropDataUrlByOverlay = async (dataUrl, layout) => {
+const cropDataUrlByOverlay = async (dataUrl, layout, viewportAspect) => {
   const image = await loadImage(dataUrl);
   const sourceWidth = image.naturalWidth || image.width;
   const sourceHeight = image.naturalHeight || image.height;
   const viewport = computeVisibleSourceRect(
     sourceWidth,
     sourceHeight,
-    layout.viewportAspect,
+    viewportAspect || layout.viewportAspect,
   );
   const frameLeft = (1 - layout.frameWidth) / 2;
   const frameTop = (1 - layout.frameHeight) / 2;
@@ -139,6 +139,7 @@ const DocumentCaptureModal = ({
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const webcamRef = useRef(null);
+  const viewportRef = useRef(null);
   const [capturing, setCapturing] = useState(false);
   const [capturedDataUrl, setCapturedDataUrl] = useState("");
   const [cameraError, setCameraError] = useState("");
@@ -152,14 +153,13 @@ const DocumentCaptureModal = ({
       return {};
     }
 
-    const viewportWidth = "calc(100vw - 32px)";
-
     return {
-      width: `min(${viewportWidth}, calc(70dvh * ${captureLayout.viewportAspect}))`,
-      height: `min(70dvh, calc(${viewportWidth} / ${captureLayout.viewportAspect}))`,
-      margin: "0 auto",
+      flex: 1,
+      minHeight: 0,
+      width: "100%",
+      margin: "12px auto 0",
     };
-  }, [captureLayout.viewportAspect, isMobile]);
+  }, [isMobile]);
   const videoConstraints = useMemo(
     () => ({
       ...BASE_VIDEO_CONSTRAINTS,
@@ -191,9 +191,21 @@ const DocumentCaptureModal = ({
       return;
     }
 
+    const viewportElement = viewportRef.current;
+    const viewportAspect =
+      viewportElement &&
+      viewportElement.clientWidth > 0 &&
+      viewportElement.clientHeight > 0
+        ? viewportElement.clientWidth / viewportElement.clientHeight
+        : captureLayout.viewportAspect;
+
     setCapturing(true);
     try {
-      const blob = await cropDataUrlByOverlay(capturedDataUrl, captureLayout);
+      const blob = await cropDataUrlByOverlay(
+        capturedDataUrl,
+        captureLayout,
+        viewportAspect,
+      );
       await onCapture?.(blob);
     } finally {
       setCapturing(false);
@@ -235,6 +247,8 @@ const DocumentCaptureModal = ({
         content: {
           borderRadius: isMobile ? 0 : 16,
           minHeight: isMobile ? "100dvh" : undefined,
+          height: isMobile ? "100dvh" : undefined,
+          maxHeight: isMobile ? "100dvh" : undefined,
           padding: isMobile ? 16 : undefined,
           display: isMobile ? "flex" : undefined,
           flexDirection: isMobile ? "column" : undefined,
@@ -247,10 +261,12 @@ const DocumentCaptureModal = ({
           display: isMobile ? "flex" : undefined,
           flexDirection: isMobile ? "column" : undefined,
           flex: isMobile ? 1 : undefined,
+          minHeight: isMobile ? 0 : undefined,
         },
       }}
     >
       <div
+        ref={viewportRef}
         style={{
           position: "relative",
           overflow: "hidden",
@@ -342,6 +358,7 @@ const DocumentCaptureModal = ({
         style={{
           display: "block",
           marginTop: 12,
+          flexShrink: 0,
           fontSize: isMobile ? 16 : undefined,
         }}
       >
@@ -354,6 +371,7 @@ const DocumentCaptureModal = ({
           justifyContent: "space-between",
           marginTop: isMobile ? "auto" : 16,
           paddingTop: 16,
+          flexShrink: 0,
         }}
       >
         {capturedDataUrl ? (
