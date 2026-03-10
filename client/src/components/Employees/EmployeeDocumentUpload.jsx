@@ -530,6 +530,7 @@ const EmployeeDocumentUpload = ({
         preview={{
           visible: previewVisible,
           src: previewImage,
+          rootClassName: "employee-document-preview",
           onVisibleChange: (visible) =>
             setState((prev) => ({ ...prev, previewVisible: visible })),
         }}

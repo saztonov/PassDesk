@@ -152,13 +152,11 @@ const DocumentCaptureModal = ({
       return {};
     }
 
+    const viewportWidth = "calc(100vw - 32px)";
+
     return {
-      flex: 1,
-      minHeight: 0,
-      height: "100%",
-      width: "auto",
-      maxWidth: "100%",
-      aspectRatio: `${captureLayout.viewportAspect}`,
+      width: `min(${viewportWidth}, calc(70dvh * ${captureLayout.viewportAspect}))`,
+      height: `min(70dvh, calc(${viewportWidth} / ${captureLayout.viewportAspect}))`,
       margin: "0 auto",
     };
   }, [captureLayout.viewportAspect, isMobile]);
@@ -237,8 +235,6 @@ const DocumentCaptureModal = ({
         content: {
           borderRadius: isMobile ? 0 : 16,
           minHeight: isMobile ? "100dvh" : undefined,
-          height: isMobile ? "100dvh" : undefined,
-          maxHeight: isMobile ? "100dvh" : undefined,
           padding: isMobile ? 16 : undefined,
           display: isMobile ? "flex" : undefined,
           flexDirection: isMobile ? "column" : undefined,
@@ -251,7 +247,6 @@ const DocumentCaptureModal = ({
           display: isMobile ? "flex" : undefined,
           flexDirection: isMobile ? "column" : undefined,
           flex: isMobile ? 1 : undefined,
-          minHeight: isMobile ? 0 : undefined,
         },
       }}
     >
@@ -347,7 +342,6 @@ const DocumentCaptureModal = ({
         style={{
           display: "block",
           marginTop: 12,
-          flexShrink: 0,
           fontSize: isMobile ? 16 : undefined,
         }}
       >
@@ -360,7 +354,6 @@ const DocumentCaptureModal = ({
           justifyContent: "space-between",
           marginTop: isMobile ? "auto" : 16,
           paddingTop: 16,
-          flexShrink: 0,
         }}
       >
         {capturedDataUrl ? (

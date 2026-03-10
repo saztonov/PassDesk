@@ -124,6 +124,24 @@ textarea:-webkit-autofill:focus {
     flex-shrink: 0;
 }
 
+@media (max-width: 768px) {
+    .employee-document-preview .ant-image-preview-img-wrapper {
+        inset: 0 !important;
+        padding: 16px 12px 88px !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .employee-document-preview .ant-image-preview-img {
+        width: auto !important;
+        height: auto !important;
+        max-width: calc(100vw - 24px) !important;
+        max-height: calc(100dvh - 104px) !important;
+        object-fit: contain;
+    }
+}
+
 /* Ширина выпадающего списка контрагентов */
 .counterparty-select-popup {
     min-width: 500px !important;
