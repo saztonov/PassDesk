@@ -1,9 +1,5 @@
 import ocrService from "@/services/ocrService";
 import { detectAndExtractDocumentWithOpenCv } from "@/shared/lib/openCvDocumentScanner";
-import {
-  extractDocument as scanicExtractDocument,
-  scanDocument as scanicScanDocument,
-} from "scanic";
 
 const clamp = (value, min, max) => {
   if (value < min) return min;
@@ -216,36 +212,6 @@ const normalizeChannel = (value, low, high) => {
   return clamp(Math.round(stretched), 0, 255);
 };
 
-const buildDetectionCanvas = (image) => {
-  const canvas = document.createElement("canvas");
-  canvas.width = image.naturalWidth || image.width;
-  canvas.height = image.naturalHeight || image.height;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) {
-    throw new Error("Canvas недоступен для детекции документа");
-  }
-
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-  const { data } = imageData;
-  const { low, high } = percentileChannelBounds(imageData, 0.02);
-
-  for (let i = 0; i < data.length; i += 4) {
-    const r = normalizeChannel(data[i], low, high);
-    const g = normalizeChannel(data[i + 1], low, high);
-    const b = normalizeChannel(data[i + 2], low, high);
-    const gray = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
-    const boosted = clamp(Math.round((gray - 128) * 1.28 + 128), 0, 255);
-
-    data[i] = boosted;
-    data[i + 1] = boosted;
-    data[i + 2] = boosted;
-  }
-
-  context.putImageData(imageData, 0, 0);
-  return canvas;
-};
-
 const enhanceScanLikeAppearance = (imageData) => {
   const { data } = imageData;
   const { low, high } = percentileChannelBounds(imageData, 0.0125);
@@ -316,99 +282,6 @@ const processCanvasToScanFile = async (canvas, fileNameBase) => {
   });
 };
 
-const getScanicAttempts = (documentType) => {
-  if (documentType === "passport") {
-    return [
-      {
-        maxProcessingDimension: 1800,
-        lowThreshold: 24,
-        highThreshold: 90,
-        dilationKernelSize: 5,
-        minArea: 5000,
-        epsilon: 14,
-      },
-      {
-        maxProcessingDimension: 1600,
-        lowThreshold: 18,
-        highThreshold: 72,
-        dilationKernelSize: 7,
-        minArea: 3200,
-        epsilon: 18,
-      },
-      {
-        maxProcessingDimension: 1400,
-        lowThreshold: 14,
-        highThreshold: 56,
-        dilationKernelSize: 9,
-        minArea: 2200,
-        epsilon: 22,
-      },
-    ];
-  }
-
-  return [
-    {
-      maxProcessingDimension: 1400,
-      lowThreshold: 28,
-      highThreshold: 110,
-      dilationKernelSize: 5,
-      minArea: 2500,
-      epsilon: 12,
-    },
-    {
-      maxProcessingDimension: 1200,
-      lowThreshold: 20,
-      highThreshold: 80,
-      dilationKernelSize: 7,
-      minArea: 1800,
-      epsilon: 16,
-    },
-  ];
-};
-
-const createScanWithScanic = async (image, fileNameBase, documentType) => {
-  const detectionCanvas = buildDetectionCanvas(image);
-  const attempts = getScanicAttempts(documentType);
-  const sources = [detectionCanvas, image];
-  let lastError = null;
-
-  for (const source of sources) {
-    for (const attempt of attempts) {
-      try {
-        const detected = await scanicScanDocument(source, {
-          mode: "detect",
-          ...attempt,
-        });
-
-        if (!detected?.success || !detected?.corners) {
-          lastError = new Error(
-            detected?.message || "Локальный detector не нашел документ",
-          );
-          continue;
-        }
-
-        const extracted = await scanicExtractDocument(image, detected.corners, {
-          output: "canvas",
-        });
-
-        if (!extracted?.success || !extracted?.output) {
-          lastError = new Error(
-            extracted?.message ||
-              "Локальный detector не смог извлечь документ",
-          );
-          continue;
-        }
-
-        return processCanvasToScanFile(extracted.output, fileNameBase);
-      } catch (error) {
-        lastError = error;
-      }
-    }
-  }
-
-  throw lastError || new Error("Локальный detector не нашел документ");
-};
-
 export const createAiScannedDocument = async ({
   file,
   documentType,
@@ -417,12 +290,6 @@ export const createAiScannedDocument = async ({
     .replace(/\.[^.]+$/, "")
     .replace(/[^\w.-]+/g, "_");
   const image = await loadImageFromFile(file);
-
-  try {
-    return await createScanWithScanic(image, fileNameBase, documentType);
-  } catch (scanicError) {
-    console.warn("Scanic fallback to OCR scan:", scanicError);
-  }
 
   try {
     const { canvas } = await detectAndExtractDocumentWithOpenCv(
