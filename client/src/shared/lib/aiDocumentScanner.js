@@ -1,5 +1,4 @@
 import ocrService from "@/services/ocrService";
-import { detectAndExtractDocumentWithOpenCv } from "@/shared/lib/openCvDocumentScanner";
 
 const clamp = (value, min, max) => {
   if (value < min) return min;
@@ -291,16 +290,6 @@ export const createAiScannedDocument = async ({
     .replace(/[^\w.-]+/g, "_");
   const image = await loadImageFromFile(file);
 
-  try {
-    const { canvas } = await detectAndExtractDocumentWithOpenCv(
-      image,
-      documentType,
-    );
-    return processCanvasToScanFile(canvas, fileNameBase);
-  } catch (openCvError) {
-    console.warn("OpenCV fallback to OCR scan:", openCvError);
-  }
-
   const response = await ocrService.scanDocument({ file, documentType });
 
   const payload = response?.data || response || {};
@@ -310,7 +299,7 @@ export const createAiScannedDocument = async ({
     !Array.isArray(normalized?.corners) ||
     normalized.corners.length !== 4
   ) {
-    throw new Error("AI не смог уверенно определить границы документа");
+    throw new Error("Сервер не смог уверенно определить границы документа");
   }
 
   const sourceCanvas = document.createElement("canvas");

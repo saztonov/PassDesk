@@ -8,13 +8,10 @@ import {
 } from "@ant-design/icons";
 import {
   BASE_VIDEO_CONSTRAINTS,
-  buildVisiblePreviewCanvas,
   captureLayoutByMode,
-  clamp,
   createPreviewUrl,
   prepareCaptureBlob,
 } from "@/modules/employees/lib/documentCaptureUtils";
-import { detectDocumentCornersWithOpenCv } from "@/shared/lib/openCvDocumentScanner";
 
 const DocumentCaptureModal = ({
   open,
@@ -27,17 +24,11 @@ const DocumentCaptureModal = ({
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const webcamRef = useRef(null);
-  const detectionInFlightRef = useRef(false);
   const previewUrlRef = useRef("");
   const [cameraError, setCameraError] = useState("");
   const [preview, setPreview] = useState(null);
   const [shooting, setShooting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [detection, setDetection] = useState({
-    status: "idle",
-    corners: [],
-    misses: 0,
-  });
 
   const captureLayout = useMemo(
     () => captureLayoutByMode[mode] || captureLayoutByMode.document,
@@ -72,7 +63,6 @@ const DocumentCaptureModal = ({
     setCameraError("");
     setShooting(false);
     setSubmitting(false);
-    setDetection({ status: "idle", corners: [], misses: 0 });
   }, [resetPreview]);
 
   useEffect(
@@ -85,102 +75,8 @@ const DocumentCaptureModal = ({
   useEffect(() => {
     if (!open) {
       resetModal();
-      return undefined;
     }
-
-    if (isPreviewVisible || cameraError) {
-      return undefined;
-    }
-
-    let cancelled = false;
-    let timerId = null;
-
-    const schedule = (delay) => {
-      timerId = window.setTimeout(runDetection, delay);
-    };
-
-    const runDetection = async () => {
-      if (cancelled || detectionInFlightRef.current) {
-        return;
-      }
-
-      const video = webcamRef.current?.video;
-      if (!video || video.readyState < 2) {
-        schedule(250);
-        return;
-      }
-
-      const previewCanvas = buildVisiblePreviewCanvas(
-        video,
-        captureLayout.viewportAspect,
-        captureLayout.previewMaxDimension,
-      );
-      if (!previewCanvas) {
-        schedule(250);
-        return;
-      }
-
-      detectionInFlightRef.current = true;
-
-      try {
-        const corners = await detectDocumentCornersWithOpenCv(
-          previewCanvas.canvas,
-          mode,
-          { preview: true },
-        );
-        if (cancelled) {
-          return;
-        }
-
-        const normalizedCorners = corners.map((point) => ({
-          x: clamp(point.x / previewCanvas.canvas.width, 0, 1),
-          y: clamp(point.y / previewCanvas.canvas.height, 0, 1),
-        }));
-
-        setDetection({
-          status: "detected",
-          corners: normalizedCorners,
-          misses: 0,
-        });
-      } catch {
-        if (!cancelled) {
-          setDetection((previous) => ({
-            status: previous.misses >= 3 ? "not_found" : "searching",
-            corners: [],
-            misses: previous.misses + 1,
-          }));
-        }
-      } finally {
-        detectionInFlightRef.current = false;
-        if (!cancelled) {
-          schedule(350);
-        }
-      }
-    };
-
-    setDetection((previous) => ({
-      status: previous.status === "detected" ? "detected" : "searching",
-      corners: previous.corners,
-      misses: previous.misses,
-    }));
-    schedule(120);
-
-    return () => {
-      cancelled = true;
-      detectionInFlightRef.current = false;
-      if (timerId) {
-        window.clearTimeout(timerId);
-      }
-    };
-  }, [
-    cameraError,
-    captureLayout.previewMaxDimension,
-    captureLayout.viewportAspect,
-    isPreviewVisible,
-    mode,
-    open,
-    resetModal,
-  ]);
+  }, [open, resetModal]);
 
   const handleTakePhoto = async () => {
     const dataUrl = webcamRef.current?.getScreenshot();
@@ -193,7 +89,6 @@ const DocumentCaptureModal = ({
     try {
       const blob = await prepareCaptureBlob({
         dataUrl,
-        normalizedCorners: detection.corners,
         viewportAspect: captureLayout.viewportAspect,
         layout: captureLayout,
       });
@@ -237,11 +132,6 @@ const DocumentCaptureModal = ({
     resetModal();
     onCancel?.();
   };
-
-  const detectionPolygon =
-    detection.corners.length === 4
-      ? detection.corners.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")
-      : "";
 
   return (
     <Modal
@@ -354,75 +244,11 @@ const DocumentCaptureModal = ({
               />
             </div>
 
-            <div
-              style={{
-                position: "absolute",
-                top: 12,
-                left: 12,
-                zIndex: 2,
-                padding: "6px 10px",
-                borderRadius: 999,
-                background:
-                  detection.status === "detected"
-                    ? "rgba(31, 232, 151, 0.16)"
-                    : "rgba(255, 184, 0, 0.18)",
-                border:
-                  detection.status === "detected"
-                    ? "1px solid rgba(31, 232, 151, 0.48)"
-                    : "1px solid rgba(255, 184, 0, 0.4)",
-                color: "#fff",
-                fontSize: 12,
-                lineHeight: 1.2,
-                fontWeight: 600,
-              }}
-            >
-              {detection.status === "detected"
-                ? "OpenCV: контур найден"
-                : detection.status === "not_found"
-                  ? "OpenCV: контур не найден"
-                  : "OpenCV: ищу контур"}
-            </div>
-
-            <svg
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                inset: 0,
-                width: "100%",
-                height: "100%",
-                pointerEvents: "none",
-              }}
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-            >
-              {detectionPolygon ? (
-                <>
-                  <polygon
-                    points={detectionPolygon}
-                    fill="rgba(31, 232, 151, 0.16)"
-                    stroke="rgba(31, 232, 151, 0.98)"
-                    strokeWidth="0.45"
-                    strokeLinejoin="round"
-                  />
-                  {detection.corners.map((point, index) => (
-                    <circle
-                      key={`${point.x}-${point.y}-${index}`}
-                      cx={point.x * 100}
-                      cy={point.y * 100}
-                      r="0.8"
-                      fill="rgba(31, 232, 151, 1)"
-                      stroke="rgba(6, 10, 14, 0.72)"
-                      strokeWidth="0.24"
-                    />
-                  ))}
-                </>
-              ) : null}
-            </svg>
           </>
         ) : null}
       </div>
 
-      <Typography.Text
+        <Typography.Text
         type="secondary"
         style={{
           display: "block",
@@ -430,16 +256,12 @@ const DocumentCaptureModal = ({
           flexShrink: 0,
           fontSize: isMobile ? 16 : undefined,
         }}
-      >
-        {cameraError ||
+        >
+          {cameraError ||
           (isPreviewVisible
-            ? "Проверьте кадр. Если контур был найден, снимок уже выровнен по документу."
-            : detection.status === "detected"
-              ? "OpenCV нашёл контур документа. При съёмке будет использован найденный контур."
-              : detection.status === "not_found"
-                ? `${captureLayout.helperText} Если контур не находится, снимок будет обрезан по рамке.`
-                : "OpenCV ищет границы документа. Держите телефон ровно и уменьшите блики.")}
-      </Typography.Text>
+            ? "Проверьте кадр. После подтверждения фото будет подготовлено к загрузке."
+            : `${captureLayout.helperText} Контур документа будет найден на сервере после съемки.`)}
+        </Typography.Text>
 
       <Space
         style={{

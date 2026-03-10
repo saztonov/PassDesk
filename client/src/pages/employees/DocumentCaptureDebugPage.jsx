@@ -28,9 +28,9 @@ const DocumentCaptureDebugPage = () => {
         Document Capture Debug
       </Title>
       <Paragraph type="secondary">
-        Изолированная страница для проверки захвата документа без SDK:
-        локализация контура через OpenCV, выравнивание снимка в scan-копию и
-        последующее OCR-распознавание.
+        Изолированная страница для проверки захвата документа без SDK и без
+        клиентского OpenCV: фото снимается здесь, а поиск контура и OCR
+        выполняются по кнопке через backend.
       </Paragraph>
 
       <DocumentCaptureDebugLab />
