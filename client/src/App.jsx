@@ -9,6 +9,7 @@ import ProfilePage from "./pages/ProfilePage";
 import EmployeesPage from "./pages/employees";
 import AddEmployeePage from "./pages/employees/AddEmployeePage";
 import ApplicationRequestPage from "./pages/employees/ApplicationRequestPage";
+import DocumentCaptureDebugPage from "./pages/employees/DocumentCaptureDebugPage";
 import PassesPage from "./pages/PassesPage";
 import CounterpartiesPage from "./pages/CounterpartiesPage";
 import CounterpartyDocumentsPage from "./pages/CounterpartyDocumentsPage";
@@ -119,6 +120,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["admin", "user"]}>
                   <ApplicationRequestPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="employees/debug/document-capture"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "user"]}>
+                  <DocumentCaptureDebugPage />
                 </ProtectedRoute>
               }
             />
