@@ -24,15 +24,97 @@ const estimateOutputSize = (corners) => {
   };
 };
 
-const mapBilinearQuad = (u, v, tl, tr, br, bl) => {
-  const a = (1 - u) * (1 - v);
-  const b = u * (1 - v);
-  const c = u * v;
-  const d = (1 - u) * v;
+const solveLinearSystem = (matrix, vector) => {
+  const size = matrix.length;
+  const augmented = matrix.map((row, index) => [...row, vector[index]]);
+
+  for (let pivot = 0; pivot < size; pivot += 1) {
+    let maxRow = pivot;
+    for (let row = pivot + 1; row < size; row += 1) {
+      if (Math.abs(augmented[row][pivot]) > Math.abs(augmented[maxRow][pivot])) {
+        maxRow = row;
+      }
+    }
+
+    if (Math.abs(augmented[maxRow][pivot]) < 1e-8) {
+      return null;
+    }
+
+    if (maxRow !== pivot) {
+      [augmented[pivot], augmented[maxRow]] = [augmented[maxRow], augmented[pivot]];
+    }
+
+    const pivotValue = augmented[pivot][pivot];
+    for (let column = pivot; column <= size; column += 1) {
+      augmented[pivot][column] /= pivotValue;
+    }
+
+    for (let row = 0; row < size; row += 1) {
+      if (row === pivot) {
+        continue;
+      }
+
+      const factor = augmented[row][pivot];
+      if (factor === 0) {
+        continue;
+      }
+
+      for (let column = pivot; column <= size; column += 1) {
+        augmented[row][column] -= factor * augmented[pivot][column];
+      }
+    }
+  }
+
+  return augmented.map((row) => row[size]);
+};
+
+const buildProjectiveTransform = (sourceCorners, outputWidth, outputHeight) => {
+  const destinationCorners = [
+    { x: 0, y: 0 },
+    { x: outputWidth - 1, y: 0 },
+    { x: outputWidth - 1, y: outputHeight - 1 },
+    { x: 0, y: outputHeight - 1 },
+  ];
+  const matrix = [];
+  const vector = [];
+
+  for (let index = 0; index < 4; index += 1) {
+    const { x: u, y: v } = destinationCorners[index];
+    const { x, y } = sourceCorners[index];
+
+    matrix.push([u, v, 1, 0, 0, 0, -u * x, -v * x]);
+    vector.push(x);
+    matrix.push([0, 0, 0, u, v, 1, -u * y, -v * y]);
+    vector.push(y);
+  }
+
+  const solution = solveLinearSystem(matrix, vector);
+  if (!solution) {
+    return null;
+  }
+
+  return [
+    solution[0],
+    solution[1],
+    solution[2],
+    solution[3],
+    solution[4],
+    solution[5],
+    solution[6],
+    solution[7],
+    1,
+  ];
+};
+
+const projectPoint = (transform, x, y) => {
+  const denominator = transform[6] * x + transform[7] * y + transform[8];
+  if (Math.abs(denominator) < 1e-8) {
+    return null;
+  }
 
   return {
-    x: tl.x * a + tr.x * b + br.x * c + bl.x * d,
-    y: tl.y * a + tr.y * b + br.y * c + bl.y * d,
+    x: (transform[0] * x + transform[1] * y + transform[2]) / denominator,
+    y: (transform[3] * x + transform[4] * y + transform[5]) / denominator,
   };
 };
 
@@ -67,19 +149,17 @@ const warpQuad = (source, corners) => {
   const { width, height } = estimateOutputSize(corners);
   const out = new ImageData(width, height);
   const { data: src, width: srcWidth, height: srcHeight } = source;
+  const transform = buildProjectiveTransform(corners, width, height);
+  if (!transform) {
+    throw new Error("Не удалось вычислить перспективное преобразование документа");
+  }
 
   for (let y = 0; y < height; y += 1) {
-    const v = height === 1 ? 0 : y / (height - 1);
     for (let x = 0; x < width; x += 1) {
-      const u = width === 1 ? 0 : x / (width - 1);
-      const mapped = mapBilinearQuad(
-        u,
-        v,
-        corners[0],
-        corners[1],
-        corners[2],
-        corners[3],
-      );
+      const mapped = projectPoint(transform, x, y);
+      if (!mapped) {
+        continue;
+      }
       const [r, g, b, a] = sampleRgba(src, srcWidth, srcHeight, mapped.x, mapped.y);
       const idx = (y * width + x) * 4;
       out.data[idx] = r;

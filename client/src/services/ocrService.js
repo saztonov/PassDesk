@@ -1,5 +1,7 @@
 import api from "./api";
 
+const OCR_SCAN_TIMEOUT_MS = 180000;
+
 export const ocrService = {
   recognizeDocument: async ({
     documentType,
@@ -73,6 +75,7 @@ export const ocrService = {
       headers: {
         "Content-Type": "multipart/form-data",
       },
+      timeout: OCR_SCAN_TIMEOUT_MS,
     });
 
     return response.data;

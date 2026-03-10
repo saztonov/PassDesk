@@ -830,6 +830,15 @@ const getOcrConfig = () => {
   };
 };
 
+const getScanTimeoutMs = (defaultTimeoutMs) => {
+  const override = Number(process.env.OCR_SCAN_REQUEST_TIMEOUT_MS);
+  if (Number.isFinite(override) && override > 0) {
+    return override;
+  }
+
+  return Math.max(defaultTimeoutMs, 180000);
+};
+
 const resolvePromptByDocumentType = (documentType, promptOverride = "") => {
   const normalizedOverride = String(promptOverride || "").trim();
   if (normalizedOverride) {
@@ -1077,6 +1086,7 @@ export const detectDocumentScan = async ({
   }
 
   const config = getOcrConfig();
+  const scanTimeoutMs = getScanTimeoutMs(config.timeoutMs);
   const selectedModel = String(model || "").trim() || config.defaultModel;
   const selectedPrompt =
     String(prompt || "").trim() || resolveScanPromptByDocumentType(documentType);
@@ -1106,7 +1116,7 @@ export const detectDocumentScan = async ({
   try {
     response = await axios.post(config.endpoint, payload, {
       headers,
-      timeout: config.timeoutMs,
+      timeout: scanTimeoutMs,
     });
   } catch (error) {
     const status = error?.response?.status;

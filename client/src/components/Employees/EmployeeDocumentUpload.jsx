@@ -206,8 +206,13 @@ const EmployeeDocumentUpload = ({
           });
         } catch (scanError) {
           console.error("AI scan failed:", scanError);
+          const fallbackMessage =
+            scanError?.userMessage ||
+            scanError?.response?.data?.message ||
+            scanError?.message ||
+            "AI scan не сработал, загружаем исходное фото";
           message.warning({
-            content: "AI scan не сработал, загружаем исходное фото",
+            content: `${fallbackMessage}. Загружаем исходное фото`,
             key: aiScanMessageKey,
             duration: 3,
           });
