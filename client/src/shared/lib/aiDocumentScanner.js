@@ -92,6 +92,65 @@ const warpQuad = (source, corners) => {
   return out;
 };
 
+const percentileChannelBounds = (imageData, clipRatio = 0.01) => {
+  const histogram = new Uint32Array(256);
+  const { data } = imageData;
+  const pixelCount = data.length / 4;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const luminance = Math.round(
+      data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114,
+    );
+    histogram[luminance] += 1;
+  }
+
+  const clipPixels = Math.max(1, Math.floor(pixelCount * clipRatio));
+  let low = 0;
+  let acc = 0;
+  while (low < 255 && acc < clipPixels) {
+    acc += histogram[low];
+    low += 1;
+  }
+
+  let high = 255;
+  acc = 0;
+  while (high > 0 && acc < clipPixels) {
+    acc += histogram[high];
+    high -= 1;
+  }
+
+  if (high <= low) {
+    return { low: 0, high: 255 };
+  }
+
+  return { low, high };
+};
+
+const normalizeChannel = (value, low, high) => {
+  const stretched = ((value - low) * 255) / Math.max(1, high - low);
+  return clamp(Math.round(stretched), 0, 255);
+};
+
+const enhanceScanLikeAppearance = (imageData) => {
+  const { data } = imageData;
+  const { low, high } = percentileChannelBounds(imageData, 0.0125);
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = normalizeChannel(data[i], low, high);
+    const g = normalizeChannel(data[i + 1], low, high);
+    const b = normalizeChannel(data[i + 2], low, high);
+    const gray = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
+
+    // Mild blend toward grayscale makes the photo feel closer to a clean scan
+    // without destroying colored security marks on documents.
+    data[i] = clamp(Math.round(r * 0.82 + gray * 0.18), 0, 255);
+    data[i + 1] = clamp(Math.round(g * 0.82 + gray * 0.18), 0, 255);
+    data[i + 2] = clamp(Math.round(b * 0.82 + gray * 0.18), 0, 255);
+  }
+
+  return imageData;
+};
+
 const loadImageFromFile = (file) =>
   new Promise((resolve, reject) => {
     const image = new Image();
@@ -159,6 +218,7 @@ export const createAiScannedDocument = async ({
     sourceImageData,
     toPixelCorners(normalized.corners, sourceCanvas.width, sourceCanvas.height),
   );
+  enhanceScanLikeAppearance(warped);
 
   const outputCanvas = document.createElement("canvas");
   outputCanvas.width = warped.width;

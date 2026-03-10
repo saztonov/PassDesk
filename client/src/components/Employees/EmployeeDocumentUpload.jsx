@@ -278,6 +278,13 @@ const EmployeeDocumentUpload = ({
     await uploadFile(file);
   };
 
+  const handleCameraFallback = () => {
+    setState((prev) => ({ ...prev, cameraVisible: false }));
+    window.setTimeout(() => {
+      nativeCameraInputRef.current?.click();
+    }, 0);
+  };
+
   // Обработка выбора файлов из файлового менеджера
   const handleFileSelect = async (e) => {
     const files = e.target.files;
@@ -532,6 +539,7 @@ const EmployeeDocumentUpload = ({
         mode={cameraMode}
         onCancel={() => setState((prev) => ({ ...prev, cameraVisible: false }))}
         onCapture={handleCameraCapture}
+        onFallback={handleCameraFallback}
       />
     </div>
   );

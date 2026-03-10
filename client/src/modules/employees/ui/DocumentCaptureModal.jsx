@@ -1,7 +1,11 @@
 import { useMemo, useRef, useState } from "react";
 import { App, Button, Modal, Space, Typography } from "antd";
 import Webcam from "react-webcam";
-import { CameraOutlined, ReloadOutlined } from "@ant-design/icons";
+import {
+  CameraOutlined,
+  CheckOutlined,
+  ReloadOutlined,
+} from "@ant-design/icons";
 
 const videoConstraints = {
   facingMode: { ideal: "environment" },
@@ -22,36 +26,68 @@ const DocumentCaptureModal = ({
   mode = "document",
   onCancel,
   onCapture,
+  onFallback,
 }) => {
   const { message } = App.useApp();
   const webcamRef = useRef(null);
   const [capturing, setCapturing] = useState(false);
+  const [capturedDataUrl, setCapturedDataUrl] = useState("");
+  const [cameraError, setCameraError] = useState("");
 
   const helperText = useMemo(
     () => overlayCopyByMode[mode] || overlayCopyByMode.document,
     [mode],
   );
 
-  const handleCapture = async () => {
+  const resetPreview = () => {
+    setCapturedDataUrl("");
+    setCameraError("");
+  };
+
+  const handleTakePhoto = async () => {
     const dataUrl = webcamRef.current?.getScreenshot();
     if (!dataUrl) {
       message.error("Не удалось получить кадр с камеры");
       return;
     }
 
+    setCapturedDataUrl(dataUrl);
+  };
+
+  const handleConfirmCapture = async () => {
+    if (!capturedDataUrl) {
+      return;
+    }
+
     setCapturing(true);
     try {
-      const blob = await dataUrlToBlob(dataUrl);
+      const blob = await dataUrlToBlob(capturedDataUrl);
       await onCapture?.(blob);
     } finally {
       setCapturing(false);
     }
   };
 
+  const handleCameraError = () => {
+    setCameraError(
+      "Не удалось открыть live-камеру. Можно продолжить через системную камеру.",
+    );
+  };
+
+  const handleUseFallback = () => {
+    resetPreview();
+    onFallback?.();
+  };
+
+  const handleClose = () => {
+    resetPreview();
+    onCancel?.();
+  };
+
   return (
     <Modal
       open={open}
-      onCancel={onCancel}
+      onCancel={handleClose}
       footer={null}
       title="Фото документа"
       destroyOnClose
@@ -66,20 +102,34 @@ const DocumentCaptureModal = ({
           background: "#101418",
         }}
       >
-        <Webcam
-          ref={webcamRef}
-          audio={false}
-          mirrored={false}
-          screenshotFormat="image/jpeg"
-          screenshotQuality={0.95}
-          videoConstraints={videoConstraints}
-          style={{
-            display: "block",
-            width: "100%",
-            aspectRatio: "3 / 4",
-            objectFit: "cover",
-          }}
-        />
+        {capturedDataUrl ? (
+          <img
+            src={capturedDataUrl}
+            alt="Предпросмотр документа"
+            style={{
+              display: "block",
+              width: "100%",
+              aspectRatio: "3 / 4",
+              objectFit: "cover",
+            }}
+          />
+        ) : (
+          <Webcam
+            ref={webcamRef}
+            audio={false}
+            mirrored={false}
+            screenshotFormat="image/jpeg"
+            screenshotQuality={0.95}
+            videoConstraints={videoConstraints}
+            onUserMediaError={handleCameraError}
+            style={{
+              display: "block",
+              width: "100%",
+              aspectRatio: "3 / 4",
+              objectFit: "cover",
+            }}
+          />
+        )}
 
         <div
           aria-hidden="true"
@@ -91,6 +141,7 @@ const DocumentCaptureModal = ({
             pointerEvents: "none",
             background:
               "linear-gradient(rgba(10,14,18,0.50), rgba(10,14,18,0.28))",
+            opacity: capturedDataUrl ? 0.4 : 1,
           }}
         >
           <div
@@ -120,21 +171,38 @@ const DocumentCaptureModal = ({
         type="secondary"
         style={{ display: "block", marginTop: 12 }}
       >
-        {helperText}
+        {cameraError || helperText}
       </Typography.Text>
 
       <Space style={{ width: "100%", justifyContent: "space-between", marginTop: 16 }}>
-        <Button icon={<ReloadOutlined />} onClick={onCancel}>
-          Другой способ
-        </Button>
-        <Button
-          type="primary"
-          icon={<CameraOutlined />}
-          loading={capturing}
-          onClick={handleCapture}
-        >
-          Снять
-        </Button>
+        {capturedDataUrl ? (
+          <>
+            <Button icon={<ReloadOutlined />} onClick={resetPreview}>
+              Переснять
+            </Button>
+            <Button
+              type="primary"
+              icon={<CheckOutlined />}
+              loading={capturing}
+              onClick={handleConfirmCapture}
+            >
+              Использовать
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button icon={<ReloadOutlined />} onClick={handleUseFallback}>
+              Другой способ
+            </Button>
+            <Button
+              type="primary"
+              icon={<CameraOutlined />}
+              onClick={handleTakePhoto}
+            >
+              Снять
+            </Button>
+          </>
+        )}
       </Space>
     </Modal>
   );
