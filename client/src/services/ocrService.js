@@ -52,6 +52,32 @@ export const ocrService = {
     return response.data;
   },
 
+  scanDocument: async ({ documentType, file, model, prompt }) => {
+    if (!file) {
+      throw new Error("file is required");
+    }
+
+    const formData = new FormData();
+    if (documentType) {
+      formData.append("documentType", String(documentType).trim());
+    }
+    if (model) {
+      formData.append("model", String(model).trim());
+    }
+    if (prompt) {
+      formData.append("prompt", String(prompt).trim());
+    }
+    formData.append("file", file);
+
+    const response = await api.post("/ocr/scan", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+
+    return response.data;
+  },
+
   confirmFileOcr: async ({ fileId, provider, result, conflicts = [] }) => {
     const response = await api.post("/ocr/confirm", {
       fileId,

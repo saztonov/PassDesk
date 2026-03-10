@@ -13,6 +13,7 @@ import {
   getEmployeeConflictsSummary,
   getOcrConflictsList,
   recognizeDocumentFromImage,
+  scanDocumentImage,
   resolveOcrConflict,
 } from "../controllers/ocr.controller.js";
 
@@ -48,6 +49,15 @@ router.post(
   authorize("admin"),
   conflictIdParamValidation,
   applyOcrConflict,
+);
+
+router.post(
+  "/scan",
+  upload.single("file"),
+  validateUploadedFiles,
+  fixFilenameEncoding,
+  cleanupUploadedTempFiles,
+  scanDocumentImage,
 );
 
 router.post(

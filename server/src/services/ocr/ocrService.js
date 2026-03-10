@@ -36,6 +36,14 @@ const DEFAULT_PROMPTS = {
     "Верни строго JSON без markdown и пояснений. Поля: visaNumber, issueDate, expiryDate, surname, givenNames, nationality, birthDate.",
 };
 
+const DEFAULT_SCAN_PROMPT =
+  "На фото документ, снятый камерой телефона. " +
+  "Найди внешний прямоугольный контур основного документа и верни строго JSON без markdown. " +
+  'Формат ответа: {"detected":true,"confidence":0.0-1.0,"corners":[{"x":0-1000,"y":0-1000},{"x":0-1000,"y":0-1000},{"x":0-1000,"y":0-1000},{"x":0-1000,"y":0-1000}]}. ' +
+  "Координаты corners должны быть в порядке: top-left, top-right, bottom-right, bottom-left. " +
+  "Используй нормализованные координаты, где 0..1000 соответствуют ширине и высоте изображения. " +
+  'Если документ не найден уверенно, верни {"detected":false,"confidence":0,"corners":[]}.';
+
 const SUPPORTED_DOCUMENT_TYPES = new Set([
   "passport_rf",
   "foreign_passport",
@@ -824,18 +832,23 @@ const resolvePromptByDocumentType = (documentType, promptOverride = "") => {
   return DEFAULT_PROMPTS[documentType] || DEFAULT_PROMPTS.passport_rf;
 };
 
-const buildOpenRouterPayload = ({ model, prompt, imageDataUrl }) => ({
+const buildOpenRouterPayload = ({
+  model,
+  prompt,
+  imageDataUrl,
+  systemPrompt = "Ты извлекаешь структурированные данные из документов. Если поле не найдено, верни null.",
+  maxTokens = 1500,
+}) => ({
   model,
   temperature: 0.1,
-  max_tokens: 1500,
+  max_tokens: maxTokens,
   response_format: {
     type: "json_object",
   },
   messages: [
     {
       role: "system",
-      content:
-        "Ты извлекаешь структурированные данные из документов. Если поле не найдено, верни null.",
+      content: systemPrompt,
     },
     {
       role: "user",
@@ -854,6 +867,96 @@ const buildOpenRouterPayload = ({ model, prompt, imageDataUrl }) => ({
     },
   ],
 });
+
+const clampNormalizedCoordinate = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+
+  return Math.min(1000, Math.max(0, Math.round(numeric)));
+};
+
+const resolveScanCorners = (parsedJson = {}) => {
+  const cornersCandidate =
+    parsedJson?.corners ||
+    parsedJson?.points ||
+    parsedJson?.quad ||
+    parsedJson?.documentCorners ||
+    [];
+
+  if (!Array.isArray(cornersCandidate) || cornersCandidate.length < 4) {
+    return [];
+  }
+
+  const points = cornersCandidate
+    .slice(0, 4)
+    .map((point) => {
+      if (!point || typeof point !== "object") {
+        return null;
+      }
+
+      const x = clampNormalizedCoordinate(
+        point.x ?? point.left ?? point.X ?? point.cx,
+      );
+      const y = clampNormalizedCoordinate(
+        point.y ?? point.top ?? point.Y ?? point.cy,
+      );
+
+      if (x === null || y === null) {
+        return null;
+      }
+
+      return { x, y };
+    })
+    .filter(Boolean);
+
+  if (points.length !== 4) {
+    return [];
+  }
+
+  const topLeft = points.reduce((best, point) =>
+    point.x + point.y < best.x + best.y ? point : best,
+  );
+  const bottomRight = points.reduce((best, point) =>
+    point.x + point.y > best.x + best.y ? point : best,
+  );
+  const topRight = points.reduce((best, point) =>
+    point.x - point.y > best.x - best.y ? point : best,
+  );
+  const bottomLeft = points.reduce((best, point) =>
+    point.x - point.y < best.x - best.y ? point : best,
+  );
+
+  const uniqueKeys = new Set(
+    [topLeft, topRight, bottomRight, bottomLeft].map((point) => `${point.x}:${point.y}`),
+  );
+
+  if (uniqueKeys.size !== 4) {
+    return [];
+  }
+
+  return [topLeft, topRight, bottomRight, bottomLeft];
+};
+
+const normalizeScanResponse = (parsedJson = {}) => {
+  const corners = resolveScanCorners(parsedJson);
+  const confidence = Number(parsedJson?.confidence);
+  const detected =
+    parsedJson?.detected === true ||
+    parsedJson?.found === true ||
+    corners.length === 4;
+
+  return {
+    detected: Boolean(detected && corners.length === 4),
+    confidence: Number.isFinite(confidence)
+      ? Math.min(1, Math.max(0, confidence))
+      : corners.length === 4
+        ? 0.8
+        : 0,
+    corners,
+  };
+};
 
 export const recognizeDocument = async ({
   documentType,
@@ -928,6 +1031,79 @@ export const recognizeDocument = async ({
 
   return {
     documentType: normalizedDocumentType,
+    provider: config.provider,
+    model: selectedModel,
+    normalized,
+    raw: {
+      content,
+      json: parsedJson,
+    },
+  };
+};
+
+export const detectDocumentScan = async ({
+  imageDataUrl,
+  documentType,
+  model,
+  prompt,
+}) => {
+  ensureOcrEnabled();
+
+  if (!imageDataUrl || !String(imageDataUrl).startsWith("data:image/")) {
+    throw new AppError("AI scan поддерживает только изображения", 400);
+  }
+
+  const config = getOcrConfig();
+  const selectedModel = String(model || "").trim() || config.defaultModel;
+  const selectedPrompt =
+    String(prompt || "").trim() ||
+    `${DEFAULT_SCAN_PROMPT} Тип документа: ${normalizeDocumentType(documentType) || "generic_document"}.`;
+
+  const payload = buildOpenRouterPayload({
+    model: selectedModel,
+    prompt: selectedPrompt,
+    imageDataUrl,
+    systemPrompt:
+      "Ты определяешь контур документа на фото. Возвращай только JSON с координатами и уверенностью.",
+    maxTokens: 900,
+  });
+
+  const headers = {
+    Authorization: `Bearer ${config.apiKey}`,
+    "Content-Type": "application/json",
+  };
+
+  if (config.referer) {
+    headers["HTTP-Referer"] = config.referer;
+  }
+  if (config.appTitle) {
+    headers["X-Title"] = config.appTitle;
+  }
+
+  let response;
+  try {
+    response = await axios.post(config.endpoint, payload, {
+      headers,
+      timeout: config.timeoutMs,
+    });
+  } catch (error) {
+    const status = error?.response?.status;
+    const providerMessage =
+      error?.response?.data?.error?.message ||
+      error?.response?.data?.message ||
+      error.message;
+
+    throw new AppError(
+      `Ошибка AI scan провайдера${status ? ` (${status})` : ""}: ${providerMessage}`,
+      502,
+    );
+  }
+
+  const content = extractResponseContent(response.data);
+  const parsedJson = parseStructuredJson(content) || {};
+  const normalized = normalizeScanResponse(parsedJson);
+
+  return {
     provider: config.provider,
     model: selectedModel,
     normalized,

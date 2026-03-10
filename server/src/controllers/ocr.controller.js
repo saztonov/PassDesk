@@ -10,6 +10,7 @@ import storageProvider from "../config/storage.js";
 import { checkEmployeeAccess } from "../utils/permissionUtils.js";
 import { readUploadedFileBuffer } from "../middleware/upload.js";
 import {
+  detectDocumentScan,
   normalizeDocumentType,
   recognizeDocument,
 } from "../services/ocr/ocrService.js";
@@ -251,6 +252,32 @@ export const recognizeDocumentFromImage = async (req, res, next) => {
         source: imageSource.source,
         fileId: imageSource.fileRecord?.id || null,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const scanDocumentImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      throw new AppError("Для AI scan требуется файл", 400);
+    }
+
+    const uploadedBuffer = await readUploadedFileBuffer(req.file);
+    ensureSupportedImageMimeType(req.file.mimetype || "");
+    ensureFileSize(uploadedBuffer.length);
+
+    const result = await detectDocumentScan({
+      documentType: req.body?.documentType || req.body?.type || null,
+      imageDataUrl: buildImageDataUrl(uploadedBuffer, req.file.mimetype),
+      model: req.body?.model,
+      prompt: req.body?.prompt,
+    });
+
+    return res.json({
+      success: true,
+      data: result,
     });
   } catch (error) {
     next(error);

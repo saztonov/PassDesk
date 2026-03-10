@@ -8,6 +8,7 @@ import {
   CameraOutlined,
 } from "@ant-design/icons";
 import { employeeService } from "@/services/employeeService";
+import createAiScannedDocument from "@/shared/lib/aiDocumentScanner";
 import {
   ALLOWED_MIME_TYPES,
   SUPPORTED_FORMATS,
@@ -173,12 +174,45 @@ const EmployeeDocumentUpload = ({
       return;
     }
 
-    const formData = new FormData();
-    formData.append("files", file);
-    formData.append("documentType", documentType);
+    let fileToUpload = file;
 
     setState((prev) => ({ ...prev, uploading: true }));
     try {
+      const isImageFile =
+        mimeType.startsWith("image/") ||
+        ["jpg", "jpeg", "png", "webp"].includes(ext);
+
+      if (isImageFile) {
+        const aiScanMessageKey = `ai-scan-${documentType}`;
+        message.loading({
+          content: "AI: подготавливаем скан документа...",
+          key: aiScanMessageKey,
+          duration: 0,
+        });
+
+        try {
+          fileToUpload = await createAiScannedDocument({
+            file,
+            documentType,
+          });
+          message.success({
+            content: "AI: scan-копия подготовлена",
+            key: aiScanMessageKey,
+            duration: 2,
+          });
+        } catch (scanError) {
+          console.error("AI scan failed:", scanError);
+          message.warning({
+            content: "AI scan не сработал, загружаем исходное фото",
+            key: aiScanMessageKey,
+            duration: 3,
+          });
+        }
+      }
+
+      const formData = new FormData();
+      formData.append("files", fileToUpload);
+      formData.append("documentType", documentType);
       const uploadResult = await employeeService.uploadFiles(
         currentEmployeeId,
         formData,
