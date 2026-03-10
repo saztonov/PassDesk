@@ -90,6 +90,10 @@ const mapCornersToViewport = (corners, sourceWidth, sourceHeight, viewportRect) 
     return [];
   }
 
+  if (!viewportRect.width || !viewportRect.height) {
+    return [];
+  }
+
   const visibleRect = computeVisibleSourceRect(
     sourceWidth,
     sourceHeight,
@@ -97,8 +101,16 @@ const mapCornersToViewport = (corners, sourceWidth, sourceHeight, viewportRect) 
   );
 
   return corners.map((point) => ({
-    x: ((point.x - visibleRect.x) / visibleRect.width) * viewportRect.width,
-    y: ((point.y - visibleRect.y) / visibleRect.height) * viewportRect.height,
+    x: clamp(
+      ((point.x - visibleRect.x) / visibleRect.width) * viewportRect.width,
+      0,
+      viewportRect.width,
+    ),
+    y: clamp(
+      ((point.y - visibleRect.y) / visibleRect.height) * viewportRect.height,
+      0,
+      viewportRect.height,
+    ),
   }));
 };
 
@@ -166,6 +178,8 @@ const cropDataUrlByOverlay = async (dataUrl, layout, viewportAspect) => {
   });
 };
 
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
 const DocumentCaptureModal = ({
   open,
   mode = "document",
@@ -229,6 +243,8 @@ const DocumentCaptureModal = ({
     let cancelled = false;
     let timerId = null;
 
+    setDetectionStatus("searching");
+
     const runDetection = async () => {
       if (cancelled || detectionInFlightRef.current) {
         return;
@@ -275,22 +291,20 @@ const DocumentCaptureModal = ({
           previewCanvas.width,
           previewCanvas.height,
           viewportRect,
-        ).filter(
-          (point) =>
-            Number.isFinite(point.x) &&
-            Number.isFinite(point.y) &&
-            point.x >= 0 &&
-            point.y >= 0 &&
-            point.x <= viewportRect.width &&
-            point.y <= viewportRect.height,
         );
 
-        setDetectedCorners(projectedCorners.length === 4 ? projectedCorners : []);
+        setDetectedCorners(
+          projectedCorners.every(
+            (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
+          ) && projectedCorners.length === 4
+            ? projectedCorners
+            : [],
+        );
         setDetectionStatus(projectedCorners.length === 4 ? "detected" : "searching");
       } catch {
         if (!cancelled) {
           setDetectedCorners([]);
-          setDetectionStatus("searching");
+          setDetectionStatus("not_found");
         }
       } finally {
         detectionInFlightRef.current = false;
@@ -463,6 +477,37 @@ const DocumentCaptureModal = ({
             opacity: capturedDataUrl ? 0.4 : 1,
           }}
         >
+          {!capturedDataUrl ? (
+            <div
+              style={{
+                position: "absolute",
+                top: 12,
+                left: 12,
+                zIndex: 2,
+                padding: "6px 10px",
+                borderRadius: 999,
+                background:
+                  detectionStatus === "detected"
+                    ? "rgba(31, 232, 151, 0.16)"
+                    : "rgba(255, 184, 0, 0.18)",
+                border:
+                  detectionStatus === "detected"
+                    ? "1px solid rgba(31, 232, 151, 0.48)"
+                    : "1px solid rgba(255, 184, 0, 0.4)",
+                color: "#fff",
+                fontSize: 12,
+                lineHeight: 1.2,
+                fontWeight: 600,
+              }}
+            >
+              {detectionStatus === "detected"
+                ? "OpenCV: контур найден"
+                : detectionStatus === "not_found"
+                  ? "OpenCV: контур не найден"
+                  : "OpenCV: ищу контур"}
+            </div>
+          ) : null}
+
           <div
             style={{
               width: `${captureLayout.frameWidth * 100}%`,
@@ -542,7 +587,9 @@ const DocumentCaptureModal = ({
             ? captureLayout.helperText
             : detectionStatus === "detected"
               ? "OpenCV нашёл границы документа. Зелёная рамка показывает область захвата."
-              : "OpenCV ищет границы документа. Держите телефон ровно и уменьшите блики.")}
+              : detectionStatus === "not_found"
+                ? "OpenCV пока не видит контур документа. Уменьшите блики и держите телефон параллельно."
+                : "OpenCV ищет границы документа. Держите телефон ровно и уменьшите блики.")}
       </Typography.Text>
 
       <Space

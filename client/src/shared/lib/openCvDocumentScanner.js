@@ -86,8 +86,8 @@ const getDetectorAttempts = (documentType, { preview = false } = {}) => {
   if (documentType === "passport") {
     if (preview) {
       return [
-        { maxDimension: 960, blur: 5, lower: 18, upper: 72, close: 5, minAreaRatio: 0.16 },
-        { maxDimension: 800, blur: 5, lower: 12, upper: 54, close: 7, minAreaRatio: 0.12 },
+        { maxDimension: 960, blur: 5, lower: 16, upper: 68, close: 5, minAreaRatio: 0.1 },
+        { maxDimension: 800, blur: 5, lower: 10, upper: 48, close: 7, minAreaRatio: 0.07 },
       ];
     }
 
@@ -100,8 +100,8 @@ const getDetectorAttempts = (documentType, { preview = false } = {}) => {
 
   if (preview) {
     return [
-      { maxDimension: 960, blur: 5, lower: 26, upper: 96, close: 5, minAreaRatio: 0.1 },
-      { maxDimension: 800, blur: 5, lower: 16, upper: 64, close: 7, minAreaRatio: 0.08 },
+      { maxDimension: 960, blur: 5, lower: 22, upper: 88, close: 5, minAreaRatio: 0.08 },
+      { maxDimension: 800, blur: 5, lower: 14, upper: 56, close: 7, minAreaRatio: 0.06 },
     ];
   }
 
