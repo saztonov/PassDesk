@@ -18,9 +18,9 @@ const captureLayoutByMode = {
     helperText:
       "Заполните рамку разворотом паспорта почти целиком и держите телефон параллельно документу.",
     viewportAspect: 4 / 3,
-    frameWidth: 0.9,
-    frameHeight: 0.64,
-    cropPadding: 0.06,
+    frameWidth: 0.68,
+    frameHeight: 0.9,
+    cropPadding: 0.05,
   },
   document: {
     helperText: "Поместите документ целиком в рамку и избегайте бликов.",
@@ -264,24 +264,14 @@ const DocumentCaptureModal = ({
             style={{
               width: `${captureLayout.frameWidth * 100}%`,
               height: `${captureLayout.frameHeight * 100}%`,
-              borderRadius: mode === "passport" ? 16 : 24,
+              borderRadius: mode === "passport" ? 8 : 24,
               border: "2px solid rgba(255,255,255,0.94)",
               boxShadow:
                 "0 0 0 999px rgba(6, 10, 14, 0.42), 0 0 0 1px rgba(255,255,255,0.18) inset",
               position: "relative",
             }}
           >
-            {mode === "passport" ? (
-              <div
-                style={{
-                  position: "absolute",
-                  left: 12,
-                  right: 12,
-                  top: "50%",
-                  borderTop: "1px solid rgba(255,255,255,0.4)",
-                }}
-              />
-            ) : (
+            {mode !== "passport" ? (
               <div
                 style={{
                   position: "absolute",
@@ -290,7 +280,7 @@ const DocumentCaptureModal = ({
                   border: "1px dashed rgba(255,255,255,0.42)",
                 }}
               />
-            )}
+            ) : null}
           </div>
         </div>
       </div>
