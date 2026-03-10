@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { App, Button, Modal, Space, Typography } from "antd";
+import { App, Button, Grid, Modal, Space, Typography } from "antd";
 import Webcam from "react-webcam";
 import {
   CameraOutlined,
@@ -17,9 +17,9 @@ const captureLayoutByMode = {
   passport: {
     helperText:
       "Заполните рамку разворотом паспорта почти целиком и держите телефон параллельно документу.",
-    viewportAspect: 4 / 3,
-    frameWidth: 0.68,
-    frameHeight: 0.9,
+    viewportAspect: 3 / 4,
+    frameWidth: 0.9,
+    frameHeight: 0.72,
     cropPadding: 0.05,
   },
   document: {
@@ -39,7 +39,11 @@ const loadImage = (dataUrl) =>
     image.src = dataUrl;
   });
 
-const computeVisibleSourceRect = (sourceWidth, sourceHeight, viewportAspect) => {
+const computeVisibleSourceRect = (
+  sourceWidth,
+  sourceHeight,
+  viewportAspect,
+) => {
   const sourceAspect = sourceWidth / sourceHeight;
   if (sourceAspect > viewportAspect) {
     const visibleWidth = sourceHeight * viewportAspect;
@@ -71,7 +75,8 @@ const cropDataUrlByOverlay = async (dataUrl, layout) => {
   );
   const frameLeft = (1 - layout.frameWidth) / 2;
   const frameTop = (1 - layout.frameHeight) / 2;
-  const padding = Math.min(viewport.width, viewport.height) * layout.cropPadding;
+  const padding =
+    Math.min(viewport.width, viewport.height) * layout.cropPadding;
 
   const cropX = Math.max(0, viewport.x + viewport.width * frameLeft - padding);
   const cropY = Math.max(0, viewport.y + viewport.height * frameTop - padding);
@@ -131,6 +136,8 @@ const DocumentCaptureModal = ({
   onFallback,
 }) => {
   const { message } = App.useApp();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const webcamRef = useRef(null);
   const [capturing, setCapturing] = useState(false);
   const [capturedDataUrl, setCapturedDataUrl] = useState("");
@@ -204,14 +211,39 @@ const DocumentCaptureModal = ({
       title="Фото документа"
       destroyOnClose
       centered
-      width={420}
+      width={isMobile ? "100vw" : 420}
+      style={{
+        top: isMobile ? 0 : undefined,
+        maxWidth: isMobile ? "100vw" : undefined,
+        margin: isMobile ? 0 : undefined,
+        paddingBottom: isMobile ? 0 : undefined,
+      }}
+      styles={{
+        content: {
+          borderRadius: isMobile ? 0 : 16,
+          minHeight: isMobile ? "100dvh" : undefined,
+          padding: isMobile ? 16 : undefined,
+          display: isMobile ? "flex" : undefined,
+          flexDirection: isMobile ? "column" : undefined,
+        },
+        header: {
+          marginBottom: isMobile ? 12 : undefined,
+        },
+        body: {
+          padding: isMobile ? 0 : 24,
+          display: isMobile ? "flex" : undefined,
+          flexDirection: isMobile ? "column" : undefined,
+          flex: isMobile ? 1 : undefined,
+        },
+      }}
     >
       <div
         style={{
           position: "relative",
           overflow: "hidden",
-          borderRadius: 16,
+          borderRadius: isMobile ? 18 : 16,
           background: "#101418",
+          minHeight: isMobile ? "70dvh" : undefined,
         }}
       >
         {capturedDataUrl ? (
@@ -221,6 +253,7 @@ const DocumentCaptureModal = ({
             style={{
               display: "block",
               width: "100%",
+              height: isMobile ? "70dvh" : "auto",
               aspectRatio: `${captureLayout.viewportAspect}`,
               objectFit: "cover",
             }}
@@ -241,6 +274,7 @@ const DocumentCaptureModal = ({
             style={{
               display: "block",
               width: "100%",
+              height: isMobile ? "70dvh" : "auto",
               aspectRatio: `${captureLayout.viewportAspect}`,
               objectFit: "cover",
             }}
@@ -287,15 +321,30 @@ const DocumentCaptureModal = ({
 
       <Typography.Text
         type="secondary"
-        style={{ display: "block", marginTop: 12 }}
+        style={{
+          display: "block",
+          marginTop: 12,
+          fontSize: isMobile ? 16 : undefined,
+        }}
       >
         {cameraError || captureLayout.helperText}
       </Typography.Text>
 
-      <Space style={{ width: "100%", justifyContent: "space-between", marginTop: 16 }}>
+      <Space
+        style={{
+          width: "100%",
+          justifyContent: "space-between",
+          marginTop: isMobile ? "auto" : 16,
+          paddingTop: 16,
+        }}
+      >
         {capturedDataUrl ? (
           <>
-            <Button icon={<ReloadOutlined />} onClick={resetPreview}>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={resetPreview}
+              size={isMobile ? "large" : "middle"}
+            >
               Переснять
             </Button>
             <Button
@@ -303,19 +352,25 @@ const DocumentCaptureModal = ({
               icon={<CheckOutlined />}
               loading={capturing}
               onClick={handleConfirmCapture}
+              size={isMobile ? "large" : "middle"}
             >
               Использовать
             </Button>
           </>
         ) : (
           <>
-            <Button icon={<ReloadOutlined />} onClick={handleUseFallback}>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={handleUseFallback}
+              size={isMobile ? "large" : "middle"}
+            >
               Другой способ
             </Button>
             <Button
               type="primary"
               icon={<CameraOutlined />}
               onClick={handleTakePhoto}
+              size={isMobile ? "large" : "middle"}
             >
               Снять
             </Button>
