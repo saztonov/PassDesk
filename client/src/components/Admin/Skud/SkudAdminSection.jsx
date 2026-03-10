@@ -23,7 +23,10 @@ import {
   ReloadOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
+import { useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
+import PassesPage from "@/pages/PassesPage";
+import { employeeService } from "@/services/employeeService";
 import skudService from "@/services/skudService";
 
 const { Text } = Typography;
@@ -82,8 +85,15 @@ const getCardKey = (record) => {
   return value ? String(value).trim() : "";
 };
 
+const buildEmployeeName = (employee) =>
+  [employee?.lastName, employee?.firstName, employee?.middleName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
 const SkudAdminSection = () => {
   const { message } = App.useApp();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [pullingEvents, setPullingEvents] = useState(false);
   const [employeeIdInput, setEmployeeIdInput] = useState("");
@@ -98,7 +108,7 @@ const SkudAdminSection = () => {
   const [cardNumberInput, setCardNumberInput] = useState("");
   const [cardTypeInput, setCardTypeInput] = useState("rfid");
   const [cardNotesInput, setCardNotesInput] = useState("");
-  const [activeTab, setActiveTab] = useState("events");
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "events");
   const [localEmployeeSearch, setLocalEmployeeSearch] = useState("");
   const [providerEmployeeSearch, setProviderEmployeeSearch] = useState("");
   const [mappingLoading, setMappingLoading] = useState(false);
@@ -108,6 +118,9 @@ const SkudAdminSection = () => {
   const [selectedProviderEmployeeId, setSelectedProviderEmployeeId] = useState(null);
   const [bindingActionLoading, setBindingActionLoading] = useState(false);
   const [qrEmployeeIdInput, setQrEmployeeIdInput] = useState("");
+  const [qrEmployeeOptions, setQrEmployeeOptions] = useState([]);
+  const [qrEmployeeSearch, setQrEmployeeSearch] = useState("");
+  const [qrEmployeeOptionsLoading, setQrEmployeeOptionsLoading] = useState(false);
   const [qrTokenTypeInput, setQrTokenTypeInput] = useState("persistent");
   const [qrChannelInput, setQrChannelInput] = useState("web");
   const [qrActionLoading, setQrActionLoading] = useState(false);
@@ -170,6 +183,11 @@ const SkudAdminSection = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const nextTab = searchParams.get("tab") || "events";
+    setActiveTab((currentTab) => (currentTab === nextTab ? currentTab : nextTab));
+  }, [searchParams]);
 
   const handleShowOnlyPassagesChange = useCallback((checked) => {
     setEventsPage(1);
@@ -420,6 +438,44 @@ const SkudAdminSection = () => {
   useEffect(() => {
     loadMappingLists();
   }, [loadMappingLists]);
+
+  const loadQrEmployees = useCallback(
+    async (search = "") => {
+      setQrEmployeeOptionsLoading(true);
+      try {
+        const response = await employeeService.getAll({
+          page: 1,
+          limit: 100,
+          activeOnly: "true",
+          ...(search ? { search } : {}),
+        });
+        const items = Array.isArray(response?.data?.employees)
+          ? response.data.employees
+          : [];
+
+        setQrEmployeeOptions(
+          items.map((employee) => ({
+            value: employee.id,
+            label:
+              buildEmployeeName(employee) ||
+              employee.fullName ||
+              employee.email ||
+              String(employee.id),
+          })),
+        );
+      } catch (error) {
+        console.error("Failed to load QR employee options:", error);
+        message.error("Не удалось загрузить сотрудников");
+      } finally {
+        setQrEmployeeOptionsLoading(false);
+      }
+    },
+    [message],
+  );
+
+  useEffect(() => {
+    loadQrEmployees(qrEmployeeSearch);
+  }, [loadQrEmployees, qrEmployeeSearch]);
 
   const handleBindSelectedEmployees = useCallback(async () => {
     const employeeId = String(selectedLocalEmployeeId || "").trim();
@@ -903,7 +959,14 @@ const SkudAdminSection = () => {
 
       <Tabs
         activeKey={activeTab}
-        onChange={setActiveTab}
+        onChange={(nextTab) => {
+          setActiveTab(nextTab);
+          setSearchParams((prev) => {
+            const nextParams = new URLSearchParams(prev);
+            nextParams.set("tab", nextTab);
+            return nextParams;
+          });
+        }}
         items={[
           {
             key: "events",
@@ -1200,14 +1263,27 @@ const SkudAdminSection = () => {
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
                 <Card title="Выпуск QR для СКУД">
                   <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                    <Input
-                      placeholder="employeeId (UUID сотрудника в PassDesk)"
-                      value={qrEmployeeIdInput}
-                      onChange={(event) => setQrEmployeeIdInput(event.target.value)}
+                    <Select
+                      showSearch
+                      allowClear
+                      placeholder="Выберите сотрудника"
+                      value={qrEmployeeIdInput || undefined}
+                      options={qrEmployeeOptions}
+                      loading={qrEmployeeOptionsLoading}
+                      onSearch={setQrEmployeeSearch}
+                      onChange={(value) => setQrEmployeeIdInput(value || "")}
+                      optionFilterProp="label"
+                      filterOption={false}
+                      style={{ width: "100%" }}
+                      popupMatchSelectWidth
                     />
+                    <Text type="secondary">
+                      Если сотрудника нет в первых результатах, начните вводить ФИО или UUID.
+                    </Text>
                     <Select
                       value={qrTokenTypeInput}
                       onChange={setQrTokenTypeInput}
+                      style={{ width: "100%" }}
                       options={[
                         { value: "persistent", label: "Постоянный" },
                         { value: "one_time", label: "Одноразовый" },
@@ -1216,6 +1292,7 @@ const SkudAdminSection = () => {
                     <Select
                       value={qrChannelInput}
                       onChange={setQrChannelInput}
+                      style={{ width: "100%" }}
                       options={[
                         { value: "web", label: "Web" },
                         { value: "mobile", label: "Mobile" },
@@ -1316,6 +1393,11 @@ const SkudAdminSection = () => {
                 </Card>
               </Space>
             ),
+          },
+          {
+            key: "passes",
+            label: "Пропуска",
+            children: <PassesPage embedded />,
           },
         ]}
       />

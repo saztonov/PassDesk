@@ -399,7 +399,7 @@ const createPassColumns = ({
   },
 ];
 
-const PassesPage = () => {
+const PassesPage = ({ embedded = false }) => {
   const { message } = App.useApp();
   const initialState = useMemo(loadPassesPageState, []);
   const [form] = Form.useForm();
@@ -665,19 +665,60 @@ const PassesPage = () => {
 
   return (
     <div>
-      <PassesToolbar
-        searchText={searchText}
-        onSearchChange={(e) =>
-          setUiState((prev) => ({
-            ...prev,
-            searchText: e.target.value,
-            pagination: { ...prev.pagination, current: 1 },
-          }))
-        }
-        onAdd={handleAdd}
-        onRefresh={loadPageData}
-        loading={loading}
-      />
+      {embedded ? null : (
+        <PassesToolbar
+          searchText={searchText}
+          onSearchChange={(e) =>
+            setUiState((prev) => ({
+              ...prev,
+              searchText: e.target.value,
+              pagination: { ...prev.pagination, current: 1 },
+            }))
+          }
+          onAdd={handleAdd}
+          onRefresh={loadPageData}
+          loading={loading}
+        />
+      )}
+
+      {embedded ? (
+        <Space
+          style={{ marginBottom: 16, width: "100%" }}
+          direction="vertical"
+        >
+          <Space
+            style={{ width: "100%", justifyContent: "space-between" }}
+            wrap
+          >
+            <Input
+              placeholder="Поиск по номеру пропуска или сотруднику..."
+              prefix={<SearchOutlined />}
+              value={searchText}
+              onChange={(e) =>
+                setUiState((prev) => ({
+                  ...prev,
+                  searchText: e.target.value,
+                  pagination: { ...prev.pagination, current: 1 },
+                }))
+              }
+              size="large"
+              style={{ maxWidth: 500 }}
+            />
+            <Space wrap>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={loadPageData}
+                loading={loading}
+              >
+                Обновить
+              </Button>
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+                Создать пропуск
+              </Button>
+            </Space>
+          </Space>
+        </Space>
+      ) : null}
 
       <Table
         columns={columns}

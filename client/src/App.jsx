@@ -10,7 +10,6 @@ import EmployeesPage from "./pages/employees";
 import AddEmployeePage from "./pages/employees/AddEmployeePage";
 import ApplicationRequestPage from "./pages/employees/ApplicationRequestPage";
 import DocumentCaptureDebugPage from "./pages/employees/DocumentCaptureDebugPage";
-import PassesPage from "./pages/PassesPage";
 import CounterpartiesPage from "./pages/CounterpartiesPage";
 import CounterpartyDocumentsPage from "./pages/CounterpartyDocumentsPage";
 import UserProfilePage from "./pages/UserProfilePage";
@@ -135,7 +134,7 @@ function App() {
               path="passes"
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
-                  <PassesPage />
+                  <Navigate to="/skud?tab=passes" replace />
                 </ProtectedRoute>
               }
             />
