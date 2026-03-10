@@ -23,17 +23,16 @@ const updatePassValidation = [
   body('validFrom').optional().isISO8601().toDate(),
   body('validUntil').optional().isISO8601().toDate(),
   body('accessZones').optional().isArray(),
-  body('status').optional().isIn(['active', 'expired', 'revoked'])
+  body('status').optional().isIn(['pending', 'active', 'expired', 'revoked'])
 ];
 
 // Routes
 router.get('/', passController.getAllPasses);
-router.get('/:id', passController.getPassById);
 router.get('/employee/:employeeId', passController.getPassesByEmployee);
+router.get('/:id', passController.getPassById);
 router.post('/', authorize('admin'), createPassValidation, validate, passController.createPass);
 router.put('/:id', authorize('admin'), updatePassValidation, validate, passController.updatePass);
 router.delete('/:id', authorize('admin'), passController.deletePass);
 router.patch('/:id/revoke', authorize('admin'), passController.revokePass);
 
 export default router;
-

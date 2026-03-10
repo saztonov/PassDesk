@@ -183,7 +183,7 @@ const resolveOrCreateBindingExternalId = async ({ employee, sigurResponse, userI
   return externalEmpId;
 };
 
-const runSyncEmployeeOperation = async ({ employee, userId }) => {
+const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
   const provider = getSkudProvider();
   const existingBinding = Array.isArray(employee?.skudBindings)
     ? employee.skudBindings[0]
@@ -196,6 +196,8 @@ const runSyncEmployeeOperation = async ({ employee, userId }) => {
     employee,
     externalEmpId: existingBinding?.externalEmpId || null,
     counterpartyName,
+    accessStartTime: payload.accessStartTime || null,
+    accessEndTime: payload.accessEndTime || null,
   });
 
   const response = await provider.createOrUpdateEmployee({
@@ -226,7 +228,7 @@ const runSyncEmployeeOperation = async ({ employee, userId }) => {
   };
 };
 
-const ensureBinding = async ({ employee, userId }) => {
+const ensureBinding = async ({ employee, userId, payload = {} }) => {
   const existingBinding = Array.isArray(employee?.skudBindings)
     ? employee.skudBindings[0]
     : null;
@@ -235,7 +237,7 @@ const ensureBinding = async ({ employee, userId }) => {
     return existingBinding.externalEmpId;
   }
 
-  const result = await runSyncEmployeeOperation({ employee, userId });
+  const result = await runSyncEmployeeOperation({ employee, userId, payload });
   if (!result.externalEmpId) {
     throw new Error("Unable to resolve externalEmpId for SKUD operation");
   }
@@ -245,7 +247,7 @@ const ensureBinding = async ({ employee, userId }) => {
 
 const runBlockOperation = async ({ employee, userId, payload = {} }) => {
   const provider = getSkudProvider();
-  const externalEmpId = await ensureBinding({ employee, userId });
+  const externalEmpId = await ensureBinding({ employee, userId, payload });
   const response = await provider.blockEmployee(externalEmpId, payload.statusReason || null);
 
   await upsertAccessState({
@@ -266,7 +268,7 @@ const runBlockOperation = async ({ employee, userId, payload = {} }) => {
 
 const runUnblockOperation = async ({ employee, userId, payload = {} }) => {
   const provider = getSkudProvider();
-  const externalEmpId = await ensureBinding({ employee, userId });
+  const externalEmpId = await ensureBinding({ employee, userId, payload });
   const response = await provider.unblockEmployee(externalEmpId);
 
   await upsertAccessState({
@@ -314,6 +316,7 @@ export const processSkudSyncJobById = async (syncJobId) => {
       result = await runSyncEmployeeOperation({
         employee,
         userId: syncJob.createdBy,
+        payload,
       });
     } else if (syncJob.operation === "block_employee") {
       result = await runBlockOperation({
@@ -359,6 +362,7 @@ export const enqueueSkudSyncForEmployee = async ({
   reasonCode = null,
   statusReason = null,
   priority = "normal",
+  payload = {},
 }) => {
   const syncJob = await createSkudSyncJob({
     employeeId,
@@ -366,6 +370,7 @@ export const enqueueSkudSyncForEmployee = async ({
     createdBy: userId,
     priority,
     payload: {
+      ...(payload || {}),
       source,
       reasonCode,
       statusReason,

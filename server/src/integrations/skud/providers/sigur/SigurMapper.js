@@ -6,15 +6,22 @@ const buildFullName = (employee) =>
     .join(" ")
     .trim();
 
-export const mapEmployeeToSigur = ({ employee, externalEmpId = null, counterpartyName = "" }) => {
+export const mapEmployeeToSigur = ({
+  employee,
+  externalEmpId = null,
+  counterpartyName = "",
+  accessStartTime = null,
+  accessEndTime = null,
+}) => {
   const name = buildFullName(employee) || trim(employee?.firstName) || "Сотрудник";
 
   return {
     ...(externalEmpId ? { id: Number.parseInt(String(externalEmpId), 10) || undefined } : {}),
     name,
     description: trim(counterpartyName) || trim(employee?.notes) || "",
-    accessStartTime: employee?.accessStartTime || employee?.createdAt || undefined,
-    accessEndTime: employee?.accessEndTime || undefined,
+    accessStartTime:
+      accessStartTime || employee?.accessStartTime || employee?.createdAt || undefined,
+    accessEndTime: accessEndTime || employee?.accessEndTime || undefined,
     verificationPin: trim(employee?.verificationPin) || undefined,
     tabId: trim(employee?.inn) || undefined,
   };
