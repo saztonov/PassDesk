@@ -111,15 +111,148 @@ const getDetectorAttempts = (documentType, { preview = false } = {}) => {
   ];
 };
 
-const detectWithAttempt = (cv, image, attempt, documentType) => {
+const scoreCandidate = ({
+  points,
+  area,
+  totalArea,
+  documentType,
+  originalWidth,
+  originalHeight,
+}) => {
+  const ratio = getLongShortRatio(points);
+  const ratioPenalty =
+    documentType === "passport"
+      ? Math.abs(ratio - 1.42) * 0.12
+      : Math.abs(ratio - 1.4) * 0.08;
+  const borderPenalty = points.some(
+    (point) =>
+      point.x < originalWidth * 0.01 ||
+      point.y < originalHeight * 0.01 ||
+      point.x > originalWidth * 0.99 ||
+      point.y > originalHeight * 0.99,
+  )
+    ? 0.02
+    : 0;
+
+  return area / totalArea - ratioPenalty - borderPenalty;
+};
+
+const pickContourCandidate = ({
+  cv,
+  contour,
+  scaleX,
+  scaleY,
+  originalWidth,
+  originalHeight,
+}) => {
+  const perimeter = cv.arcLength(contour, true);
+  const approx = new cv.Mat();
+
+  try {
+    cv.approxPolyDP(contour, approx, Math.max(8, perimeter * 0.02), true);
+
+    if (approx.rows === 4 && cv.isContourConvex(approx)) {
+      return normalizePoints(
+        matPointsToArray(approx),
+        scaleX,
+        scaleY,
+        originalWidth,
+        originalHeight,
+      );
+    }
+
+    const rect = cv.minAreaRect(contour);
+    return normalizePoints(
+      cv.RotatedRect.points(rect),
+      scaleX,
+      scaleY,
+      originalWidth,
+      originalHeight,
+    );
+  } finally {
+    approx.delete();
+  }
+};
+
+const collectBestCandidateFromMask = ({
+  cv,
+  mask,
+  originalWidth,
+  originalHeight,
+  workingWidth,
+  workingHeight,
+  minArea,
+  weakMinArea,
+  documentType,
+}) => {
+  const contours = new cv.MatVector();
+  const hierarchy = new cv.Mat();
+  const scaleX = originalWidth / workingWidth;
+  const scaleY = originalHeight / workingHeight;
+  let bestStrong = null;
+  let bestWeak = null;
+
+  try {
+    cv.findContours(mask, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+    for (let index = 0; index < contours.size(); index += 1) {
+      const contour = contours.get(index);
+
+      try {
+        const area = cv.contourArea(contour);
+        if (!Number.isFinite(area) || area < weakMinArea) {
+          continue;
+        }
+
+        const points = pickContourCandidate({
+          cv,
+          contour,
+          scaleX,
+          scaleY,
+          originalWidth,
+          originalHeight,
+        });
+
+        if (!points) {
+          continue;
+        }
+
+        const score = scoreCandidate({
+          points,
+          area,
+          totalArea: workingWidth * workingHeight,
+          documentType,
+          originalWidth,
+          originalHeight,
+        });
+        const candidate = { score, points, area };
+
+        if (area >= minArea && (!bestStrong || score > bestStrong.score)) {
+          bestStrong = candidate;
+        }
+
+        if (!bestWeak || score > bestWeak.score) {
+          bestWeak = candidate;
+        }
+      } finally {
+        contour.delete();
+      }
+    }
+  } finally {
+    contours.delete();
+    hierarchy.delete();
+  }
+
+  return { bestStrong, bestWeak };
+};
+
+const detectWithAttempt = (cv, image, attempt, documentType, options = {}) => {
   const allocated = [];
   const allocate = (mat) => {
     allocated.push(mat);
     return mat;
   };
-
-  const contours = new cv.MatVector();
-  const hierarchy = new cv.Mat();
+  const { allowWeak = false } = options;
 
   try {
     const original = allocate(cv.imread(image));
@@ -150,6 +283,10 @@ const detectWithAttempt = (cv, image, attempt, documentType) => {
     const normalized = allocate(new cv.Mat());
     const edges = allocate(new cv.Mat());
     const closed = allocate(new cv.Mat());
+    const binary = allocate(new cv.Mat());
+    const binaryClosed = allocate(new cv.Mat());
+    const inverseBinary = allocate(new cv.Mat());
+    const inverseBinaryClosed = allocate(new cv.Mat());
     const kernel = allocate(
       cv.getStructuringElement(
         cv.MORPH_RECT,
@@ -169,83 +306,55 @@ const detectWithAttempt = (cv, image, attempt, documentType) => {
     cv.normalize(blurred, normalized, 0, 255, cv.NORM_MINMAX);
     cv.Canny(normalized, edges, attempt.lower, attempt.upper);
     cv.morphologyEx(edges, closed, cv.MORPH_CLOSE, kernel);
-    cv.findContours(closed, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+    cv.threshold(normalized, binary, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+    cv.threshold(
+      normalized,
+      inverseBinary,
+      0,
+      255,
+      cv.THRESH_BINARY_INV + cv.THRESH_OTSU,
+    );
+    cv.morphologyEx(binary, binaryClosed, cv.MORPH_CLOSE, kernel);
+    cv.morphologyEx(inverseBinary, inverseBinaryClosed, cv.MORPH_CLOSE, kernel);
 
     const minArea = closed.cols * closed.rows * attempt.minAreaRatio;
-    const scaleX = original.cols / working.cols;
-    const scaleY = original.rows / working.rows;
-    let bestCandidate = null;
+    const weakMinArea = Math.max(
+      closed.cols * closed.rows * (options.preview ? 0.02 : attempt.minAreaRatio * 0.5),
+      600,
+    );
+    const masks = [closed, binaryClosed, inverseBinaryClosed];
+    let bestStrong = null;
+    let bestWeak = null;
 
-    for (let index = 0; index < contours.size(); index += 1) {
-      const contour = contours.get(index);
-      const area = cv.contourArea(contour);
-      if (!Number.isFinite(area) || area < minArea) {
-        contour.delete();
-        continue;
+    masks.forEach((mask) => {
+      const result = collectBestCandidateFromMask({
+        cv,
+        mask,
+        originalWidth: original.cols,
+        originalHeight: original.rows,
+        workingWidth: working.cols,
+        workingHeight: working.rows,
+        minArea,
+        weakMinArea,
+        documentType,
+      });
+
+      if (result.bestStrong && (!bestStrong || result.bestStrong.score > bestStrong.score)) {
+        bestStrong = result.bestStrong;
       }
 
-      const perimeter = cv.arcLength(contour, true);
-      const approx = new cv.Mat();
-      cv.approxPolyDP(contour, approx, Math.max(8, perimeter * 0.02), true);
-
-      let points = null;
-      if (approx.rows === 4 && cv.isContourConvex(approx)) {
-        points = normalizePoints(
-          matPointsToArray(approx),
-          scaleX,
-          scaleY,
-          original.cols,
-          original.rows,
-        );
+      if (result.bestWeak && (!bestWeak || result.bestWeak.score > bestWeak.score)) {
+        bestWeak = result.bestWeak;
       }
+    });
 
-      if (!points) {
-        const rect = cv.minAreaRect(contour);
-        points = normalizePoints(
-          cv.RotatedRect.points(rect),
-          scaleX,
-          scaleY,
-          original.cols,
-          original.rows,
-        );
-      }
-
-      approx.delete();
-      contour.delete();
-
-      if (!points) {
-        continue;
-      }
-
-      const ratio = getLongShortRatio(points);
-      const ratioPenalty =
-        documentType === "passport"
-          ? Math.abs(ratio - 1.42) * 0.12
-          : Math.abs(ratio - 1.4) * 0.08;
-      const borderPenalty = points.some(
-        (point) =>
-          point.x < original.cols * 0.01 ||
-          point.y < original.rows * 0.01 ||
-          point.x > original.cols * 0.99 ||
-          point.y > original.rows * 0.99,
-      )
-        ? 0.02
-        : 0;
-      const score = area / (closed.cols * closed.rows) - ratioPenalty - borderPenalty;
-
-      if (!bestCandidate || score > bestCandidate.score) {
-        bestCandidate = { score, points };
-      }
-    }
-
-    if (!bestCandidate) {
+    const winner = bestStrong || (allowWeak ? bestWeak : null);
+    if (!winner) {
       return null;
     }
 
-    return bestCandidate.points;
+    return winner.points;
   } finally {
-    contours.delete();
-    hierarchy.delete();
     allocated.reverse().forEach((mat) => {
       try {
         mat.delete();
@@ -324,9 +433,13 @@ export const detectDocumentCornersWithOpenCv = async (
   const cv = await getOpenCv();
   const attempts = getDetectorAttempts(documentType, options);
   let points = null;
+  const detectorOptions = {
+    preview: Boolean(options.preview),
+    allowWeak: Boolean(options.preview || options.allowWeak),
+  };
 
   for (const attempt of attempts) {
-    points = detectWithAttempt(cv, image, attempt, documentType);
+    points = detectWithAttempt(cv, image, attempt, documentType, detectorOptions);
     if (points) {
       break;
     }
