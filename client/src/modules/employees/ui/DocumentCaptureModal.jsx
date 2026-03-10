@@ -7,18 +7,120 @@ import {
   ReloadOutlined,
 } from "@ant-design/icons";
 
-const videoConstraints = {
+const BASE_VIDEO_CONSTRAINTS = {
   facingMode: { ideal: "environment" },
+  width: { ideal: 2560 },
+  height: { ideal: 1440 },
 };
 
-const overlayCopyByMode = {
-  passport: "Совместите разворот паспорта с рамкой и держите камеру ровно.",
-  document: "Поместите документ целиком в рамку и избегайте бликов.",
+const captureLayoutByMode = {
+  passport: {
+    helperText:
+      "Заполните рамку разворотом паспорта почти целиком и держите телефон параллельно документу.",
+    viewportAspect: 4 / 3,
+    frameWidth: 0.9,
+    frameHeight: 0.58,
+    cropPadding: 0.06,
+  },
+  document: {
+    helperText: "Поместите документ целиком в рамку и избегайте бликов.",
+    viewportAspect: 3 / 4,
+    frameWidth: 0.78,
+    frameHeight: 0.68,
+    cropPadding: 0.05,
+  },
 };
 
-const dataUrlToBlob = async (dataUrl) => {
-  const response = await fetch(dataUrl);
-  return response.blob();
+const loadImage = (dataUrl) =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Не удалось открыть снимок"));
+    image.src = dataUrl;
+  });
+
+const computeVisibleSourceRect = (sourceWidth, sourceHeight, viewportAspect) => {
+  const sourceAspect = sourceWidth / sourceHeight;
+  if (sourceAspect > viewportAspect) {
+    const visibleWidth = sourceHeight * viewportAspect;
+    return {
+      x: (sourceWidth - visibleWidth) / 2,
+      y: 0,
+      width: visibleWidth,
+      height: sourceHeight,
+    };
+  }
+
+  const visibleHeight = sourceWidth / viewportAspect;
+  return {
+    x: 0,
+    y: (sourceHeight - visibleHeight) / 2,
+    width: sourceWidth,
+    height: visibleHeight,
+  };
+};
+
+const cropDataUrlByOverlay = async (dataUrl, layout) => {
+  const image = await loadImage(dataUrl);
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  const viewport = computeVisibleSourceRect(
+    sourceWidth,
+    sourceHeight,
+    layout.viewportAspect,
+  );
+  const frameLeft = (1 - layout.frameWidth) / 2;
+  const frameTop = (1 - layout.frameHeight) / 2;
+  const padding = Math.min(viewport.width, viewport.height) * layout.cropPadding;
+
+  const cropX = Math.max(0, viewport.x + viewport.width * frameLeft - padding);
+  const cropY = Math.max(0, viewport.y + viewport.height * frameTop - padding);
+  const cropRight = Math.min(
+    sourceWidth,
+    viewport.x + viewport.width * (frameLeft + layout.frameWidth) + padding,
+  );
+  const cropBottom = Math.min(
+    sourceHeight,
+    viewport.y + viewport.height * (frameTop + layout.frameHeight) + padding,
+  );
+  const cropWidth = Math.max(64, Math.round(cropRight - cropX));
+  const cropHeight = Math.max(64, Math.round(cropBottom - cropY));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = cropWidth;
+  canvas.height = cropHeight;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Canvas недоступен для кадрирования снимка");
+  }
+
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(
+    image,
+    cropX,
+    cropY,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    cropWidth,
+    cropHeight,
+  );
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Не удалось подготовить снимок"));
+          return;
+        }
+        resolve(blob);
+      },
+      "image/jpeg",
+      0.98,
+    );
+  });
 };
 
 const DocumentCaptureModal = ({
@@ -34,9 +136,19 @@ const DocumentCaptureModal = ({
   const [capturedDataUrl, setCapturedDataUrl] = useState("");
   const [cameraError, setCameraError] = useState("");
 
-  const helperText = useMemo(
-    () => overlayCopyByMode[mode] || overlayCopyByMode.document,
+  const captureLayout = useMemo(
+    () => captureLayoutByMode[mode] || captureLayoutByMode.document,
     [mode],
+  );
+  const videoConstraints = useMemo(
+    () => ({
+      ...BASE_VIDEO_CONSTRAINTS,
+      aspectRatio:
+        mode === "passport"
+          ? { ideal: captureLayout.viewportAspect }
+          : undefined,
+    }),
+    [captureLayout.viewportAspect, mode],
   );
 
   const resetPreview = () => {
@@ -61,7 +173,7 @@ const DocumentCaptureModal = ({
 
     setCapturing(true);
     try {
-      const blob = await dataUrlToBlob(capturedDataUrl);
+      const blob = await cropDataUrlByOverlay(capturedDataUrl, captureLayout);
       await onCapture?.(blob);
     } finally {
       setCapturing(false);
@@ -109,7 +221,7 @@ const DocumentCaptureModal = ({
             style={{
               display: "block",
               width: "100%",
-              aspectRatio: "3 / 4",
+              aspectRatio: `${captureLayout.viewportAspect}`,
               objectFit: "cover",
             }}
           />
@@ -119,13 +231,17 @@ const DocumentCaptureModal = ({
             audio={false}
             mirrored={false}
             screenshotFormat="image/jpeg"
-            screenshotQuality={0.95}
+            screenshotQuality={1}
+            forceScreenshotSourceSize
+            imageSmoothing
+            minScreenshotWidth={1920}
+            minScreenshotHeight={1080}
             videoConstraints={videoConstraints}
             onUserMediaError={handleCameraError}
             style={{
               display: "block",
               width: "100%",
-              aspectRatio: "3 / 4",
+              aspectRatio: `${captureLayout.viewportAspect}`,
               objectFit: "cover",
             }}
           />
@@ -146,8 +262,8 @@ const DocumentCaptureModal = ({
         >
           <div
             style={{
-              width: "78%",
-              height: mode === "passport" ? "58%" : "68%",
+              width: `${captureLayout.frameWidth * 100}%`,
+              height: `${captureLayout.frameHeight * 100}%`,
               borderRadius: 24,
               border: "2px solid rgba(255,255,255,0.94)",
               boxShadow:
@@ -171,7 +287,7 @@ const DocumentCaptureModal = ({
         type="secondary"
         style={{ display: "block", marginTop: 12 }}
       >
-        {cameraError || helperText}
+        {cameraError || captureLayout.helperText}
       </Typography.Text>
 
       <Space style={{ width: "100%", justifyContent: "space-between", marginTop: 16 }}>

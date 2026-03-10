@@ -38,11 +38,34 @@ const DEFAULT_PROMPTS = {
 
 const DEFAULT_SCAN_PROMPT =
   "На фото документ, снятый камерой телефона. " +
-  "Найди внешний прямоугольный контур основного документа и верни строго JSON без markdown. " +
+  "Найди внешний контур основного документа в центре кадра и верни строго JSON без markdown. " +
   'Формат ответа: {"detected":true,"confidence":0.0-1.0,"corners":[{"x":0-1000,"y":0-1000},{"x":0-1000,"y":0-1000},{"x":0-1000,"y":0-1000},{"x":0-1000,"y":0-1000}]}. ' +
   "Координаты corners должны быть в порядке: top-left, top-right, bottom-right, bottom-left. " +
   "Используй нормализованные координаты, где 0..1000 соответствуют ширине и высоте изображения. " +
+  "Игнорируй стол, ноутбук, руки, тени, блики и фон вокруг документа. " +
   'Если документ не найден уверенно, верни {"detected":false,"confidence":0,"corners":[]}.';
+
+const resolveScanPromptByDocumentType = (documentType) => {
+  const normalizedDocumentType = normalizeDocumentType(documentType);
+
+  if (normalizedDocumentType === "passport_rf") {
+    return (
+      `${DEFAULT_SCAN_PROMPT} ` +
+      "Это разворот паспорта РФ. Найди именно внешний контур всего раскрытого паспорта целиком, а не отдельной страницы, фото, печати или текстового блока. " +
+      "Даже если паспорт слегка изогнут по сгибу, ориентируйся по внешней границе раскрытого документа. " +
+      "Если видна обложка или темная кайма, включай ее в границы документа."
+    );
+  }
+
+  if (normalizedDocumentType === "foreign_passport") {
+    return (
+      `${DEFAULT_SCAN_PROMPT} ` +
+      "Это паспортный документ. Ищи внешний контур всего документа, а не внутренней страницы или MRZ-зоны."
+    );
+  }
+
+  return `${DEFAULT_SCAN_PROMPT} Тип документа: ${normalizedDocumentType || "generic_document"}.`;
+};
 
 const SUPPORTED_DOCUMENT_TYPES = new Set([
   "passport_rf",
@@ -1056,8 +1079,7 @@ export const detectDocumentScan = async ({
   const config = getOcrConfig();
   const selectedModel = String(model || "").trim() || config.defaultModel;
   const selectedPrompt =
-    String(prompt || "").trim() ||
-    `${DEFAULT_SCAN_PROMPT} Тип документа: ${normalizeDocumentType(documentType) || "generic_document"}.`;
+    String(prompt || "").trim() || resolveScanPromptByDocumentType(documentType);
 
   const payload = buildOpenRouterPayload({
     model: selectedModel,
