@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import {
   Employee,
   EmployeeStatusMapping,
+  Pass,
   SkudQrToken,
   SkudAccessEvent,
   Status,
@@ -40,7 +41,65 @@ const sign = (payloadEncoded) => {
 };
 
 const hashToken = (token) =>
-  crypto.createHash("sha256").update(String(token || "")).digest("hex");
+  crypto
+    .createHash("sha256")
+    .update(String(token || ""))
+    .digest("hex");
+
+const isPassActiveNow = (pass) => {
+  if (!pass) {
+    return false;
+  }
+
+  if (
+    String(pass.status || "")
+      .trim()
+      .toLowerCase() !== "active"
+  ) {
+    return false;
+  }
+
+  const nowTs = Date.now();
+  const validFromTs = pass.validFrom
+    ? new Date(pass.validFrom).getTime()
+    : null;
+  const validUntilTs = pass.validUntil
+    ? new Date(pass.validUntil).getTime()
+    : null;
+
+  if (Number.isFinite(validFromTs) && validFromTs > nowTs) {
+    return false;
+  }
+
+  if (Number.isFinite(validUntilTs) && validUntilTs < nowTs) {
+    return false;
+  }
+
+  return true;
+};
+
+const resolveTokenTypeByPassType = (passType) =>
+  String(passType || "")
+    .trim()
+    .toLowerCase() === "temporary"
+    ? "one_time"
+    : "persistent";
+
+const ensurePassEligibleForQr = ({ pass, employeeId = null }) => {
+  if (!pass) {
+    throw new Error("Pass not found");
+  }
+
+  if (employeeId && String(pass.employeeId) !== String(employeeId)) {
+    throw new Error("Pass does not belong to requested employee");
+  }
+
+  if (!isPassActiveNow(pass)) {
+    throw new Error("Pass is not active for QR issuance");
+  }
+
+  return pass;
+};
 
 const isEmployeeAllowed = async (employeeId) => {
   const employee = await Employee.findByPk(employeeId, {
@@ -75,7 +134,10 @@ const isEmployeeAllowed = async (employeeId) => {
   const secureStatus = statusMappings.find(
     (item) => item?.status?.group === "status_secure",
   )?.status?.name;
-  if (secureStatus === "status_secure_block" || secureStatus === "status_secure_block_compl") {
+  if (
+    secureStatus === "status_secure_block" ||
+    secureStatus === "status_secure_block_compl"
+  ) {
     return {
       allow: false,
       message: "Сотрудник заблокирован",
@@ -86,7 +148,10 @@ const isEmployeeAllowed = async (employeeId) => {
     (item) => item?.status?.group === "status_active",
   )?.status?.name;
 
-  if (activeStatus === "status_active_fired" || activeStatus === "status_active_inactive") {
+  if (
+    activeStatus === "status_active_fired" ||
+    activeStatus === "status_active_inactive"
+  ) {
     return {
       allow: false,
       message: "Доступ сотрудника отключен",
@@ -106,6 +171,7 @@ export const issueSkudQrToken = async ({
   channel = "web",
   issuedBy = null,
   externalSystem = "sigur",
+  metadata = {},
 }) => {
   const normalizedType = tokenType === "one_time" ? "one_time" : "persistent";
   const ttlSeconds =
@@ -142,6 +208,7 @@ export const issueSkudQrToken = async ({
     metadata: {
       channel: payload.chn,
       issuedAt: new Date(now * 1000).toISOString(),
+      ...(metadata || {}),
     },
   });
 
@@ -159,7 +226,97 @@ export const issueSkudQrToken = async ({
   };
 };
 
-export const verifySkudQrToken = async ({ token, markUsed = false, externalSystem = "sigur" }) => {
+export const issueSkudQrTokenForPass = async ({
+  passId,
+  employeeId = null,
+  channel = "web",
+  issuedBy = null,
+  externalSystem = "sigur",
+}) => {
+  const pass = await Pass.findByPk(passId, {
+    attributes: [
+      "id",
+      "employeeId",
+      "passType",
+      "status",
+      "validFrom",
+      "validUntil",
+      "passNumber",
+    ],
+  });
+
+  ensurePassEligibleForQr({ pass, employeeId });
+
+  const tokenType = resolveTokenTypeByPassType(pass.passType);
+  const result = await issueSkudQrToken({
+    employeeId: pass.employeeId,
+    tokenType,
+    channel,
+    issuedBy,
+    externalSystem,
+    metadata: {
+      passId: pass.id,
+      passType: pass.passType,
+      passNumber: pass.passNumber || null,
+    },
+  });
+
+  return {
+    ...result,
+    passId: pass.id,
+    passType: pass.passType,
+    passNumber: pass.passNumber || null,
+    tokenType,
+  };
+};
+
+export const issueSkudQrTokenForEmployeeActivePass = async ({
+  employeeId,
+  channel = "mobile",
+  issuedBy = null,
+  externalSystem = "sigur",
+}) => {
+  const passes = await Pass.findAll({
+    where: {
+      employeeId,
+      status: "active",
+    },
+    attributes: [
+      "id",
+      "employeeId",
+      "passType",
+      "status",
+      "validFrom",
+      "validUntil",
+      "passNumber",
+      "updatedAt",
+    ],
+    order: [
+      ["validUntil", "ASC"],
+      ["updatedAt", "DESC"],
+    ],
+    limit: 20,
+  });
+
+  const pass = passes.find((item) => isPassActiveNow(item));
+  if (!pass) {
+    throw new Error("Active pass for employee is not found");
+  }
+
+  return issueSkudQrTokenForPass({
+    passId: pass.id,
+    employeeId,
+    channel,
+    issuedBy,
+    externalSystem,
+  });
+};
+
+export const verifySkudQrToken = async ({
+  token,
+  markUsed = false,
+  externalSystem = "sigur",
+}) => {
   try {
     const [payloadEncoded, signature] = String(token || "").split(".");
     if (!payloadEncoded || !signature) {
@@ -169,7 +326,10 @@ export const verifySkudQrToken = async ({ token, markUsed = false, externalSyste
     const expectedSignature = sign(payloadEncoded);
     const isSignatureValid =
       signature.length === expectedSignature.length &&
-      crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
+      crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(expectedSignature),
+      );
 
     if (!isSignatureValid) {
       return { allow: false, message: "Подпись QR недействительна" };
@@ -203,7 +363,10 @@ export const verifySkudQrToken = async ({ token, markUsed = false, externalSyste
       return { allow: false, message: "QR отозван" };
     }
 
-    if (qrRecord.expiresAt && new Date(qrRecord.expiresAt).getTime() < Date.now()) {
+    if (
+      qrRecord.expiresAt &&
+      new Date(qrRecord.expiresAt).getTime() < Date.now()
+    ) {
       return { allow: false, message: "Срок действия QR истек" };
     }
 

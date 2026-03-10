@@ -25,7 +25,6 @@ import {
 import dayjs from "dayjs";
 import { passService } from "@/services/passService";
 import { employeeService } from "@/services/employeeService";
-import skudService from "@/services/skudService";
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -63,11 +62,6 @@ const ACCESS_ZONE_OPTIONS = [
   { label: "Серверная", value: "server_room" },
   { label: "Парковка", value: "parking" },
 ];
-
-const QR_TOKEN_TYPE_LABELS = {
-  persistent: "На 1 час",
-  one_time: "Одноразовый",
-};
 
 const loadPassesPageState = () => {
   try {
@@ -111,7 +105,13 @@ const normalizePassRecord = (pass) => ({
     "Без имени",
 });
 
-const PassesToolbar = ({ searchText, onSearchChange, onAdd, onRefresh, loading }) => (
+const PassesToolbar = ({
+  searchText,
+  onSearchChange,
+  onAdd,
+  onRefresh,
+  loading,
+}) => (
   <>
     <div
       style={{
@@ -222,8 +222,7 @@ const QrIssueModal = ({
   open,
   loading,
   qrState,
-  tokenType,
-  onTokenTypeChange,
+  passType,
   onGenerate,
   onClose,
   onCopyToken,
@@ -236,16 +235,17 @@ const QrIssueModal = ({
     destroyOnClose
   >
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      <Select
-        value={tokenType}
-        onChange={onTokenTypeChange}
-        options={Object.entries(QR_TOKEN_TYPE_LABELS).map(([value, label]) => ({
-          value,
-          label,
-        }))}
-      />
+      <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+        Тип QR определяется сервером по типу пропуска:{" "}
+        {passType === "temporary" ? "одноразовый" : "с периодом действия"}.
+      </Paragraph>
 
-      <Button type="primary" icon={<QrcodeOutlined />} onClick={onGenerate} loading={loading}>
+      <Button
+        type="primary"
+        icon={<QrcodeOutlined />}
+        onClick={onGenerate}
+        loading={loading}
+      >
         Выпустить QR
       </Button>
 
@@ -268,7 +268,10 @@ const QrIssueModal = ({
             />
           </div>
           <Text type="secondary">
-            Действует до: {qrState.expiresAt ? dayjs(qrState.expiresAt).format("DD.MM.YYYY HH:mm") : "-"}
+            Действует до:{" "}
+            {qrState.expiresAt
+              ? dayjs(qrState.expiresAt).format("DD.MM.YYYY HH:mm")
+              : "-"}
           </Text>
           <Input.TextArea value={qrState.token || ""} rows={4} readOnly />
           <Button onClick={onCopyToken}>Скопировать токен</Button>
@@ -360,10 +363,18 @@ const createPassColumns = ({
     render: (_, record) => (
       <Space>
         <Tooltip title="Выпустить QR">
-          <Button type="text" icon={<QrcodeOutlined />} onClick={() => onIssueQr(record)} />
+          <Button
+            type="text"
+            icon={<QrcodeOutlined />}
+            onClick={() => onIssueQr(record)}
+          />
         </Tooltip>
         <Tooltip title="Редактировать">
-          <Button type="text" icon={<EditOutlined />} onClick={() => onEdit(record)} />
+          <Button
+            type="text"
+            icon={<EditOutlined />}
+            onClick={() => onEdit(record)}
+          />
         </Tooltip>
         {record.status === "active" && (
           <Tooltip title="Отозвать">
@@ -376,7 +387,12 @@ const createPassColumns = ({
           </Tooltip>
         )}
         <Tooltip title="Удалить">
-          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => onDelete(record)} />
+          <Button
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => onDelete(record)}
+          />
         </Tooltip>
       </Space>
     ),
@@ -400,7 +416,6 @@ const PassesPage = () => {
     editingPass: null,
     qrModalOpen: false,
     qrPass: null,
-    qrTokenType: "persistent",
     qrState: null,
   }));
 
@@ -412,7 +427,6 @@ const PassesPage = () => {
     editingPass,
     qrModalOpen,
     qrPass,
-    qrTokenType,
     qrState,
   } = uiState;
 
@@ -543,7 +557,6 @@ const PassesPage = () => {
       qrModalOpen: true,
       qrPass: pass,
       qrState: null,
-      qrTokenType: "persistent",
     }));
   };
 
@@ -555,9 +568,7 @@ const PassesPage = () => {
 
     setQrLoading(true);
     try {
-      const result = await skudService.issueQr({
-        employeeId: qrPass.employeeId,
-        tokenType: qrTokenType,
+      const result = await passService.issueQr(qrPass.id, {
         channel: "web",
       });
       setUiState((prev) => ({ ...prev, qrState: result || null }));
@@ -606,7 +617,11 @@ const PassesPage = () => {
         message.success("Пропуск создан");
       }
 
-      setUiState((prev) => ({ ...prev, isModalOpen: false, editingPass: null }));
+      setUiState((prev) => ({
+        ...prev,
+        isModalOpen: false,
+        editingPass: null,
+      }));
       form.resetFields();
       await loadPageData();
     } catch (error) {
@@ -634,7 +649,9 @@ const PassesPage = () => {
     return passes.filter((pass) => {
       const passNumber = String(pass.passNumber || "").toLowerCase();
       const employeeName = String(pass.employeeName || "").toLowerCase();
-      return passNumber.includes(searchLower) || employeeName.includes(searchLower);
+      return (
+        passNumber.includes(searchLower) || employeeName.includes(searchLower)
+      );
     });
   }, [passes, searchText]);
 
@@ -706,10 +723,7 @@ const PassesPage = () => {
         open={qrModalOpen}
         loading={qrLoading}
         qrState={qrState}
-        tokenType={qrTokenType}
-        onTokenTypeChange={(value) =>
-          setUiState((prev) => ({ ...prev, qrTokenType: value, qrState: null }))
-        }
+        passType={qrPass?.passType || null}
         onGenerate={handleGenerateQr}
         onClose={() =>
           setUiState((prev) => ({

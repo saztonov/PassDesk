@@ -6,9 +6,13 @@ import {
   EmployeeCounterpartyMapping,
   Counterparty,
 } from "../models/index.js";
-import { checkEmployeeAccess, getAccessibleEmployeeIds } from "../utils/permissionUtils.js";
+import {
+  checkEmployeeAccess,
+  getAccessibleEmployeeIds,
+} from "../utils/permissionUtils.js";
 import { enqueueSkudSyncForEmployee } from "../services/skud/SkudSyncService.js";
 import { isSkudEnabled } from "../services/skud/skudConfig.js";
+import { issueSkudQrTokenForPass } from "../services/skud/SkudQrService.js";
 
 const PASS_SYNCABLE_STATUSES = new Set(["active", "expired", "revoked"]);
 
@@ -44,7 +48,9 @@ const parseDateValue = (value, fieldName) => {
 };
 
 const normalizeStatus = (value, fallback = "pending") => {
-  const normalized = String(value || fallback).trim().toLowerCase();
+  const normalized = String(value || fallback)
+    .trim()
+    .toLowerCase();
   if (!PASS_SYNCABLE_STATUSES.has(normalized) && normalized !== "pending") {
     throw new AppError("Недопустимый статус пропуска", 400);
   }
@@ -63,8 +69,12 @@ const normalizePassPayload = (source = {}, { isUpdate = false } = {}) => {
   }
 
   if (!isUpdate || source.passType !== undefined) {
-    const passType = String(source.passType || "").trim().toLowerCase();
-    if (!["temporary", "permanent", "visitor", "contractor"].includes(passType)) {
+    const passType = String(source.passType || "")
+      .trim()
+      .toLowerCase();
+    if (
+      !["temporary", "permanent", "visitor", "contractor"].includes(passType)
+    ) {
       throw new AppError("Недопустимый тип пропуска", 400);
     }
     payload.passType = passType;
@@ -94,7 +104,10 @@ const normalizePassPayload = (source = {}, { isUpdate = false } = {}) => {
   }
 
   if (source.status !== undefined || !isUpdate) {
-    payload.status = normalizeStatus(source.status, isUpdate ? undefined : "pending");
+    payload.status = normalizeStatus(
+      source.status,
+      isUpdate ? undefined : "pending",
+    );
   }
 
   if (source.passNumber !== undefined) {
@@ -106,11 +119,13 @@ const normalizePassPayload = (source = {}, { isUpdate = false } = {}) => {
   }
 
   if (source.documentFileKey !== undefined) {
-    payload.documentFileKey = String(source.documentFileKey || "").trim() || null;
+    payload.documentFileKey =
+      String(source.documentFileKey || "").trim() || null;
   }
 
   if (source.documentFileUrl !== undefined) {
-    payload.documentFileUrl = String(source.documentFileUrl || "").trim() || null;
+    payload.documentFileUrl =
+      String(source.documentFileUrl || "").trim() || null;
   }
 
   if (source.notes !== undefined) {
@@ -179,8 +194,12 @@ const fetchPassOrThrow = async (id) => {
 };
 
 const buildSkudPayloadFromPass = (pass) => ({
-  accessStartTime: pass.validFrom ? new Date(pass.validFrom).toISOString() : null,
-  accessEndTime: pass.validUntil ? new Date(pass.validUntil).toISOString() : null,
+  accessStartTime: pass.validFrom
+    ? new Date(pass.validFrom).toISOString()
+    : null,
+  accessEndTime: pass.validUntil
+    ? new Date(pass.validUntil).toISOString()
+    : null,
   passId: pass.id,
   passNumber: pass.passNumber || null,
 });
@@ -209,7 +228,9 @@ const syncPassWithSkudIfNeeded = async ({ pass, userId, source }) => {
       source,
       reasonCode: pass.status === "revoked" ? "pass_revoked" : "pass_expired",
       statusReason:
-        pass.status === "revoked" ? "Pass revoked in PassDesk" : "Pass expired in PassDesk",
+        pass.status === "revoked"
+          ? "Pass revoked in PassDesk"
+          : "Pass expired in PassDesk",
       priority: pass.status === "revoked" ? "high" : "normal",
       payload: buildSkudPayloadFromPass(pass),
     });
@@ -467,7 +488,9 @@ export const revokePass = async (req, res, next) => {
       status: "revoked",
       revokedAt: new Date(),
       revokedBy: req.user.id,
-      revokeReason: String(req.body?.reason || req.body?.revokeReason || "").trim() || "Revoked in PassDesk",
+      revokeReason:
+        String(req.body?.reason || req.body?.revokeReason || "").trim() ||
+        "Revoked in PassDesk",
     });
 
     const revokedPass = await fetchPassOrThrow(pass.id);
@@ -481,6 +504,30 @@ export const revokePass = async (req, res, next) => {
       success: true,
       message: "Пропуск отозван",
       data: revokedPass,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const issuePassQr = async (req, res, next) => {
+  try {
+    const pass = await fetchPassOrThrow(req.params.id);
+    await checkEmployeeAccess(req.user, pass.employee, "read");
+
+    const data = await issueSkudQrTokenForPass({
+      passId: pass.id,
+      employeeId: pass.employeeId,
+      channel:
+        String(req.body?.channel || "web")
+          .trim()
+          .toLowerCase() || "web",
+      issuedBy: req.user.id,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data,
     });
   } catch (error) {
     next(error);

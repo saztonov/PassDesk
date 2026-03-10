@@ -14,10 +14,11 @@ import {
   listSkudEvents,
   listSkudSyncJobs,
 } from "../services/skud/SkudStatsService.js";
-import { getEmployeeBinding, upsertEmployeeBinding } from "../services/skud/SkudBindingsService.js";
 import {
-  enqueueSkudSyncForEmployee,
-} from "../services/skud/SkudSyncService.js";
+  getEmployeeBinding,
+  upsertEmployeeBinding,
+} from "../services/skud/SkudBindingsService.js";
+import { enqueueSkudSyncForEmployee } from "../services/skud/SkudSyncService.js";
 import {
   assignSkudCard,
   blockSkudCard,
@@ -57,8 +58,14 @@ const fetchEmployeeForAccess = async (employeeId) => {
 };
 
 const parsePagination = (query = {}) => {
-  const limit = Math.min(Math.max(Number.parseInt(String(query.limit || "50"), 10) || 50, 1), 200);
-  const offset = Math.max(Number.parseInt(String(query.offset || "0"), 10) || 0, 0);
+  const limit = Math.min(
+    Math.max(Number.parseInt(String(query.limit || "50"), 10) || 50, 1),
+    200,
+  );
+  const offset = Math.max(
+    Number.parseInt(String(query.offset || "0"), 10) || 0,
+    0,
+  );
   return { limit, offset };
 };
 
@@ -83,7 +90,10 @@ const parsePullParams = (body = {}, query = {}) => {
     Math.max(Number.parseInt(String(merged.limit || "100"), 10) || 100, 1),
     500,
   );
-  const offset = Math.max(Number.parseInt(String(merged.offset || "0"), 10) || 0, 0);
+  const offset = Math.max(
+    Number.parseInt(String(merged.offset || "0"), 10) || 0,
+    0,
+  );
   return {
     limit,
     offset,
@@ -123,10 +133,13 @@ const normalizeProviderEvent = (item) => {
     item?.userId ??
     null;
 
-  const accessPointRaw = data?.accessPointId ?? accessPoint?.id ?? item?.accessPointId ?? null;
+  const accessPointRaw =
+    data?.accessPointId ?? accessPoint?.id ?? item?.accessPointId ?? null;
   const directionRaw = data?.direction ?? item?.direction ?? null;
-  const allowRaw = data?.allow ?? data?.allowed ?? item?.allow ?? item?.allowed ?? null;
-  const keyHexRaw = data?.keyHex ?? data?.key ?? item?.keyHex ?? item?.key ?? null;
+  const allowRaw =
+    data?.allow ?? data?.allowed ?? item?.allow ?? item?.allowed ?? null;
+  const keyHexRaw =
+    data?.keyHex ?? data?.key ?? item?.keyHex ?? item?.key ?? null;
 
   return {
     logId: item?.logId ?? item?.id ?? null,
@@ -137,13 +150,12 @@ const normalizeProviderEvent = (item) => {
     accessPoint: toNullableInt(accessPointRaw),
     direction: mapDirection(directionRaw),
     allow:
-      allowRaw === null || allowRaw === undefined
-        ? null
-        : Boolean(allowRaw),
+      allowRaw === null || allowRaw === undefined ? null : Boolean(allowRaw),
     keyHex:
       keyHexRaw === null || keyHexRaw === undefined ? null : String(keyHexRaw),
     eventType: item?.eventType || item?.type || "sigur_event",
-    eventTime: item?.timestamp || item?.receivedTime || new Date().toISOString(),
+    eventTime:
+      item?.timestamp || item?.receivedTime || new Date().toISOString(),
     source: "sigur_pull",
     rawItem: item,
   };
@@ -191,7 +203,11 @@ const assertWebhookAccess = (req) => {
   }
 
   const parsed = parseBasicAuthHeader(req.headers.authorization);
-  if (!parsed || parsed.username !== requiredUser || parsed.password !== requiredPass) {
+  if (
+    !parsed ||
+    parsed.username !== requiredUser ||
+    parsed.password !== requiredPass
+  ) {
     throw new AppError("Неверные учетные данные webhook", 401);
   }
 };
@@ -284,14 +300,24 @@ export const skudController = {
     try {
       ensureSkudModuleEnabled();
       const { limit, offset } = parsePagination(req.query);
-      const search = String(req.query.search || "").trim().toLowerCase();
+      const search = String(req.query.search || "")
+        .trim()
+        .toLowerCase();
 
       const rows = await Employee.findAll({
         where: {
           isDeleted: false,
           markedForDeletion: false,
         },
-        attributes: ["id", "firstName", "lastName", "middleName", "inn", "isActive", "updatedAt"],
+        attributes: [
+          "id",
+          "firstName",
+          "lastName",
+          "middleName",
+          "inn",
+          "isActive",
+          "updatedAt",
+        ],
         include: [
           {
             model: SkudPersonBinding,
@@ -312,10 +338,16 @@ export const skudController = {
       const filtered = search
         ? rows.filter((employee) => {
             const fullName = buildEmployeeDisplayName(employee).toLowerCase();
-            const extId = String(employee?.skudBindings?.[0]?.externalEmpId || "").toLowerCase();
+            const extId = String(
+              employee?.skudBindings?.[0]?.externalEmpId || "",
+            ).toLowerCase();
             return (
-              String(employee?.id || "").toLowerCase().includes(search) ||
-              String(employee?.inn || "").toLowerCase().includes(search) ||
+              String(employee?.id || "")
+                .toLowerCase()
+                .includes(search) ||
+              String(employee?.inn || "")
+                .toLowerCase()
+                .includes(search) ||
               fullName.includes(search) ||
               extId.includes(search)
             );
@@ -357,7 +389,9 @@ export const skudController = {
       ensureSkudModuleEnabled();
       const provider = getSkudProvider();
       const { limit, offset } = parsePagination(req.query);
-      const search = String(req.query.search || "").trim().toLowerCase();
+      const search = String(req.query.search || "")
+        .trim()
+        .toLowerCase();
 
       const response = await provider.getEmployees({
         limit,
@@ -372,24 +406,31 @@ export const skudController = {
 
       const mapped = rows.map((item) => ({
         id:
-          item?.id === undefined || item?.id === null
-            ? null
-            : String(item.id),
+          item?.id === undefined || item?.id === null ? null : String(item.id),
         name: String(item?.name || "").trim() || "—",
         description: String(item?.description || "").trim() || null,
         status: String(item?.status || "").trim() || null,
         departmentName:
-          String(item?.departmentName || item?.department_name || "").trim() || null,
+          String(item?.departmentName || item?.department_name || "").trim() ||
+          null,
         raw: item,
       }));
 
       const filtered = search
         ? mapped.filter((item) => {
             return (
-              String(item.id || "").toLowerCase().includes(search) ||
-              String(item.name || "").toLowerCase().includes(search) ||
-              String(item.description || "").toLowerCase().includes(search) ||
-              String(item.departmentName || "").toLowerCase().includes(search)
+              String(item.id || "")
+                .toLowerCase()
+                .includes(search) ||
+              String(item.name || "")
+                .toLowerCase()
+                .includes(search) ||
+              String(item.description || "")
+                .toLowerCase()
+                .includes(search) ||
+              String(item.departmentName || "")
+                .toLowerCase()
+                .includes(search)
             );
           })
         : mapped;
@@ -540,6 +581,60 @@ export const skudController = {
         reasonCode: req.body?.reasonCode || "manual_unblock",
         statusReason: req.body?.statusReason || "Ручная разблокировка из SKUD",
         priority: req.body?.priority || "normal",
+      });
+
+      res.status(202).json({ success: true, data: syncJob });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async blacklistEmployee(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const { employeeId } = req.params;
+      const employee = await fetchEmployeeForAccess(employeeId);
+      if (!employee || employee.isDeleted) {
+        throw new AppError("Сотрудник не найден", 404);
+      }
+      await checkEmployeeAccess(req.user, employee, "write");
+
+      const syncJob = await enqueueSkudSyncForEmployee({
+        employeeId,
+        operation: "block_employee",
+        userId: req.user.id,
+        source: "rkl_blacklist",
+        reasonCode: req.body?.reasonCode || "rkl_blacklist",
+        statusReason:
+          req.body?.statusReason || "Blacklist/RKL block in PassDesk",
+        priority: "high",
+      });
+
+      res.status(202).json({ success: true, data: syncJob });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async clearBlacklistEmployee(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const { employeeId } = req.params;
+      const employee = await fetchEmployeeForAccess(employeeId);
+      if (!employee || employee.isDeleted) {
+        throw new AppError("Сотрудник не найден", 404);
+      }
+      await checkEmployeeAccess(req.user, employee, "write");
+
+      const syncJob = await enqueueSkudSyncForEmployee({
+        employeeId,
+        operation: "unblock_employee",
+        userId: req.user.id,
+        source: "rkl_blacklist_clear",
+        reasonCode: req.body?.reasonCode || "rkl_blacklist_clear",
+        statusReason:
+          req.body?.statusReason || "Blacklist/RKL clear in PassDesk",
+        priority: "normal",
       });
 
       res.status(202).json({ success: true, data: syncJob });

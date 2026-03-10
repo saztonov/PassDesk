@@ -38,6 +38,7 @@ import {
 } from "../services/employeeSensitiveFieldService.js";
 import { enqueueSkudSyncForEmployee } from "../services/skud/SkudSyncService.js";
 import { isSkudEnabled } from "../services/skud/skudConfig.js";
+import { issueSkudQrTokenForEmployeeActivePass } from "../services/skud/SkudQrService.js";
 
 // Опции для загрузки сотрудника с маппингами (для проверки прав)
 const employeeAccessInclude = [
@@ -177,8 +178,12 @@ const matchesEmployeeSearch = (employee, rawSearch) => {
   const isDigitsMatch =
     hasDigitsQuery &&
     (normalizeDigitsSearch(source.inn).includes(normalizedDigitsSearchValue) ||
-      normalizeDigitsSearch(source.snils).includes(normalizedDigitsSearchValue) ||
-      normalizeDigitsSearch(source.phone).includes(normalizedDigitsSearchValue) ||
+      normalizeDigitsSearch(source.snils).includes(
+        normalizedDigitsSearchValue,
+      ) ||
+      normalizeDigitsSearch(source.phone).includes(
+        normalizedDigitsSearchValue,
+      ) ||
       normalizeDigitsSearch(source.passportNumber).includes(
         normalizedDigitsSearchValue,
       ) ||
@@ -212,7 +217,9 @@ const buildEmployeeDuplicateChecks = (employeeLike = {}) => {
   }
 
   if (employeeLike.passportNumberHash) {
-    duplicateChecks.push({ passportNumberHash: employeeLike.passportNumberHash });
+    duplicateChecks.push({
+      passportNumberHash: employeeLike.passportNumberHash,
+    });
   }
 
   return duplicateChecks;
@@ -600,14 +607,20 @@ export const getAllEmployees = async (req, res, next) => {
         // Для user в других контрагентах считаем через маппинг (включая субподрядчиков)
         const { CounterpartySubcounterpartyMapping } =
           await import("../models/index.js");
-        const subcontractors =
-          await CounterpartySubcounterpartyMapping.findAll({
+        const subcontractors = await CounterpartySubcounterpartyMapping.findAll(
+          {
             where: { parentCounterpartyId: userCounterpartyId },
             attributes: ["childCounterpartyId"],
-          });
+          },
+        );
 
-        const subcontractorIds = subcontractors.map((s) => s.childCounterpartyId);
-        const allowedCounterpartyIds = [userCounterpartyId, ...subcontractorIds];
+        const subcontractorIds = subcontractors.map(
+          (s) => s.childCounterpartyId,
+        );
+        const allowedCounterpartyIds = [
+          userCounterpartyId,
+          ...subcontractorIds,
+        ];
 
         totalCount = await Employee.count({
           where,
@@ -635,7 +648,10 @@ export const getAllEmployees = async (req, res, next) => {
       where,
       limit: hasSearchQuery ? undefined : parseInt(limit),
       offset: hasSearchQuery ? undefined : parseInt(offset),
-      order: [["firstName", "ASC"], ["middleName", "ASC"]],
+      order: [
+        ["firstName", "ASC"],
+        ["middleName", "ASC"],
+      ],
       include: employeeInclude,
       // Добавляем подсчет файлов для каждого сотрудника
       attributes: {
@@ -1913,6 +1929,18 @@ export const deleteEmployee = async (req, res, next) => {
       console.warn("Failed to update statuses on delete:", statusError.message);
     }
 
+    if (isSkudEnabled()) {
+      await enqueueSkudSyncForEmployee({
+        employeeId: employee.id,
+        operation: "block_employee",
+        userId: req.user.id,
+        source: "delete_employee",
+        reasonCode: "rkl_blacklist_delete",
+        statusReason: "Employee deleted/blacklisted in PassDesk",
+        priority: "high",
+      });
+    }
+
     res.json({
       success: true,
       message: "Сотрудник удален",
@@ -2007,6 +2035,18 @@ export const markEmployeeForDeletion = async (req, res, next) => {
       );
     }
 
+    if (isSkudEnabled()) {
+      await enqueueSkudSyncForEmployee({
+        employeeId: employee.id,
+        operation: "block_employee",
+        userId: req.user.id,
+        source: "mark_for_deletion",
+        reasonCode: "rkl_blacklist_mark",
+        statusReason: "Employee marked for deletion/blacklist in PassDesk",
+        priority: "high",
+      });
+    }
+
     res.json({
       success: true,
       message: "Сотрудник помечен на удаление",
@@ -2057,6 +2097,18 @@ export const unmarkEmployeeForDeletion = async (req, res, next) => {
         "Failed to update statuses on unmark for deletion:",
         statusError.message,
       );
+    }
+
+    if (isSkudEnabled()) {
+      await enqueueSkudSyncForEmployee({
+        employeeId: employee.id,
+        operation: "unblock_employee",
+        userId: req.user.id,
+        source: "unmark_for_deletion",
+        reasonCode: "rkl_blacklist_clear",
+        statusReason: "Employee removed from blacklist in PassDesk",
+        priority: "normal",
+      });
     }
 
     res.json({
@@ -3174,7 +3226,10 @@ export const searchEmployees = async (req, res, next) => {
 
     const employees = await Employee.findAll({
       where,
-      order: [["firstName", "ASC"], ["middleName", "ASC"]],
+      order: [
+        ["firstName", "ASC"],
+        ["middleName", "ASC"],
+      ],
       include: include,
     });
 
@@ -3271,6 +3326,37 @@ export const getMyProfile = async (req, res, next) => {
   }
 };
 
+export const issueMyProfileSkudQr = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const mapping = await UserEmployeeMapping.findOne({
+      where: { userId },
+      attributes: ["employeeId"],
+    });
+
+    if (!mapping?.employeeId) {
+      throw new AppError("Профиль сотрудника не найден", 404);
+    }
+
+    const data = await issueSkudQrTokenForEmployeeActivePass({
+      employeeId: mapping.employeeId,
+      channel:
+        String(req.body?.channel || "mobile")
+          .trim()
+          .toLowerCase() || "mobile",
+      issuedBy: userId,
+    });
+
+    res.status(201).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * Обновить профиль сотрудника текущего пользователя
  */
@@ -3327,8 +3413,7 @@ export const updateMyProfile = async (req, res, next) => {
         return;
       }
 
-      filteredData[field] =
-        updateData[field] === "" ? null : updateData[field];
+      filteredData[field] = updateData[field] === "" ? null : updateData[field];
     });
 
     console.log("✅ Filtered data:", filteredData);
@@ -3591,13 +3676,7 @@ export const importEmployees = async (req, res, next) => {
  */
 export const getActiveEmployeesForExport = async (req, res, next) => {
   try {
-    const {
-      limit = 100,
-      page = 1,
-      search = "",
-      dateFrom,
-      dateTo,
-    } = req.query;
+    const { limit = 100, page = 1, search = "", dateFrom, dateTo } = req.query;
     const pageNumber = parseInt(page);
     const limitNumber = parseInt(limit);
     const offset = (pageNumber - 1) * limitNumber;
@@ -3860,7 +3939,10 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
       where,
       limit: hasSearchQuery ? undefined : limitNumber,
       offset: hasSearchQuery ? undefined : offset,
-      order: [["firstName", "ASC"], ["middleName", "ASC"]],
+      order: [
+        ["firstName", "ASC"],
+        ["middleName", "ASC"],
+      ],
       include: employeeInclude,
       attributes: {
         include: [
@@ -3903,7 +3985,10 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
         matchesEmployeeSearch(employee, normalizedSearch),
       );
       finalTotalCount = searchedEmployees.length;
-      employeesForResponse = searchedEmployees.slice(offset, offset + limitNumber);
+      employeesForResponse = searchedEmployees.slice(
+        offset,
+        offset + limitNumber,
+      );
     }
 
     res.json({

@@ -37,4 +37,9 @@ export const passService = {
     const response = await api.patch(`/passes/${id}/revoke`, payload);
     return toData(response);
   },
+
+  issueQr: async (id, payload = {}) => {
+    const response = await api.post(`/passes/${id}/qr`, payload);
+    return toData(response);
+  },
 };

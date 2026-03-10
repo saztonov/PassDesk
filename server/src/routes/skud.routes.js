@@ -111,6 +111,24 @@ router.post(
   validate,
   skudController.unblockEmployee,
 );
+router.post(
+  "/sync/employee/:employeeId/blacklist",
+  authorize("admin", "manager"),
+  employeeIdParamValidation,
+  body("reasonCode").optional().isString().trim(),
+  body("statusReason").optional().isString().trim(),
+  validate,
+  skudController.blacklistEmployee,
+);
+router.post(
+  "/sync/employee/:employeeId/blacklist/clear",
+  authorize("admin", "manager"),
+  employeeIdParamValidation,
+  body("reasonCode").optional().isString().trim(),
+  body("statusReason").optional().isString().trim(),
+  validate,
+  skudController.clearBlacklistEmployee,
+);
 
 router.get(
   "/cards",

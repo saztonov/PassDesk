@@ -166,6 +166,12 @@ router.delete(
   "/my-profile/telegram/link",
   telegramController.unlinkMyTelegramBinding,
 );
+router.post(
+  "/my-profile/skud/qr",
+  body("channel").optional().isIn(["mobile", "web"]),
+  validate,
+  employeeController.issueMyProfileSkudQr,
+);
 router.get(
   "/check-inn",
   checkInnRateLimiter,
