@@ -16,7 +16,10 @@ import {
   ScanOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
-import { detectDocumentCornersWithOpenCv } from "@/shared/lib/openCvDocumentScanner";
+import {
+  detectDocumentCornersWithOpenCv,
+  warmupOpenCv,
+} from "@/shared/lib/openCvDocumentScanner";
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -57,6 +60,58 @@ const loadImageFromFile = (file) =>
 
 const createObjectUrl = (blob) => URL.createObjectURL(blob);
 
+const waitForPaint = () =>
+  new Promise((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
+
+const buildReducedCanvas = (image, maxDimension = 640) => {
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+  canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Canvas недоступен для уменьшения изображения");
+  }
+
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  return {
+    canvas,
+    scaleX: sourceWidth / canvas.width,
+    scaleY: sourceHeight / canvas.height,
+    width: sourceWidth,
+    height: sourceHeight,
+  };
+};
+
+const detectCornersForDebugImage = async (image) => {
+  const reduced = buildReducedCanvas(image, 640);
+  const reducedCorners = await detectDocumentCornersWithOpenCv(
+    reduced.canvas,
+    "passport",
+    {
+      preview: true,
+      allowWeak: true,
+    },
+  );
+
+  return {
+    corners: reducedCorners.map((point) => ({
+      x: point.x * reduced.scaleX,
+      y: point.y * reduced.scaleY,
+    })),
+    dimensions: {
+      width: reduced.width,
+      height: reduced.height,
+    },
+  };
+};
+
 const DocumentCaptureDebugLab = () => {
   const webcamRef = useRef(null);
   const liveFrameUrlRef = useRef("");
@@ -89,6 +144,33 @@ const DocumentCaptureDebugLab = () => {
     },
     [],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    const scheduleWarmup =
+      typeof window !== "undefined" && "requestIdleCallback" in window
+        ? window.requestIdleCallback.bind(window)
+        : (callback) => window.setTimeout(callback, 300);
+
+    const warmupId = scheduleWarmup(async () => {
+      try {
+        await warmupOpenCv();
+      } catch {
+        if (!cancelled) {
+          // ignore debug warmup errors, explicit detect will surface them
+        }
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (typeof window !== "undefined" && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(warmupId);
+      } else {
+        window.clearTimeout(warmupId);
+      }
+    };
+  }, []);
 
   const cameraOverlayPolygon = useMemo(() => {
     if (cameraFrame.corners.length !== 4 || !cameraFrame.dimensions) {
@@ -178,20 +260,15 @@ const DocumentCaptureDebugLab = () => {
     }));
 
     try {
+      await waitForPaint();
       const image = await loadImageFromUrl(cameraFrame.url);
-      const corners = await detectDocumentCornersWithOpenCv(image, "passport", {
-        preview: true,
-        allowWeak: true,
-      });
+      const { corners, dimensions } = await detectCornersForDebugImage(image);
 
       setCameraFrame((prev) => ({
         ...prev,
         loading: false,
         corners,
-        dimensions: {
-          width: image.naturalWidth || image.width,
-          height: image.naturalHeight || image.height,
-        },
+        dimensions,
       }));
     } catch (error) {
       setCameraFrame((prev) => ({
@@ -232,20 +309,15 @@ const DocumentCaptureDebugLab = () => {
     });
 
     try {
+      await waitForPaint();
       const image = await loadImageFromFile(file);
-      const corners = await detectDocumentCornersWithOpenCv(image, "passport", {
-        preview: true,
-        allowWeak: true,
-      });
+      const { corners, dimensions } = await detectCornersForDebugImage(image);
 
       setStaticImage((prev) => ({
         ...prev,
         loading: false,
         corners,
-        dimensions: {
-          width: image.naturalWidth || image.width,
-          height: image.naturalHeight || image.height,
-        },
+        dimensions,
       }));
     } catch (error) {
       setStaticImage((prev) => ({

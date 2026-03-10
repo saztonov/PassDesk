@@ -57,6 +57,8 @@ const getOpenCv = async () => {
   return openCvPromise;
 };
 
+export const warmupOpenCv = async () => getOpenCv();
+
 const matPointsToArray = (mat) => {
   const raw = mat.data32S?.length ? Array.from(mat.data32S) : Array.from(mat.data32F || []);
   const points = [];
