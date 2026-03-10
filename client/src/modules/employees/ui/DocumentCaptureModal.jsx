@@ -17,10 +17,10 @@ const captureLayoutByMode = {
   passport: {
     helperText:
       "Заполните рамку разворотом паспорта почти целиком и держите телефон параллельно документу.",
-    viewportAspect: 3 / 4,
+    viewportAspect: 4 / 3,
     frameWidth: 0.9,
-    frameHeight: 0.72,
-    cropPadding: 0.05,
+    frameHeight: 0.64,
+    cropPadding: 0.06,
   },
   document: {
     helperText: "Поместите документ целиком в рамку и избегайте бликов.",
@@ -147,6 +147,19 @@ const DocumentCaptureModal = ({
     () => captureLayoutByMode[mode] || captureLayoutByMode.document,
     [mode],
   );
+  const mobileViewportStyle = useMemo(() => {
+    if (!isMobile) {
+      return {};
+    }
+
+    const viewportWidth = "calc(100vw - 32px)";
+
+    return {
+      width: `min(${viewportWidth}, calc(70dvh * ${captureLayout.viewportAspect}))`,
+      height: `min(70dvh, calc(${viewportWidth} / ${captureLayout.viewportAspect}))`,
+      margin: "0 auto",
+    };
+  }, [captureLayout.viewportAspect, isMobile]);
   const videoConstraints = useMemo(
     () => ({
       ...BASE_VIDEO_CONSTRAINTS,
@@ -243,7 +256,8 @@ const DocumentCaptureModal = ({
           overflow: "hidden",
           borderRadius: isMobile ? 18 : 16,
           background: "#101418",
-          minHeight: isMobile ? "70dvh" : undefined,
+          width: "100%",
+          ...mobileViewportStyle,
         }}
       >
         {capturedDataUrl ? (
@@ -253,8 +267,10 @@ const DocumentCaptureModal = ({
             style={{
               display: "block",
               width: "100%",
-              height: isMobile ? "70dvh" : "auto",
-              aspectRatio: `${captureLayout.viewportAspect}`,
+              height: isMobile ? "100%" : "auto",
+              aspectRatio: isMobile
+                ? undefined
+                : `${captureLayout.viewportAspect}`,
               objectFit: "cover",
             }}
           />
@@ -274,8 +290,10 @@ const DocumentCaptureModal = ({
             style={{
               display: "block",
               width: "100%",
-              height: isMobile ? "70dvh" : "auto",
-              aspectRatio: `${captureLayout.viewportAspect}`,
+              height: isMobile ? "100%" : "auto",
+              aspectRatio: isMobile
+                ? undefined
+                : `${captureLayout.viewportAspect}`,
               objectFit: "cover",
             }}
           />
