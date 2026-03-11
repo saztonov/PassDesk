@@ -706,7 +706,7 @@ export const sendTelegramEmployeeQr = async (telegramUserId) => {
     throw new AppError("Не удалось отправить QR в Telegram", 502);
   }
 
-  const tokenText = `Token:\n\`${result.qr.token}\``;
+  const tokenText = `Код QR:\n\`${result.qr.token}\``;
   await sendTelegramText({
     chatId: result.chatId,
     text: tokenText,
@@ -749,7 +749,7 @@ export const sendSkudQrToEmployeeTelegram = async ({ employeeId, qrData }) => {
 
   await sendTelegramText({
     chatId: account.telegramChatId,
-    text: `Token:\n\`${qrData?.token}\``,
+    text: `Код QR:\n\`${qrData?.token}\``,
     extra: {
       parse_mode: "Markdown",
     },

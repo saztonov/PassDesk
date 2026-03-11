@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import QRCode from "qrcode";
+import { Op } from "sequelize";
 import {
   Employee,
   EmployeeStatusMapping,
@@ -10,41 +11,64 @@ import {
 } from "../../models/index.js";
 import { skudConfig } from "./skudConfig.js";
 
-const base64UrlEncode = (value) =>
-  Buffer.from(value)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-
-const base64UrlDecode = (value) => {
-  const normalized = String(value || "")
-    .replace(/-/g, "+")
-    .replace(/_/g, "/");
-  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
-  return Buffer.from(padded, "base64").toString("utf8");
-};
-
-const sign = (payloadEncoded) => {
-  const secret = skudConfig.qr.hmacSecret;
-  if (!secret) {
-    throw new Error("SKUD_QR_HMAC_SECRET is not configured");
-  }
-
-  return crypto
-    .createHmac("sha256", secret)
-    .update(payloadEncoded)
-    .digest("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-};
-
 const hashToken = (token) =>
   crypto
     .createHash("sha256")
     .update(String(token || ""))
     .digest("hex");
+
+const QR_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+const generateShortQrCode = (length = 7) => {
+  const bytes = crypto.randomBytes(length);
+  let value = "";
+
+  for (let index = 0; index < length; index += 1) {
+    value += QR_CODE_ALPHABET[bytes[index] % QR_CODE_ALPHABET.length];
+  }
+
+  return value;
+};
+
+const decodeAsciiTokenFromHex = (value) => {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/\s+/g, "");
+
+  if (!normalized || normalized.length % 2 !== 0 || !/^[0-9A-F]+$/i.test(normalized)) {
+    return null;
+  }
+
+  try {
+    const decoded = Buffer.from(normalized, "hex")
+      .toString("utf8")
+      .replace(/\0+$/g, "")
+      .trim();
+
+    if (!decoded || !/^[A-Z0-9]+$/i.test(decoded)) {
+      return null;
+    }
+
+    return decoded.toUpperCase();
+  } catch {
+    return null;
+  }
+};
+
+const collectTokenCandidates = (token) => {
+  const raw = String(token || "").trim();
+  if (!raw) {
+    return [];
+  }
+
+  const candidates = new Set([raw, raw.toUpperCase()]);
+  const decodedAscii = decodeAsciiTokenFromHex(raw);
+  if (decodedAscii) {
+    candidates.add(decodedAscii);
+  }
+
+  return Array.from(candidates);
+};
 
 const isPassActiveNow = (pass) => {
   if (!pass) {
@@ -181,36 +205,61 @@ export const issueSkudQrToken = async ({
 
   const now = Math.floor(Date.now() / 1000);
   const exp = now + ttlSeconds;
-  const jti = crypto.randomUUID();
-
-  const payload = {
+  const payloadBase = {
     sub: String(employeeId),
-    jti,
     iat: now,
     exp,
     typ: normalizedType,
     chn: String(channel || "web"),
+    fmt: "short_code",
   };
 
-  const payloadEncoded = base64UrlEncode(JSON.stringify(payload));
-  const signature = sign(payloadEncoded);
-  const token = `${payloadEncoded}.${signature}`;
-  const tokenHash = hashToken(token);
+  let token = null;
+  let tokenHash = null;
+  let jti = null;
+  let qrRecordCreated = false;
 
-  await SkudQrToken.create({
-    employeeId,
-    externalSystem,
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    token = generateShortQrCode(7);
+    tokenHash = hashToken(token);
+    jti = crypto.randomUUID();
+
+    try {
+      await SkudQrToken.create({
+        employeeId,
+        externalSystem,
+        jti,
+        tokenHash,
+        tokenType: normalizedType,
+        expiresAt: new Date(exp * 1000),
+        issuedBy,
+        metadata: {
+          channel: payloadBase.chn,
+          issuedAt: new Date(now * 1000).toISOString(),
+          format: payloadBase.fmt,
+          ...(metadata || {}),
+        },
+      });
+      qrRecordCreated = true;
+      break;
+    } catch (error) {
+      if (
+        error?.name !== "SequelizeUniqueConstraintError" ||
+        attempt === 4
+      ) {
+        throw error;
+      }
+    }
+  }
+
+  if (!qrRecordCreated) {
+    throw new Error("Failed to generate unique QR code");
+  }
+
+  const payload = {
+    ...payloadBase,
     jti,
-    tokenHash,
-    tokenType: normalizedType,
-    expiresAt: new Date(exp * 1000),
-    issuedBy,
-    metadata: {
-      channel: payload.chn,
-      issuedAt: new Date(now * 1000).toISOString(),
-      ...(metadata || {}),
-    },
-  });
+  };
 
   const qrImageDataUrl = await QRCode.toDataURL(token, {
     errorCorrectionLevel: "M",
@@ -318,40 +367,18 @@ export const verifySkudQrToken = async ({
   externalSystem = "sigur",
 }) => {
   try {
-    const [payloadEncoded, signature] = String(token || "").split(".");
-    if (!payloadEncoded || !signature) {
+    const tokenCandidates = collectTokenCandidates(token);
+    if (tokenCandidates.length === 0) {
       return { allow: false, message: "Некорректный QR" };
     }
 
-    const expectedSignature = sign(payloadEncoded);
-    const isSignatureValid =
-      signature.length === expectedSignature.length &&
-      crypto.timingSafeEqual(
-        Buffer.from(signature),
-        Buffer.from(expectedSignature),
-      );
-
-    if (!isSignatureValid) {
-      return { allow: false, message: "Подпись QR недействительна" };
-    }
-
-    const payloadRaw = base64UrlDecode(payloadEncoded);
-    const payload = JSON.parse(payloadRaw);
-
-    if (!payload?.sub || !payload?.exp || !payload?.jti) {
-      return { allow: false, message: "Некорректный payload QR" };
-    }
-
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (Number(payload.exp) < nowSec) {
-      return { allow: false, message: "Срок действия QR истек" };
-    }
-
-    const tokenHash = hashToken(token);
+    const tokenHashes = tokenCandidates.map((item) => hashToken(item));
     const qrRecord = await SkudQrToken.findOne({
       where: {
         externalSystem,
-        tokenHash,
+        tokenHash: {
+          [Op.in]: tokenHashes,
+        },
       },
     });
 
@@ -374,7 +401,7 @@ export const verifySkudQrToken = async ({
       return { allow: false, message: "QR уже использован" };
     }
 
-    const employeeAccess = await isEmployeeAllowed(payload.sub);
+    const employeeAccess = await isEmployeeAllowed(qrRecord.employeeId);
     if (!employeeAccess.allow) {
       return employeeAccess;
     }
@@ -389,8 +416,18 @@ export const verifySkudQrToken = async ({
     return {
       allow: true,
       message: "Доступ разрешен",
-      employeeId: payload.sub,
-      payload,
+      employeeId: qrRecord.employeeId,
+      tokenType: qrRecord.tokenType,
+      expiresAt: qrRecord.expiresAt,
+      format: qrRecord.metadata?.format || "short_code",
+      payload: {
+        sub: String(qrRecord.employeeId),
+        jti: qrRecord.jti,
+        exp: Math.floor(new Date(qrRecord.expiresAt).getTime() / 1000),
+        typ: qrRecord.tokenType,
+        chn: qrRecord.metadata?.channel || "web",
+        fmt: qrRecord.metadata?.format || "short_code",
+      },
       qrRecord,
     };
   } catch (error) {
@@ -411,7 +448,7 @@ export const processSkudDecisionPayload = async ({ payload = {} }) => {
   if (!token) {
     return {
       allow: false,
-      message: "QR токен не передан",
+      message: "QR-код не передан",
     };
   }
 

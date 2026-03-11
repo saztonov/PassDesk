@@ -274,7 +274,7 @@ const QrIssueModal = ({
               : "-"}
           </Text>
           <Input.TextArea value={qrState.token || ""} rows={4} readOnly />
-          <Button onClick={onCopyToken}>Скопировать токен</Button>
+          <Button onClick={onCopyToken}>Скопировать код</Button>
         </Space>
       ) : (
         <Paragraph type="secondary" style={{ marginBottom: 0 }}>
@@ -588,10 +588,10 @@ const PassesPage = ({ embedded = false }) => {
 
     try {
       await navigator.clipboard.writeText(qrState.token);
-      message.success("Токен скопирован");
+      message.success("QR-код скопирован");
     } catch (error) {
       console.error("Failed to copy QR token:", error);
-      message.error("Не удалось скопировать токен");
+      message.error("Не удалось скопировать QR-код");
     }
   };
 

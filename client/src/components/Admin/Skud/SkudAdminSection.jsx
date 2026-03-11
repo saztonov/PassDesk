@@ -793,17 +793,17 @@ const SkudAdminSection = () => {
 
     try {
       await navigator.clipboard.writeText(qrState.token);
-      message.success("Токен скопирован");
+      message.success("QR-код скопирован");
     } catch (error) {
       console.error("Failed to copy QR token:", error);
-      message.error("Не удалось скопировать токен");
+      message.error("Не удалось скопировать QR-код");
     }
   }, [message, qrState?.token]);
 
   const handleVerifyQr = useCallback(async () => {
     const token = String(qrVerifyToken || "").trim();
     if (!token) {
-      message.warning("Вставьте токен для проверки");
+      message.warning("Вставьте QR-код или keyHex для проверки");
       return;
     }
 
@@ -1858,7 +1858,7 @@ const SkudAdminSection = () => {
                         onClick={handleCopyQrToken}
                         disabled={!qrState?.token}
                       >
-                        Скопировать токен
+                        Скопировать код
                       </Button>
                     </Space>
 
@@ -1896,11 +1896,11 @@ const SkudAdminSection = () => {
                   </Space>
                 </Card>
 
-                <Card title="Проверка QR токена">
+                <Card title="Проверка QR-кода">
                   <Space direction="vertical" size={12} style={{ width: "100%" }}>
                     <TextArea
                       rows={4}
-                      placeholder="Вставьте token из QR или payload считывателя"
+                      placeholder="Вставьте код из QR или keyHex от считывателя"
                       value={qrVerifyToken}
                       onChange={(event) => setQrVerifyToken(event.target.value)}
                     />
@@ -1917,7 +1917,7 @@ const SkudAdminSection = () => {
                           Сотрудник: {qrVerifyResult.employeeId || "—"}
                         </Text>
                         <Text type="secondary">
-                          Тип токена: {qrVerifyResult.tokenType || "—"}
+                          Тип QR: {qrVerifyResult.tokenType || "—"}
                         </Text>
                         <Text type="secondary">
                           Истекает:{" "}
@@ -1931,7 +1931,7 @@ const SkudAdminSection = () => {
                       </Space>
                     ) : (
                       <Text type="secondary">
-                        Здесь будет результат проверки токена и решение allow/deny.
+                        Здесь будет результат проверки QR-кода и решение allow/deny.
                       </Text>
                     )}
                   </Space>
