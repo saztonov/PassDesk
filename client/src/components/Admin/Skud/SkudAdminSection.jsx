@@ -1312,88 +1312,106 @@ const SkudAdminSection = () => {
             label: "События",
             children: (
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                <Space wrap>
-                  <RangePicker
-                    value={eventDateRange}
-                    onChange={handleEventDateRangeChange}
-                    format="DD.MM.YYYY"
-                    allowEmpty={[true, true]}
-                  />
-                  <Space size={8}>
-                    <Text type="secondary">Только проходы</Text>
-                    <Switch checked={showOnlyPassages} onChange={handleShowOnlyPassagesChange} />
-                  </Space>
-                  <Select
-                    style={{ width: 220 }}
-                    options={eventTypeOptions}
-                    value={eventTypeFilter}
-                    onChange={handleEventTypeFilterChange}
-                  />
-                  <Select
-                    style={{ width: 180 }}
-                    options={[
-                      { value: "all", label: "Все решения" },
-                      { value: "allowed", label: "Разрешено" },
-                      { value: "denied", label: "Отказ" },
-                    ]}
-                    value={decisionFilter}
-                    onChange={handleDecisionFilterChange}
-                  />
-                  <Select
-                    style={{ width: 240 }}
-                    placeholder="Все группы"
-                    allowClear
-                    showSearch
-                    optionFilterProp="label"
-                    loading={departmentsLoading}
-                    options={departmentOptions}
-                    value={departmentFilter}
-                    onChange={handleDepartmentFilterChange}
-                  />
-                  <Button
-                    icon={<DownloadOutlined />}
-                    onClick={handlePullEvents}
-                    loading={pullingEvents}
-                  >
-                    Подтянуть события
-                  </Button>
-                  <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
-                    Обновить
-                  </Button>
-                </Space>
+                <Card
+                  title="Состояние интеграции"
+                  extra={
+                    <Space wrap>
+                      <Button
+                        icon={<DownloadOutlined />}
+                        onClick={handlePullEvents}
+                        loading={pullingEvents}
+                      >
+                        Подтянуть события
+                      </Button>
+                      <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
+                        Обновить
+                      </Button>
+                    </Space>
+                  }
+                >
+                  <Row gutter={[12, 12]}>
+                    <Col xs={24} sm={12} md={6}>
+                      <Card size="small">
+                        <Statistic
+                          title="Авторизация"
+                          value={state.health?.authOk ? "Успех" : "Ошибка"}
+                          valueStyle={{ color: state.health?.authOk ? "#3f8600" : "#cf1322" }}
+                        />
+                        <Text type="secondary">Провайдер: {state.health?.provider || "—"}</Text>
+                      </Card>
+                    </Col>
+                    <Col xs={24} sm={12} md={6}>
+                      <Card size="small">
+                        <Statistic title="Все события" value={state.stats?.events?.total || 0} />
+                        <Text type="secondary">Отказов: {state.stats?.events?.denied || 0}</Text>
+                      </Card>
+                    </Col>
+                    <Col xs={24} sm={12} md={6}>
+                      <Card size="small">
+                        <Statistic
+                          title="Ошибки синхронизации"
+                          value={state.stats?.syncJobs?.failed || 0}
+                        />
+                        <Text type="secondary">Ожидают: {state.stats?.syncJobs?.pending || 0}</Text>
+                      </Card>
+                    </Col>
+                    <Col xs={24} sm={12} md={6}>
+                      <Card size="small">
+                        <Statistic title="Заблокировано" value={state.stats?.blockedEmployees || 0} />
+                        <Text type="secondary">Доля отказов: {state.stats?.events?.denyRate || 0}%</Text>
+                      </Card>
+                    </Col>
+                  </Row>
+                </Card>
 
-                <Row gutter={[12, 12]}>
-                  <Col xs={24} sm={12} md={6}>
-                    <Card>
-                      <Statistic
-                        title="Авторизация"
-                        value={state.health?.authOk ? "Успех" : "Ошибка"}
-                        valueStyle={{ color: state.health?.authOk ? "#3f8600" : "#cf1322" }}
+                <Card title="Фильтры журнала">
+                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                    <Text type="secondary">
+                      Сначала задайте период и нужные ограничения, затем смотрите журнал. По умолчанию экран показывает только проходы.
+                    </Text>
+                    <Space wrap>
+                      <RangePicker
+                        value={eventDateRange}
+                        onChange={handleEventDateRangeChange}
+                        format="DD.MM.YYYY"
+                        allowEmpty={[true, true]}
                       />
-                      <Text type="secondary">Провайдер: {state.health?.provider || "—"}</Text>
-                    </Card>
-                  </Col>
-                  <Col xs={24} sm={12} md={6}>
-                    <Card>
-                      <Statistic title="Проходы" value={state.stats?.events?.total || 0} />
-                      <Text type="secondary">Отказов: {state.stats?.events?.denied || 0}</Text>
-                    </Card>
-                  </Col>
-                  <Col xs={24} sm={12} md={6}>
-                    <Card>
-                      <Statistic title="Ошибки синхронизации" value={state.stats?.syncJobs?.failed || 0} />
-                      <Text type="secondary">Ожидают: {state.stats?.syncJobs?.pending || 0}</Text>
-                    </Card>
-                  </Col>
-                  <Col xs={24} sm={12} md={6}>
-                    <Card>
-                      <Statistic title="Заблокировано" value={state.stats?.blockedEmployees || 0} />
-                      <Text type="secondary">Доля отказов: {state.stats?.events?.denyRate || 0}%</Text>
-                    </Card>
-                  </Col>
-                </Row>
+                      <Select
+                        style={{ width: 220 }}
+                        options={eventTypeOptions}
+                        value={eventTypeFilter}
+                        onChange={handleEventTypeFilterChange}
+                      />
+                      <Select
+                        style={{ width: 180 }}
+                        options={[
+                          { value: "all", label: "Все решения" },
+                          { value: "allowed", label: "Разрешено" },
+                          { value: "denied", label: "Отказ" },
+                        ]}
+                        value={decisionFilter}
+                        onChange={handleDecisionFilterChange}
+                      />
+                      <Select
+                        style={{ width: 240 }}
+                        placeholder="Все группы"
+                        allowClear
+                        showSearch
+                        optionFilterProp="label"
+                        loading={departmentsLoading}
+                        options={departmentOptions}
+                        value={departmentFilter}
+                        onChange={handleDepartmentFilterChange}
+                      />
+                    </Space>
+                    <Space size={8}>
+                      <Text type="secondary">Показывать только проходы</Text>
+                      <Switch checked={showOnlyPassages} onChange={handleShowOnlyPassagesChange} />
+                    </Space>
+                  </Space>
+                </Card>
 
-                <Card title="Последние события проходов">
+                <Card title="Журнал событий">
                   <Table
                     rowKey="id"
                     columns={eventsColumns}
