@@ -707,6 +707,57 @@ const SkudAdminSection = () => {
     }
   }, [bindingImportRows, loadData, message]);
 
+  const handleExportBindingImportPreview = useCallback(() => {
+    if (!bindingImportPreview?.items?.length) {
+      message.warning("Сначала выполните проверку Excel");
+      return;
+    }
+
+    const escapeCsv = (value) => {
+      const normalized = String(value ?? "");
+      if (normalized.includes(";") || normalized.includes("\"") || normalized.includes("\n")) {
+        return `"${normalized.replace(/"/g, "\"\"")}"`;
+      }
+      return normalized;
+    };
+
+    const rows = [
+      [
+        "Строка",
+        "Номер пропуска",
+        "Импорт ФИО",
+        "Импорт подразделение",
+        "PassDesk ФИО",
+        "PassDesk подразделение",
+        "Статус",
+        "Детали",
+      ].join(";"),
+      ...bindingImportPreview.items.map((item) =>
+        [
+          item.rowIndex,
+          escapeCsv(item.passNumber || ""),
+          escapeCsv(item.fullName || ""),
+          escapeCsv(item.departmentName || ""),
+          escapeCsv(item.employeeName || ""),
+          escapeCsv(item.localDepartmentName || ""),
+          escapeCsv(item.status || ""),
+          escapeCsv(Array.isArray(item.details) ? item.details.join(" | ") : ""),
+        ].join(";"),
+      ),
+    ];
+
+    const blob = new Blob([`\uFEFF${rows.join("\n")}`], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `skud-binding-preview-${dayjs().format("YYYY-MM-DD_HH-mm")}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+    message.success("Результат проверки выгружен");
+  }, [bindingImportPreview, message]);
+
   const handleIssueQr = useCallback(async () => {
     const employeeId = String(qrEmployeeIdInput || "").trim();
     if (!employeeId) {
@@ -1520,6 +1571,13 @@ const SkudAdminSection = () => {
                         disabled={!bindingImportRows.length}
                       >
                         Проверить
+                      </Button>
+                      <Button
+                        icon={<DownloadOutlined />}
+                        onClick={handleExportBindingImportPreview}
+                        disabled={!bindingImportPreview?.items?.length}
+                      >
+                        Скачать проверку
                       </Button>
                       <Button
                         type="primary"

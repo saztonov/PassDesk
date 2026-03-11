@@ -13,28 +13,43 @@ import { enqueueSkudSyncForEmployee } from "./SkudSyncService.js";
 const MAX_ROWS = 5000;
 
 const FIELD_ALIASES = {
-  fullName: ["ФИО", "Ф.И.О.", "ФИО сотрудника", "fullName", "employeeName", "name"],
+  fullName: [
+    "ФИО",
+    "Ф.И.О.",
+    "ФИО сотрудника",
+    "Сотрудник",
+    "fullName",
+    "employeeName",
+    "name",
+  ],
   lastName: ["Фамилия", "lastName", "surname"],
   firstName: ["Имя", "firstName", "nameFirst"],
   middleName: ["Отчество", "middleName", "patronymic"],
-  inn: ["ИНН", "ИНН сотрудника", "employeeInn", "inn"],
-  snils: ["СНИЛС", "snils"],
+  inn: ["ИНН", "ИНН сотрудника", "employeeInn", "inn", "innEmployee"],
+  snils: ["СНИЛС", "snils", "СНИЛС сотрудника"],
   departmentName: [
     "Подразделение",
     "Группа",
     "Бригада",
     "Отдел",
+    "Структурное подразделение",
+    "Подразделение/группа",
     "department",
     "departmentName",
     "group",
   ],
   passNumber: [
     "Номер пропуска",
+    "№ пропуска",
     "Текущий номер пропуска",
     "Пропуск",
+    "Номер карты",
+    "№ карты",
+    "Карта",
     "passNumber",
     "cardNumber",
     "badgeNumber",
+    "tabNumber",
   ],
 };
 
@@ -104,34 +119,44 @@ const normalizeImportRow = (row = {}, index) => {
 const buildMismatchDetails = ({ imported, employee, localDepartmentName }) => {
   const mismatches = [];
   const localFullName = buildFullName(employee || {});
+  const compareTextField = (label, importedValue, localValue) => {
+    const normalizedImported = normalizeComparableText(importedValue);
+    if (!normalizedImported) {
+      return;
+    }
 
-  if (
-    imported.fullName &&
-    localFullName &&
-    normalizeComparableText(imported.fullName) !== normalizeComparableText(localFullName)
-  ) {
-    mismatches.push(`ФИО: "${imported.fullName}" != "${localFullName}"`);
-  }
+    const normalizedLocal = normalizeComparableText(localValue);
+    if (!normalizedLocal) {
+      mismatches.push(`${label}: "${normalizeText(importedValue)}" != "не заполнено"`);
+      return;
+    }
 
-  if (imported.inn && employee?.inn && normalizeDigits(imported.inn) !== normalizeDigits(employee.inn)) {
-    mismatches.push(`ИНН: "${imported.inn}" != "${employee.inn}"`);
-  }
+    if (normalizedImported !== normalizedLocal) {
+      mismatches.push(`${label}: "${normalizeText(importedValue)}" != "${normalizeText(localValue)}"`);
+    }
+  };
 
-  if (
-    imported.snils &&
-    employee?.snils &&
-    normalizeDigits(imported.snils) !== normalizeDigits(employee.snils)
-  ) {
-    mismatches.push(`СНИЛС: "${imported.snils}" != "${employee.snils}"`);
-  }
+  const compareDigitsField = (label, importedValue, localValue) => {
+    const normalizedImported = normalizeDigits(importedValue);
+    if (!normalizedImported) {
+      return;
+    }
 
-  if (
-    imported.departmentName &&
-    localDepartmentName &&
-    normalizeComparableText(imported.departmentName) !== normalizeComparableText(localDepartmentName)
-  ) {
-    mismatches.push(`Подразделение: "${imported.departmentName}" != "${localDepartmentName}"`);
-  }
+    const normalizedLocal = normalizeDigits(localValue);
+    if (!normalizedLocal) {
+      mismatches.push(`${label}: "${normalizedImported}" != "не заполнено"`);
+      return;
+    }
+
+    if (normalizedImported !== normalizedLocal) {
+      mismatches.push(`${label}: "${normalizedImported}" != "${normalizedLocal}"`);
+    }
+  };
+
+  compareTextField("ФИО", imported.fullName, localFullName);
+  compareDigitsField("ИНН", imported.inn, employee?.inn);
+  compareDigitsField("СНИЛС", imported.snils, employee?.snils);
+  compareTextField("Подразделение", imported.departmentName, localDepartmentName);
 
   return mismatches;
 };
