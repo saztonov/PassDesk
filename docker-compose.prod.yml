@@ -1,4 +1,29 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: passdesk_redis
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - ${REDIS_PASSWORD:?Set_REDIS_PASSWORD_in_.env}
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - -a
+        - ${REDIS_PASSWORD:?Set_REDIS_PASSWORD_in_.env}
+        - ping
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   server:
     build:
       context: ./server
@@ -119,7 +144,7 @@ services:
       SKUD_QR_ONE_TIME_TTL_SECONDS: ${SKUD_QR_ONE_TIME_TTL_SECONDS:-300}
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set_REDIS_PASSWORD_in_.env}
       SKUD_SYNC_CONCURRENCY: ${SKUD_SYNC_CONCURRENCY:-2}
       SKUD_SYNC_RETRY_LIMIT: ${SKUD_SYNC_RETRY_LIMIT:-5}
 
@@ -129,6 +154,9 @@ services:
       - "5003:5000"
     volumes:
       - ${HOST_CERT_PATH:-./cert/root.crt}:/app/cert/root.crt:ro
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test:
@@ -163,3 +191,6 @@ services:
       interval: 20s
       timeout: 5s
       retries: 10
+
+volumes:
+  redis_data:
