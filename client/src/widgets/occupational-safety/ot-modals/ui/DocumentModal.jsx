@@ -1,4 +1,5 @@
-import { Form, Input, Modal, Select, Switch } from "antd";
+import { UploadOutlined } from "@ant-design/icons";
+import { Button, Form, Input, Modal, Select, Switch, Upload } from "antd";
 
 const DocumentModal = ({
   documentModalOpen,
@@ -9,6 +10,8 @@ const DocumentModal = ({
   categoryOptions,
   selectFullStyle,
   selectDropdownStyle,
+  documentTemplateFileList,
+  onDocumentTemplateFileListChange,
 }) => (
   <Modal
     open={documentModalOpen}
@@ -43,6 +46,16 @@ const DocumentModal = ({
       </Form.Item>
       <Form.Item name="isRequired" label="Обязательный" valuePropName="checked">
         <Switch />
+      </Form.Item>
+      <Form.Item label="Шаблон документа (опционально)">
+        <Upload
+          fileList={documentTemplateFileList}
+          beforeUpload={() => false}
+          onChange={({ fileList }) => onDocumentTemplateFileListChange(fileList)}
+          maxCount={1}
+        >
+          <Button icon={<UploadOutlined />}>Выбрать файл</Button>
+        </Upload>
       </Form.Item>
     </Form>
   </Modal>

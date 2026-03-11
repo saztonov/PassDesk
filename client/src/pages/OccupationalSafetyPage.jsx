@@ -182,6 +182,10 @@ const OccupationalSafetyPage = () => {
         onCloseDocumentModal={() => ot.setDocumentModalOpen(false)}
         onSubmitDocument={ot.handleDocumentSubmit}
         documentForm={ot.documentForm}
+        documentTemplateFileList={ot.documentTemplateFileList}
+        onDocumentTemplateFileListChange={
+          ot.handleDocumentTemplateFileListChange
+        }
         categoryDocumentsModalOpen={ot.categoryDocumentsModalOpen}
         categoryDocumentsTarget={ot.categoryDocumentsTarget}
         categoryDocumentsList={ot.categoryDocumentsList}

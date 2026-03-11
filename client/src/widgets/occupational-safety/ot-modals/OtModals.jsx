@@ -19,6 +19,8 @@ const OtModals = ({
   onCloseDocumentModal,
   onSubmitDocument,
   documentForm,
+  documentTemplateFileList,
+  onDocumentTemplateFileListChange,
   categoryDocumentsModalOpen,
   categoryDocumentsTarget,
   categoryDocumentsList,
@@ -69,6 +71,8 @@ const OtModals = ({
       categoryOptions={categoryOptions}
       selectFullStyle={selectFullStyle}
       selectDropdownStyle={selectDropdownStyle}
+      documentTemplateFileList={documentTemplateFileList}
+      onDocumentTemplateFileListChange={onDocumentTemplateFileListChange}
     />
     <CategoryDocumentsModal
       categoryDocumentsModalOpen={categoryDocumentsModalOpen}

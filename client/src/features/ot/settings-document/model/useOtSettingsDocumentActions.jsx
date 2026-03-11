@@ -5,11 +5,13 @@ import otService from "@/services/otService";
 const useOtSettingsDocumentActions = ({ loadSettingsData }) => {
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [editingDocument, setEditingDocument] = useState(null);
+  const [documentTemplateFileList, setDocumentTemplateFileList] = useState([]);
   const [documentForm] = Form.useForm();
 
   const handleOpenDocumentModal = (doc = null, defaultCategoryId = null) => {
     setEditingDocument(doc);
     documentForm.resetFields();
+    setDocumentTemplateFileList([]);
     if (doc) {
       documentForm.setFieldsValue({
         name: doc.name,
@@ -29,15 +31,24 @@ const useOtSettingsDocumentActions = ({ loadSettingsData }) => {
   const handleDocumentSubmit = async () => {
     try {
       const values = await documentForm.validateFields();
+      const templateFile = documentTemplateFileList[0]?.originFileObj;
       if (editingDocument) {
         await otService.updateDocument(editingDocument.id, values);
+        if (templateFile) {
+          await otService.uploadDocumentTemplate(editingDocument.id, templateFile);
+        }
         message.success("Документ обновлен");
       } else {
-        await otService.createDocument(values);
+        const response = await otService.createDocument(values);
+        const createdId = response.data?.data?.id;
+        if (createdId && templateFile) {
+          await otService.uploadDocumentTemplate(createdId, templateFile);
+        }
         message.success("Документ создан");
       }
       setDocumentModalOpen(false);
       setEditingDocument(null);
+      setDocumentTemplateFileList([]);
       await loadSettingsData();
     } catch (error) {
       if (error?.errorFields) return;
@@ -71,6 +82,8 @@ const useOtSettingsDocumentActions = ({ loadSettingsData }) => {
     editingDocument,
     setDocumentModalOpen,
     documentForm,
+    documentTemplateFileList,
+    setDocumentTemplateFileList,
     handleOpenDocumentModal,
     handleDocumentSubmit,
     handleDeleteDocument,

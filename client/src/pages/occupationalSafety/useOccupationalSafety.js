@@ -298,10 +298,17 @@ const useOccupationalSafety = () => {
     editingDocument,
     setDocumentModalOpen,
     documentForm,
+    documentTemplateFileList,
+    setDocumentTemplateFileList,
     handleOpenDocumentModal,
     handleDocumentSubmit,
     handleDeleteDocument,
   } = useOtSettingsDocumentActions({ loadSettingsData });
+
+  const handleDocumentTemplateFileListChange = useCallback(
+    (fileList) => setDocumentTemplateFileList(fileList.slice(-1)),
+    [setDocumentTemplateFileList],
+  );
 
   const loadInstructionsOnly = async () => {
     try {
@@ -824,6 +831,8 @@ const useOccupationalSafety = () => {
     setDocumentModalOpen,
     handleDocumentSubmit,
     documentForm,
+    documentTemplateFileList,
+    handleDocumentTemplateFileListChange,
     templateModalOpen,
     setTemplateModalOpen,
     handleTemplateSubmit,
