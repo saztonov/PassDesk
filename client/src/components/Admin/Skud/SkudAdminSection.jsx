@@ -1419,140 +1419,193 @@ const SkudAdminSection = () => {
             label: "Сотрудники",
             children: (
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                <Space wrap>
-                  <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
-                    Обновить
-                  </Button>
-                </Space>
-
-                <Card title="Управление сотрудником в СКУД">
-                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                    <Input
-                      placeholder="employeeId (UUID сотрудника в PassDesk)"
-                      value={employeeIdInput}
-                      onChange={(event) => setEmployeeIdInput(event.target.value)}
-                    />
-                    <Input
-                      placeholder="Причина (опционально)"
-                      value={employeeReasonInput}
-                      onChange={(event) => setEmployeeReasonInput(event.target.value)}
-                    />
-                    <Space wrap>
-                      <Button
-                        type="primary"
-                        icon={<SyncOutlined />}
-                        onClick={handleSyncEmployee}
-                        loading={employeeActionLoading}
-                      >
-                        Синхронизировать
-                      </Button>
-                      <Button
-                        danger
-                        onClick={handleBlockEmployee}
-                        loading={employeeActionLoading}
-                      >
-                        Блокировать
-                      </Button>
-                      <Button
-                        onClick={handleUnblockEmployee}
-                        loading={employeeActionLoading}
-                      >
-                        Разблокировать
-                      </Button>
-                    </Space>
-
-                    <Input
-                      placeholder="externalEmpId (ID сотрудника в Sigur)"
-                      value={externalEmpIdInput}
-                      onChange={(event) => setExternalEmpIdInput(event.target.value)}
-                    />
-                    <Space wrap>
-                      <Button onClick={handleLoadBinding} loading={bindingLookupLoading}>
-                        Загрузить привязку
-                      </Button>
-                      <Button
-                        type="primary"
-                        onClick={handleSaveBinding}
-                        loading={bindingLookupLoading}
-                      >
-                        Сохранить привязку
-                      </Button>
-                    </Space>
-
-                    {bindingInfo ? (
-                      <Text type="secondary">
-                        Текущая привязка: Sigur ID {bindingInfo.externalEmpId}
-                      </Text>
-                    ) : (
-                      <Text type="secondary">Текущая привязка: не задана</Text>
-                    )}
-                  </Space>
+                <Card
+                  title="Сценарии работы с сотрудниками"
+                  extra={
+                    <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
+                      Обновить
+                    </Button>
+                  }
+                >
+                  <Row gutter={[12, 12]}>
+                    <Col xs={24} md={8}>
+                      <Card size="small">
+                        <Statistic title="Очередь sync" value={state.syncJobs?.pagination?.total || 0} />
+                        <Text type="secondary">
+                          Ручные операции, импорт из Excel и автоматические догрузки.
+                        </Text>
+                      </Card>
+                    </Col>
+                    <Col xs={24} md={8}>
+                      <Card size="small">
+                        <Statistic title="Ошибки sync" value={state.stats?.syncJobs?.failed || 0} />
+                        <Text type="secondary">
+                          Если здесь растёт число, сначала проверяйте Sigur API и права.
+                        </Text>
+                      </Card>
+                    </Col>
+                    <Col xs={24} md={8}>
+                      <Card size="small">
+                        <Statistic
+                          title="Готово к догрузке"
+                          value={bindingImportPreview?.summary?.readyToSyncCount || 0}
+                        />
+                        <Text type="secondary">
+                          Количество строк из текущего Excel-preview, которые можно отправить в sync.
+                        </Text>
+                      </Card>
+                    </Col>
+                  </Row>
                 </Card>
 
-                <Card title="Массовое сопоставление PassDesk ↔ Sigur">
-                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                    <Space wrap>
-                      <Input
-                        placeholder="Поиск PassDesk (ФИО / UUID / ИНН / Sigur ID)"
-                        value={localEmployeeSearch}
-                        onChange={(event) => setLocalEmployeeSearch(event.target.value)}
-                        style={{ width: 360 }}
-                      />
-                      <Input
-                        placeholder="Поиск Sigur (имя / ID / отдел)"
-                        value={providerEmployeeSearch}
-                        onChange={(event) => setProviderEmployeeSearch(event.target.value)}
-                        style={{ width: 320 }}
-                      />
-                      <Button onClick={loadMappingLists} loading={mappingLoading}>
-                        Найти
-                      </Button>
-                      <Button
-                        type="primary"
-                        onClick={handleBindSelectedEmployees}
-                        loading={bindingActionLoading}
-                      >
-                        Связать выбранных
-                      </Button>
+                <Row gutter={[16, 16]} align="top">
+                  <Col xs={24} xl={9}>
+                    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                      <Card title="1. Точечные действия по сотруднику">
+                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                          <Text type="secondary">
+                            Используйте этот блок, когда нужно быстро синхронизировать, заблокировать или разблокировать конкретного сотрудника.
+                          </Text>
+                          <Input
+                            placeholder="employeeId сотрудника в PassDesk"
+                            value={employeeIdInput}
+                            onChange={(event) => setEmployeeIdInput(event.target.value)}
+                          />
+                          <Input
+                            placeholder="Причина (опционально)"
+                            value={employeeReasonInput}
+                            onChange={(event) => setEmployeeReasonInput(event.target.value)}
+                          />
+                          <Space wrap>
+                            <Button
+                              type="primary"
+                              icon={<SyncOutlined />}
+                              onClick={handleSyncEmployee}
+                              loading={employeeActionLoading}
+                            >
+                              Синхронизировать
+                            </Button>
+                            <Button
+                              danger
+                              onClick={handleBlockEmployee}
+                              loading={employeeActionLoading}
+                            >
+                              Блокировать
+                            </Button>
+                            <Button
+                              onClick={handleUnblockEmployee}
+                              loading={employeeActionLoading}
+                            >
+                              Разблокировать
+                            </Button>
+                          </Space>
+                        </Space>
+                      </Card>
+
+                      <Card title="2. Привязка Sigur ID вручную">
+                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                          <Text type="secondary">
+                            Нужен только для ручной коррекции, если сотрудника нужно связать с уже существующей записью Sigur.
+                          </Text>
+                          <Input
+                            placeholder="externalEmpId (ID сотрудника в Sigur)"
+                            value={externalEmpIdInput}
+                            onChange={(event) => setExternalEmpIdInput(event.target.value)}
+                          />
+                          <Space wrap>
+                            <Button onClick={handleLoadBinding} loading={bindingLookupLoading}>
+                              Загрузить текущую привязку
+                            </Button>
+                            <Button
+                              type="primary"
+                              onClick={handleSaveBinding}
+                              loading={bindingLookupLoading}
+                            >
+                              Сохранить привязку
+                            </Button>
+                          </Space>
+                          {bindingInfo ? (
+                            <Text type="secondary">
+                              Сейчас связан с Sigur ID {bindingInfo.externalEmpId}
+                            </Text>
+                          ) : (
+                            <Text type="secondary">Активная привязка пока не задана</Text>
+                          )}
+                        </Space>
+                      </Card>
                     </Space>
+                  </Col>
 
-                    <Row gutter={[12, 12]}>
-                      <Col xs={24} xl={12}>
-                        <Card size="small" title="Сотрудники PassDesk">
-                          <Table
-                            rowKey="id"
-                            size="small"
-                            rowSelection={localRowSelection}
-                            columns={localEmployeeColumns}
-                            dataSource={localEmployees}
-                            loading={mappingLoading}
-                            pagination={false}
-                            scroll={{ x: 700, y: 360 }}
+                  <Col xs={24} xl={15}>
+                    <Card title="3. Ручное сопоставление PassDesk ↔ Sigur">
+                      <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                        <Text type="secondary">
+                          Используйте этот сценарий, когда нужно вручную выбрать сотрудника PassDesk и связать его с конкретной записью Sigur.
+                        </Text>
+                        <Space wrap>
+                          <Input
+                            placeholder="Поиск PassDesk (ФИО / UUID / ИНН / Sigur ID)"
+                            value={localEmployeeSearch}
+                            onChange={(event) => setLocalEmployeeSearch(event.target.value)}
+                            style={{ width: 320 }}
                           />
-                        </Card>
-                      </Col>
-                      <Col xs={24} xl={12}>
-                        <Card size="small" title="Сотрудники Sigur">
-                          <Table
-                            rowKey={(record) => record.id || `sigur-${record.name}`}
-                            size="small"
-                            rowSelection={providerRowSelection}
-                            columns={providerEmployeeColumns}
-                            dataSource={providerEmployees}
-                            loading={mappingLoading}
-                            pagination={false}
-                            scroll={{ x: 700, y: 360 }}
+                          <Input
+                            placeholder="Поиск Sigur (имя / ID / отдел)"
+                            value={providerEmployeeSearch}
+                            onChange={(event) => setProviderEmployeeSearch(event.target.value)}
+                            style={{ width: 280 }}
                           />
-                        </Card>
-                      </Col>
-                    </Row>
-                  </Space>
-                </Card>
+                          <Button onClick={loadMappingLists} loading={mappingLoading}>
+                            Найти пары
+                          </Button>
+                          <Button
+                            type="primary"
+                            onClick={handleBindSelectedEmployees}
+                            loading={bindingActionLoading}
+                          >
+                            Связать выбранных
+                          </Button>
+                        </Space>
 
-                <Card title="Импорт соответствий по пропускам (Excel)">
+                        <Row gutter={[12, 12]}>
+                          <Col xs={24} xl={12}>
+                            <Card size="small" title="PassDesk">
+                              <Table
+                                rowKey="id"
+                                size="small"
+                                rowSelection={localRowSelection}
+                                columns={localEmployeeColumns}
+                                dataSource={localEmployees}
+                                loading={mappingLoading}
+                                pagination={false}
+                                scroll={{ x: 700, y: 320 }}
+                              />
+                            </Card>
+                          </Col>
+                          <Col xs={24} xl={12}>
+                            <Card size="small" title="Sigur">
+                              <Table
+                                rowKey={(record) => record.id || `sigur-${record.name}`}
+                                size="small"
+                                rowSelection={providerRowSelection}
+                                columns={providerEmployeeColumns}
+                                dataSource={providerEmployees}
+                                loading={mappingLoading}
+                                pagination={false}
+                                scroll={{ x: 700, y: 320 }}
+                              />
+                            </Card>
+                          </Col>
+                        </Row>
+                      </Space>
+                    </Card>
+                  </Col>
+                </Row>
+
+                <Card title="4. Импорт соответствий по пропускам (Excel)">
                   <Space direction="vertical" size={12} style={{ width: "100%" }}>
                     <Text type="secondary">
-                      Загрузите Excel из 1С ЗУП. Сопоставление строится по номеру пропуска, затем в очередь попадают только новые сотрудники без активной привязки Sigur.
+                      Этот сценарий нужен для массовой догрузки. Сначала загрузите Excel из 1С ЗУП, затем проверьте конфликты, потом отправьте в sync только строки со статусом «Готово».
                     </Text>
 
                     <Space wrap>
@@ -1671,7 +1724,7 @@ const SkudAdminSection = () => {
                   </Space>
                 </Card>
 
-                <Card title="Очередь синхронизации">
+                <Card title="5. Очередь синхронизации">
                   <Table
                     rowKey="id"
                     columns={syncColumns}
