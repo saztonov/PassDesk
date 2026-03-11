@@ -32,6 +32,7 @@ import {
 } from "../services/skud/SkudQrService.js";
 import { enqueueSkudEventsIngestJob } from "../queues/skud/queue.js";
 import { getSkudProvider } from "../integrations/skud/SkudProviderRegistry.js";
+import { sendSkudQrToEmployeeTelegram } from "../services/telegramService.js";
 
 const ensureSkudModuleEnabled = () => {
   if (!isSkudEnabled()) {
@@ -761,6 +762,17 @@ export const skudController = {
         channel,
         issuedBy: req.user.id,
       });
+
+      if (channel === "telegram") {
+        const telegramResult = await sendSkudQrToEmployeeTelegram({
+          employeeId,
+          qrData: data,
+        });
+        data.delivery = {
+          channel: "telegram",
+          ...telegramResult,
+        };
+      }
 
       res.status(201).json({ success: true, data });
     } catch (error) {

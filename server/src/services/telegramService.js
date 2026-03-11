@@ -718,6 +718,53 @@ export const sendTelegramEmployeeQr = async (telegramUserId) => {
   return result;
 };
 
+export const sendSkudQrToEmployeeTelegram = async ({ employeeId, qrData }) => {
+  const account = await TelegramAccount.findOne({
+    where: {
+      employeeId,
+      isActive: true,
+    },
+    attributes: ["id", "telegramChatId", "language"],
+    order: [["updatedAt", "DESC"]],
+  });
+
+  if (!account?.telegramChatId) {
+    throw new AppError("У сотрудника нет активной привязки Telegram", 404);
+  }
+
+  const caption = tTelegram(
+    normalizeTelegramLanguage(account.language),
+    "qrCaption",
+  );
+
+  const photoSent = await sendTelegramPhoto({
+    chatId: account.telegramChatId,
+    photoDataUrl: qrData?.qrImageDataUrl,
+    caption,
+  });
+
+  if (!photoSent) {
+    throw new AppError("Не удалось отправить QR в Telegram", 502);
+  }
+
+  await sendTelegramText({
+    chatId: account.telegramChatId,
+    text: `Token:\n\`${qrData?.token}\``,
+    extra: {
+      parse_mode: "Markdown",
+    },
+  });
+
+  await account.update({
+    lastSeenAt: new Date(),
+  });
+
+  return {
+    sent: true,
+    chatId: account.telegramChatId,
+  };
+};
+
 export const buildTelegramHelpText = (language) => tTelegram(language, "help");
 
 export const buildStartNeedCodeText = (language) =>
