@@ -15,6 +15,7 @@ import {
   Tabs,
   Tag,
   Typography,
+  Upload,
   Popconfirm,
 } from "antd";
 import {
@@ -23,12 +24,14 @@ import {
   QrcodeOutlined,
   ReloadOutlined,
   SyncOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import { useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import PassesPage from "@/pages/PassesPage";
 import { departmentService } from "@/services/departmentService";
 import { employeeService } from "@/services/employeeService";
+import { readSkudBindingImportExcel } from "@/modules/skud/lib/readSkudBindingImportExcel";
 import skudService from "@/services/skudService";
 
 const { Text } = Typography;
@@ -131,6 +134,11 @@ const SkudAdminSection = () => {
   const [selectedLocalEmployeeId, setSelectedLocalEmployeeId] = useState(null);
   const [selectedProviderEmployeeId, setSelectedProviderEmployeeId] = useState(null);
   const [bindingActionLoading, setBindingActionLoading] = useState(false);
+  const [bindingImportRows, setBindingImportRows] = useState([]);
+  const [bindingImportFileName, setBindingImportFileName] = useState("");
+  const [bindingImportPreview, setBindingImportPreview] = useState(null);
+  const [bindingImportLoading, setBindingImportLoading] = useState(false);
+  const [bindingImportExecuting, setBindingImportExecuting] = useState(false);
   const [qrEmployeeIdInput, setQrEmployeeIdInput] = useState("");
   const [qrEmployeeOptions, setQrEmployeeOptions] = useState([]);
   const [qrEmployeeSearch, setQrEmployeeSearch] = useState("");
@@ -635,6 +643,70 @@ const SkudAdminSection = () => {
     }
   }, [loadData, loadMappingLists, message, selectedLocalEmployeeId, selectedProviderEmployeeId]);
 
+  const handleBindingImportFileSelect = useCallback(
+    async (file) => {
+      try {
+        setBindingImportLoading(true);
+        const rows = await readSkudBindingImportExcel(file);
+        setBindingImportRows(rows);
+        setBindingImportFileName(file.name);
+        setBindingImportPreview(null);
+        message.success(`Файл загружен: ${rows.length} строк`);
+      } catch (error) {
+        console.error("Failed to read SKUD binding import file:", error);
+        message.error("Не удалось прочитать Excel");
+      } finally {
+        setBindingImportLoading(false);
+      }
+
+      return false;
+    },
+    [message],
+  );
+
+  const handlePreviewBindingImport = useCallback(async () => {
+    if (!bindingImportRows.length) {
+      message.warning("Сначала загрузите Excel");
+      return;
+    }
+
+    setBindingImportLoading(true);
+    try {
+      const data = await skudService.previewBindingImport(bindingImportRows);
+      setBindingImportPreview(data || null);
+      message.success("Проверка завершена");
+    } catch (error) {
+      console.error("Failed to preview SKUD binding import:", error);
+      message.error(
+        error?.response?.data?.message || "Не удалось проверить импорт соответствий",
+      );
+    } finally {
+      setBindingImportLoading(false);
+    }
+  }, [bindingImportRows, message]);
+
+  const handleExecuteBindingImport = useCallback(async () => {
+    if (!bindingImportRows.length) {
+      message.warning("Сначала загрузите Excel");
+      return;
+    }
+
+    setBindingImportExecuting(true);
+    try {
+      const data = await skudService.executeBindingImport(bindingImportRows);
+      setBindingImportPreview(data?.preview || null);
+      message.success(`В очередь поставлено ${data?.queued || 0} сотрудников`);
+      await loadData();
+    } catch (error) {
+      console.error("Failed to execute SKUD binding import:", error);
+      message.error(
+        error?.response?.data?.message || "Не удалось выполнить импорт соответствий",
+      );
+    } finally {
+      setBindingImportExecuting(false);
+    }
+  }, [bindingImportRows, loadData, message]);
+
   const handleIssueQr = useCallback(async () => {
     const employeeId = String(qrEmployeeIdInput || "").trim();
     if (!employeeId) {
@@ -868,6 +940,84 @@ const SkudAdminSection = () => {
 
     return baseOptions;
   }, [state.events?.items]);
+
+  const bindingImportColumns = useMemo(
+    () => [
+      {
+        title: "Строка",
+        dataIndex: "rowIndex",
+        key: "rowIndex",
+        width: 90,
+      },
+      {
+        title: "Номер пропуска",
+        dataIndex: "passNumber",
+        key: "passNumber",
+        width: 180,
+        render: (value) => value || "—",
+      },
+      {
+        title: "Импорт",
+        key: "imported",
+        width: 220,
+        render: (_, record) => (
+          <Space direction="vertical" size={0}>
+            <Text>{record.fullName || "—"}</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {record.departmentName || "Без подразделения"}
+            </Text>
+          </Space>
+        ),
+      },
+      {
+        title: "PassDesk",
+        key: "employeeName",
+        width: 220,
+        render: (_, record) => (
+          <Space direction="vertical" size={0}>
+            <Text>{record.employeeName || "—"}</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {record.localDepartmentName || "Без подразделения"}
+            </Text>
+          </Space>
+        ),
+      },
+      {
+        title: "Статус",
+        dataIndex: "status",
+        key: "status",
+        width: 170,
+        render: (value) => {
+          if (value === "ready_to_sync") return <Tag color="green">Готово</Tag>;
+          if (value === "already_bound") return <Tag color="blue">Уже связано</Tag>;
+          if (value === "sync_queued") return <Tag color="gold">Уже в очереди</Tag>;
+          if (value === "new_pass") return <Tag color="orange">Новый пропуск</Tag>;
+          if (value === "missing_pass_number") return <Tag>Нет номера</Tag>;
+          if (value === "duplicate_pass_number") return <Tag color="red">Дубль в файле</Tag>;
+          if (value === "conflict_employee_data") return <Tag color="red">Конфликт</Tag>;
+          return <Tag>{value || "—"}</Tag>;
+        },
+      },
+      {
+        title: "Детали",
+        dataIndex: "details",
+        key: "details",
+        render: (value) =>
+          Array.isArray(value) && value.length > 0 ? (
+            <Space direction="vertical" size={0}>
+              {value.map((item) => (
+                <Text key={item} type="secondary" style={{ fontSize: 12 }}>
+                  {item}
+                </Text>
+              ))}
+            </Space>
+          ) : (
+            "—"
+          ),
+      },
+    ],
+    [],
+  );
 
   const syncColumns = useMemo(
     () => [
@@ -1345,6 +1495,121 @@ const SkudAdminSection = () => {
                         </Card>
                       </Col>
                     </Row>
+                  </Space>
+                </Card>
+
+                <Card title="Импорт соответствий по пропускам (Excel)">
+                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                    <Text type="secondary">
+                      Загрузите Excel из 1С ЗУП. Сопоставление строится по номеру пропуска, затем в очередь попадают только новые сотрудники без активной привязки Sigur.
+                    </Text>
+
+                    <Space wrap>
+                      <Upload
+                        accept=".xlsx,.xls"
+                        showUploadList={false}
+                        beforeUpload={handleBindingImportFileSelect}
+                      >
+                        <Button icon={<UploadOutlined />} loading={bindingImportLoading}>
+                          Загрузить Excel
+                        </Button>
+                      </Upload>
+                      <Button
+                        onClick={handlePreviewBindingImport}
+                        loading={bindingImportLoading}
+                        disabled={!bindingImportRows.length}
+                      >
+                        Проверить
+                      </Button>
+                      <Button
+                        type="primary"
+                        onClick={handleExecuteBindingImport}
+                        loading={bindingImportExecuting}
+                        disabled={
+                          !bindingImportPreview?.summary?.readyToSyncCount
+                            || bindingImportExecuting
+                        }
+                      >
+                        Догрузить новые
+                      </Button>
+                    </Space>
+
+                    <Text type="secondary">
+                      {bindingImportFileName
+                        ? `${bindingImportFileName}: ${bindingImportRows.length} строк`
+                        : "Файл не выбран"}
+                    </Text>
+
+                    {bindingImportPreview?.summary ? (
+                      <Row gutter={[12, 12]}>
+                        <Col xs={24} sm={12} md={8} lg={4}>
+                          <Card size="small">
+                            <Statistic
+                              title="Готово"
+                              value={bindingImportPreview.summary.readyToSyncCount || 0}
+                            />
+                          </Card>
+                        </Col>
+                        <Col xs={24} sm={12} md={8} lg={4}>
+                          <Card size="small">
+                            <Statistic
+                              title="Уже связано"
+                              value={bindingImportPreview.summary.alreadyBoundCount || 0}
+                            />
+                          </Card>
+                        </Col>
+                        <Col xs={24} sm={12} md={8} lg={4}>
+                          <Card size="small">
+                            <Statistic
+                              title="В очереди"
+                              value={bindingImportPreview.summary.syncQueuedCount || 0}
+                            />
+                          </Card>
+                        </Col>
+                        <Col xs={24} sm={12} md={8} lg={4}>
+                          <Card size="small">
+                            <Statistic
+                              title="Новые"
+                              value={bindingImportPreview.summary.newPassCount || 0}
+                            />
+                          </Card>
+                        </Col>
+                        <Col xs={24} sm={12} md={8} lg={4}>
+                          <Card size="small">
+                            <Statistic
+                              title="Конфликты"
+                              value={bindingImportPreview.summary.conflictCount || 0}
+                            />
+                          </Card>
+                        </Col>
+                        <Col xs={24} sm={12} md={8} lg={4}>
+                          <Card size="small">
+                            <Statistic
+                              title="Дубли/пусто"
+                              value={
+                                (bindingImportPreview.summary.duplicatePassCount || 0)
+                                + (bindingImportPreview.summary.missingPassNumberCount || 0)
+                              }
+                            />
+                          </Card>
+                        </Col>
+                      </Row>
+                    ) : null}
+
+                    {bindingImportPreview?.items?.length ? (
+                      <Table
+                        rowKey={(record) => `binding-import-${record.rowIndex}`}
+                        size="small"
+                        columns={bindingImportColumns}
+                        dataSource={bindingImportPreview.items}
+                        pagination={{
+                          pageSize: 10,
+                          showSizeChanger: true,
+                          pageSizeOptions: ["10", "20", "50"],
+                        }}
+                        scroll={{ x: 1100 }}
+                      />
+                    ) : null}
                   </Space>
                 </Card>
 

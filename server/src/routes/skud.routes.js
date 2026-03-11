@@ -76,6 +76,20 @@ router.get(
   skudController.syncJobs,
 );
 router.post(
+  "/bindings/import/preview",
+  authorize("admin", "manager"),
+  body("rows").isArray({ min: 1, max: 5000 }),
+  validate,
+  skudController.previewBindingImport,
+);
+router.post(
+  "/bindings/import/execute",
+  authorize("admin", "manager"),
+  body("rows").isArray({ min: 1, max: 5000 }),
+  validate,
+  skudController.executeBindingImport,
+);
+router.post(
   "/bindings/employee/:employeeId",
   authorize("admin", "manager"),
   employeeIdParamValidation,

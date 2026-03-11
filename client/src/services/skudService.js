@@ -38,6 +38,16 @@ const skudService = {
     return toData(response);
   },
 
+  previewBindingImport: async (rows = []) => {
+    const response = await api.post("/skud/bindings/import/preview", { rows });
+    return toData(response);
+  },
+
+  executeBindingImport: async (rows = []) => {
+    const response = await api.post("/skud/bindings/import/execute", { rows });
+    return toData(response);
+  },
+
   syncEmployee: async (employeeId) => {
     const response = await api.post(`/skud/sync/employee/${employeeId}`);
     return toData(response);

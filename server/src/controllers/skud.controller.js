@@ -15,6 +15,10 @@ import {
   listSkudSyncJobs,
 } from "../services/skud/SkudStatsService.js";
 import {
+  executeSkudBindingImport,
+  previewSkudBindingImport,
+} from "../services/skud/SkudBindingImportService.js";
+import {
   getEmployeeBinding,
   upsertEmployeeBinding,
 } from "../services/skud/SkudBindingsService.js";
@@ -297,6 +301,31 @@ export const skudController = {
           },
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async previewBindingImport(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+      const data = await previewSkudBindingImport(rows);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async executeBindingImport(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+      const data = await executeSkudBindingImport({
+        rows,
+        userId: req.user.id,
+      });
+      res.status(202).json({ success: true, data });
     } catch (error) {
       next(error);
     }
