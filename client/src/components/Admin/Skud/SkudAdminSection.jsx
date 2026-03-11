@@ -1312,58 +1312,6 @@ const SkudAdminSection = () => {
             label: "События",
             children: (
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                <Card
-                  title="Состояние интеграции"
-                  extra={
-                    <Space wrap>
-                      <Button
-                        icon={<DownloadOutlined />}
-                        onClick={handlePullEvents}
-                        loading={pullingEvents}
-                      >
-                        Подтянуть события
-                      </Button>
-                      <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
-                        Обновить
-                      </Button>
-                    </Space>
-                  }
-                >
-                  <Row gutter={[12, 12]}>
-                    <Col xs={24} sm={12} md={6}>
-                      <Card size="small">
-                        <Statistic
-                          title="Авторизация"
-                          value={state.health?.authOk ? "Успех" : "Ошибка"}
-                          valueStyle={{ color: state.health?.authOk ? "#3f8600" : "#cf1322" }}
-                        />
-                        <Text type="secondary">Провайдер: {state.health?.provider || "—"}</Text>
-                      </Card>
-                    </Col>
-                    <Col xs={24} sm={12} md={6}>
-                      <Card size="small">
-                        <Statistic title="Все события" value={state.stats?.events?.total || 0} />
-                        <Text type="secondary">Отказов: {state.stats?.events?.denied || 0}</Text>
-                      </Card>
-                    </Col>
-                    <Col xs={24} sm={12} md={6}>
-                      <Card size="small">
-                        <Statistic
-                          title="Ошибки синхронизации"
-                          value={state.stats?.syncJobs?.failed || 0}
-                        />
-                        <Text type="secondary">Ожидают: {state.stats?.syncJobs?.pending || 0}</Text>
-                      </Card>
-                    </Col>
-                    <Col xs={24} sm={12} md={6}>
-                      <Card size="small">
-                        <Statistic title="Заблокировано" value={state.stats?.blockedEmployees || 0} />
-                        <Text type="secondary">Доля отказов: {state.stats?.events?.denyRate || 0}%</Text>
-                      </Card>
-                    </Col>
-                  </Row>
-                </Card>
-
                 <Card title="Фильтры журнала">
                   <Space direction="vertical" size={12} style={{ width: "100%" }}>
                     <Text type="secondary">
@@ -1407,6 +1355,18 @@ const SkudAdminSection = () => {
                     <Space size={8}>
                       <Text type="secondary">Показывать только проходы</Text>
                       <Switch checked={showOnlyPassages} onChange={handleShowOnlyPassagesChange} />
+                    </Space>
+                    <Space wrap>
+                      <Button
+                        icon={<DownloadOutlined />}
+                        onClick={handlePullEvents}
+                        loading={pullingEvents}
+                      >
+                        Подтянуть события
+                      </Button>
+                      <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
+                        Обновить
+                      </Button>
                     </Space>
                   </Space>
                 </Card>
