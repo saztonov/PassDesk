@@ -84,6 +84,30 @@ export class SigurClient {
     });
   }
 
+  async getDepartments({ limit = 100, offset = 0, filters = {} } = {}) {
+    return this.request({
+      method: "GET",
+      url: "/api/v1/departments",
+      params: {
+        limit,
+        offset,
+        ...filters,
+      },
+    });
+  }
+
+  async createDepartment({ name, parentId = 0, description = "" }) {
+    return this.request({
+      method: "POST",
+      url: "/api/v1/departments",
+      data: {
+        name: String(name || "").trim(),
+        parentId,
+        description,
+      },
+    });
+  }
+
   async getEvents({ from, to, limit = 100, offset = 0 } = {}) {
     return this.request({
       method: "GET",

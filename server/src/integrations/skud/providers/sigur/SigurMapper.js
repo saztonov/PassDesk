@@ -10,6 +10,7 @@ export const mapEmployeeToSigur = ({
   employee,
   externalEmpId = null,
   counterpartyName = "",
+  departmentId = null,
   accessStartTime = null,
   accessEndTime = null,
 }) => {
@@ -19,6 +20,7 @@ export const mapEmployeeToSigur = ({
     ...(externalEmpId ? { id: Number.parseInt(String(externalEmpId), 10) || undefined } : {}),
     name,
     description: trim(counterpartyName) || trim(employee?.notes) || "",
+    ...(departmentId ? { departmentId: Number.parseInt(String(departmentId), 10) || undefined } : {}),
     accessStartTime:
       accessStartTime || employee?.accessStartTime || employee?.createdAt || undefined,
     accessEndTime: accessEndTime || employee?.accessEndTime || undefined,

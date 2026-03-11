@@ -2,6 +2,8 @@ import crypto from "crypto";
 import { Op } from "sequelize";
 import {
   Employee,
+  Pass,
+  SkudAccessState,
   TelegramAccount,
   TelegramCommandLog,
   TelegramLinkCode,
@@ -11,6 +13,7 @@ import {
 import { AppError } from "../middleware/errorHandler.js";
 import { normalizeTelegramLanguage, tTelegram } from "./telegramI18n.js";
 import { getTelegramBotInstance } from "./telegramBotRuntime.js";
+import { issueSkudQrTokenForEmployeeActivePass } from "./skud/SkudQrService.js";
 
 const LINK_CODE_TTL_MINUTES = Math.max(
   Number.parseInt(process.env.TELEGRAM_LINK_CODE_TTL_MINUTES || "10", 10) || 10,
@@ -390,6 +393,41 @@ const sendTelegramText = async ({ chatId, text, extra = {} }) => {
   }
 };
 
+const sendTelegramPhoto = async ({
+  chatId,
+  photoDataUrl,
+  caption,
+  extra = {},
+}) => {
+  const bot = getTelegramBotInstance();
+  if (!bot) {
+    return false;
+  }
+
+  try {
+    const [, base64Payload = ""] = String(photoDataUrl || "").split(",", 2);
+    if (!base64Payload) {
+      throw new Error("QR image payload is empty");
+    }
+
+    await bot.telegram.sendPhoto(
+      String(chatId),
+      {
+        source: Buffer.from(base64Payload, "base64"),
+        filename: "skud-qr.png",
+      },
+      {
+        caption,
+        ...extra,
+      },
+    );
+    return true;
+  } catch (error) {
+    console.error("Failed to send Telegram photo:", error.message);
+    return false;
+  }
+};
+
 const saveNotificationOnce = async ({
   employeeId,
   eventType,
@@ -524,6 +562,160 @@ export const getTelegramAccountByUser = async (telegramUserId) => {
       },
     ],
   });
+};
+
+const getLinkedTelegramAccountOrThrow = async (telegramUserId) => {
+  const account = await TelegramAccount.findOne({
+    where: {
+      telegramUserId: String(telegramUserId),
+      isActive: true,
+    },
+    include: [
+      {
+        model: Employee,
+        as: "employee",
+        attributes: [
+          "id",
+          "firstName",
+          "lastName",
+          "lastNameEnc",
+          "lastNameKeyVersion",
+          "middleName",
+          "isActive",
+        ],
+        required: true,
+      },
+    ],
+  });
+
+  if (!account?.employee || account.employee.isDeleted) {
+    throw new AppError("Telegram не привязан к профилю сотрудника", 404);
+  }
+
+  return account;
+};
+
+const getEmployeeActivePass = async (employeeId) => {
+  const now = new Date();
+  return Pass.findOne({
+    where: {
+      employeeId,
+      status: "active",
+      [Op.and]: [
+        {
+          [Op.or]: [{ validFrom: null }, { validFrom: { [Op.lte]: now } }],
+        },
+        {
+          [Op.or]: [{ validUntil: null }, { validUntil: { [Op.gte]: now } }],
+        },
+      ],
+    },
+    attributes: ["id", "passNumber", "passType", "validFrom", "validUntil"],
+    order: [["validUntil", "ASC"]],
+  });
+};
+
+export const getTelegramEmployeeStatus = async (telegramUserId) => {
+  const account = await getLinkedTelegramAccountOrThrow(telegramUserId);
+  const [accessState, activePass] = await Promise.all([
+    SkudAccessState.findOne({
+      where: {
+        employeeId: account.employeeId,
+        externalSystem: "sigur",
+      },
+      attributes: ["status", "statusReason", "updatedAt"],
+    }),
+    getEmployeeActivePass(account.employeeId),
+  ]);
+
+  const language = normalizeTelegramLanguage(account.language);
+  const status = String(accessState?.status || "").trim().toLowerCase();
+  let text = tTelegram(language, "statusMissing");
+
+  if (status === "allowed") {
+    text = tTelegram(language, "statusAllowed");
+  } else if (status === "blocked") {
+    text = tTelegram(language, "statusBlocked", {
+      reason: accessState?.statusReason || "Без указания причины",
+    });
+  } else if (status === "revoked" || status === "deleted") {
+    text = tTelegram(language, "statusRevoked", {
+      reason: accessState?.statusReason || "Без указания причины",
+    });
+  } else if (status === "pending") {
+    text = tTelegram(language, "statusPending");
+  } else if (!accessState && activePass) {
+    text = tTelegram(language, "statusAllowed");
+  }
+
+  return {
+    employeeId: account.employeeId,
+    chatId: account.telegramChatId,
+    language,
+    text,
+    accessState: accessState
+      ? {
+          status: accessState.status,
+          statusReason: accessState.statusReason || null,
+          updatedAt: accessState.updatedAt || null,
+        }
+      : null,
+    activePass: activePass
+      ? {
+          id: activePass.id,
+          passNumber: activePass.passNumber || null,
+          passType: activePass.passType || null,
+          validFrom: activePass.validFrom || null,
+          validUntil: activePass.validUntil || null,
+        }
+      : null,
+  };
+};
+
+export const issueTelegramEmployeeQr = async (telegramUserId) => {
+  const account = await getLinkedTelegramAccountOrThrow(telegramUserId);
+  const result = await issueSkudQrTokenForEmployeeActivePass({
+    employeeId: account.employeeId,
+    channel: "telegram",
+    issuedBy: null,
+  });
+
+  await account.update({
+    lastSeenAt: new Date(),
+  });
+
+  return {
+    employeeId: account.employeeId,
+    chatId: account.telegramChatId,
+    language: normalizeTelegramLanguage(account.language),
+    qr: result,
+  };
+};
+
+export const sendTelegramEmployeeQr = async (telegramUserId) => {
+  const result = await issueTelegramEmployeeQr(telegramUserId);
+  const caption = tTelegram(result.language, "qrCaption");
+
+  const photoSent = await sendTelegramPhoto({
+    chatId: result.chatId,
+    photoDataUrl: result.qr.qrImageDataUrl,
+    caption,
+  });
+
+  if (!photoSent) {
+    throw new AppError("Не удалось отправить QR в Telegram", 502);
+  }
+
+  const tokenText = `Token:\n\`${result.qr.token}\``;
+  await sendTelegramText({
+    chatId: result.chatId,
+    text: tokenText,
+    extra: {
+      parse_mode: "Markdown",
+    },
+  });
+
+  return result;
 };
 
 export const buildTelegramHelpText = (language) => tTelegram(language, "help");

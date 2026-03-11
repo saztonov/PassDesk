@@ -7,6 +7,7 @@ import {
 import { mapCardToSigur } from "../../integrations/skud/providers/sigur/SigurMapper.js";
 import { getSkudProvider } from "../../integrations/skud/SkudProviderRegistry.js";
 import { enqueueSkudCardsJob } from "../../queues/skud/queue.js";
+import { ensureEmployeeBindingInSkud } from "./SkudSyncService.js";
 
 const normalizeCardNumber = (value) =>
   String(value || "")
@@ -193,13 +194,16 @@ export const processSkudCardJobById = async (syncJobId) => {
       if (!card?.employeeId) {
         throw new Error("Card or employee binding is missing");
       }
-      const binding = await getEmployeeBinding(card.employeeId);
-      if (!binding?.externalEmpId) {
-        throw new Error("Employee SKUD binding is missing for card assignment");
-      }
+      const externalEmpId = await ensureEmployeeBindingInSkud({
+        employeeId: card.employeeId,
+        userId: syncJob.createdBy,
+        payload: {
+          source: "assign_card",
+        },
+      });
 
       const response = await provider.assignCard(
-        binding.externalEmpId,
+        externalEmpId,
         mapCardToSigur({
           cardNumber: card.cardNumber,
           cardType: card.cardType,

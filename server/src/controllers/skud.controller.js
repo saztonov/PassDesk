@@ -247,6 +247,11 @@ export const skudController = {
         accessPoint: req.query.accessPoint,
         direction: req.query.direction,
         eventType: req.query.eventType,
+        allow:
+          req.query.allow === undefined
+            ? undefined
+            : parseBooleanParam(req.query.allow, false),
+        departmentId: req.query.departmentId,
         passageOnly: parseBooleanParam(req.query.passageOnly, false),
         limit,
         offset,

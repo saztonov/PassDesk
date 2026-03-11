@@ -1,14 +1,14 @@
 import { Markup, Telegraf } from "telegraf";
 import {
   bindTelegramAccountByCode,
-  buildNotLinkedText,
   buildStartNeedCodeText,
   buildTelegramHelpText,
-  getTelegramAccountByUser,
+  getTelegramEmployeeStatus,
   logTelegramCommand,
   mapLinkErrorToMessage,
   resolveTelegramLanguage,
   runTelegramDocumentExpiryCheck,
+  sendTelegramEmployeeQr,
   setTelegramLanguage,
   touchTelegramAccount,
 } from "../services/telegramService.js";
@@ -122,6 +122,35 @@ const registerBotHandlers = (bot) => {
           responsePayload: { linked: false, reason: error.message },
         };
       }
+    }),
+  );
+
+  bot.command(
+    "qr",
+    withCommandLog("qr", async (ctx) => {
+      const result = await sendTelegramEmployeeQr(ctx.from?.id);
+      return {
+        employeeId: result.employeeId,
+        responsePayload: {
+          issued: true,
+          expiresAt: result.qr.expiresAt,
+        },
+      };
+    }),
+  );
+
+  bot.command(
+    "status",
+    withCommandLog("status", async (ctx) => {
+      const result = await getTelegramEmployeeStatus(ctx.from?.id);
+      await ctx.reply(result.text);
+      return {
+        employeeId: result.employeeId,
+        responsePayload: {
+          status: result.accessState?.status || null,
+          hasActivePass: Boolean(result.activePass),
+        },
+      };
     }),
   );
 
@@ -281,6 +310,8 @@ export const startTelegramBot = async () => {
 
   try {
     await bot.telegram.setMyCommands([
+      { command: "qr", description: "Получить QR-код" },
+      { command: "status", description: "Статус допуска" },
       { command: "language", description: "Выбрать язык" },
       { command: "help", description: "Помощь" },
     ]);

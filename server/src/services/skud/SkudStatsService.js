@@ -5,6 +5,8 @@ import {
   SkudPersonBinding,
   SkudSyncJob,
   Employee,
+  EmployeeCounterpartyMapping,
+  Department,
 } from "../../models/index.js";
 import { getSkudProvider } from "../../integrations/skud/SkudProviderRegistry.js";
 
@@ -108,6 +110,8 @@ export const listSkudEvents = async ({
   accessPoint,
   direction,
   eventType,
+  allow,
+  departmentId,
   passageOnly = false,
   limit = 50,
   offset = 0,
@@ -123,6 +127,9 @@ export const listSkudEvents = async ({
   if (eventType) {
     where.eventType = String(eventType).trim();
   }
+  if (allow !== undefined) {
+    where.allow = Boolean(allow);
+  }
   if (passageOnly) {
     where[Op.or] = [
       { direction: { [Op.in]: [1, 2] } },
@@ -130,17 +137,35 @@ export const listSkudEvents = async ({
     ];
   }
 
-  return SkudAccessEvent.findAndCountAll({
-    where,
+  const employeeInclude = {
+    model: Employee,
+    as: "employee",
+    required: false,
+    attributes: ["id", "firstName", "lastName", "middleName", "isActive"],
     include: [
       {
-        model: Employee,
-        as: "employee",
-        required: false,
-        attributes: ["id", "firstName", "lastName", "middleName", "isActive"],
+        model: EmployeeCounterpartyMapping,
+        as: "employeeCounterpartyMappings",
+        required: Boolean(departmentId),
+        attributes: ["id", "departmentId"],
+        ...(departmentId ? { where: { departmentId } } : {}),
+        include: [
+          {
+            model: Department,
+            as: "department",
+            required: false,
+            attributes: ["id", "name"],
+          },
+        ],
       },
     ],
+  };
+
+  return SkudAccessEvent.findAndCountAll({
+    where,
+    include: [employeeInclude],
     order: [["eventTime", "DESC"]],
+    distinct: true,
     limit,
     offset,
   });

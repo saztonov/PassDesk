@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   App,
   Button,
   Card,
   Col,
+  DatePicker,
   Input,
   Row,
   Select,
@@ -26,11 +27,13 @@ import {
 import { useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import PassesPage from "@/pages/PassesPage";
+import { departmentService } from "@/services/departmentService";
 import { employeeService } from "@/services/employeeService";
 import skudService from "@/services/skudService";
 
 const { Text } = Typography;
 const { TextArea } = Input;
+const { RangePicker } = DatePicker;
 
 const EVENT_TYPE_LABELS = {
   PASS_DETECTED: "Проход",
@@ -91,6 +94,13 @@ const buildEmployeeName = (employee) =>
     .join(" ")
     .trim();
 
+const getEmployeeDepartment = (record) => {
+  const mappings = Array.isArray(record?.employee?.employeeCounterpartyMappings)
+    ? record.employee.employeeCounterpartyMappings
+    : [];
+  return mappings.find((item) => item?.department?.name)?.department || null;
+};
+
 const SkudAdminSection = () => {
   const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -105,9 +115,13 @@ const SkudAdminSection = () => {
   const [assigningCard, setAssigningCard] = useState(false);
   const [cardActionLoadingId, setCardActionLoadingId] = useState(null);
   const [cardEmployeeIdInput, setCardEmployeeIdInput] = useState("");
+  const [cardEmployeeOptions, setCardEmployeeOptions] = useState([]);
+  const [cardEmployeeSearch, setCardEmployeeSearch] = useState("");
+  const [cardEmployeeOptionsLoading, setCardEmployeeOptionsLoading] = useState(false);
   const [cardNumberInput, setCardNumberInput] = useState("");
   const [cardTypeInput, setCardTypeInput] = useState("rfid");
   const [cardNotesInput, setCardNotesInput] = useState("");
+  const [cardReaderArmed, setCardReaderArmed] = useState(false);
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "events");
   const [localEmployeeSearch, setLocalEmployeeSearch] = useState("");
   const [providerEmployeeSearch, setProviderEmployeeSearch] = useState("");
@@ -130,8 +144,14 @@ const SkudAdminSection = () => {
   const [qrVerifyLoading, setQrVerifyLoading] = useState(false);
   const [showOnlyPassages, setShowOnlyPassages] = useState(true);
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
+  const [decisionFilter, setDecisionFilter] = useState("all");
+  const [departmentFilter, setDepartmentFilter] = useState(undefined);
+  const [eventDateRange, setEventDateRange] = useState(null);
+  const [departmentOptions, setDepartmentOptions] = useState([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
   const [eventsPage, setEventsPage] = useState(1);
   const [eventsPageSize, setEventsPageSize] = useState(20);
+  const cardNumberInputRef = useRef(null);
   const [state, setState] = useState({
     health: null,
     stats: null,
@@ -160,6 +180,18 @@ const SkudAdminSection = () => {
           offset: (eventsPage - 1) * eventsPageSize,
           passageOnly: showOnlyPassages,
           ...(eventTypeFilter !== "all" ? { eventType: eventTypeFilter } : {}),
+          ...(decisionFilter === "allowed"
+            ? { allow: true }
+            : decisionFilter === "denied"
+              ? { allow: false }
+              : {}),
+          ...(departmentFilter ? { departmentId: departmentFilter } : {}),
+          ...(Array.isArray(eventDateRange) && eventDateRange[0] && eventDateRange[1]
+            ? {
+                from: eventDateRange[0].startOf("day").toISOString(),
+                to: eventDateRange[1].endOf("day").toISOString(),
+              }
+            : {}),
         }),
         skudService.getSyncJobs({ limit: 20, offset: 0 }),
         skudService.getCards({ limit: 20, offset: 0 }),
@@ -178,11 +210,43 @@ const SkudAdminSection = () => {
     } finally {
       setLoading(false);
     }
-  }, [eventTypeFilter, eventsPage, eventsPageSize, message, showOnlyPassages]);
+  }, [
+    decisionFilter,
+    departmentFilter,
+    eventDateRange,
+    eventTypeFilter,
+    eventsPage,
+    eventsPageSize,
+    message,
+    showOnlyPassages,
+  ]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const loadDepartments = async () => {
+      setDepartmentsLoading(true);
+      try {
+        const response = await departmentService.getAll();
+        const items = response?.data?.data?.departments || [];
+        setDepartmentOptions(
+          items.map((item) => ({
+            value: item.id,
+            label: item.name,
+          })),
+        );
+      } catch (error) {
+        console.error("Failed to load departments for SKUD filters:", error);
+        message.error("Не удалось загрузить группы для фильтра");
+      } finally {
+        setDepartmentsLoading(false);
+      }
+    };
+
+    loadDepartments();
+  }, [message]);
 
   useEffect(() => {
     const nextTab = searchParams.get("tab") || "events";
@@ -197,6 +261,21 @@ const SkudAdminSection = () => {
   const handleEventTypeFilterChange = useCallback((value) => {
     setEventsPage(1);
     setEventTypeFilter(value);
+  }, []);
+
+  const handleDecisionFilterChange = useCallback((value) => {
+    setEventsPage(1);
+    setDecisionFilter(value);
+  }, []);
+
+  const handleDepartmentFilterChange = useCallback((value) => {
+    setEventsPage(1);
+    setDepartmentFilter(value || undefined);
+  }, []);
+
+  const handleEventDateRangeChange = useCallback((value) => {
+    setEventsPage(1);
+    setEventDateRange(value);
   }, []);
 
   const handleEventsTableChange = useCallback(
@@ -331,11 +410,21 @@ const SkudAdminSection = () => {
     }
   }, [employeeIdInput, externalEmpIdInput, loadData, message]);
 
-  const handleAssignCard = useCallback(async () => {
-    const employeeId = String(cardEmployeeIdInput || "").trim();
-    const cardNumber = String(cardNumberInput || "").trim();
+  const focusCardReaderInput = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      cardNumberInputRef.current?.focus?.();
+    });
+  }, []);
+
+  const handleAssignCard = useCallback(async (overrides = {}) => {
+    const employeeId = String(
+      overrides.employeeId ?? cardEmployeeIdInput ?? "",
+    ).trim();
+    const cardNumber = String(
+      overrides.cardNumber ?? cardNumberInput ?? "",
+    ).trim();
     if (!employeeId || !cardNumber) {
-      message.warning("Введите employeeId и номер карты");
+      message.warning("Выберите сотрудника и приложите карту");
       return;
     }
 
@@ -351,13 +440,33 @@ const SkudAdminSection = () => {
       setCardNumberInput("");
       setCardNotesInput("");
       await loadData();
+      if (cardReaderArmed) {
+        focusCardReaderInput();
+      }
     } catch (error) {
       console.error("Failed to assign card:", error);
       message.error("Не удалось привязать карту");
+      if (cardReaderArmed) {
+        focusCardReaderInput();
+      }
     } finally {
       setAssigningCard(false);
     }
-  }, [cardEmployeeIdInput, cardNumberInput, cardTypeInput, cardNotesInput, loadData, message]);
+  }, [
+    cardEmployeeIdInput,
+    cardNumberInput,
+    cardTypeInput,
+    cardNotesInput,
+    cardReaderArmed,
+    focusCardReaderInput,
+    loadData,
+    message,
+  ]);
+
+  const handleArmCardReader = useCallback(() => {
+    setCardReaderArmed(true);
+    focusCardReaderInput();
+  }, [focusCardReaderInput]);
 
   const handleBlockCard = useCallback(
     async (cardId) => {
@@ -439,30 +548,49 @@ const SkudAdminSection = () => {
     loadMappingLists();
   }, [loadMappingLists]);
 
+  const fetchEmployeeOptions = useCallback(async (search = "") => {
+    const response = await employeeService.getAll({
+      page: 1,
+      limit: 100,
+      activeOnly: "true",
+      ...(search ? { search } : {}),
+    });
+    const items = Array.isArray(response?.data?.employees)
+      ? response.data.employees
+      : [];
+
+    return items.map((employee) => ({
+      value: employee.id,
+      label:
+        buildEmployeeName(employee) ||
+        employee.fullName ||
+        employee.email ||
+        String(employee.id),
+    }));
+  }, []);
+
+  const loadCardEmployees = useCallback(
+    async (search = "") => {
+      setCardEmployeeOptionsLoading(true);
+      try {
+        const options = await fetchEmployeeOptions(search);
+        setCardEmployeeOptions(options);
+      } catch (error) {
+        console.error("Failed to load card employee options:", error);
+        message.error("Не удалось загрузить сотрудников");
+      } finally {
+        setCardEmployeeOptionsLoading(false);
+      }
+    },
+    [fetchEmployeeOptions, message],
+  );
+
   const loadQrEmployees = useCallback(
     async (search = "") => {
       setQrEmployeeOptionsLoading(true);
       try {
-        const response = await employeeService.getAll({
-          page: 1,
-          limit: 100,
-          activeOnly: "true",
-          ...(search ? { search } : {}),
-        });
-        const items = Array.isArray(response?.data?.employees)
-          ? response.data.employees
-          : [];
-
-        setQrEmployeeOptions(
-          items.map((employee) => ({
-            value: employee.id,
-            label:
-              buildEmployeeName(employee) ||
-              employee.fullName ||
-              employee.email ||
-              String(employee.id),
-          })),
-        );
+        const options = await fetchEmployeeOptions(search);
+        setQrEmployeeOptions(options);
       } catch (error) {
         console.error("Failed to load QR employee options:", error);
         message.error("Не удалось загрузить сотрудников");
@@ -470,8 +598,12 @@ const SkudAdminSection = () => {
         setQrEmployeeOptionsLoading(false);
       }
     },
-    [message],
+    [fetchEmployeeOptions, message],
   );
+
+  useEffect(() => {
+    loadCardEmployees(cardEmployeeSearch);
+  }, [cardEmployeeSearch, loadCardEmployees]);
 
   useEffect(() => {
     loadQrEmployees(qrEmployeeSearch);
@@ -644,6 +776,12 @@ const SkudAdminSection = () => {
             </Space>
           );
         },
+      },
+      {
+        title: "Группа",
+        key: "department",
+        width: 220,
+        render: (_, record) => getEmployeeDepartment(record)?.name || "—",
       },
       {
         title: "Тип события",
@@ -974,6 +1112,12 @@ const SkudAdminSection = () => {
             children: (
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
                 <Space wrap>
+                  <RangePicker
+                    value={eventDateRange}
+                    onChange={handleEventDateRangeChange}
+                    format="DD.MM.YYYY"
+                    allowEmpty={[true, true]}
+                  />
                   <Space size={8}>
                     <Text type="secondary">Только проходы</Text>
                     <Switch checked={showOnlyPassages} onChange={handleShowOnlyPassagesChange} />
@@ -983,6 +1127,27 @@ const SkudAdminSection = () => {
                     options={eventTypeOptions}
                     value={eventTypeFilter}
                     onChange={handleEventTypeFilterChange}
+                  />
+                  <Select
+                    style={{ width: 180 }}
+                    options={[
+                      { value: "all", label: "Все решения" },
+                      { value: "allowed", label: "Разрешено" },
+                      { value: "denied", label: "Отказ" },
+                    ]}
+                    value={decisionFilter}
+                    onChange={handleDecisionFilterChange}
+                  />
+                  <Select
+                    style={{ width: 240 }}
+                    placeholder="Все группы"
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                    loading={departmentsLoading}
+                    options={departmentOptions}
+                    value={departmentFilter}
+                    onChange={handleDepartmentFilterChange}
                   />
                   <Button
                     icon={<DownloadOutlined />}
@@ -1209,15 +1374,36 @@ const SkudAdminSection = () => {
 
                 <Card title="Привязка карты">
                   <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                    <Input
-                      placeholder="employeeId (UUID сотрудника в PassDesk)"
-                      value={cardEmployeeIdInput}
-                      onChange={(event) => setCardEmployeeIdInput(event.target.value)}
+                    <Select
+                      showSearch
+                      allowClear
+                      placeholder="Выберите сотрудника"
+                      value={cardEmployeeIdInput || undefined}
+                      options={cardEmployeeOptions}
+                      loading={cardEmployeeOptionsLoading}
+                      onSearch={setCardEmployeeSearch}
+                      onChange={(value) => setCardEmployeeIdInput(value || "")}
+                      optionFilterProp="label"
+                      filterOption={false}
+                      style={{ width: "100%" }}
+                      popupMatchSelectWidth
                     />
+                    <Text type="secondary">
+                      Для работы со считывателем выберите сотрудника, нажмите «Ожидать карту» и приложите карту к программатору.
+                    </Text>
                     <Input
+                      ref={cardNumberInputRef}
                       placeholder="Номер карты"
                       value={cardNumberInput}
                       onChange={(event) => setCardNumberInput(event.target.value)}
+                      onPressEnter={(event) => {
+                        if (!cardReaderArmed) {
+                          return;
+                        }
+                        void handleAssignCard({
+                          cardNumber: event.currentTarget.value,
+                        });
+                      }}
                     />
                     <Select
                       value={cardTypeInput}
@@ -1233,13 +1419,18 @@ const SkudAdminSection = () => {
                       value={cardNotesInput}
                       onChange={(event) => setCardNotesInput(event.target.value)}
                     />
-                    <Button
-                      type="primary"
-                      onClick={handleAssignCard}
-                      loading={assigningCard}
-                    >
-                      Привязать карту
-                    </Button>
+                    <Space wrap>
+                      <Button onClick={handleArmCardReader}>
+                        {cardReaderArmed ? "Считыватель активен" : "Ожидать карту"}
+                      </Button>
+                      <Button
+                        type="primary"
+                        onClick={() => void handleAssignCard()}
+                        loading={assigningCard}
+                      >
+                        Привязать карту
+                      </Button>
+                    </Space>
                   </Space>
                 </Card>
 

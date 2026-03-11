@@ -3,6 +3,7 @@ import {
   Employee,
   EmployeeCounterpartyMapping,
   Counterparty,
+  Department,
   SkudAccessState,
   SkudPersonBinding,
   SkudSyncJob,
@@ -34,6 +35,12 @@ const getEmployeeWithSkudContext = async (employeeId) => {
             model: Counterparty,
             as: "counterparty",
             attributes: ["id", "name"],
+          },
+          {
+            model: Department,
+            as: "department",
+            attributes: ["id", "name"],
+            required: false,
           },
         ],
       },
@@ -183,6 +190,66 @@ const resolveOrCreateBindingExternalId = async ({ employee, sigurResponse, userI
   return externalEmpId;
 };
 
+const getEmployeeDepartmentName = (employee) => {
+  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+    ? employee.employeeCounterpartyMappings
+    : [];
+  return (
+    mappings.find((item) => item?.department?.name)?.department?.name
+      || null
+  );
+};
+
+const resolveSigurDepartmentId = async ({ provider, departmentName, description = "" }) => {
+  const normalizedName = String(departmentName || "").trim();
+  if (!normalizedName) {
+    return null;
+  }
+
+  const response = await provider.getDepartments({ limit: 500, offset: 0 });
+  const items = Array.isArray(response)
+    ? response
+    : Array.isArray(response?.items)
+      ? response.items
+      : [];
+
+  const existing = items.find(
+    (item) => String(item?.name || "").trim().toLowerCase() === normalizedName.toLowerCase(),
+  );
+
+  if (existing?.id !== undefined && existing?.id !== null) {
+    return existing.id;
+  }
+
+  try {
+    const created = await provider.createDepartment({
+      name: normalizedName,
+      description,
+    });
+    const createdId =
+      created?.id ?? created?.departmentId ?? created?.data?.id ?? null;
+    if (createdId !== undefined && createdId !== null) {
+      return createdId;
+    }
+  } catch (error) {
+    const duplicateResponse = await provider.getDepartments({ limit: 500, offset: 0 });
+    const duplicateItems = Array.isArray(duplicateResponse)
+      ? duplicateResponse
+      : Array.isArray(duplicateResponse?.items)
+        ? duplicateResponse.items
+        : [];
+    const duplicate = duplicateItems.find(
+      (item) => String(item?.name || "").trim().toLowerCase() === normalizedName.toLowerCase(),
+    );
+    if (duplicate?.id !== undefined && duplicate?.id !== null) {
+      return duplicate.id;
+    }
+    throw error;
+  }
+
+  return null;
+};
+
 const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
   const provider = getSkudProvider();
   const existingBinding = Array.isArray(employee?.skudBindings)
@@ -191,11 +258,18 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
 
   const counterpartyName =
     employee?.employeeCounterpartyMappings?.[0]?.counterparty?.name || "";
+  const departmentName = getEmployeeDepartmentName(employee);
+  const departmentId = await resolveSigurDepartmentId({
+    provider,
+    departmentName,
+    description: counterpartyName,
+  });
 
   const employeePayload = mapEmployeeToSigur({
     employee,
     externalEmpId: existingBinding?.externalEmpId || null,
     counterpartyName,
+    departmentId,
     accessStartTime: payload.accessStartTime || null,
     accessEndTime: payload.accessEndTime || null,
   });
@@ -228,16 +302,32 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
   };
 };
 
-const ensureBinding = async ({ employee, userId, payload = {} }) => {
-  const existingBinding = Array.isArray(employee?.skudBindings)
-    ? employee.skudBindings[0]
+export const ensureEmployeeBindingInSkud = async ({
+  employee = null,
+  employeeId = null,
+  userId,
+  payload = {},
+}) => {
+  const targetEmployee =
+    employee || (employeeId ? await getEmployeeWithSkudContext(employeeId) : null);
+
+  if (!targetEmployee || targetEmployee.isDeleted) {
+    throw new Error("Employee is not found for SKUD binding");
+  }
+
+  const existingBinding = Array.isArray(targetEmployee?.skudBindings)
+    ? targetEmployee.skudBindings[0]
     : null;
 
   if (existingBinding?.externalEmpId) {
     return existingBinding.externalEmpId;
   }
 
-  const result = await runSyncEmployeeOperation({ employee, userId, payload });
+  const result = await runSyncEmployeeOperation({
+    employee: targetEmployee,
+    userId,
+    payload,
+  });
   if (!result.externalEmpId) {
     throw new Error("Unable to resolve externalEmpId for SKUD operation");
   }
@@ -247,7 +337,11 @@ const ensureBinding = async ({ employee, userId, payload = {} }) => {
 
 const runBlockOperation = async ({ employee, userId, payload = {} }) => {
   const provider = getSkudProvider();
-  const externalEmpId = await ensureBinding({ employee, userId, payload });
+  const externalEmpId = await ensureEmployeeBindingInSkud({
+    employee,
+    userId,
+    payload,
+  });
   const response = await provider.blockEmployee(externalEmpId, payload.statusReason || null);
 
   await upsertAccessState({
@@ -268,7 +362,11 @@ const runBlockOperation = async ({ employee, userId, payload = {} }) => {
 
 const runUnblockOperation = async ({ employee, userId, payload = {} }) => {
   const provider = getSkudProvider();
-  const externalEmpId = await ensureBinding({ employee, userId, payload });
+  const externalEmpId = await ensureEmployeeBindingInSkud({
+    employee,
+    userId,
+    payload,
+  });
   const response = await provider.unblockEmployee(externalEmpId);
 
   await upsertAccessState({
