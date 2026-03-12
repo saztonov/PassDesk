@@ -116,6 +116,14 @@ const getRequestErrorMessage = (error, fallback) =>
   || error?.message
   || fallback;
 
+const buildEventRangeParams = (eventDateRange) =>
+  Array.isArray(eventDateRange) && eventDateRange[0] && eventDateRange[1]
+    ? {
+        from: eventDateRange[0].startOf("day").toISOString(),
+        to: eventDateRange[1].endOf("day").toISOString(),
+      }
+    : {};
+
 const SkudAdminSection = () => {
   const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -194,8 +202,8 @@ const SkudAdminSection = () => {
         skudService.getHealth(),
         skudService.getStats(),
         skudService.getEvents({
-          limit: 200,
-          offset: 0,
+          limit: eventsPageSize,
+          offset: Math.max(eventsPage - 1, 0) * eventsPageSize,
           passageOnly: showOnlyPassages,
           ...(eventTypeFilter !== "all" ? { eventType: eventTypeFilter } : {}),
           ...(decisionFilter === "allowed"
@@ -203,12 +211,7 @@ const SkudAdminSection = () => {
             : decisionFilter === "denied"
               ? { allow: false }
               : {}),
-          ...(Array.isArray(eventDateRange) && eventDateRange[0] && eventDateRange[1]
-            ? {
-                from: eventDateRange[0].startOf("day").toISOString(),
-                to: eventDateRange[1].endOf("day").toISOString(),
-              }
-            : {}),
+          ...buildEventRangeParams(eventDateRange),
         }),
         skudService.getSyncJobs({ limit: 20, offset: 0 }),
         skudService.getCards({ limit: 20, offset: 0 }),
@@ -231,6 +234,7 @@ const SkudAdminSection = () => {
     decisionFilter,
     eventDateRange,
     eventTypeFilter,
+    eventsPage,
     eventsPageSize,
     message,
     showOnlyPassages,
@@ -492,9 +496,14 @@ const SkudAdminSection = () => {
     async ({ silentSuccess = false } = {}) => {
       setPullingEvents(true);
       try {
+        const pullResult = await skudService.pullEvents({
+          ...buildEventRangeParams(eventDateRange),
+        });
         await loadData();
         if (!silentSuccess) {
-          message.success("События обновлены");
+          const fetched = Number(pullResult?.fetched || 0);
+          const imported = Number(pullResult?.imported || 0);
+          message.success(`События обновлены: получено ${fetched}, добавлено ${imported}`);
         }
       } catch (error) {
         console.error("Failed to refresh events from Sigur:", error);
@@ -503,7 +512,7 @@ const SkudAdminSection = () => {
         setPullingEvents(false);
       }
     },
-    [loadData, message],
+    [eventDateRange, loadData, message],
   );
 
   const handleRefreshEvents = useCallback(async () => {
@@ -962,12 +971,6 @@ const SkudAdminSection = () => {
     return baseOptions;
   }, [state.events?.items]);
 
-  const pagedEvents = useMemo(() => {
-    const items = state.events?.items || [];
-    const start = (eventsPage - 1) * eventsPageSize;
-    return items.slice(start, start + eventsPageSize);
-  }, [eventsPage, eventsPageSize, state.events?.items]);
-
   const bindingImportColumns = useMemo(
     () => [
       {
@@ -1337,13 +1340,13 @@ const SkudAdminSection = () => {
                   <Table
                     rowKey="id"
                     columns={eventsColumns}
-                    dataSource={pagedEvents}
+                    dataSource={state.events?.items || []}
                     loading={loading}
                     onChange={handleEventsTableChange}
                     pagination={{
                       current: eventsPage,
                       pageSize: eventsPageSize,
-                      total: Number(state.events?.items?.length || 0),
+                      total: Number(state.events?.pagination?.total || 0),
                       showSizeChanger: true,
                       pageSizeOptions: ["20", "50", "100", "200"],
                       showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
