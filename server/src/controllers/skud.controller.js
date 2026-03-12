@@ -90,6 +90,7 @@ const buildEmployeeDisplayName = (employee) =>
     .trim();
 
 const PASSAGE_EVENT_TYPES = ["PASS_DETECTED", "PASS_GRANTED", "PASS_DENIED", "PASS_ATTEMPT"];
+const RAW_PASSAGE_EVENT_TYPE = 6;
 
 const parsePullParams = (body = {}, query = {}) => {
   const source = body && typeof body === "object" ? body : {};
@@ -240,6 +241,40 @@ const normalizeProviderEvent = (item) => {
   };
 };
 
+const mapRawProviderEventType = (value) => {
+  const numericValue = Number.parseInt(String(value ?? ""), 10);
+  if (numericValue === RAW_PASSAGE_EVENT_TYPE) {
+    return "PASS_DETECTED";
+  }
+  return Number.isFinite(numericValue) ? `EVENT_${numericValue}` : "sigur_event";
+};
+
+const normalizeRawProviderEvent = (item) => ({
+  logId: item?.id ?? null,
+  externalEmpId: (() => {
+    const parsed = Number.parseInt(String(item?.accessObjectId ?? ""), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? String(parsed) : null;
+  })(),
+  accessPoint: (() => {
+    const parsed = Number.parseInt(String(item?.accessPointId ?? ""), 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  })(),
+  direction:
+    item?.direction === null || item?.direction === undefined
+      ? null
+      : String(item.direction).trim().toUpperCase() === "IN"
+        ? 1
+        : String(item.direction).trim().toUpperCase() === "OUT"
+          ? 2
+          : null,
+  allow: null,
+  keyHex: null,
+  eventType: mapRawProviderEventType(item?.type),
+  eventTime: item?.timestamp || new Date().toISOString(),
+  source: "sigur_live",
+  rawItem: item,
+});
+
 const buildProviderEventView = async ({
   from,
   to,
@@ -259,6 +294,11 @@ const buildProviderEventView = async ({
     accessPoint === undefined || accessPoint === null || accessPoint === ""
       ? undefined
       : Number.parseInt(String(accessPoint), 10);
+  const canUseRawEventLog =
+    allow === undefined &&
+    !departmentId &&
+    passageOnly &&
+    (!eventType || eventType === "PASS_DETECTED");
   const windowStartTimes = from
     ? [from]
     : getLiveEventWindows().map((durationMs) => new Date(Date.now() - durationMs).toISOString());
@@ -302,6 +342,34 @@ const buildProviderEventView = async ({
 
     return filtered;
   };
+
+  if (canUseRawEventLog) {
+    const rawLimit = Math.min(limit + 1, 201);
+    const rawResult = await provider.getRawEvents({
+      startTime: from || undefined,
+      endTime,
+      accessPointId,
+      limit: rawLimit,
+      offset,
+      sortBy: "timestamp",
+      sortOrder: "DESC",
+      includeFields: "id,timestamp,accessPointId,accessObjectId,direction,type",
+    });
+    const rawItems = toProviderItems(rawResult);
+    const normalizedItems = rawItems.map((item) => normalizeRawProviderEvent(item));
+    const items = applyLiveFilters(normalizedItems);
+    const visibleItems = items.slice(0, limit);
+    const hasMore = rawItems.length > limit;
+
+    return {
+      items: visibleItems,
+      pagination: {
+        total: hasMore ? offset + visibleItems.length + 1 : offset + visibleItems.length,
+        limit,
+        offset,
+      },
+    };
+  }
 
   if (from) {
     const retainLimit = Math.max(

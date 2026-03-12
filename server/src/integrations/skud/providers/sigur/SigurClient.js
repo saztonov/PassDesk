@@ -140,6 +140,44 @@ export class SigurClient {
     });
   }
 
+  async getRawEvents({
+    from,
+    to,
+    startTime,
+    endTime,
+    eventType,
+    accessPointId,
+    accessObjectId,
+    cardKey,
+    lastId,
+    limit = 100,
+    offset = 0,
+    sortBy = "timestamp",
+    sortOrder = "DESC",
+    includeFields,
+    excludeFields,
+  } = {}) {
+    return this.request({
+      method: "GET",
+      url: "/api/v1/events",
+      params: {
+        startTime: startTime || from,
+        endTime: endTime || to,
+        eventType,
+        accessPointId,
+        accessObjectId,
+        cardKey,
+        lastId,
+        limit,
+        offset,
+        sortBy,
+        sortOrder,
+        includeFields,
+        excludeFields,
+      },
+    });
+  }
+
   async createOrUpdateEmployee({ externalEmpId = null, employeePayload }) {
     const id = toNumber(externalEmpId);
     if (id) {
