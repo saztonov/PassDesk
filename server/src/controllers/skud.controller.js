@@ -782,19 +782,7 @@ export const skudController = {
         .toLowerCase();
       const departmentId = String(req.query.departmentId || "").trim();
 
-      const response = await provider.getEmployees({
-        limit,
-        offset,
-        filters: departmentId ? { departmentId } : {},
-      });
-
-      const rows = Array.isArray(response)
-        ? response
-        : Array.isArray(response?.items)
-          ? response.items
-          : [];
-
-      const mapped = rows.map((item) => ({
+      const mapEmployee = (item) => ({
         id:
           item?.id === undefined || item?.id === null ? null : String(item.id),
         name: String(item?.name || "").trim() || "—",
@@ -808,26 +796,78 @@ export const skudController = {
           String(item?.departmentName || item?.department_name || "").trim() ||
           null,
         raw: item,
-      }));
+      });
 
-      const filtered = search
-        ? mapped.filter((item) => {
-            return (
-              String(item.id || "")
-                .toLowerCase()
-                .includes(search) ||
-              String(item.name || "")
-                .toLowerCase()
-                .includes(search) ||
-              String(item.description || "")
-                .toLowerCase()
-                .includes(search) ||
-              String(item.departmentName || "")
-                .toLowerCase()
-                .includes(search)
-            );
-          })
-        : mapped;
+      const matchesSearch = (item) => (
+        String(item.id || "")
+          .toLowerCase()
+          .includes(search)
+        || String(item.name || "")
+          .toLowerCase()
+          .includes(search)
+        || String(item.description || "")
+          .toLowerCase()
+          .includes(search)
+        || String(item.departmentName || "")
+          .toLowerCase()
+          .includes(search)
+      );
+
+      let filtered = [];
+      let total = 0;
+
+      if (search) {
+        const batchLimit = 500;
+        let scanOffset = 0;
+        let scanned = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+          const response = await provider.getEmployees({
+            limit: batchLimit,
+            offset: scanOffset,
+            filters: departmentId ? { departmentId } : {},
+          });
+
+          const rows = Array.isArray(response)
+            ? response
+            : Array.isArray(response?.items)
+              ? response.items
+              : [];
+
+          const matchedRows = rows
+            .map(mapEmployee)
+            .filter((item) => matchesSearch(item));
+
+          filtered.push(...matchedRows);
+          scanned += rows.length;
+
+          if (rows.length < batchLimit || scanned >= 10000) {
+            hasMore = false;
+            break;
+          }
+
+          scanOffset += rows.length;
+        }
+
+        total = filtered.length;
+        filtered = filtered.slice(offset, offset + limit);
+      } else {
+        const response = await provider.getEmployees({
+          limit,
+          offset,
+          filters: departmentId ? { departmentId } : {},
+        });
+
+        const rows = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.items)
+            ? response.items
+            : [];
+
+        filtered = rows.map(mapEmployee);
+        total = filtered.length;
+      }
 
       res.json({
         success: true,
@@ -836,7 +876,7 @@ export const skudController = {
           pagination: {
             limit,
             offset,
-            total: filtered.length,
+            total,
           },
         },
       });

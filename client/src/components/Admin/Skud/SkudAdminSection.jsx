@@ -189,6 +189,8 @@ const SkudAdminSection = () => {
   const [providerDepartments, setProviderDepartments] = useState([]);
   const [providerDepartmentsLoading, setProviderDepartmentsLoading] = useState(false);
   const [providerHierarchySearch, setProviderHierarchySearch] = useState("");
+  const [providerHierarchySearchLoading, setProviderHierarchySearchLoading] = useState(false);
+  const [providerHierarchySearchEmployees, setProviderHierarchySearchEmployees] = useState([]);
   const [providerHierarchyEmployeesByDepartment, setProviderHierarchyEmployeesByDepartment] =
     useState({});
   const [providerHierarchyLoadingDepartmentIds, setProviderHierarchyLoadingDepartmentIds] =
@@ -799,6 +801,32 @@ const SkudAdminSection = () => {
     [message, providerHierarchyLoadedDepartmentIds, providerHierarchyLoadingDepartmentIds],
   );
 
+  const loadProviderHierarchySearchEmployees = useCallback(
+    async (search) => {
+      const normalizedSearch = String(search || "").trim();
+      if (!normalizedSearch) {
+        setProviderHierarchySearchEmployees([]);
+        return;
+      }
+
+      setProviderHierarchySearchLoading(true);
+      try {
+        const response = await skudService.getProviderEmployees({
+          limit: 100,
+          offset: 0,
+          search: normalizedSearch,
+        });
+        setProviderHierarchySearchEmployees(Array.isArray(response?.items) ? response.items : []);
+      } catch (error) {
+        console.error("Failed to search Sigur hierarchy employees:", error);
+        message.error("Не удалось выполнить поиск по сотрудникам Sigur");
+      } finally {
+        setProviderHierarchySearchLoading(false);
+      }
+    },
+    [message],
+  );
+
   const loadEmployeePlacement = useCallback(async () => {
     const employeeId = String(employeeIdInput || "").trim();
     if (!employeeId) {
@@ -895,6 +923,27 @@ const SkudAdminSection = () => {
     setProviderHierarchyLoadingDepartmentIds([]);
     setProviderHierarchyExpandedKeys([]);
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== "employees") {
+      return;
+    }
+
+    const normalizedSearch = String(providerHierarchySearch || "").trim();
+    if (!normalizedSearch) {
+      setProviderHierarchySearchEmployees([]);
+      setProviderHierarchySearchLoading(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void loadProviderHierarchySearchEmployees(normalizedSearch);
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeTab, loadProviderHierarchySearchEmployees, providerHierarchySearch]);
 
   useEffect(() => {
     if (activeTab !== "employees") {
@@ -1684,6 +1733,127 @@ const SkudAdminSection = () => {
     return filterNodes(providerHierarchyTreeData);
   }, [providerHierarchySearch, providerHierarchyTreeData]);
 
+  const providerDepartmentsById = useMemo(
+    () =>
+      new Map(
+        (providerDepartments || [])
+          .filter((item) => item?.id !== undefined && item?.id !== null)
+          .map((item) => [String(item.id), item]),
+      ),
+    [providerDepartments],
+  );
+
+  const providerHierarchySearchTreeData = useMemo(() => {
+    const search = String(providerHierarchySearch || "").trim();
+    if (!search) {
+      return [];
+    }
+
+    const folderNodeMap = new Map();
+    const rootMap = new Map();
+
+    const ensureFolderNode = (department) => {
+      if (!department?.id) {
+        return null;
+      }
+
+      const departmentId = String(department.id);
+      if (folderNodeMap.has(departmentId)) {
+        return folderNodeMap.get(departmentId);
+      }
+
+      const node = {
+        key: `search-folder-${departmentId}`,
+        departmentId,
+        title: renderHierarchyFolderTitle(String(department.name || "—")),
+        sortLabel: String(department.name || "—"),
+        searchLabel: String(department.pathLabel || department.name || "").toLowerCase(),
+        selectable: false,
+        isLeaf: false,
+        children: [],
+      };
+
+      folderNodeMap.set(departmentId, node);
+
+      const parentId = department?.parentId ? String(department.parentId) : null;
+      if (parentId && providerDepartmentsById.has(parentId)) {
+        const parentNode = ensureFolderNode(providerDepartmentsById.get(parentId));
+        if (
+          parentNode
+          && !parentNode.children.some((child) => child.key === node.key)
+        ) {
+          parentNode.children.push(node);
+        }
+      } else {
+        rootMap.set(node.key, node);
+      }
+
+      return node;
+    };
+
+    for (const employee of providerHierarchySearchEmployees || []) {
+      const departmentId = employee?.departmentId ? String(employee.departmentId) : null;
+      const department = departmentId ? providerDepartmentsById.get(departmentId) : null;
+      const employeeNode = {
+        key: `search-employee-${departmentId || "root"}-${employee.id || employee.name}`,
+        title: renderHierarchyEmployeeTitle(employee.name || "—", employee.id || null),
+        sortLabel: String(employee.name || "—"),
+        searchLabel: [
+          employee.name || "",
+          employee.id || "",
+          employee.departmentName || "",
+        ]
+          .join(" ")
+          .toLowerCase(),
+        selectable: false,
+        isLeaf: true,
+      };
+
+      if (department) {
+        const folderNode = ensureFolderNode(department);
+        if (folderNode) {
+          folderNode.children.push(employeeNode);
+        }
+      } else {
+        rootMap.set(employeeNode.key, employeeNode);
+      }
+    }
+
+    const sortNodes = (nodes) => {
+      nodes.sort((left, right) =>
+        String(left.sortLabel || "").localeCompare(String(right.sortLabel || ""), "ru"),
+      );
+      nodes.forEach((node) => {
+        if (Array.isArray(node.children) && node.children.length > 0) {
+          sortNodes(node.children);
+        }
+      });
+      return nodes;
+    };
+
+    return sortNodes(Array.from(rootMap.values()));
+  }, [
+    providerDepartmentsById,
+    providerHierarchySearch,
+    providerHierarchySearchEmployees,
+  ]);
+
+  const providerHierarchySearchExpandedKeys = useMemo(() => {
+    const keys = [];
+
+    const walk = (nodes) => {
+      for (const node of nodes || []) {
+        if (Array.isArray(node.children) && node.children.length > 0) {
+          keys.push(node.key);
+          walk(node.children);
+        }
+      }
+    };
+
+    walk(providerHierarchySearchTreeData);
+    return keys;
+  }, [providerHierarchySearchTreeData]);
+
   const handleProviderHierarchyExpand = useCallback(
     (nextExpandedKeys, info) => {
       setProviderHierarchyExpandedKeys(nextExpandedKeys);
@@ -1694,16 +1864,6 @@ const SkudAdminSection = () => {
       }
     },
     [loadProviderHierarchyDepartmentEmployees],
-  );
-
-  const providerDepartmentsById = useMemo(
-    () =>
-      new Map(
-        (providerDepartments || [])
-          .filter((item) => item?.id !== undefined && item?.id !== null)
-          .map((item) => [String(item.id), item]),
-      ),
-    [providerDepartments],
   );
 
   const employeePlacementDepartment = useMemo(() => {
@@ -2056,10 +2216,19 @@ const SkudAdminSection = () => {
                             placeholder="Поиск по папке, пути или уже загруженному сотруднику"
                             value={providerHierarchySearch}
                             onChange={(event) => setProviderHierarchySearch(event.target.value)}
+                            suffix={providerHierarchySearchLoading ? <SyncOutlined spin /> : null}
                           />
                           <Tree
-                            treeData={filteredProviderHierarchyTreeData}
-                            expandedKeys={providerHierarchyExpandedKeys}
+                            treeData={
+                              providerHierarchySearch
+                                ? providerHierarchySearchTreeData
+                                : filteredProviderHierarchyTreeData
+                            }
+                            expandedKeys={
+                              providerHierarchySearch
+                                ? providerHierarchySearchExpandedKeys
+                                : providerHierarchyExpandedKeys
+                            }
                             onExpand={handleProviderHierarchyExpand}
                             height={520}
                             showIcon={false}
