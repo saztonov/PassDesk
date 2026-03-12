@@ -149,6 +149,12 @@ const getLatestSkudPullCursor = async () => {
   };
 };
 
+const getDefaultSkudPullFrom = () => {
+  const date = new Date();
+  date.setDate(date.getDate() - 60);
+  return date.toISOString();
+};
+
 const normalizeProviderEvent = (item) => {
   const toNullableInt = (value) => {
     if (value === null || value === undefined || value === "") {
@@ -540,7 +546,7 @@ export const skudController = {
       let imported = 0;
       let currentOffset = offset;
       let currentLastLogId = latestCursor.lastLogId || null;
-      let currentFrom = from || latestCursor.from || null;
+      let currentFrom = from || latestCursor.from || getDefaultSkudPullFrom();
 
       // Pull in batches until Sigur stops returning new parsed events.
       while (true) {
