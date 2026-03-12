@@ -1731,45 +1731,6 @@ const SkudAdminSection = () => {
             label: "Сотрудники",
             children: (
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                <Card
-                  title="Сценарии работы с сотрудниками"
-                  extra={
-                    <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
-                      Обновить
-                    </Button>
-                  }
-                >
-                  <Row gutter={[12, 12]}>
-                    <Col xs={24} md={8}>
-                      <Card size="small">
-                        <Statistic title="Очередь sync" value={state.syncJobs?.pagination?.total || 0} />
-                        <Text type="secondary">
-                          Ручные операции, импорт из Excel и автоматические догрузки.
-                        </Text>
-                      </Card>
-                    </Col>
-                    <Col xs={24} md={8}>
-                      <Card size="small">
-                        <Statistic title="Ошибки sync" value={state.stats?.syncJobs?.failed || 0} />
-                        <Text type="secondary">
-                          Если здесь растёт число, сначала проверяйте Sigur API и права.
-                        </Text>
-                      </Card>
-                    </Col>
-                    <Col xs={24} md={8}>
-                      <Card size="small">
-                        <Statistic
-                          title="Готово к догрузке"
-                          value={bindingImportPreview?.summary?.readyToSyncCount || 0}
-                        />
-                        <Text type="secondary">
-                          Количество строк из текущего Excel-preview, которые можно отправить в sync.
-                        </Text>
-                      </Card>
-                    </Col>
-                  </Row>
-                </Card>
-
                 <Row gutter={[24, 24]} align="top">
                   <Col xs={24} lg={9} xl={8}>
                     <Card title="1. Действия по сотруднику">
