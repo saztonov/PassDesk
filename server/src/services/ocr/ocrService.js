@@ -793,6 +793,35 @@ const extractResponseContent = (responseData) => {
   return typeof textContent === "string" ? textContent : "";
 };
 
+const hasMeaningfulNormalizedData = (normalized = {}) =>
+  Object.values(normalized).some((value) => {
+    if (value === null || value === undefined) {
+      return false;
+    }
+
+    if (typeof value === "string") {
+      return value.trim().length > 0;
+    }
+
+    if (typeof value === "number") {
+      return Number.isFinite(value);
+    }
+
+    if (typeof value === "boolean") {
+      return true;
+    }
+
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+
+    if (typeof value === "object") {
+      return Object.keys(value).length > 0;
+    }
+
+    return false;
+  });
+
 const ensureOcrEnabled = () => {
   const enabled = parseBoolean(process.env.OCR_ENABLED, true);
   if (!enabled) {
@@ -1059,11 +1088,38 @@ export const recognizeDocument = async ({
   }
 
   const content = extractResponseContent(response.data);
+  if (!String(content || "").trim()) {
+    console.warn("[ocr] empty provider response", {
+      documentType: normalizedDocumentType,
+      model: selectedModel,
+      provider: config.provider,
+      finishReason: response?.data?.choices?.[0]?.finish_reason || null,
+      usage: response?.data?.usage || null,
+    });
+    throw new AppError(
+      "OCR провайдер вернул пустой ответ. Попробуйте еще раз или загрузите более четкое фото.",
+      502,
+    );
+  }
+
   const parsedJson = parseStructuredJson(content) || {};
   const normalized = normalizeResponseByDocumentType(
     normalizedDocumentType,
     parsedJson,
   );
+
+  if (!hasMeaningfulNormalizedData(normalized)) {
+    console.warn("[ocr] no structured fields extracted", {
+      documentType: normalizedDocumentType,
+      model: selectedModel,
+      provider: config.provider,
+      rawContentPreview: String(content).slice(0, 500),
+    });
+    throw new AppError(
+      "OCR не смог извлечь данные из документа. Попробуйте другое фото или scan-копию.",
+      422,
+    );
+  }
 
   return {
     documentType: normalizedDocumentType,
