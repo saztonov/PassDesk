@@ -313,79 +313,91 @@ const buildProviderEventView = async ({
     );
   }
 
-  const externalEmpIds = [
-    ...new Set(
-      items
-        .map((item) => String(item.externalEmpId || "").trim())
-        .filter(Boolean),
-    ),
-  ];
+  items.sort((left, right) => new Date(right.eventTime).getTime() - new Date(left.eventTime).getTime());
+  const enrichItemsWithBindings = async (targetItems) => {
+    const externalEmpIds = [
+      ...new Set(
+        targetItems
+          .map((item) => String(item.externalEmpId || "").trim())
+          .filter(Boolean),
+      ),
+    ];
 
-  const bindings = externalEmpIds.length
-    ? await SkudPersonBinding.findAll({
-        where: {
-          externalSystem: "sigur",
-          isActive: true,
-          externalEmpId: {
-            [Op.in]: externalEmpIds,
-          },
+    if (!externalEmpIds.length) {
+      return targetItems.map((item) => ({
+        ...item,
+        employeeId: null,
+        employee: null,
+      }));
+    }
+
+    const bindings = await SkudPersonBinding.findAll({
+      where: {
+        externalSystem: "sigur",
+        isActive: true,
+        externalEmpId: {
+          [Op.in]: externalEmpIds,
         },
-        include: [
-          {
-            model: Employee,
-            as: "employee",
-            required: false,
-            attributes: ["id", "firstName", "lastName", "middleName", "isActive"],
-            include: [
-              {
-                model: EmployeeCounterpartyMapping,
-                as: "employeeCounterpartyMappings",
-                required: false,
-                attributes: ["id", "departmentId"],
-                include: [
-                  {
-                    model: Department,
-                    as: "department",
-                    required: false,
-                    attributes: ["id", "name"],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      })
-    : [];
+      },
+      include: [
+        {
+          model: Employee,
+          as: "employee",
+          required: false,
+          attributes: ["id", "firstName", "lastName", "middleName", "isActive"],
+          include: [
+            {
+              model: EmployeeCounterpartyMapping,
+              as: "employeeCounterpartyMappings",
+              required: false,
+              attributes: ["id", "departmentId"],
+              include: [
+                {
+                  model: Department,
+                  as: "department",
+                  required: false,
+                  attributes: ["id", "name"],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
 
-  const bindingByExternalEmpId = new Map(
-    bindings.map((binding) => [String(binding.externalEmpId), binding]),
-  );
+    const bindingByExternalEmpId = new Map(
+      bindings.map((binding) => [String(binding.externalEmpId), binding]),
+    );
 
-  items = items.map((item) => {
-    const binding = bindingByExternalEmpId.get(String(item.externalEmpId || ""));
-    return {
-      ...item,
-      employeeId: binding?.employeeId || null,
-      employee: binding?.employee || null,
-    };
-  });
+    return targetItems.map((item) => {
+      const binding = bindingByExternalEmpId.get(String(item.externalEmpId || ""));
+      return {
+        ...item,
+        employeeId: binding?.employeeId || null,
+        employee: binding?.employee || null,
+      };
+    });
+  };
+
+  let visibleItems = items.slice(offset, offset + limit);
 
   if (departmentId) {
-    items = items.filter((item) =>
-      item?.employee?.employeeCounterpartyMappings?.some(
-        (mapping) => mapping?.departmentId === departmentId,
-      ),
-    );
+    const enrichedAllItems = await enrichItemsWithBindings(items);
+    visibleItems = enrichedAllItems
+      .filter((item) =>
+        item?.employee?.employeeCounterpartyMappings?.some(
+          (mapping) => mapping?.departmentId === departmentId,
+        ),
+      )
+      .slice(offset, offset + limit);
+  } else {
+    visibleItems = await enrichItemsWithBindings(visibleItems);
   }
 
-  items.sort((left, right) => new Date(right.eventTime).getTime() - new Date(left.eventTime).getTime());
-
-  const total = items.length;
-
   return {
-    items: items.slice(offset, offset + limit),
+    items: visibleItems,
     pagination: {
-      total,
+      total: visibleItems.length,
       limit,
       offset,
     },
