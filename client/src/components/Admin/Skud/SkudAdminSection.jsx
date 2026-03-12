@@ -157,6 +157,8 @@ const SkudAdminSection = () => {
   const [employeeOptionsLoading, setEmployeeOptionsLoading] = useState(false);
   const [externalEmpIdInput, setExternalEmpIdInput] = useState("");
   const [employeeReasonInput, setEmployeeReasonInput] = useState("");
+  const [employeePlacementLoading, setEmployeePlacementLoading] = useState(false);
+  const [employeePlacementInfo, setEmployeePlacementInfo] = useState(null);
   const [providerDepartments, setProviderDepartments] = useState([]);
   const [providerDepartmentsLoading, setProviderDepartmentsLoading] = useState(false);
   const [selectedSigurDepartmentId, setSelectedSigurDepartmentId] = useState(null);
@@ -695,6 +697,40 @@ const SkudAdminSection = () => {
     }
   }, [message]);
 
+  const loadEmployeePlacement = useCallback(async () => {
+    const employeeId = String(employeeIdInput || "").trim();
+    if (!employeeId) {
+      setEmployeePlacementInfo(null);
+      return;
+    }
+
+    setEmployeePlacementLoading(true);
+    try {
+      const binding = await skudService.getEmployeeBinding(employeeId);
+      if (!binding?.externalEmpId) {
+        setEmployeePlacementInfo({
+          binding: null,
+          providerEmployee: null,
+          department: null,
+        });
+        return;
+      }
+
+      const providerEmployee = await skudService.getProviderEmployee(binding.externalEmpId);
+      setEmployeePlacementInfo({
+        binding,
+        providerEmployee: providerEmployee || null,
+        department: null,
+      });
+    } catch (error) {
+      console.error("Failed to load employee placement in Sigur:", error);
+      setEmployeePlacementInfo(null);
+      message.error("Не удалось загрузить размещение сотрудника в Sigur");
+    } finally {
+      setEmployeePlacementLoading(false);
+    }
+  }, [employeeIdInput, message]);
+
   const loadCardEmployees = useCallback(
     async (search = "") => {
       setCardEmployeeOptionsLoading(true);
@@ -747,6 +783,17 @@ const SkudAdminSection = () => {
     }
     loadProviderDepartments();
   }, [activeTab, loadProviderDepartments]);
+
+  useEffect(() => {
+    if (activeTab !== "employees") {
+      return;
+    }
+    if (!employeeIdInput) {
+      setEmployeePlacementInfo(null);
+      return;
+    }
+    loadEmployeePlacement();
+  }, [activeTab, employeeIdInput, loadEmployeePlacement]);
 
   useEffect(() => {
     if (activeTab !== "qr") {
@@ -1407,6 +1454,24 @@ const SkudAdminSection = () => {
     return sortNodes(roots);
   }, [providerDepartments]);
 
+  const providerDepartmentsById = useMemo(
+    () =>
+      new Map(
+        (providerDepartments || [])
+          .filter((item) => item?.id !== undefined && item?.id !== null)
+          .map((item) => [String(item.id), item]),
+      ),
+    [providerDepartments],
+  );
+
+  const employeePlacementDepartment = useMemo(() => {
+    const departmentId = employeePlacementInfo?.providerEmployee?.departmentId;
+    if (departmentId === undefined || departmentId === null) {
+      return null;
+    }
+    return providerDepartmentsById.get(String(departmentId)) || null;
+  }, [employeePlacementInfo?.providerEmployee?.departmentId, providerDepartmentsById]);
+
   const latestVisibleEventTime = state.events?.items?.[0]?.eventTime || null;
   const hasSkudAuthError = state.health?.authOk === false;
   const lastSyncAt = state.health?.lastSyncAt || null;
@@ -1637,6 +1702,54 @@ const SkudAdminSection = () => {
                             </Button>
                           </Space>
                         </Space>
+                      </Card>
+
+                      <Card
+                        title="1.1 Фактическое размещение в Sigur"
+                        extra={
+                          <Button
+                            size="small"
+                            icon={<ReloadOutlined />}
+                            onClick={() => {
+                              void loadEmployeePlacement();
+                            }}
+                            loading={employeePlacementLoading}
+                            disabled={!employeeIdInput}
+                          >
+                            Обновить
+                          </Button>
+                        }
+                      >
+                        {!employeeIdInput ? (
+                          <Text type="secondary">
+                            Сначала выберите сотрудника PassDesk.
+                          </Text>
+                        ) : employeePlacementLoading ? (
+                          <Spin size="small" />
+                        ) : !employeePlacementInfo?.binding?.externalEmpId ? (
+                          <Text type="secondary">
+                            У сотрудника пока нет активной привязки к Sigur.
+                          </Text>
+                        ) : (
+                          <Descriptions size="small" column={1} bordered>
+                            <Descriptions.Item label="Sigur ID">
+                              {employeePlacementInfo.binding.externalEmpId}
+                            </Descriptions.Item>
+                            <Descriptions.Item label="Имя в Sigur">
+                              {employeePlacementInfo.providerEmployee?.name || "—"}
+                            </Descriptions.Item>
+                            <Descriptions.Item label="Папка в Sigur">
+                              {employeePlacementDepartment?.pathLabel || "—"}
+                            </Descriptions.Item>
+                            <Descriptions.Item label="Статус">
+                              {employeePlacementInfo.providerEmployee?.isBlocked === true
+                                ? "Заблокирован"
+                                : employeePlacementInfo.providerEmployee?.isBlocked === false
+                                  ? "Активен"
+                                  : "—"}
+                            </Descriptions.Item>
+                          </Descriptions>
+                        )}
                       </Card>
 
                       <Card title="2. Привязка Sigur ID вручную">
