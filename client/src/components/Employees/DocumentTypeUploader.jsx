@@ -12,6 +12,62 @@ import {
 } from "@/modules/employees/lib/documentTypeUploaderUtils";
 import { applyDocumentTypeProfile } from "@/modules/employees/lib/documentTypeProfiles";
 import { SUPPORTED_FORMATS } from "@/shared/constants/fileTypes";
+import createAiScannedDocument from "@/shared/lib/aiDocumentScanner";
+
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
+
+const resolveFileExtension = (fileName = "") =>
+  String(fileName || "")
+    .trim()
+    .toLowerCase()
+    .split(".")
+    .pop();
+
+const isImageFile = (file) => {
+  const mimeType = String(file?.type || "").trim().toLowerCase();
+  const extension = resolveFileExtension(file?.name);
+
+  return mimeType.startsWith("image/") || IMAGE_EXTENSIONS.has(extension);
+};
+
+const prepareFileForUpload = async ({ file, documentType, messageApi }) => {
+  if (!isImageFile(file)) {
+    return file;
+  }
+
+  const messageKey = `ai-scan-${documentType}-${file.name}-${file.size}`;
+  messageApi.loading({
+    content: `AI: подготавливаем scan-копию (${file.name})...`,
+    key: messageKey,
+    duration: 0,
+  });
+
+  try {
+    const scannedFile = await createAiScannedDocument({
+      file,
+      documentType,
+    });
+    messageApi.success({
+      content: `AI: scan-копия готова (${file.name})`,
+      key: messageKey,
+      duration: 2,
+    });
+    return scannedFile;
+  } catch (scanError) {
+    console.error("AI scan failed:", scanError);
+    const fallbackMessage =
+      scanError?.userMessage ||
+      scanError?.response?.data?.message ||
+      scanError?.message ||
+      "AI scan не сработал";
+    messageApi.warning({
+      content: `${fallbackMessage}. Загружаем исходное фото (${file.name})`,
+      key: messageKey,
+      duration: 3,
+    });
+    return file;
+  }
+};
 
 /**
  * Компонент для загрузки документов по типам с автоматической загрузкой
@@ -188,10 +244,15 @@ const DocumentTypeUploader = ({
 
     try {
       const formData = new FormData();
-      fileList.forEach((fileObj) => {
+      for (const fileObj of fileList) {
         const actualFile = fileObj.originFileObj || fileObj;
-        formData.append("files", actualFile);
-      });
+        const fileToUpload = await prepareFileForUpload({
+          file: actualFile,
+          documentType,
+          messageApi: message,
+        });
+        formData.append("files", fileToUpload);
+      }
       formData.append("documentType", documentType);
 
       const uploadResult = await employeeService.uploadFiles(
@@ -220,7 +281,7 @@ const DocumentTypeUploader = ({
       }
     } catch (error) {
       console.error(`Error uploading ${documentType}:`, error);
-      message.error("Ошибка загрузки файла");
+      message.error(error?.response?.data?.message || "Ошибка загрузки файла");
     } finally {
       setDataState((prev) => ({
         ...prev,

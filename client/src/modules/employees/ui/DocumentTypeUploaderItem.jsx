@@ -13,6 +13,31 @@ import {
 } from "@/shared/constants/fileTypes";
 import { getSampleUrl } from "@/modules/employees/lib/documentTypeUploaderUtils";
 
+const ALLOWED_EXTENSION_SET = new Set(
+  ALLOWED_EXTENSIONS.split(",").map((value) => value.trim().toLowerCase()),
+);
+
+const resolveFileExtension = (fileName = "") => {
+  const normalizedName = String(fileName || "").trim().toLowerCase();
+  if (!normalizedName.includes(".")) {
+    return "";
+  }
+
+  return `.${normalizedName.split(".").pop()}`;
+};
+
+const isHeicFamilyFile = (file) => {
+  const mimeType = String(file?.type || "").trim().toLowerCase();
+  const extension = resolveFileExtension(file?.name);
+
+  return (
+    mimeType === "image/heic" ||
+    mimeType === "image/heif" ||
+    extension === ".heic" ||
+    extension === ".heif"
+  );
+};
+
 const resolveDisplayName = (file) =>
   file.fileName ||
   file.file_name ||
@@ -22,7 +47,20 @@ const resolveDisplayName = (file) =>
   "Неизвестный файл";
 
 const validateUploadFile = (file, messageApi) => {
-  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+  if (isHeicFamilyFile(file)) {
+    messageApi.error(
+      `❌ ${file.name}: формат HEIC/HEIF пока не поддерживается\n✅ Конвертируйте фото в JPG/PNG и загрузите снова`,
+    );
+    return Upload.LIST_IGNORE;
+  }
+
+  const mimeType = String(file?.type || "").trim().toLowerCase();
+  const extension = resolveFileExtension(file?.name);
+  const isSupportedType =
+    ALLOWED_MIME_TYPES.includes(mimeType) ||
+    (extension && ALLOWED_EXTENSION_SET.has(extension));
+
+  if (!isSupportedType) {
     messageApi.error(
       `❌ ${file.name}: неподдерживаемый тип файла\n✅ Поддерживаются: ${SUPPORTED_FORMATS}`,
     );
