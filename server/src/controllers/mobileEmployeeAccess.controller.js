@@ -1,5 +1,6 @@
 import {
   getMobileEmployeeSessionState,
+  issueMobileEmployeeSkudQrByPhone,
   issueMobileEmployeeSkudQr,
   requestMobileAccessCode,
   revokeMobileEmployeeSession,
@@ -59,6 +60,23 @@ export const me = async (req, res, next) => {
 export const issueSkudQr = async (req, res, next) => {
   try {
     const data = await issueMobileEmployeeSkudQr(req.mobileEmployeeSession);
+    res.status(201).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const issueQuickQr = async (req, res, next) => {
+  try {
+    const data = await issueMobileEmployeeSkudQrByPhone({
+      phone: req.body?.phone,
+      deviceLabel: req.body?.deviceLabel || "",
+      requestIp: req.ip || req.connection?.remoteAddress || null,
+      userAgent: req.headers["user-agent"] || null,
+    });
     res.status(201).json({
       success: true,
       data,

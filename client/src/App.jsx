@@ -19,6 +19,7 @@ import DirectoriesPage from "./pages/DirectoriesPage";
 import DebugPage from "./pages/DebugPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import OccupationalSafetyPage from "./pages/OccupationalSafetyPage";
+import QrAccessPage from "./pages/QrAccessPage";
 import ProtectedRoute from "./components/Auth/ProtectedRoute";
 import { useTokenRefresh } from "./hooks/useTokenRefresh";
 import { useAuthBootstrap } from "./hooks/useAuthBootstrap";
@@ -74,6 +75,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/blocked" element={<BlockedAccountPage />} />
           <Route path="/debug" element={<DebugPage />} />
+          <Route path="/qr-access" element={<QrAccessPage />} />
 
           {/* Protected routes с Layout */}
           <Route

@@ -29,6 +29,17 @@ const verifyCodeLimiter = rateLimit({
   },
 });
 
+const quickQrLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Слишком много запросов QR. Попробуйте позже.",
+  },
+});
+
 router.post(
   "/request-code",
   requestCodeLimiter,
@@ -46,6 +57,15 @@ router.post(
   body("deviceLabel").optional().isString().trim(),
   validate,
   mobileEmployeeAccessController.verifyCode,
+);
+
+router.post(
+  "/quick-qr",
+  quickQrLimiter,
+  body("phone").isString().trim().notEmpty(),
+  body("deviceLabel").optional().isString().trim(),
+  validate,
+  mobileEmployeeAccessController.issueQuickQr,
 );
 
 router.use(authenticateMobileEmployeeSession);

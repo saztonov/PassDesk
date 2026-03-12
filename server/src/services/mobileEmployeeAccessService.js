@@ -476,6 +476,32 @@ export const issueMobileEmployeeSkudQr = async (session) => {
   return result;
 };
 
+export const issueMobileEmployeeSkudQrByPhone = async ({
+  phone,
+  deviceLabel = "",
+  requestIp = null,
+  userAgent = null,
+}) => {
+  const { employee, normalizedPhone } = await findEmployeeByPhone(phone);
+  const employeePayload = await toEmployeeMobilePayload(employee.id);
+  const qr = await issueSkudQrTokenForEmployeeActivePass({
+    employeeId: employee.id,
+    channel: "mobile",
+    issuedBy: null,
+    externalSystem: "sigur",
+  });
+
+  return {
+    phoneMasked: maskPhone(normalizedPhone),
+    deviceLabel: buildDeviceLabel(deviceLabel),
+    requestIp,
+    userAgent,
+    employee: employeePayload.employee,
+    activePass: employeePayload.activePass,
+    qr,
+  };
+};
+
 export const revokeMobileEmployeeSession = async (session) => {
   await session.update({
     revokedAt: new Date(),
