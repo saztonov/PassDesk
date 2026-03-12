@@ -30,7 +30,8 @@ const DEFAULT_PROMPTS = {
     "Верни строго JSON без markdown и пояснений. Поля: snils, surname, givenNames, middleName, birthDate.",
   bank_details:
     "Распознай реквизиты банковского счета на фото документа. " +
-    "Верни строго JSON без markdown и пояснений. Поля: bankAccountNumber, bankName, bik, corrAccount, inn.",
+    "Если на документе указаны ФИО владельца счета, тоже обязательно верни их. " +
+    "Верни строго JSON без markdown и пояснений. Поля: bankAccountNumber, bankName, bik, corrAccount, inn, surname, givenNames, middleName.",
   visa:
     "Распознай визу на фото. " +
     "Верни строго JSON без markdown и пояснений. Поля: visaNumber, issueDate, expiryDate, surname, givenNames, nationality, birthDate.",
@@ -576,6 +577,9 @@ const normalizeSnils = (parsedJson = {}) => ({
 });
 
 const normalizeBankDetails = (parsedJson = {}) => ({
+  lastName: valueFrom(parsedJson, ["surname", "lastName", "last_name"]),
+  firstName: valueFrom(parsedJson, ["givenNames", "firstName", "first_name"]),
+  middleName: valueFrom(parsedJson, ["middleName", "middle_name", "patronymic"]),
   bankAccountNumber: normalizeDigits(
     valueFrom(parsedJson, ["bankAccountNumber", "accountNumber", "account", "raschetniySchet"]),
     20,

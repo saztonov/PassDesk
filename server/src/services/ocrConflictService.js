@@ -50,6 +50,175 @@ const DIGITS_ONLY_FIELDS = new Map([
   ["bankAccountNumber", 20],
 ]);
 
+const FIO_FIELDS = [
+  { fieldName: "lastName", fieldLabel: "Фамилия" },
+  { fieldName: "firstName", fieldLabel: "Имя" },
+  { fieldName: "middleName", fieldLabel: "Отчество" },
+];
+
+const OCR_FIO_DOCUMENT_TYPES = new Set([
+  "passport",
+  "passport_translation",
+  "inn_document",
+  "snils_card",
+  "kig",
+  "patent_front",
+  "patent_back",
+  "patent_payment_receipt",
+  "bank_details",
+]);
+
+const normalizeComparableText = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/\s+/g, " ");
+
+const getTimestampValue = (value) => {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const parseOcrResultPayload = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return value;
+  }
+
+  return null;
+};
+
+const getNormalizedOcrResult = (file) => {
+  const payload = parseOcrResultPayload(file?.ocrResultJson);
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const normalized = payload.normalized;
+  return normalized && typeof normalized === "object" ? normalized : null;
+};
+
+const hasFioValue = (normalized = {}) =>
+  Boolean(
+    normalizeString(normalized.lastName) ||
+      normalizeString(normalized.firstName) ||
+      normalizeString(normalized.middleName),
+  );
+
+const resolveFioSourceKey = (documentType) => {
+  const normalizedDocumentType = normalizeString(documentType);
+
+  if (
+    normalizedDocumentType === "passport" ||
+    normalizedDocumentType === "passport_translation"
+  ) {
+    return "passport_source";
+  }
+
+  if (
+    normalizedDocumentType === "patent_front" ||
+    normalizedDocumentType === "patent_back" ||
+    normalizedDocumentType === "patent_payment_receipt"
+  ) {
+    return "patent";
+  }
+
+  return normalizedDocumentType || "unknown";
+};
+
+const getPreferredSourceTimestamp = (file) =>
+  Math.max(getTimestampValue(file?.ocrVerifiedAt), getTimestampValue(file?.createdAt));
+
+const shouldReplaceFioSource = (existingSource, nextSource) => {
+  if (!existingSource) {
+    return true;
+  }
+
+  if (nextSource.sourceKey === "passport_source") {
+    const existingIsTranslation = existingSource.documentType === "passport_translation";
+    const nextIsTranslation = nextSource.documentType === "passport_translation";
+
+    if (nextIsTranslation && !existingIsTranslation) {
+      return true;
+    }
+
+    if (!nextIsTranslation && existingIsTranslation) {
+      return false;
+    }
+  }
+
+  return nextSource.timestamp >= existingSource.timestamp;
+};
+
+const buildFioSourcesByEmployee = (files = []) => {
+  const employeeMap = new Map();
+
+  files.forEach((file) => {
+    const employeeId = normalizeString(file?.employeeId);
+    if (!employeeId) {
+      return;
+    }
+
+    const normalized = getNormalizedOcrResult(file);
+    if (!normalized || !hasFioValue(normalized)) {
+      return;
+    }
+
+    const sourceKey = resolveFioSourceKey(file.documentType);
+    const nextSource = {
+      sourceKey,
+      documentType: file.documentType,
+      documentLabel: DOCUMENT_TYPE_LABELS[file.documentType] || file.documentType || "Документ",
+      fileId: file.id,
+      fileName: file.originalName || file.fileName || "—",
+      createdAt: file.ocrVerifiedAt || file.createdAt || null,
+      timestamp: getPreferredSourceTimestamp(file),
+      values: {
+        lastName: normalizeString(normalized.lastName),
+        firstName: normalizeString(normalized.firstName),
+        middleName: normalizeString(normalized.middleName),
+      },
+    };
+
+    const currentEmployee = employeeMap.get(employeeId) || {
+      employee: file.employee
+        ? {
+            id: file.employee.id,
+            fullName: getEmployeeFullName(file.employee),
+            counterpartyName: getCounterpartyName(file.employee),
+          }
+        : null,
+      sources: new Map(),
+    };
+
+    if (
+      shouldReplaceFioSource(currentEmployee.sources.get(sourceKey), nextSource)
+    ) {
+      currentEmployee.sources.set(sourceKey, nextSource);
+    }
+
+    employeeMap.set(employeeId, currentEmployee);
+  });
+
+  return employeeMap;
+};
+
 const parseDateValue = (value) => {
   const normalized = normalizeString(value);
   if (!normalized) return null;
@@ -280,7 +449,7 @@ export const getEmployeeOcrConflictSummary = async (employeeId) => {
 };
 
 export const listEmployeeOcrConflicts = async ({
-  status = "open",
+  status: _status = "open",
   page = 1,
   limit = 50,
 }) => {
@@ -288,18 +457,23 @@ export const listEmployeeOcrConflicts = async ({
   const normalizedLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
   const offset = (normalizedPage - 1) * normalizedLimit;
 
-  const where = {};
-  if (status && status !== "all") {
-    where.status = status;
-  }
-
-  const { count, rows } = await EmployeeOcrConflict.findAndCountAll({
-    where,
-    distinct: true,
+  const files = await File.findAll({
+    where: {
+      entityType: "employee",
+      isDeleted: false,
+      ocrVerified: true,
+      documentType: {
+        [Op.in]: [...OCR_FIO_DOCUMENT_TYPES],
+      },
+      ocrResultJson: {
+        [Op.ne]: null,
+      },
+    },
     include: [
       {
         model: Employee,
         as: "employee",
+        required: true,
         attributes: ["id", "firstName", "lastName", "middleName"],
         include: [
           {
@@ -317,70 +491,91 @@ export const listEmployeeOcrConflicts = async ({
           },
         ],
       },
-      {
-        model: File,
-        as: "file",
-        attributes: ["id", "fileName", "originalName", "documentType"],
-        required: true,
-        where: {
-          isDeleted: false,
-        },
-      },
-      {
-        model: User,
-        as: "resolver",
-        attributes: ["id", "firstName", "lastName", "email"],
-        required: false,
-      },
     ],
-    order: [["createdAt", "DESC"]],
-    offset,
-    limit: normalizedLimit,
+    attributes: [
+      "id",
+      "employeeId",
+      "fileName",
+      "originalName",
+      "documentType",
+      "createdAt",
+      "ocrVerifiedAt",
+      "ocrResultJson",
+    ],
+    order: [
+      ["employeeId", "ASC"],
+      ["ocrVerifiedAt", "DESC"],
+      ["createdAt", "DESC"],
+    ],
   });
 
+  const employeeSources = buildFioSourcesByEmployee(files);
+  const items = [];
+
+  employeeSources.forEach(({ employee, sources }, employeeId) => {
+    const resolvedSources = [...sources.values()];
+
+    FIO_FIELDS.forEach(({ fieldName, fieldLabel }) => {
+      const sourceValues = resolvedSources
+        .map((source) => ({
+          documentType: source.documentType,
+          documentLabel: source.documentLabel,
+          fileId: source.fileId,
+          fileName: source.fileName,
+          createdAt: source.createdAt,
+          value: source.values[fieldName] || "",
+          normalizedValue: normalizeComparableText(source.values[fieldName]),
+        }))
+        .filter((source) => source.normalizedValue);
+
+      if (sourceValues.length < 2) {
+        return;
+      }
+
+      const distinctValues = [...new Set(sourceValues.map((item) => item.normalizedValue))];
+      if (distinctValues.length < 2) {
+        return;
+      }
+
+      const createdAt = sourceValues.reduce((latest, item) => {
+        if (!latest || getTimestampValue(item.createdAt) > getTimestampValue(latest)) {
+          return item.createdAt;
+        }
+        return latest;
+      }, null);
+
+      items.push({
+        id: `${employeeId}:${fieldName}`,
+        status: "open",
+        fieldName,
+        fieldLabel,
+        createdAt,
+        employee,
+        sources: sourceValues.map((item) => ({
+          documentType: item.documentType,
+          documentLabel: item.documentLabel,
+          fileId: item.fileId,
+          fileName: item.fileName,
+          createdAt: item.createdAt,
+          value: item.value,
+        })),
+      });
+    });
+  });
+
+  const sortedItems = items.sort(
+    (left, right) =>
+      getTimestampValue(right.createdAt) - getTimestampValue(left.createdAt),
+  );
+  const paginatedItems = sortedItems.slice(offset, offset + normalizedLimit);
+
   return {
-    items: rows.map((item) => ({
-      id: item.id,
-      status: item.status,
-      documentType: item.documentType,
-      ocrDocumentType: item.ocrDocumentType,
-      fieldName: item.fieldName,
-      fieldLabel: item.fieldLabel,
-      currentValue: item.currentValue,
-      ocrValue: item.ocrValue,
-      createdAt: item.createdAt,
-      resolvedAt: item.resolvedAt,
-      employee: item.employee
-        ? {
-            id: item.employee.id,
-            fullName: getEmployeeFullName(item.employee),
-            counterpartyName: getCounterpartyName(item.employee),
-          }
-        : null,
-      file: item.file
-        ? {
-            id: item.file.id,
-            fileName: item.file.fileName,
-            originalName: item.file.originalName,
-            documentType: item.file.documentType,
-          }
-        : null,
-      resolver: item.resolver
-        ? {
-            id: item.resolver.id,
-            fullName: [item.resolver.lastName, item.resolver.firstName]
-              .filter(Boolean)
-              .join(" ")
-              .trim(),
-            email: item.resolver.email,
-          }
-        : null,
-    })),
+    items: paginatedItems,
     pagination: {
       page: normalizedPage,
       limit: normalizedLimit,
-      total: count,
-      pages: Math.ceil(count / normalizedLimit),
+      total: sortedItems.length,
+      pages: Math.ceil(sortedItems.length / normalizedLimit),
     },
   };
 };

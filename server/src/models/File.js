@@ -110,6 +110,27 @@ File.init(
         key: "id",
       },
     },
+    ocrVerified: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: "ocr_verified",
+    },
+    ocrVerifiedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: "ocr_verified_at",
+    },
+    ocrProvider: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+      field: "ocr_provider",
+    },
+    ocrResultJson: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      field: "ocr_result_json",
+    },
     isEncrypted: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
