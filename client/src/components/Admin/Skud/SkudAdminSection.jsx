@@ -125,21 +125,6 @@ const buildEventRangeParams = (eventDateRange) =>
       }
     : {};
 
-const buildEventPullParams = (eventDateRange) => {
-  const selectedRange = buildEventRangeParams(eventDateRange);
-  if (selectedRange.from || selectedRange.to) {
-    return selectedRange;
-  }
-
-  return {
-    // Manual refresh should prioritize recent events instead of continuing
-    // a stale provider cursor from weeks ago.
-    from: dayjs().subtract(3, "day").startOf("day").toISOString(),
-    to: dayjs().endOf("day").toISOString(),
-    limit: 500,
-  };
-};
-
 const SkudAdminSection = () => {
   const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -511,24 +496,14 @@ const SkudAdminSection = () => {
   const refreshEvents = useCallback(
     async ({ silentSuccess = false } = {}) => {
       setPullingEvents(true);
-      let pullResult = null;
-      try {
-        pullResult = await skudService.pullEvents(buildEventPullParams(eventDateRange));
-      } catch (error) {
-        console.error("Failed to refresh events from Sigur:", error);
-        message.error(getRequestErrorMessage(error, "Не удалось обновить события"));
-      }
-
       try {
         await loadData();
-        if (!silentSuccess && pullResult) {
-          const fetched = Number(pullResult?.fetched || 0);
-          const imported = Number(pullResult?.imported || 0);
-          message.success(`События обновлены: получено ${fetched}, добавлено ${imported}`);
+        if (!silentSuccess) {
+          message.success("События обновлены");
         }
       } catch (error) {
-        console.error("Failed to reload local SKUD events:", error);
-        message.error(getRequestErrorMessage(error, "Не удалось загрузить локальные события"));
+        console.error("Failed to load live SKUD events:", error);
+        message.error(getRequestErrorMessage(error, "Не удалось загрузить события из Sigur"));
       } finally {
         setPullingEvents(false);
       }
@@ -1321,7 +1296,7 @@ const SkudAdminSection = () => {
             lastSyncAt
               ? `Последняя успешная синхронизация: ${dayjs(lastSyncAt).format("DD.MM.YYYY HH:mm:ss")}`
               : null,
-            "Ниже показываются локально сохраненные события, а не live-лента Sigur.",
+            "Live-журнал Sigur сейчас недоступен.",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -1347,7 +1322,7 @@ const SkudAdminSection = () => {
                 <Card title="Фильтры журнала">
                   <Space direction="vertical" size={12} style={{ width: "100%" }}>
                     <Text type="secondary">
-                      При открытии вкладки события автоматически подтягиваются из Sigur. По умолчанию экран показывает только проходы.
+                      Журнал читается напрямую из Sigur. По умолчанию экран показывает только проходы.
                     </Text>
                     <Space wrap>
                       <RangePicker
