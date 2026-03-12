@@ -367,7 +367,7 @@ const SkudAdminSection = () => {
         ...(sigurDepartmentPath.length > 0 ? { sigurDepartmentPath } : {}),
       });
       message.success("Задача синхронизации поставлена в очередь");
-      await Promise.all([loadData(), loadProviderDepartments(), loadMappingLists()]);
+      await loadData();
     } catch (error) {
       console.error("Failed to enqueue employee sync:", error);
       message.error("Не удалось поставить синхронизацию в очередь");
@@ -377,8 +377,6 @@ const SkudAdminSection = () => {
   }, [
     employeeIdInput,
     loadData,
-    loadMappingLists,
-    loadProviderDepartments,
     message,
     providerDepartments,
     selectedSigurDepartmentId,
