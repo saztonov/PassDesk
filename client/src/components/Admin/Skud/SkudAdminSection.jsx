@@ -125,6 +125,21 @@ const buildEventRangeParams = (eventDateRange) =>
       }
     : {};
 
+const buildEventPullParams = (eventDateRange) => {
+  const selectedRange = buildEventRangeParams(eventDateRange);
+  if (selectedRange.from || selectedRange.to) {
+    return selectedRange;
+  }
+
+  return {
+    // Manual refresh should prioritize recent events instead of continuing
+    // a stale provider cursor from weeks ago.
+    from: dayjs().subtract(3, "day").startOf("day").toISOString(),
+    to: dayjs().endOf("day").toISOString(),
+    limit: 500,
+  };
+};
+
 const SkudAdminSection = () => {
   const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -498,9 +513,7 @@ const SkudAdminSection = () => {
       setPullingEvents(true);
       let pullResult = null;
       try {
-        pullResult = await skudService.pullEvents({
-          ...buildEventRangeParams(eventDateRange),
-        });
+        pullResult = await skudService.pullEvents(buildEventPullParams(eventDateRange));
       } catch (error) {
         console.error("Failed to refresh events from Sigur:", error);
         message.error(getRequestErrorMessage(error, "Не удалось обновить события"));
