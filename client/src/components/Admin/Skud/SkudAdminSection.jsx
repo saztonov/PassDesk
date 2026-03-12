@@ -1597,6 +1597,7 @@ const SkudAdminSection = () => {
           .join(" ")
           .toLowerCase(),
         selectable: false,
+        isLeaf: false,
         children: [],
       });
     }
