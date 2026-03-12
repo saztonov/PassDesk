@@ -23,6 +23,7 @@ export const PositionFilterDropdown = ({
     setSearchText("");
     setSelectedKeys([]);
     clearFilters();
+    confirm();
   };
 
   return (

@@ -10,6 +10,7 @@ import EmployeesPage from "./pages/employees";
 import AddEmployeePage from "./pages/employees/AddEmployeePage";
 import ApplicationRequestPage from "./pages/employees/ApplicationRequestPage";
 import DocumentCaptureDebugPage from "./pages/employees/DocumentCaptureDebugPage";
+import ExistingEmployeeOcrPage from "./pages/employees/ExistingEmployeeOcrPage";
 import CounterpartiesPage from "./pages/CounterpartiesPage";
 import CounterpartyDocumentsPage from "./pages/CounterpartyDocumentsPage";
 import UserProfilePage from "./pages/UserProfilePage";
@@ -129,6 +130,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["admin", "user"]}>
                   <DocumentCaptureDebugPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="employees/debug/existing-ocr"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "user"]}>
+                  <ExistingEmployeeOcrPage />
                 </ProtectedRoute>
               }
             />

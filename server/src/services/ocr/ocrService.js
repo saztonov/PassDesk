@@ -4,6 +4,11 @@ import { AppError } from "../../middleware/errorHandler.js";
 const DEFAULT_OPENROUTER_ENDPOINT =
   "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_OPENROUTER_MODEL = "qwen/qwen3.5-35b-a3b";
+const DEFAULT_SCAN_MODEL_CHAIN = [
+  "mistralai/mistral-small-3.2-24b-instruct-2506",
+  "meta-llama/llama-3.2-11b-vision-instruct",
+  DEFAULT_OPENROUTER_MODEL,
+];
 
 const DEFAULT_PROMPTS = {
   passport_rf:
@@ -66,6 +71,35 @@ const resolveScanPromptByDocumentType = (documentType) => {
   }
 
   return `${DEFAULT_SCAN_PROMPT} Тип документа: ${normalizedDocumentType || "generic_document"}.`;
+};
+
+const resolveCloseUpScanPromptByDocumentType = (documentType) => {
+  const normalizedDocumentType = normalizeDocumentType(documentType);
+
+  if (normalizedDocumentType === "passport_rf") {
+    return (
+      `${DEFAULT_SCAN_PROMPT} ` +
+      "Это крупный кадр разворота паспорта РФ. Документ может занимать почти весь кадр, вплотную подходить к краям изображения и частично выходить за центральную рамку интерфейса. " +
+      "Все равно верни внешний контур всего раскрытого паспорта целиком, если видны его реальные внешние границы. " +
+      "Не выбирай только одну страницу, фото, печать, текстовый блок или внутреннюю светлую область страницы. " +
+      "Ориентируйся по черной или темной внешней обложке и внешнему прямоугольнику раскрытого документа. " +
+      "Если документ крупный и почти заполняет кадр, это нормальный сценарий, его нужно считать найденным."
+    );
+  }
+
+  if (normalizedDocumentType === "foreign_passport") {
+    return (
+      `${DEFAULT_SCAN_PROMPT} ` +
+      "Это крупный кадр паспортного документа. Документ может занимать почти весь кадр. " +
+      "Верни внешний контур всего документа, даже если он расположен очень близко к краям изображения."
+    );
+  }
+
+  return (
+    `${DEFAULT_SCAN_PROMPT} ` +
+    `Тип документа: ${normalizedDocumentType || "generic_document"}. ` +
+    "Документ может быть снят крупным планом и занимать большую часть кадра. Если внешняя граница видна, верни ее."
+  );
 };
 
 const SUPPORTED_DOCUMENT_TYPES = new Set([
@@ -877,6 +911,24 @@ const getScanTimeoutMs = (defaultTimeoutMs) => {
   return Math.max(defaultTimeoutMs, 180000);
 };
 
+const getScanModels = ({ model, config }) => {
+  const explicitModel = String(model || "").trim();
+  const configuredModels = String(process.env.OCR_SCAN_MODELS || "")
+    .split(",")
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  const fallbackModel = String(config?.fallbackModel || "").trim();
+
+  const orderedCandidates = [
+    explicitModel,
+    ...configuredModels,
+    ...DEFAULT_SCAN_MODEL_CHAIN,
+    fallbackModel,
+  ].filter(Boolean);
+
+  return [...new Set(orderedCandidates)];
+};
+
 const resolvePromptByDocumentType = (documentType, promptOverride = "") => {
   const normalizedOverride = String(promptOverride || "").trim();
   if (normalizedOverride) {
@@ -1291,19 +1343,37 @@ export const detectDocumentScan = async ({
 
   const config = getOcrConfig();
   const scanTimeoutMs = getScanTimeoutMs(config.timeoutMs);
-  const selectedModel = String(model || "").trim() || config.defaultModel;
-  const selectedPrompt =
-    String(prompt || "").trim() || resolveScanPromptByDocumentType(documentType);
+  const scanModels = getScanModels({ model, config });
+  const normalizedDocumentType = normalizeDocumentType(documentType);
+  const customPrompt = String(prompt || "").trim();
+  const attempts = [
+    {
+      label: "default",
+      model: scanModels[0] || config.defaultModel,
+      prompt:
+        customPrompt || resolveScanPromptByDocumentType(normalizedDocumentType),
+      enforceJson: true,
+    },
+    {
+      label: "close-up",
+      model: scanModels[0] || config.defaultModel,
+      prompt:
+        customPrompt ||
+        resolveCloseUpScanPromptByDocumentType(normalizedDocumentType),
+      enforceJson: false,
+    },
+  ];
 
-  const payload = buildOpenRouterPayload({
-    model: selectedModel,
-    prompt: selectedPrompt,
-    imageDataUrl,
-    systemPrompt:
-      "Ты определяешь контур документа на фото. Возвращай только JSON с координатами и уверенностью.",
-    maxTokens: 900,
-    enforceJson: true,
-  });
+  for (const fallbackScanModel of scanModels.slice(1)) {
+    attempts.push({
+      label: `fallback-${fallbackScanModel}`,
+      model: fallbackScanModel,
+      prompt:
+        customPrompt ||
+        resolveCloseUpScanPromptByDocumentType(normalizedDocumentType),
+      enforceJson: false,
+    });
+  }
 
   const headers = {
     Authorization: `Bearer ${config.apiKey}`,
@@ -1317,26 +1387,62 @@ export const detectDocumentScan = async ({
     headers["X-Title"] = config.appTitle;
   }
 
-  const response = await postOpenRouterPayload({
-    config: { ...config, timeoutMs: scanTimeoutMs },
-    payload,
-    headers,
-    errorLabel: "AI scan",
-  });
+  let lastResult = null;
 
-  const content = extractResponseContent(response.data);
-  const parsedJson = parseStructuredJson(content) || {};
-  const normalized = normalizeScanResponse(parsedJson);
+  for (const attempt of attempts) {
+    const payload = buildOpenRouterPayload({
+      model: attempt.model,
+      prompt: attempt.prompt,
+      imageDataUrl,
+      systemPrompt:
+        "Ты определяешь контур документа на фото. Возвращай только JSON с координатами и уверенностью.",
+      maxTokens: 900,
+      enforceJson: attempt.enforceJson,
+    });
 
-  return {
-    provider: config.provider,
-    model: selectedModel,
-    normalized,
-    raw: {
-      content,
-      json: parsedJson,
-    },
-  };
+    const response = await postOpenRouterPayload({
+      config: { ...config, timeoutMs: scanTimeoutMs },
+      payload,
+      headers,
+      errorLabel: "AI scan",
+    });
+
+    const content = extractResponseContent(response.data);
+    const parsedJson = parseStructuredJson(content) || {};
+    const normalized = normalizeScanResponse(parsedJson);
+
+    lastResult = {
+      provider: config.provider,
+      model: attempt.model,
+      normalized,
+      raw: {
+        content,
+        json: parsedJson,
+        attempt: attempt.label,
+      },
+    };
+
+    if (normalized.detected && normalized.corners.length === 4) {
+      return lastResult;
+    }
+  }
+
+  return (
+    lastResult || {
+      provider: config.provider,
+      model: scanModels[0] || config.defaultModel,
+      normalized: {
+        detected: false,
+        confidence: 0,
+        corners: [],
+      },
+      raw: {
+        content: "",
+        json: {},
+        attempt: null,
+      },
+    }
+  );
 };
 
 export const isOcrSupportedDocumentType = (documentType) =>

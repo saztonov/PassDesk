@@ -27,6 +27,7 @@ export const FullNameFilterDropdown = ({
     setSearchText("");
     setSelectedKeys([]);
     clearFilters();
+    confirm();
   };
 
   // Показываем подсказку если контрагенты не выбраны

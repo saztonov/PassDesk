@@ -29,7 +29,6 @@ import {
 } from "@ant-design/icons";
 import { userService } from "@/services/userService";
 import { counterpartyService } from "@/services/counterpartyService";
-import settingsService from "@/services/settingsService";
 import { useAuthStore } from "@/store/authStore";
 
 const { Title } = Typography;
@@ -63,12 +62,10 @@ const UsersPage = () => {
   const { user: currentUser } = useAuthStore();
   const [statusFilter, setStatusFilter] = useState([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
-  const [defaultCounterpartyId, setDefaultCounterpartyId] = useState(null);
 
   useEffect(() => {
     fetchUsers();
     fetchCounterparties();
-    fetchDefaultCounterparty();
   }, []);
 
   const fetchUsers = async () => {
@@ -115,15 +112,6 @@ const UsersPage = () => {
     }
   };
 
-  const fetchDefaultCounterparty = async () => {
-    try {
-      const response = await settingsService.getPublicSettings();
-      setDefaultCounterpartyId(response?.data?.defaultCounterpartyId);
-    } catch (error) {
-      console.error("Error loading default counterparty:", error);
-    }
-  };
-
   // Восстановить пагинацию при смене поиска или фильтра
   useEffect(() => {
     setPagination({ current: 1, pageSize: 20 });
@@ -137,8 +125,9 @@ const UsersPage = () => {
     user: { text: "Пользователь", color: "default" },
   };
 
-  // Роли для селекта при создании/редактировании (исключаем админа и менеджера)
+  // Роли для селекта при создании/редактировании
   const selectableRoles = {
+    admin: { text: "Администратор", color: "red" },
     ot_admin: { text: "Администратор ОТ", color: "magenta" },
     ot_engineer: { text: "Инженер ОТ", color: "blue" },
     user: { text: "Пользователь", color: "default" },
@@ -413,10 +402,8 @@ const UsersPage = () => {
     return searchMatch && statusMatch;
   });
 
-  // Пагинация на клиенте
-  const start = (pagination.current - 1) * pagination.pageSize;
-  const end = start + pagination.pageSize;
-  const paginatedUsers = filteredUsers.slice(start, end);
+  const totalUsers = filteredUsers.length;
+  const hasMultiplePages = totalUsers > pagination.pageSize;
 
   return (
     <div
@@ -513,15 +500,16 @@ const UsersPage = () => {
       >
         <Table
           columns={columns}
-          dataSource={paginatedUsers}
+          dataSource={filteredUsers}
           rowKey="id"
           loading={loading}
           size="small"
           pagination={{
             current: pagination.current,
             pageSize: pagination.pageSize,
-            total: filteredUsers.length,
-            showSizeChanger: true,
+            total: totalUsers,
+            hideOnSinglePage: true,
+            showSizeChanger: hasMultiplePages,
             showTotal: (total) => `Всего: ${total}`,
             onChange: (page, pageSize) => {
               setPagination({ current: page, pageSize });
@@ -598,10 +586,6 @@ const UsersPage = () => {
                   {value.text}
                 </Select.Option>
               ))}
-              {/* Администратор доступен только для пользователей контрагента по умолчанию */}
-              {editingUser?.counterpartyId === defaultCounterpartyId && (
-                <Select.Option value="admin">Администратор</Select.Option>
-              )}
             </Select>
           </Form.Item>
 

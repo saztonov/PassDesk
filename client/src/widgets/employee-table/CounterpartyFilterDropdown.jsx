@@ -23,6 +23,7 @@ export const CounterpartyFilterDropdown = ({
     setSearchText("");
     setSelectedKeys([]);
     clearFilters();
+    confirm();
   };
 
   return (
