@@ -158,7 +158,7 @@ const SkudAdminSection = () => {
   const [departmentOptions, setDepartmentOptions] = useState([]);
   const [departmentsLoading, setDepartmentsLoading] = useState(false);
   const [eventsPage, setEventsPage] = useState(1);
-  const [eventsPageSize, setEventsPageSize] = useState(20);
+  const [eventsPageSize, setEventsPageSize] = useState(200);
   const cardNumberInputRef = useRef(null);
   const eventsAutoRefreshRef = useRef(false);
   const [state, setState] = useState({
@@ -166,7 +166,7 @@ const SkudAdminSection = () => {
     stats: null,
     events: {
       items: [],
-      pagination: { total: 0, limit: 20, offset: 0 },
+      pagination: { total: 0, limit: 200, offset: 0 },
     },
     syncJobs: {
       items: [],
@@ -1398,8 +1398,7 @@ const SkudAdminSection = () => {
                       current: eventsPage,
                       pageSize: eventsPageSize,
                       total: Number(state.events?.pagination?.total || 0),
-                      showSizeChanger: true,
-                      pageSizeOptions: ["20", "50", "150", "200"],
+                      showSizeChanger: false,
                       showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
                     }}
                     scroll={{ x: 1500 }}

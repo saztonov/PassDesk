@@ -109,6 +109,13 @@ const parsePullParams = (body = {}, query = {}) => {
   };
 };
 
+const toProviderItems = (result) =>
+  Array.isArray(result)
+    ? result
+    : Array.isArray(result?.items)
+      ? result.items
+      : [];
+
 const getLatestSkudPullCursor = async () => {
   const latestByLogId = await SkudAccessEvent.findOne({
     where: {
@@ -153,7 +160,7 @@ const getLatestSkudPullCursor = async () => {
 
 const getDefaultSkudPullFrom = () => {
   const date = new Date();
-  date.setDate(date.getDate() - 60);
+  date.setDate(date.getDate() - 30);
   return date.toISOString();
 };
 
@@ -543,6 +550,63 @@ export const skudController = {
       const { from, to, limit, offset } = parsePullParams(req.body, req.query);
       const latestCursor =
         from || to ? { lastLogId: null, from: from || null } : await getLatestSkudPullCursor();
+      const shouldBootstrapRecent = !from && !to && !latestCursor.lastLogId && !latestCursor.from;
+
+      if (shouldBootstrapRecent) {
+        const snapshotFrom = getDefaultSkudPullFrom();
+        const snapshotTo = new Date().toISOString();
+        const batchLimit = Math.max(limit, 500);
+        let snapshotOffset = 0;
+        let recentItems = [];
+
+        while (true) {
+          const result = await provider.getEvents({
+            startTime: snapshotFrom,
+            endTime: snapshotTo,
+            limit: batchLimit,
+            offset: snapshotOffset,
+          });
+
+          const items = toProviderItems(result);
+          if (!items.length) {
+            break;
+          }
+
+          recentItems = recentItems.concat(items).slice(-limit);
+          snapshotOffset += items.length;
+
+          if (items.length < batchLimit) {
+            break;
+          }
+        }
+
+        let imported = 0;
+        for (const item of recentItems) {
+          const payload = normalizeProviderEvent(item);
+          const created = await ingestSkudEvent({
+            payload,
+            source: "sigur_pull",
+            externalSystem: "sigur",
+          });
+          if (created) {
+            imported += 1;
+          }
+        }
+
+        res.json({
+          success: true,
+          data: {
+            fetched: recentItems.length,
+            imported,
+            from: snapshotFrom,
+            to: snapshotTo,
+            limit,
+            offset: 0,
+            mode: "recent_snapshot",
+          },
+        });
+        return;
+      }
 
       let fetched = 0;
       let imported = 0;
@@ -560,11 +624,7 @@ export const skudController = {
           offset: currentOffset,
         });
 
-        const items = Array.isArray(result)
-          ? result
-          : Array.isArray(result?.items)
-            ? result.items
-            : [];
+        const items = toProviderItems(result);
 
         if (!items.length) {
           break;
