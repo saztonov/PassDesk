@@ -110,6 +110,12 @@ const buildEmployeeName = (employee) =>
     .join(" ")
     .trim();
 
+const getRequestErrorMessage = (error, fallback) =>
+  error?.response?.data?.message
+  || error?.response?.data?.error
+  || error?.message
+  || fallback;
+
 const SkudAdminSection = () => {
   const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -217,7 +223,7 @@ const SkudAdminSection = () => {
       });
     } catch (error) {
       console.error("Failed to load SKUD admin data:", error);
-      message.error("Не удалось загрузить данные СКУД");
+      message.error(getRequestErrorMessage(error, "Не удалось загрузить данные СКУД"));
     } finally {
       setLoading(false);
     }
@@ -492,7 +498,7 @@ const SkudAdminSection = () => {
         }
       } catch (error) {
         console.error("Failed to refresh events from Sigur:", error);
-        message.error("Не удалось обновить события");
+        message.error(getRequestErrorMessage(error, "Не удалось обновить события"));
       } finally {
         setPullingEvents(false);
       }
