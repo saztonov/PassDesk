@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -1266,6 +1267,10 @@ const SkudAdminSection = () => {
     [selectedProviderEmployeeId],
   );
 
+  const latestVisibleEventTime = state.events?.items?.[0]?.eventTime || null;
+  const hasSkudAuthError = state.health?.authOk === false;
+  const lastSyncAt = state.health?.lastSyncAt || null;
+
   return (
     <Space direction="vertical" size={16} style={{ width: "100%", padding: 16 }}>
       <Space direction="vertical" size={0}>
@@ -1274,6 +1279,26 @@ const SkudAdminSection = () => {
           Мониторинг проходов, задач синхронизации и состояния карт.
         </Text>
       </Space>
+
+      {hasSkudAuthError ? (
+        <Alert
+          type="warning"
+          showIcon
+          message="Sigur сейчас не отвечает валидной авторизацией"
+          description={[
+            state.health?.authError ? `Причина: ${state.health.authError}` : null,
+            latestVisibleEventTime
+              ? `Последняя видимая запись в журнале: ${dayjs(latestVisibleEventTime).format("DD.MM.YYYY HH:mm:ss")}`
+              : null,
+            lastSyncAt
+              ? `Последняя успешная синхронизация: ${dayjs(lastSyncAt).format("DD.MM.YYYY HH:mm:ss")}`
+              : null,
+            "Ниже показываются локально сохраненные события, а не live-лента Sigur.",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        />
+      ) : null}
 
       <Tabs
         activeKey={activeTab}
