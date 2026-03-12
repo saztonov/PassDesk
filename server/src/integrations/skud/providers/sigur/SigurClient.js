@@ -84,6 +84,18 @@ export class SigurClient {
     });
   }
 
+  async getEmployeeById(externalEmpId) {
+    const id = toNumber(externalEmpId);
+    if (!id) {
+      throw new Error("externalEmpId is required to fetch employee in Sigur");
+    }
+
+    return this.request({
+      method: "GET",
+      url: `/api/v1/employees/${id}`,
+    });
+  }
+
   async getDepartments({ limit = 100, offset = 0, filters = {} } = {}) {
     return this.request({
       method: "GET",

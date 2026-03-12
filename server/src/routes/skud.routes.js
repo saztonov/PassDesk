@@ -54,6 +54,13 @@ router.get(
   skudController.providerEmployees,
 );
 router.get(
+  "/provider/employees/:externalEmpId",
+  authorize("admin", "manager"),
+  param("externalEmpId").isString().trim().notEmpty(),
+  validate,
+  skudController.providerEmployee,
+);
+router.get(
   "/events",
   authorize("admin", "manager"),
   paginationValidation,

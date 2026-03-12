@@ -791,6 +791,37 @@ export const skudController = {
     }
   },
 
+  async providerEmployee(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const provider = getSkudProvider();
+      const employee = await provider.getEmployeeById(req.params.externalEmpId);
+
+      res.json({
+        success: true,
+        data: {
+          id:
+            employee?.id === undefined || employee?.id === null
+              ? null
+              : String(employee.id),
+          name: String(employee?.name || "").trim() || null,
+          departmentId:
+            employee?.departmentId === undefined || employee?.departmentId === null
+              ? null
+              : Number.parseInt(String(employee.departmentId), 10),
+          isBlocked:
+            employee?.isBlocked === undefined || employee?.isBlocked === null
+              ? null
+              : Boolean(employee.isBlocked),
+          location: employee?.location || null,
+          raw: employee || null,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async pullEvents(req, res, next) {
     try {
       ensureSkudModuleEnabled();

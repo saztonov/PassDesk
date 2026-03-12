@@ -23,6 +23,11 @@ const skudService = {
     return toData(response);
   },
 
+  getProviderEmployee: async (externalEmpId) => {
+    const response = await api.get(`/skud/provider/employees/${externalEmpId}`);
+    return toData(response);
+  },
+
   getEvents: async (params = {}) => {
     const response = await api.get("/skud/events", { params });
     return toData(response);

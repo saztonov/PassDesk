@@ -194,7 +194,7 @@ const SkudAdminSection = () => {
   const [eventDetailsOpen, setEventDetailsOpen] = useState(false);
   const [eventDetailsLoading, setEventDetailsLoading] = useState(false);
   const [eventDetailsRecord, setEventDetailsRecord] = useState(null);
-  const [eventDetailsLocalEmployee, setEventDetailsLocalEmployee] = useState(null);
+  const [eventDetailsProviderEmployee, setEventDetailsProviderEmployee] = useState(null);
   const cardNumberInputRef = useRef(null);
   const eventsAutoRefreshRef = useRef(false);
   const [state, setState] = useState({
@@ -305,12 +305,12 @@ const SkudAdminSection = () => {
     setEventDetailsOpen(false);
     setEventDetailsLoading(false);
     setEventDetailsRecord(null);
-    setEventDetailsLocalEmployee(null);
+    setEventDetailsProviderEmployee(null);
   }, []);
 
   const handleOpenEventDetails = useCallback(async (record) => {
     setEventDetailsRecord(record || null);
-    setEventDetailsLocalEmployee(null);
+    setEventDetailsProviderEmployee(null);
     setEventDetailsOpen(true);
 
     const externalEmpId = String(record?.externalEmpId || "").trim();
@@ -321,18 +321,11 @@ const SkudAdminSection = () => {
 
     setEventDetailsLoading(true);
     try {
-      const data = await skudService.getLocalEmployees({
-        limit: 20,
-        offset: 0,
-        search: externalEmpId,
-      });
-      const matchedEmployee = (data?.items || []).find(
-        (item) => String(item?.binding?.externalEmpId || "").trim() === externalEmpId,
-      );
-      setEventDetailsLocalEmployee(matchedEmployee || null);
+      const data = await skudService.getProviderEmployee(externalEmpId);
+      setEventDetailsProviderEmployee(data || null);
     } catch (error) {
-      console.error("Failed to load event details employee binding:", error);
-      message.error("Не удалось догрузить карточку сотрудника");
+      console.error("Failed to load Sigur employee details:", error);
+      message.error("Не удалось догрузить сотрудника из Sigur");
     } finally {
       setEventDetailsLoading(false);
     }
@@ -1335,9 +1328,9 @@ const SkudAdminSection = () => {
   const hasSkudAuthError = state.health?.authOk === false;
   const lastSyncAt = state.health?.lastSyncAt || null;
   const eventDetailsRawItem = getRawEventItem(eventDetailsRecord);
-  const eventDetailsLocalEmployeeName = eventDetailsLocalEmployee?.fullName || null;
+  const eventDetailsProviderEmployeeName = eventDetailsProviderEmployee?.name || null;
+  const eventDetailsProviderZone = eventDetailsProviderEmployee?.location?.zoneName || null;
   const eventDetailsExternalEmpId = eventDetailsRecord?.externalEmpId || null;
-  const eventDetailsLocalEmployeeId = eventDetailsLocalEmployee?.id || null;
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%", padding: 16 }}>
@@ -2021,16 +2014,18 @@ const SkudAdminSection = () => {
                     ? dayjs(eventDetailsRecord.eventTime).format("DD.MM.YYYY HH:mm:ss")
                     : "—"}
                 </Descriptions.Item>
-                <Descriptions.Item label="Сотрудник PassDesk">
-                  {eventDetailsLocalEmployeeName ? (
+                <Descriptions.Item label="Сотрудник Sigur">
+                  {eventDetailsProviderEmployeeName ? (
                     <Space direction="vertical" size={0}>
-                      <Text>{eventDetailsLocalEmployeeName}</Text>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        employeeId: {eventDetailsLocalEmployeeId}
-                      </Text>
+                      <Text>{eventDetailsProviderEmployeeName}</Text>
+                      {eventDetailsProviderZone ? (
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          Текущая зона: {eventDetailsProviderZone}
+                        </Text>
+                      ) : null}
                     </Space>
                   ) : (
-                    "Не найден по локальной привязке"
+                    "Не удалось загрузить карточку из Sigur"
                   )}
                 </Descriptions.Item>
                 <Descriptions.Item label="Sigur ID сотрудника">
@@ -2043,7 +2038,7 @@ const SkudAdminSection = () => {
                       : "—")}
                 </Descriptions.Item>
                 <Descriptions.Item label="Зона">
-                  {getZoneName(eventDetailsRecord) || "—"}
+                  {getZoneName(eventDetailsRecord) || eventDetailsProviderZone || "—"}
                 </Descriptions.Item>
                 <Descriptions.Item label="Тип события">
                   {getEventTypeLabel(eventDetailsRecord?.eventType)}
