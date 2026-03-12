@@ -3,6 +3,7 @@ import {
   Employee,
   EmployeeCounterpartyMapping,
   Counterparty,
+  Department,
   SkudPersonBinding,
   SkudAccessEvent,
 } from "../models/index.js";
@@ -13,7 +14,6 @@ import {
   getSkudHealth,
   getSkudStats,
   ingestSkudEvent,
-  listSkudEvents,
   listSkudSyncJobs,
 } from "../services/skud/SkudStatsService.js";
 import {
@@ -89,6 +89,8 @@ const buildEmployeeDisplayName = (employee) =>
     .filter(Boolean)
     .join(" ")
     .trim();
+
+const PASSAGE_EVENT_TYPES = ["PASS_DETECTED", "PASS_GRANTED", "PASS_DENIED", "PASS_ATTEMPT"];
 
 const parsePullParams = (body = {}, query = {}) => {
   const source = body && typeof body === "object" ? body : {};
@@ -223,6 +225,149 @@ const normalizeProviderEvent = (item) => {
   };
 };
 
+const buildProviderEventView = async ({
+  from,
+  to,
+  accessPoint,
+  direction,
+  eventType,
+  allow,
+  departmentId,
+  passageOnly = false,
+  limit = 200,
+  offset = 0,
+}) => {
+  const provider = getSkudProvider();
+  const startTime = from || getDefaultSkudPullFrom();
+  const endTime = to || new Date().toISOString();
+  const batchLimit = 500;
+  let batchOffset = 0;
+  let rawItems = [];
+
+  while (true) {
+    const result = await provider.getEvents({
+      startTime,
+      endTime,
+      eventType: eventType || undefined,
+      accessPointId:
+        accessPoint === undefined || accessPoint === null || accessPoint === ""
+          ? undefined
+          : Number.parseInt(String(accessPoint), 10),
+      limit: batchLimit,
+      offset: batchOffset,
+    });
+
+    const items = toProviderItems(result);
+    if (!items.length) {
+      break;
+    }
+
+    rawItems = rawItems.concat(items);
+    batchOffset += items.length;
+
+    if (items.length < batchLimit) {
+      break;
+    }
+  }
+
+  let items = rawItems.map((item) => normalizeProviderEvent(item));
+
+  if (direction !== undefined && direction !== null && direction !== "") {
+    const expectedDirection = Number.parseInt(String(direction), 10);
+    items = items.filter((item) => item.direction === expectedDirection);
+  }
+
+  if (allow !== undefined) {
+    items = items.filter((item) => item.allow === Boolean(allow));
+  }
+
+  if (passageOnly) {
+    items = items.filter(
+      (item) =>
+        [1, 2].includes(item.direction) ||
+        PASSAGE_EVENT_TYPES.includes(String(item.eventType || "")),
+    );
+  }
+
+  const externalEmpIds = [
+    ...new Set(
+      items
+        .map((item) => String(item.externalEmpId || "").trim())
+        .filter(Boolean),
+    ),
+  ];
+
+  const bindings = externalEmpIds.length
+    ? await SkudPersonBinding.findAll({
+        where: {
+          externalSystem: "sigur",
+          isActive: true,
+          externalEmpId: {
+            [Op.in]: externalEmpIds,
+          },
+        },
+        include: [
+          {
+            model: Employee,
+            as: "employee",
+            required: false,
+            attributes: ["id", "firstName", "lastName", "middleName", "isActive"],
+            include: [
+              {
+                model: EmployeeCounterpartyMapping,
+                as: "employeeCounterpartyMappings",
+                required: false,
+                attributes: ["id", "departmentId"],
+                include: [
+                  {
+                    model: Department,
+                    as: "department",
+                    required: false,
+                    attributes: ["id", "name"],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+    : [];
+
+  const bindingByExternalEmpId = new Map(
+    bindings.map((binding) => [String(binding.externalEmpId), binding]),
+  );
+
+  items = items.map((item) => {
+    const binding = bindingByExternalEmpId.get(String(item.externalEmpId || ""));
+    return {
+      ...item,
+      employeeId: binding?.employeeId || null,
+      employee: binding?.employee || null,
+    };
+  });
+
+  if (departmentId) {
+    items = items.filter((item) =>
+      item?.employee?.employeeCounterpartyMappings?.some(
+        (mapping) => mapping?.departmentId === departmentId,
+      ),
+    );
+  }
+
+  items.sort((left, right) => new Date(right.eventTime).getTime() - new Date(left.eventTime).getTime());
+
+  const total = items.length;
+
+  return {
+    items: items.slice(offset, offset + limit),
+    pagination: {
+      total,
+      limit,
+      offset,
+    },
+  };
+};
+
 const parseBasicAuthHeader = (headerValue) => {
   const value = String(headerValue || "");
   if (!value.startsWith("Basic ")) {
@@ -302,10 +447,9 @@ export const skudController = {
     try {
       ensureSkudModuleEnabled();
       const { limit, offset } = parsePagination(req.query);
-      const result = await listSkudEvents({
+      const data = await buildProviderEventView({
         from: req.query.from,
         to: req.query.to,
-        employeeId: req.query.employeeId,
         accessPoint: req.query.accessPoint,
         direction: req.query.direction,
         eventType: req.query.eventType,
@@ -321,14 +465,7 @@ export const skudController = {
 
       res.json({
         success: true,
-        data: {
-          items: result.rows,
-          pagination: {
-            limit,
-            offset,
-            total: result.count,
-          },
-        },
+        data,
       });
     } catch (error) {
       next(error);

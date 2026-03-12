@@ -517,14 +517,13 @@ const SkudAdminSection = () => {
     async ({ silentSuccess = false } = {}) => {
       setPullingEvents(true);
       try {
-        const result = await skudService.pullEvents({ limit: 200 });
-        if (!silentSuccess) {
-          message.success(`События подтянуты из Sigur: ${result?.imported || 0}`);
-        }
         await loadData();
+        if (!silentSuccess) {
+          message.success("События обновлены");
+        }
       } catch (error) {
-        console.error("Failed to pull events from Sigur:", error);
-        message.error("Не удалось подтянуть события из Sigur");
+        console.error("Failed to refresh events from Sigur:", error);
+        message.error("Не удалось обновить события");
       } finally {
         setPullingEvents(false);
       }
