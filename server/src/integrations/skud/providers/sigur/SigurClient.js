@@ -108,13 +108,24 @@ export class SigurClient {
     });
   }
 
-  async getEvents({ from, to, limit = 100, offset = 0 } = {}) {
+  async getEvents({
+    from,
+    to,
+    startTime,
+    endTime,
+    lastId,
+    lastLogId,
+    limit = 100,
+    offset = 0,
+  } = {}) {
     return this.request({
       method: "GET",
       url: "/api/v1/events/parsed",
       params: {
-        from,
-        to,
+        startTime: startTime || from,
+        endTime: endTime || to,
+        lastId,
+        lastLogId,
         limit,
         offset,
       },

@@ -107,6 +107,48 @@ const parsePullParams = (body = {}, query = {}) => {
   };
 };
 
+const getLatestSkudPullCursor = async () => {
+  const latestByLogId = await SkudAccessEvent.findOne({
+    where: {
+      externalSystem: "sigur",
+      source: "sigur_pull",
+      logId: {
+        [Op.ne]: null,
+      },
+    },
+    attributes: ["logId", "eventTime"],
+    order: [["logId", "DESC"]],
+  });
+
+  if (latestByLogId?.logId) {
+    return {
+      lastLogId: latestByLogId.logId,
+      from: latestByLogId.eventTime
+        ? new Date(latestByLogId.eventTime).toISOString()
+        : null,
+    };
+  }
+
+  const latestByTime = await SkudAccessEvent.findOne({
+    where: {
+      externalSystem: "sigur",
+      source: "sigur_pull",
+      eventTime: {
+        [Op.ne]: null,
+      },
+    },
+    attributes: ["eventTime"],
+    order: [["eventTime", "DESC"]],
+  });
+
+  return {
+    lastLogId: null,
+    from: latestByTime?.eventTime
+      ? new Date(latestByTime.eventTime).toISOString()
+      : null,
+  };
+};
+
 const normalizeProviderEvent = (item) => {
   const toNullableInt = (value) => {
     if (value === null || value === undefined || value === "") {
@@ -491,32 +533,80 @@ export const skudController = {
       ensureSkudModuleEnabled();
       const provider = getSkudProvider();
       const { from, to, limit, offset } = parsePullParams(req.body, req.query);
+      const latestCursor =
+        from || to ? { lastLogId: null, from: from || null } : await getLatestSkudPullCursor();
 
-      const result = await provider.getEvents({ from, to, limit, offset });
-      const items = Array.isArray(result)
-        ? result
-        : Array.isArray(result?.items)
-          ? result.items
-          : [];
+      let fetched = 0;
+      let imported = 0;
+      let currentOffset = offset;
+      let currentLastLogId = latestCursor.lastLogId || null;
+      let currentFrom = from || latestCursor.from || null;
 
-      for (const item of items) {
-        const payload = normalizeProviderEvent(item);
-        await ingestSkudEvent({
-          payload,
-          source: "sigur_pull",
-          externalSystem: "sigur",
+      // Pull in batches until Sigur stops returning new parsed events.
+      while (true) {
+        const result = await provider.getEvents({
+          startTime: currentFrom,
+          endTime: to || null,
+          lastLogId: currentLastLogId,
+          limit,
+          offset: currentOffset,
         });
+
+        const items = Array.isArray(result)
+          ? result
+          : Array.isArray(result?.items)
+            ? result.items
+            : [];
+
+        if (!items.length) {
+          break;
+        }
+
+        fetched += items.length;
+
+        for (const item of items) {
+          const payload = normalizeProviderEvent(item);
+          const created = await ingestSkudEvent({
+            payload,
+            source: "sigur_pull",
+            externalSystem: "sigur",
+          });
+          if (created) {
+            imported += 1;
+          }
+        }
+
+        const lastItem = items[items.length - 1];
+        const nextLastLogId = Number.parseInt(
+          String(lastItem?.logId ?? lastItem?.id ?? ""),
+          10,
+        );
+
+        if (Number.isFinite(nextLastLogId) && nextLastLogId > 0) {
+          if (currentLastLogId && nextLastLogId <= currentLastLogId) {
+            break;
+          }
+          currentLastLogId = nextLastLogId;
+          currentOffset = 0;
+        } else {
+          currentOffset += items.length;
+        }
+
+        if (items.length < limit) {
+          break;
+        }
       }
 
       res.json({
         success: true,
         data: {
-          fetched: items.length,
-          imported: items.length,
-          from: from || null,
+          fetched,
+          imported,
+          from: currentFrom,
           to: to || null,
           limit,
           offset,
+          lastLogId: currentLastLogId,
         },
       });
     } catch (error) {
