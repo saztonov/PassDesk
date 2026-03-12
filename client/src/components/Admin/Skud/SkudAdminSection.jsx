@@ -952,12 +952,6 @@ const SkudAdminSection = () => {
         },
       },
       {
-        title: "Зона",
-        key: "zone",
-        width: 220,
-        render: (_, record) => getZoneName(record) || "—",
-      },
-      {
         title: "Тип события",
         dataIndex: "eventType",
         key: "eventType",
@@ -974,33 +968,6 @@ const SkudAdminSection = () => {
           if (value === 2) return <Tag color="geekblue">Выход</Tag>;
           return <Tag>—</Tag>;
         },
-      },
-      {
-        title: "Причина / Карта",
-        key: "reason",
-        width: 280,
-        render: (_, record) => {
-          const reason = getPassReason(record);
-          const cardKey = getCardKey(record);
-          if (!reason && !cardKey) return "—";
-
-          return (
-            <Space direction="vertical" size={0}>
-              {reason ? <Text>{reason}</Text> : null}
-              {cardKey ? (
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Ключ: {cardKey}
-                </Text>
-              ) : null}
-            </Space>
-          );
-        },
-      },
-      {
-        title: "Сообщение",
-        dataIndex: "decisionMessage",
-        key: "decisionMessage",
-        render: (value) => value || "—",
       },
     ],
     [handleOpenEventDetails],
@@ -1436,7 +1403,7 @@ const SkudAdminSection = () => {
                       pageSizeOptions: ["20", "50", "100", "200"],
                       showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
                     }}
-                    scroll={{ x: 1500 }}
+                    scroll={{ x: 900 }}
                   />
                 </Card>
               </Space>
