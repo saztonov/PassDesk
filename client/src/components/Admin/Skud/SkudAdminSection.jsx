@@ -18,6 +18,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Tree,
   TreeSelect,
   Typography,
   Upload,
@@ -161,6 +162,7 @@ const SkudAdminSection = () => {
   const [employeePlacementInfo, setEmployeePlacementInfo] = useState(null);
   const [providerDepartments, setProviderDepartments] = useState([]);
   const [providerDepartmentsLoading, setProviderDepartmentsLoading] = useState(false);
+  const [providerHierarchySearch, setProviderHierarchySearch] = useState("");
   const [selectedSigurDepartmentId, setSelectedSigurDepartmentId] = useState(null);
   const [sigurSubfolderInput, setSigurSubfolderInput] = useState("");
   const [employeeActionLoading, setEmployeeActionLoading] = useState(false);
@@ -1426,6 +1428,7 @@ const SkudAdminSection = () => {
         key: String(item.id),
         value: String(item.id),
         title: String(item.name || "—"),
+        searchLabel: String(item.pathLabel || item.name || "").toLowerCase(),
         selectable: true,
         children: [],
       });
@@ -1453,6 +1456,31 @@ const SkudAdminSection = () => {
 
     return sortNodes(roots);
   }, [providerDepartments]);
+
+  const filteredProviderDepartmentTreeData = useMemo(() => {
+    const search = String(providerHierarchySearch || "").trim().toLowerCase();
+    if (!search) {
+      return providerDepartmentTreeData;
+    }
+
+    const filterNodes = (nodes) =>
+      nodes.reduce((acc, node) => {
+        const filteredChildren = filterNodes(node.children || []);
+        const matches = String(node.searchLabel || "").includes(search);
+
+        if (!matches && filteredChildren.length === 0) {
+          return acc;
+        }
+
+        acc.push({
+          ...node,
+          children: filteredChildren,
+        });
+        return acc;
+      }, []);
+
+    return filterNodes(providerDepartmentTreeData);
+  }, [providerHierarchySearch, providerDepartmentTreeData]);
 
   const providerDepartmentsById = useMemo(
     () =>
@@ -1787,72 +1815,105 @@ const SkudAdminSection = () => {
                   </Col>
 
                   <Col xs={24} xl={15}>
-                    <Card title="3. Ручное сопоставление PassDesk ↔ Sigur">
-                      <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                        <Text type="secondary">
-                          Используйте этот сценарий, когда нужно вручную выбрать сотрудника PassDesk и связать его с конкретной записью Sigur.
-                        </Text>
-                        <Space wrap>
-                          <Input
-                            placeholder="Поиск PassDesk (ФИО / UUID / ИНН / Sigur ID)"
-                            value={localEmployeeSearch}
-                            onChange={(event) => setLocalEmployeeSearch(event.target.value)}
-                            style={{ width: 320 }}
-                          />
-                          <Input
-                            placeholder="Поиск Sigur (имя / ID / отдел)"
-                            value={providerEmployeeSearch}
-                            onChange={(event) => setProviderEmployeeSearch(event.target.value)}
-                            style={{ width: 280 }}
-                          />
-                          <Button onClick={loadMappingLists} loading={mappingLoading}>
-                            Найти пары
-                          </Button>
+                    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                      <Card
+                        title="3. Иерархия Sigur"
+                        extra={
                           <Button
-                            type="primary"
-                            onClick={handleBindSelectedEmployees}
-                            loading={bindingActionLoading}
+                            icon={<ReloadOutlined />}
+                            onClick={() => {
+                              void loadProviderDepartments();
+                            }}
+                            loading={providerDepartmentsLoading}
                           >
-                            Связать выбранных
+                            Обновить
                           </Button>
+                        }
+                      >
+                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                          <Text type="secondary">
+                            Полная структура папок Sigur. Здесь можно просто смотреть, куда фактически создаются и переносятся сотрудники.
+                          </Text>
+                          <Input
+                            placeholder="Поиск по имени папки или пути"
+                            value={providerHierarchySearch}
+                            onChange={(event) => setProviderHierarchySearch(event.target.value)}
+                          />
+                          <Tree
+                            treeData={filteredProviderDepartmentTreeData}
+                            defaultExpandAll
+                            height={520}
+                          />
                         </Space>
+                      </Card>
 
-                        <Row gutter={[12, 12]}>
-                          <Col xs={24} xl={12}>
-                            <Card size="small" title="PassDesk">
-                              <Table
-                                rowKey="id"
-                                size="small"
-                                rowSelection={localRowSelection}
-                                columns={localEmployeeColumns}
-                                dataSource={localEmployees}
-                                loading={mappingLoading}
-                                pagination={false}
-                                scroll={{ x: 700, y: 320 }}
-                              />
-                            </Card>
-                          </Col>
-                          <Col xs={24} xl={12}>
-                            <Card size="small" title="Sigur">
-                              <Table
-                                rowKey={(record) => record.id || `sigur-${record.name}`}
-                                size="small"
-                                rowSelection={providerRowSelection}
-                                columns={providerEmployeeColumns}
-                                dataSource={providerEmployees}
-                                loading={mappingLoading}
-                                pagination={false}
-                                scroll={{ x: 700, y: 320 }}
-                              />
-                            </Card>
-                          </Col>
-                        </Row>
-                      </Space>
-                    </Card>
+                      <Card title="4. Ручное сопоставление PassDesk ↔ Sigur">
+                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                          <Text type="secondary">
+                            Используйте этот сценарий, когда нужно вручную выбрать сотрудника PassDesk и связать его с конкретной записью Sigur.
+                          </Text>
+                          <Space wrap>
+                            <Input
+                              placeholder="Поиск PassDesk (ФИО / UUID / ИНН / Sigur ID)"
+                              value={localEmployeeSearch}
+                              onChange={(event) => setLocalEmployeeSearch(event.target.value)}
+                              style={{ width: 320 }}
+                            />
+                            <Input
+                              placeholder="Поиск Sigur (имя / ID / отдел)"
+                              value={providerEmployeeSearch}
+                              onChange={(event) => setProviderEmployeeSearch(event.target.value)}
+                              style={{ width: 280 }}
+                            />
+                            <Button onClick={loadMappingLists} loading={mappingLoading}>
+                              Найти пары
+                            </Button>
+                            <Button
+                              type="primary"
+                              onClick={handleBindSelectedEmployees}
+                              loading={bindingActionLoading}
+                            >
+                              Связать выбранных
+                            </Button>
+                          </Space>
+
+                          <Row gutter={[12, 12]}>
+                            <Col xs={24} xl={12}>
+                              <Card size="small" title="PassDesk">
+                                <Table
+                                  rowKey="id"
+                                  size="small"
+                                  rowSelection={localRowSelection}
+                                  columns={localEmployeeColumns}
+                                  dataSource={localEmployees}
+                                  loading={mappingLoading}
+                                  pagination={false}
+                                  scroll={{ x: 700, y: 320 }}
+                                />
+                              </Card>
+                            </Col>
+                            <Col xs={24} xl={12}>
+                              <Card size="small" title="Sigur">
+                                <Table
+                                  rowKey={(record) => record.id || `sigur-${record.name}`}
+                                  size="small"
+                                  rowSelection={providerRowSelection}
+                                  columns={providerEmployeeColumns}
+                                  dataSource={providerEmployees}
+                                  loading={mappingLoading}
+                                  pagination={false}
+                                  scroll={{ x: 700, y: 320 }}
+                                />
+                              </Card>
+                            </Col>
+                          </Row>
+                        </Space>
+                      </Card>
+                    </Space>
                   </Col>
                 </Row>
 
-                <Card title="4. Импорт соответствий по пропускам (Excel)">
+                <Card title="5. Импорт соответствий по пропускам (Excel)">
                   <Space direction="vertical" size={12} style={{ width: "100%" }}>
                     <Text type="secondary">
                       Этот сценарий нужен для массовой догрузки. Сначала загрузите Excel из 1С ЗУП, затем проверьте конфликты, потом отправьте в sync только строки со статусом «Готово».
