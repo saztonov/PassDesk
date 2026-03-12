@@ -160,6 +160,7 @@ const SkudAdminSection = () => {
   const [eventsPage, setEventsPage] = useState(1);
   const [eventsPageSize, setEventsPageSize] = useState(20);
   const cardNumberInputRef = useRef(null);
+  const eventsAutoRefreshRef = useRef(false);
   const [state, setState] = useState({
     health: null,
     stats: null,
@@ -512,19 +513,37 @@ const SkudAdminSection = () => {
     [loadData, message],
   );
 
-  const handlePullEvents = useCallback(async () => {
-    setPullingEvents(true);
-    try {
-      const result = await skudService.pullEvents({ limit: 200 });
-      message.success(`События подтянуты из Sigur: ${result?.imported || 0}`);
-      await loadData();
-    } catch (error) {
-      console.error("Failed to pull events from Sigur:", error);
-      message.error("Не удалось подтянуть события из Sigur");
-    } finally {
-      setPullingEvents(false);
+  const refreshEvents = useCallback(
+    async ({ silentSuccess = false } = {}) => {
+      setPullingEvents(true);
+      try {
+        const result = await skudService.pullEvents({ limit: 200 });
+        if (!silentSuccess) {
+          message.success(`События подтянуты из Sigur: ${result?.imported || 0}`);
+        }
+        await loadData();
+      } catch (error) {
+        console.error("Failed to pull events from Sigur:", error);
+        message.error("Не удалось подтянуть события из Sigur");
+      } finally {
+        setPullingEvents(false);
+      }
+    },
+    [loadData, message],
+  );
+
+  const handleRefreshEvents = useCallback(async () => {
+    await refreshEvents();
+  }, [refreshEvents]);
+
+  useEffect(() => {
+    if (activeTab !== "events" || eventsAutoRefreshRef.current) {
+      return;
     }
-  }, [loadData, message]);
+
+    eventsAutoRefreshRef.current = true;
+    refreshEvents({ silentSuccess: true });
+  }, [activeTab, refreshEvents]);
 
   const loadMappingLists = useCallback(async () => {
     setMappingLoading(true);
@@ -1315,7 +1334,7 @@ const SkudAdminSection = () => {
                 <Card title="Фильтры журнала">
                   <Space direction="vertical" size={12} style={{ width: "100%" }}>
                     <Text type="secondary">
-                      Сначала задайте период и нужные ограничения, затем смотрите журнал. По умолчанию экран показывает только проходы.
+                      При открытии вкладки события автоматически подтягиваются из Sigur. По умолчанию экран показывает только проходы.
                     </Text>
                     <Space wrap>
                       <RangePicker
@@ -1358,13 +1377,10 @@ const SkudAdminSection = () => {
                     </Space>
                     <Space wrap>
                       <Button
-                        icon={<DownloadOutlined />}
-                        onClick={handlePullEvents}
-                        loading={pullingEvents}
+                        icon={<ReloadOutlined />}
+                        onClick={handleRefreshEvents}
+                        loading={loading || pullingEvents}
                       >
-                        Подтянуть события
-                      </Button>
-                      <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
                         Обновить
                       </Button>
                     </Space>
