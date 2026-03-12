@@ -840,6 +840,10 @@ const getOcrConfig = () => {
     process.env.OCR_MODEL ||
     process.env.OCR_OPENROUTER_MODEL ||
     DEFAULT_OPENROUTER_MODEL;
+  const fallbackModel =
+    process.env.OCR_FALLBACK_MODEL ||
+    process.env.OCR_OPENROUTER_FALLBACK_MODEL ||
+    "";
   const timeoutMs = Number(process.env.OCR_REQUEST_TIMEOUT_MS || 60000);
   const referer = process.env.OCR_OPENROUTER_HTTP_REFERER || "";
   const appTitle = process.env.OCR_OPENROUTER_APP_TITLE || "";
@@ -857,6 +861,7 @@ const getOcrConfig = () => {
     apiKey,
     endpoint,
     defaultModel,
+    fallbackModel: String(fallbackModel || "").trim(),
     timeoutMs,
     referer,
     appTitle,
@@ -903,35 +908,68 @@ const buildOpenRouterPayload = ({
   imageDataUrl,
   systemPrompt = "Ты извлекаешь структурированные данные из документов. Если поле не найдено, верни null.",
   maxTokens = 1500,
-}) => ({
-  model,
-  temperature: 0.1,
-  max_tokens: maxTokens,
-  response_format: {
-    type: "json_object",
-  },
-  messages: [
-    {
-      role: "system",
-      content: systemPrompt,
-    },
-    {
-      role: "user",
-      content: [
-        {
-          type: "text",
-          text: prompt,
-        },
-        {
-          type: "image_url",
-          image_url: {
-            url: imageDataUrl,
+  enforceJson = true,
+}) => {
+  const payload = {
+    model,
+    temperature: 0.1,
+    max_tokens: maxTokens,
+    messages: [
+      {
+        role: "system",
+        content: systemPrompt,
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: prompt,
           },
-        },
-      ],
-    },
-  ],
-});
+          {
+            type: "image_url",
+            image_url: {
+              url: imageDataUrl,
+            },
+          },
+        ],
+      },
+    ],
+  };
+
+  if (enforceJson) {
+    payload.response_format = {
+      type: "json_object",
+    };
+  }
+
+  return payload;
+};
+
+const postOpenRouterPayload = async ({
+  config,
+  payload,
+  headers,
+  errorLabel = "OCR",
+}) => {
+  try {
+    return await axios.post(config.endpoint, payload, {
+      headers,
+      timeout: config.timeoutMs,
+    });
+  } catch (error) {
+    const status = error?.response?.status;
+    const providerMessage =
+      error?.response?.data?.error?.message ||
+      error?.response?.data?.message ||
+      error.message;
+
+    throw new AppError(
+      `Ошибка ${errorLabel} провайдера${status ? ` (${status})` : ""}: ${providerMessage}`,
+      502,
+    );
+  }
+};
 
 const clampNormalizedCoordinate = (value) => {
   const numeric = Number(value);
@@ -1050,12 +1088,6 @@ export const recognizeDocument = async ({
     prompt,
   );
 
-  const payload = buildOpenRouterPayload({
-    model: selectedModel,
-    prompt: selectedPrompt,
-    imageDataUrl,
-  });
-
   const headers = {
     Authorization: `Bearer ${config.apiKey}`,
     "Content-Type": "application/json",
@@ -1068,69 +1100,101 @@ export const recognizeDocument = async ({
     headers["X-Title"] = config.appTitle;
   }
 
-  let response;
-  try {
-    response = await axios.post(config.endpoint, payload, {
-      headers,
-      timeout: config.timeoutMs,
-    });
-  } catch (error) {
-    const status = error?.response?.status;
-    const providerMessage =
-      error?.response?.data?.error?.message ||
-      error?.response?.data?.message ||
-      error.message;
+  const attempts = [
+    {
+      label: "strict-json",
+      model: selectedModel,
+      enforceJson: true,
+    },
+    {
+      label: "loose-json",
+      model: selectedModel,
+      enforceJson: false,
+    },
+  ];
 
-    throw new AppError(
-      `Ошибка OCR провайдера${status ? ` (${status})` : ""}: ${providerMessage}`,
-      502,
-    );
+  if (config.fallbackModel && config.fallbackModel !== selectedModel) {
+    attempts.push({
+      label: "fallback-model",
+      model: config.fallbackModel,
+      enforceJson: false,
+    });
   }
 
-  const content = extractResponseContent(response.data);
-  if (!String(content || "").trim()) {
-    console.warn("[ocr] empty provider response", {
-      documentType: normalizedDocumentType,
-      model: selectedModel,
-      provider: config.provider,
-      finishReason: response?.data?.choices?.[0]?.finish_reason || null,
-      usage: response?.data?.usage || null,
+  let lastEmptyResponseMeta = null;
+  let lastNoDataMeta = null;
+
+  for (const attempt of attempts) {
+    const payload = buildOpenRouterPayload({
+      model: attempt.model,
+      prompt: selectedPrompt,
+      imageDataUrl,
+      enforceJson: attempt.enforceJson,
+      maxTokens: attempt.enforceJson ? 1500 : 1800,
     });
+
+    const response = await postOpenRouterPayload({
+      config,
+      payload,
+      headers,
+      errorLabel: "OCR",
+    });
+
+    const content = extractResponseContent(response.data);
+    if (!String(content || "").trim()) {
+      lastEmptyResponseMeta = {
+        documentType: normalizedDocumentType,
+        model: attempt.model,
+        attempt: attempt.label,
+        provider: config.provider,
+        finishReason: response?.data?.choices?.[0]?.finish_reason || null,
+        usage: response?.data?.usage || null,
+      };
+      console.warn("[ocr] empty provider response", lastEmptyResponseMeta);
+      continue;
+    }
+
+    const parsedJson = parseStructuredJson(content) || {};
+    const normalized = normalizeResponseByDocumentType(
+      normalizedDocumentType,
+      parsedJson,
+    );
+
+    if (!hasMeaningfulNormalizedData(normalized)) {
+      lastNoDataMeta = {
+        documentType: normalizedDocumentType,
+        model: attempt.model,
+        attempt: attempt.label,
+        provider: config.provider,
+        rawContentPreview: String(content).slice(0, 500),
+      };
+      console.warn("[ocr] no structured fields extracted", lastNoDataMeta);
+      continue;
+    }
+
+    return {
+      documentType: normalizedDocumentType,
+      provider: config.provider,
+      model: attempt.model,
+      normalized,
+      raw: {
+        content,
+        json: parsedJson,
+      },
+    };
+  }
+
+  if (lastEmptyResponseMeta) {
     throw new AppError(
       "OCR провайдер вернул пустой ответ. Попробуйте еще раз или загрузите более четкое фото.",
       502,
     );
   }
 
-  const parsedJson = parseStructuredJson(content) || {};
-  const normalized = normalizeResponseByDocumentType(
-    normalizedDocumentType,
-    parsedJson,
+  throw new AppError(
+    "OCR не смог извлечь данные из документа. Попробуйте другое фото или scan-копию.",
+    422,
   );
-
-  if (!hasMeaningfulNormalizedData(normalized)) {
-    console.warn("[ocr] no structured fields extracted", {
-      documentType: normalizedDocumentType,
-      model: selectedModel,
-      provider: config.provider,
-      rawContentPreview: String(content).slice(0, 500),
-    });
-    throw new AppError(
-      "OCR не смог извлечь данные из документа. Попробуйте другое фото или scan-копию.",
-      422,
-    );
-  }
-
-  return {
-    documentType: normalizedDocumentType,
-    provider: config.provider,
-    model: selectedModel,
-    normalized,
-    raw: {
-      content,
-      json: parsedJson,
-    },
-  };
 };
 
 export const detectDocumentScan = async ({
@@ -1158,6 +1222,7 @@ export const detectDocumentScan = async ({
     systemPrompt:
       "Ты определяешь контур документа на фото. Возвращай только JSON с координатами и уверенностью.",
     maxTokens: 900,
+    enforceJson: true,
   });
 
   const headers = {
@@ -1172,24 +1237,12 @@ export const detectDocumentScan = async ({
     headers["X-Title"] = config.appTitle;
   }
 
-  let response;
-  try {
-    response = await axios.post(config.endpoint, payload, {
-      headers,
-      timeout: scanTimeoutMs,
-    });
-  } catch (error) {
-    const status = error?.response?.status;
-    const providerMessage =
-      error?.response?.data?.error?.message ||
-      error?.response?.data?.message ||
-      error.message;
-
-    throw new AppError(
-      `Ошибка AI scan провайдера${status ? ` (${status})` : ""}: ${providerMessage}`,
-      502,
-    );
-  }
+  const response = await postOpenRouterPayload({
+    config: { ...config, timeoutMs: scanTimeoutMs },
+    payload,
+    headers,
+    errorLabel: "AI scan",
+  });
 
   const content = extractResponseContent(response.data);
   const parsedJson = parseStructuredJson(content) || {};
