@@ -29,7 +29,6 @@ import {
 import { useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import PassesPage from "@/pages/PassesPage";
-import { departmentService } from "@/services/departmentService";
 import { employeeService } from "@/services/employeeService";
 import { readSkudBindingImportExcel } from "@/modules/skud/lib/readSkudBindingImportExcel";
 import skudService from "@/services/skudService";
@@ -48,6 +47,10 @@ const EVENT_TYPE_LABELS = {
 const toRecord = (value) => (value && typeof value === "object" ? value : {});
 
 const getRawEventItem = (record) => {
+  const directRawItem = toRecord(record?.rawItem);
+  if (Object.keys(directRawItem).length > 0) {
+    return directRawItem;
+  }
   const rawPayload = toRecord(record?.rawPayload);
   return toRecord(rawPayload.rawItem || rawPayload);
 };
@@ -91,18 +94,21 @@ const getCardKey = (record) => {
   return value ? String(value).trim() : "";
 };
 
+const getZoneName = (record) => {
+  const rawItem = getRawEventItem(record);
+  const value =
+    rawItem?.additionalData?.zone?.name ||
+    rawItem?.data?.zoneName ||
+    rawItem?.data?.zone_name ||
+    null;
+  return value ? String(value).trim() : "";
+};
+
 const buildEmployeeName = (employee) =>
   [employee?.lastName, employee?.firstName, employee?.middleName]
     .filter(Boolean)
     .join(" ")
     .trim();
-
-const getEmployeeDepartment = (record) => {
-  const mappings = Array.isArray(record?.employee?.employeeCounterpartyMappings)
-    ? record.employee.employeeCounterpartyMappings
-    : [];
-  return mappings.find((item) => item?.department?.name)?.department || null;
-};
 
 const SkudAdminSection = () => {
   const { message } = App.useApp();
@@ -153,10 +159,7 @@ const SkudAdminSection = () => {
   const [showOnlyPassages, setShowOnlyPassages] = useState(true);
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [decisionFilter, setDecisionFilter] = useState("all");
-  const [departmentFilter, setDepartmentFilter] = useState(undefined);
   const [eventDateRange, setEventDateRange] = useState(null);
-  const [departmentOptions, setDepartmentOptions] = useState([]);
-  const [departmentsLoading, setDepartmentsLoading] = useState(false);
   const [eventsPage, setEventsPage] = useState(1);
   const [eventsPageSize, setEventsPageSize] = useState(20);
   const cardNumberInputRef = useRef(null);
@@ -194,7 +197,6 @@ const SkudAdminSection = () => {
             : decisionFilter === "denied"
               ? { allow: false }
               : {}),
-          ...(departmentFilter ? { departmentId: departmentFilter } : {}),
           ...(Array.isArray(eventDateRange) && eventDateRange[0] && eventDateRange[1]
             ? {
                 from: eventDateRange[0].startOf("day").toISOString(),
@@ -221,7 +223,6 @@ const SkudAdminSection = () => {
     }
   }, [
     decisionFilter,
-    departmentFilter,
     eventDateRange,
     eventTypeFilter,
     eventsPageSize,
@@ -232,29 +233,6 @@ const SkudAdminSection = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  useEffect(() => {
-    const loadDepartments = async () => {
-      setDepartmentsLoading(true);
-      try {
-        const response = await departmentService.getAll();
-        const items = response?.data?.data?.departments || [];
-        setDepartmentOptions(
-          items.map((item) => ({
-            value: item.id,
-            label: item.name,
-          })),
-        );
-      } catch (error) {
-        console.error("Failed to load departments for SKUD filters:", error);
-        message.error("Не удалось загрузить группы для фильтра");
-      } finally {
-        setDepartmentsLoading(false);
-      }
-    };
-
-    loadDepartments();
-  }, [message]);
 
   useEffect(() => {
     const nextTab = searchParams.get("tab") || "events";
@@ -274,11 +252,6 @@ const SkudAdminSection = () => {
   const handleDecisionFilterChange = useCallback((value) => {
     setEventsPage(1);
     setDecisionFilter(value);
-  }, []);
-
-  const handleDepartmentFilterChange = useCallback((value) => {
-    setEventsPage(1);
-    setDepartmentFilter(value || undefined);
   }, []);
 
   const handleEventDateRangeChange = useCallback((value) => {
@@ -856,26 +829,8 @@ const SkudAdminSection = () => {
         title: "Сотрудник",
         key: "employee",
         render: (_, record) => {
-          const employee = record.employee;
-          const localFullName = [employee?.lastName, employee?.firstName, employee?.middleName]
-            .filter(Boolean)
-            .join(" ")
-            .trim();
           const sigurName = getSigurPersonName(record);
           const ext = record.externalEmpId ? `ID ${record.externalEmpId}` : "—";
-
-          if (localFullName) {
-            return (
-              <Space direction="vertical" size={0}>
-                <Text>{localFullName}</Text>
-                {record.externalEmpId ? (
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    Sigur: {ext}
-                  </Text>
-                ) : null}
-              </Space>
-            );
-          }
 
           if (sigurName) {
             return (
@@ -915,10 +870,10 @@ const SkudAdminSection = () => {
         },
       },
       {
-        title: "Группа",
-        key: "department",
+        title: "Зона",
+        key: "zone",
         width: 220,
-        render: (_, record) => getEmployeeDepartment(record)?.name || "—",
+        render: (_, record) => getZoneName(record) || "—",
       },
       {
         title: "Тип события",
@@ -937,20 +892,6 @@ const SkudAdminSection = () => {
           if (value === 2) return <Tag color="geekblue">Выход</Tag>;
           return <Tag>—</Tag>;
         },
-      },
-      {
-        title: "Решение",
-        dataIndex: "allow",
-        key: "allow",
-        width: 120,
-        render: (value) =>
-          value === null || value === undefined ? (
-            <Tag>—</Tag>
-          ) : value ? (
-            <Tag color="green">Разрешено</Tag>
-          ) : (
-            <Tag color="red">Отказ</Tag>
-          ),
       },
       {
         title: "Причина / Карта",
@@ -1359,17 +1300,6 @@ const SkudAdminSection = () => {
                         ]}
                         value={decisionFilter}
                         onChange={handleDecisionFilterChange}
-                      />
-                      <Select
-                        style={{ width: 240 }}
-                        placeholder="Все группы"
-                        allowClear
-                        showSearch
-                        optionFilterProp="label"
-                        loading={departmentsLoading}
-                        options={departmentOptions}
-                        value={departmentFilter}
-                        onChange={handleDepartmentFilterChange}
                       />
                     </Space>
                     <Space size={8}>

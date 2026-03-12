@@ -3,8 +3,6 @@ import {
   Employee,
   EmployeeCounterpartyMapping,
   Counterparty,
-  Department,
-  SkudPersonBinding,
   SkudAccessEvent,
 } from "../models/index.js";
 import { AppError } from "../middleware/errorHandler.js";
@@ -347,90 +345,10 @@ const buildProviderEventView = async ({
   }
 
   items.sort((left, right) => new Date(right.eventTime).getTime() - new Date(left.eventTime).getTime());
-  const enrichItemsWithBindings = async (targetItems) => {
-    const externalEmpIds = [
-      ...new Set(
-        targetItems
-          .map((item) => String(item.externalEmpId || "").trim())
-          .filter(Boolean),
-      ),
-    ];
-
-    if (!externalEmpIds.length) {
-      return targetItems.map((item) => ({
-        ...item,
-        employeeId: null,
-        employee: null,
-      }));
-    }
-
-    const bindings = await SkudPersonBinding.findAll({
-      where: {
-        externalSystem: "sigur",
-        isActive: true,
-        externalEmpId: {
-          [Op.in]: externalEmpIds,
-        },
-      },
-      include: [
-        {
-          model: Employee,
-          as: "employee",
-          required: false,
-          attributes: ["id", "firstName", "lastName", "middleName", "isActive"],
-          include: [
-            {
-              model: EmployeeCounterpartyMapping,
-              as: "employeeCounterpartyMappings",
-              required: false,
-              attributes: ["id", "departmentId"],
-              include: [
-                {
-                  model: Department,
-                  as: "department",
-                  required: false,
-                  attributes: ["id", "name"],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    });
-
-    const bindingByExternalEmpId = new Map(
-      bindings.map((binding) => [String(binding.externalEmpId), binding]),
-    );
-
-    return targetItems.map((item) => {
-      const binding = bindingByExternalEmpId.get(String(item.externalEmpId || ""));
-      return {
-        ...item,
-        employeeId: binding?.employeeId || null,
-        employee: binding?.employee || null,
-      };
-    });
-  };
-
-  let visibleItems = items.slice(offset, offset + limit);
-
-  if (departmentId) {
-    const enrichedAllItems = await enrichItemsWithBindings(items);
-    visibleItems = enrichedAllItems
-      .filter((item) =>
-        item?.employee?.employeeCounterpartyMappings?.some(
-          (mapping) => mapping?.departmentId === departmentId,
-        ),
-      )
-      .slice(offset, offset + limit);
-  } else {
-    visibleItems = await enrichItemsWithBindings(visibleItems);
-  }
-
   return {
-    items: visibleItems,
+    items: items.slice(offset, offset + limit),
     pagination: {
-      total: visibleItems.length,
+      total: items.length,
       limit,
       offset,
     },
