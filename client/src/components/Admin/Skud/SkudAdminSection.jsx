@@ -1327,7 +1327,6 @@ const SkudAdminSection = () => {
   const latestVisibleEventTime = state.events?.items?.[0]?.eventTime || null;
   const hasSkudAuthError = state.health?.authOk === false;
   const lastSyncAt = state.health?.lastSyncAt || null;
-  const eventDetailsRawItem = getRawEventItem(eventDetailsRecord);
   const eventDetailsProviderEmployeeName = eventDetailsProviderEmployee?.name || null;
   const eventDetailsProviderZone = eventDetailsProviderEmployee?.location?.zoneName || null;
   const eventDetailsExternalEmpId = eventDetailsRecord?.externalEmpId || null;
@@ -2064,15 +2063,6 @@ const SkudAdminSection = () => {
                 </Descriptions.Item>
               </Descriptions>
             </Spin>
-
-            <Space direction="vertical" size={8} style={{ width: "100%" }}>
-              <Text strong>Raw Sigur payload</Text>
-              <TextArea
-                value={JSON.stringify(eventDetailsRawItem, null, 2)}
-                rows={14}
-                readOnly
-              />
-            </Space>
           </Space>
         ) : null}
       </Drawer>
