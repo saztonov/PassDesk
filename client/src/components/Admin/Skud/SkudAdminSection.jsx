@@ -117,6 +117,8 @@ const getRequestErrorMessage = (error, fallback) =>
   || error?.message
   || fallback;
 
+const getTodayEventRange = () => [dayjs().startOf("day"), dayjs().endOf("day")];
+
 const buildEventRangeParams = (eventDateRange) =>
   Array.isArray(eventDateRange) && eventDateRange[0] && eventDateRange[1]
     ? {
@@ -174,7 +176,7 @@ const SkudAdminSection = () => {
   const [showOnlyPassages, setShowOnlyPassages] = useState(true);
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [decisionFilter, setDecisionFilter] = useState("all");
-  const [eventDateRange, setEventDateRange] = useState(null);
+  const [eventDateRange, setEventDateRange] = useState(getTodayEventRange);
   const [eventsPage, setEventsPage] = useState(1);
   const [eventsPageSize, setEventsPageSize] = useState(20);
   const cardNumberInputRef = useRef(null);
@@ -1322,14 +1324,14 @@ const SkudAdminSection = () => {
                 <Card title="Фильтры журнала">
                   <Space direction="vertical" size={12} style={{ width: "100%" }}>
                     <Text type="secondary">
-                      Журнал читается напрямую из Sigur. По умолчанию экран показывает только проходы.
+                      Журнал читается напрямую из Sigur. По умолчанию экран показывает только сегодняшние проходы.
                     </Text>
                     <Space wrap>
                       <RangePicker
                         value={eventDateRange}
                         onChange={handleEventDateRangeChange}
                         format="DD.MM.YYYY"
-                        allowEmpty={[true, true]}
+                        allowEmpty={[false, false]}
                       />
                       <Select
                         style={{ width: 220 }}
