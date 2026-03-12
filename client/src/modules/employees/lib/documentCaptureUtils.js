@@ -826,7 +826,12 @@ const buildGuideCropBlob = async (image, layout, viewportAspect) => {
   return canvasToBlob(canvas);
 };
 
-const buildWarpedCaptureBlob = async (image, normalizedCorners, viewportAspect) => {
+const buildWarpedCaptureBlob = async (
+  image,
+  normalizedCorners,
+  viewportAspect,
+  coordinateSpace = "visible",
+) => {
   const sourceWidth = image.naturalWidth || image.width;
   const sourceHeight = image.naturalHeight || image.height;
   const visibleRect = computeVisibleSourceRect(
@@ -834,10 +839,16 @@ const buildWarpedCaptureBlob = async (image, normalizedCorners, viewportAspect) 
     sourceHeight,
     viewportAspect,
   );
-  const sourceCorners = normalizedCorners.map((point) => ({
-    x: visibleRect.x + visibleRect.width * point.x,
-    y: visibleRect.y + visibleRect.height * point.y,
-  }));
+  const sourceCorners =
+    coordinateSpace === "source"
+      ? normalizedCorners.map((point) => ({
+          x: point.x * sourceWidth,
+          y: point.y * sourceHeight,
+        }))
+      : normalizedCorners.map((point) => ({
+          x: visibleRect.x + visibleRect.width * point.x,
+          y: visibleRect.y + visibleRect.height * point.y,
+        }));
   const sourceCanvas = document.createElement("canvas");
   sourceCanvas.width = sourceWidth;
   sourceCanvas.height = sourceHeight;
@@ -871,12 +882,18 @@ export const prepareCaptureBlob = async ({
   normalizedCorners,
   viewportAspect,
   layout,
+  cornersSpace = "visible",
 }) => {
   const image = await loadImage(dataUrl);
 
   if (Array.isArray(normalizedCorners) && normalizedCorners.length === 4) {
     try {
-      return await buildWarpedCaptureBlob(image, normalizedCorners, viewportAspect);
+      return await buildWarpedCaptureBlob(
+        image,
+        normalizedCorners,
+        viewportAspect,
+        cornersSpace,
+      );
     } catch {
       // Fallback to guide crop if perspective warp failed.
     }

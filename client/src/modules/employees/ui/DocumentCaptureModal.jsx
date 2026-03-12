@@ -239,6 +239,7 @@ const DocumentCaptureModal = ({
         normalizedCorners: detected ? normalizedCorners : undefined,
         viewportAspect: captureLayout.viewportAspect,
         layout: captureLayout,
+        cornersSpace: detected ? "source" : "visible",
       });
 
       const previewUrl = createPreviewUrl(preparedBlob);
