@@ -186,7 +186,10 @@ const EmployeeDocumentUpload = ({
         mimeType.startsWith("image/") ||
         ["jpg", "jpeg", "png", "webp"].includes(ext);
 
-      if (isImageFile) {
+      const alreadyPreparedScan =
+        file instanceof File && /-scan\.(jpe?g|png|webp)$/i.test(file.name);
+
+      if (isImageFile && !alreadyPreparedScan) {
         const aiScanMessageKey = `ai-scan-${documentType}`;
         message.loading({
           content: "AI: подготавливаем скан документа...",
@@ -275,10 +278,13 @@ const EmployeeDocumentUpload = ({
     e.target.value = "";
   };
 
-  const handleCameraCapture = async (blob) => {
-    const file = new File([blob], `document-${Date.now()}.jpg`, {
-      type: "image/jpeg",
-    });
+  const handleCameraCapture = async (captured) => {
+    const file =
+      captured instanceof File
+        ? captured
+        : new File([captured], `document-scan-${Date.now()}.jpg`, {
+            type: "image/jpeg",
+          });
     setState((prev) => ({ ...prev, cameraVisible: false }));
     await uploadFile(file);
   };
