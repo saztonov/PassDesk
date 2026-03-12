@@ -124,7 +124,7 @@ export const useEmployeeOcrHandlers = ({
         }
 
         const currentValues = form.getFieldsValue(true);
-        const { autoFillPatch, conflicts } = buildOcrApplyPlan({
+        const { autoFillPatch } = buildOcrApplyPlan({
           currentValues,
           ocrPatch: formPatch,
         });
@@ -134,33 +134,19 @@ export const useEmployeeOcrHandlers = ({
         }
 
         const autoFillCount = Object.keys(autoFillPatch).length;
-        const conflictsCount = Object.keys(conflicts).length;
-
-        if (autoFillCount > 0 && conflictsCount === 0) {
+        if (autoFillCount > 0) {
           messageApi?.success?.(
             `OCR: заполнено полей ${autoFillCount}`,
           );
-        } else if (autoFillCount > 0 && conflictsCount > 0) {
-          messageApi?.warning?.(
-            `OCR: заполнено ${autoFillCount}, обнаружено расхождений ${conflictsCount}`,
-          );
-        } else if (conflictsCount > 0) {
-          messageApi?.warning?.(
-            `OCR: обнаружено расхождений ${conflictsCount}`,
+        } else {
+          messageApi?.info?.(
+            "OCR: документ распознан, автозаполнение не потребовалось",
           );
         }
 
         try {
           const provider = toProvider(responseData);
           const resultFileId = toFileId(responseData, fileId);
-          const serializedConflicts = Object.values(conflicts).map((conflict) => ({
-            fieldName: conflict.fieldName,
-            fieldLabel: conflict.fieldLabel,
-            currentValue: conflict.currentValue,
-            ocrValue: conflict.ocrValue,
-            fileDocumentType: docType,
-            ocrDocumentType,
-          }));
 
           await ocrService.confirmFileOcr({
             fileId: resultFileId,
@@ -169,7 +155,7 @@ export const useEmployeeOcrHandlers = ({
               documentType: ocrDocumentType,
               normalized,
             },
-            conflicts: serializedConflicts,
+            conflicts: [],
           });
           await refreshConflictSummary(employeeId);
         } catch (confirmError) {

@@ -409,47 +409,43 @@ export const saveEmployeeOcrConflicts = async ({
 };
 
 export const getEmployeeOcrConflictSummary = async (employeeId) => {
-  const conflicts = await EmployeeOcrConflict.findAll({
-    where: {
-      employeeId,
-      status: "open",
-    },
-    include: [
-      {
-        model: File,
-        as: "file",
-        attributes: ["id"],
-        required: true,
-        where: {
-          isDeleted: false,
-        },
-      },
-    ],
-    order: [["createdAt", "DESC"]],
+  const conflicts = await listEmployeeOcrConflicts({
+    employeeId,
+    page: 1,
+    limit: 200,
   });
-
   const documentsMap = new Map();
 
-  conflicts.forEach((conflict) => {
-    const documentType = normalizeString(conflict.documentType) || "unknown";
-    const current = documentsMap.get(documentType) || {
-      documentType,
-      conflictsCount: 0,
-    };
-    current.conflictsCount += 1;
-    documentsMap.set(documentType, current);
+  conflicts.items.forEach((conflict) => {
+    (conflict.sources || []).forEach((source) => {
+      const documentType = normalizeString(source.documentType) || "unknown";
+      const current = documentsMap.get(documentType) || {
+        documentType,
+        conflictsCount: 0,
+      };
+      current.conflictsCount += 1;
+      documentsMap.set(documentType, current);
+    });
   });
 
+  const lastDetectedAt = conflicts.items.reduce((latest, item) => {
+    if (!latest || getTimestampValue(item.createdAt) > getTimestampValue(latest)) {
+      return item.createdAt;
+    }
+    return latest;
+  }, null);
+
   return {
-    hasConflicts: conflicts.length > 0,
-    conflictsCount: conflicts.length,
+    hasConflicts: conflicts.items.length > 0,
+    conflictsCount: conflicts.items.length,
     documents: Array.from(documentsMap.values()),
-    lastDetectedAt: conflicts[0]?.createdAt || null,
+    lastDetectedAt,
   };
 };
 
 export const listEmployeeOcrConflicts = async ({
   status: _status = "open",
+  employeeId = null,
   page = 1,
   limit = 50,
 }) => {
@@ -462,6 +458,7 @@ export const listEmployeeOcrConflicts = async ({
       entityType: "employee",
       isDeleted: false,
       ocrVerified: true,
+      ...(employeeId ? { employeeId } : {}),
       documentType: {
         [Op.in]: [...OCR_FIO_DOCUMENT_TYPES],
       },
