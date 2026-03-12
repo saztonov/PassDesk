@@ -54,6 +54,11 @@ router.get(
   skudController.providerEmployees,
 );
 router.get(
+  "/provider/departments",
+  authorize("admin", "manager"),
+  skudController.providerDepartments,
+);
+router.get(
   "/provider/employees/:externalEmpId",
   authorize("admin", "manager"),
   param("externalEmpId").isString().trim().notEmpty(),

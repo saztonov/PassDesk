@@ -18,6 +18,8 @@ import {
   Table,
   Tabs,
   Tag,
+  Tree,
+  TreeSelect,
   Typography,
   Upload,
   Popconfirm,
@@ -129,6 +131,12 @@ const getRequestErrorMessage = (error, fallback) =>
   || error?.message
   || fallback;
 
+const normalizeSigurPathSegments = (value) =>
+  String(value || "")
+    .split(/[\\/|>]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
 const getTodayEventRange = () => [dayjs().startOf("day"), dayjs().endOf("day")];
 
 const buildEventRangeParams = (eventDateRange) =>
@@ -145,8 +153,15 @@ const SkudAdminSection = () => {
   const [loading, setLoading] = useState(false);
   const [pullingEvents, setPullingEvents] = useState(false);
   const [employeeIdInput, setEmployeeIdInput] = useState("");
+  const [employeeOptions, setEmployeeOptions] = useState([]);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeeOptionsLoading, setEmployeeOptionsLoading] = useState(false);
   const [externalEmpIdInput, setExternalEmpIdInput] = useState("");
   const [employeeReasonInput, setEmployeeReasonInput] = useState("");
+  const [providerDepartments, setProviderDepartments] = useState([]);
+  const [providerDepartmentsLoading, setProviderDepartmentsLoading] = useState(false);
+  const [selectedSigurDepartmentId, setSelectedSigurDepartmentId] = useState(null);
+  const [sigurSubfolderInput, setSigurSubfolderInput] = useState("");
   const [employeeActionLoading, setEmployeeActionLoading] = useState(false);
   const [bindingLookupLoading, setBindingLookupLoading] = useState(false);
   const [bindingInfo, setBindingInfo] = useState(null);
@@ -334,13 +349,24 @@ const SkudAdminSection = () => {
   const handleSyncEmployee = useCallback(async () => {
     const employeeId = String(employeeIdInput || "").trim();
     if (!employeeId) {
-      message.warning("Введите employeeId");
+      message.warning("Выберите сотрудника");
       return;
     }
 
+    const selectedDepartment = providerDepartments.find(
+      (item) => String(item?.id || "") === String(selectedSigurDepartmentId || ""),
+    );
+    const additionalSegments = normalizeSigurPathSegments(sigurSubfolderInput);
+    const sigurDepartmentPath = [
+      ...(Array.isArray(selectedDepartment?.path) ? selectedDepartment.path : []),
+      ...additionalSegments,
+    ];
+
     setEmployeeActionLoading(true);
     try {
-      await skudService.syncEmployee(employeeId);
+      await skudService.syncEmployee(employeeId, {
+        ...(sigurDepartmentPath.length > 0 ? { sigurDepartmentPath } : {}),
+      });
       message.success("Задача синхронизации поставлена в очередь");
       await loadData();
     } catch (error) {
@@ -349,12 +375,19 @@ const SkudAdminSection = () => {
     } finally {
       setEmployeeActionLoading(false);
     }
-  }, [employeeIdInput, loadData, message]);
+  }, [
+    employeeIdInput,
+    loadData,
+    message,
+    providerDepartments,
+    selectedSigurDepartmentId,
+    sigurSubfolderInput,
+  ]);
 
   const handleBlockEmployee = useCallback(async () => {
     const employeeId = String(employeeIdInput || "").trim();
     if (!employeeId) {
-      message.warning("Введите employeeId");
+      message.warning("Выберите сотрудника");
       return;
     }
 
@@ -376,7 +409,7 @@ const SkudAdminSection = () => {
   const handleUnblockEmployee = useCallback(async () => {
     const employeeId = String(employeeIdInput || "").trim();
     if (!employeeId) {
-      message.warning("Введите employeeId");
+      message.warning("Выберите сотрудника");
       return;
     }
 
@@ -398,7 +431,7 @@ const SkudAdminSection = () => {
   const handleLoadBinding = useCallback(async () => {
     const employeeId = String(employeeIdInput || "").trim();
     if (!employeeId) {
-      message.warning("Введите employeeId");
+      message.warning("Выберите сотрудника");
       return;
     }
 
@@ -425,7 +458,7 @@ const SkudAdminSection = () => {
     const employeeId = String(employeeIdInput || "").trim();
     const externalEmpId = String(externalEmpIdInput || "").trim();
     if (!employeeId || !externalEmpId) {
-      message.warning("Введите employeeId и externalEmpId");
+      message.warning("Выберите сотрудника и укажите externalEmpId");
       return;
     }
 
@@ -634,6 +667,35 @@ const SkudAdminSection = () => {
     }));
   }, []);
 
+  const loadSyncEmployees = useCallback(
+    async (search = "") => {
+      setEmployeeOptionsLoading(true);
+      try {
+        const options = await fetchEmployeeOptions(search);
+        setEmployeeOptions(options);
+      } catch (error) {
+        console.error("Failed to load sync employee options:", error);
+        message.error("Не удалось загрузить сотрудников");
+      } finally {
+        setEmployeeOptionsLoading(false);
+      }
+    },
+    [fetchEmployeeOptions, message],
+  );
+
+  const loadProviderDepartments = useCallback(async () => {
+    setProviderDepartmentsLoading(true);
+    try {
+      const response = await skudService.getProviderDepartments();
+      setProviderDepartments(response?.items || []);
+    } catch (error) {
+      console.error("Failed to load Sigur departments:", error);
+      message.error("Не удалось загрузить структуру Sigur");
+    } finally {
+      setProviderDepartmentsLoading(false);
+    }
+  }, [message]);
+
   const loadCardEmployees = useCallback(
     async (search = "") => {
       setCardEmployeeOptionsLoading(true);
@@ -672,6 +734,20 @@ const SkudAdminSection = () => {
     }
     loadCardEmployees(cardEmployeeSearch);
   }, [activeTab, cardEmployeeSearch, loadCardEmployees]);
+
+  useEffect(() => {
+    if (activeTab !== "employees") {
+      return;
+    }
+    loadSyncEmployees(employeeSearch);
+  }, [activeTab, employeeSearch, loadSyncEmployees]);
+
+  useEffect(() => {
+    if (activeTab !== "employees") {
+      return;
+    }
+    loadProviderDepartments();
+  }, [activeTab, loadProviderDepartments]);
 
   useEffect(() => {
     if (activeTab !== "qr") {
@@ -1291,6 +1367,74 @@ const SkudAdminSection = () => {
     [selectedProviderEmployeeId],
   );
 
+  const providerDepartmentMap = useMemo(
+    () =>
+      new Map(
+        (providerDepartments || [])
+          .filter((item) => item?.id)
+          .map((item) => [String(item.id), item]),
+      ),
+    [providerDepartments],
+  );
+
+  const providerDepartmentTreeData = useMemo(() => {
+    const nodeMap = new Map();
+    const roots = [];
+
+    for (const item of providerDepartments || []) {
+      if (!item?.id) {
+        continue;
+      }
+
+      nodeMap.set(String(item.id), {
+        key: String(item.id),
+        value: String(item.id),
+        title: String(item.name || "—"),
+        selectable: true,
+        children: [],
+      });
+    }
+
+    for (const item of providerDepartments || []) {
+      if (!item?.id) {
+        continue;
+      }
+
+      const node = nodeMap.get(String(item.id));
+      const parentId = item?.parentId ? String(item.parentId) : null;
+      if (parentId && nodeMap.has(parentId)) {
+        nodeMap.get(parentId).children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+
+    const sortNodes = (nodes) => {
+      nodes.sort((left, right) => String(left.title).localeCompare(String(right.title), "ru"));
+      nodes.forEach((node) => sortNodes(node.children));
+      return nodes;
+    };
+
+    return sortNodes(roots);
+  }, [providerDepartments]);
+
+  const selectedSigurDepartment = useMemo(
+    () =>
+      selectedSigurDepartmentId
+        ? providerDepartmentMap.get(String(selectedSigurDepartmentId)) || null
+        : null,
+    [providerDepartmentMap, selectedSigurDepartmentId],
+  );
+
+  const syncPreviewPath = useMemo(() => {
+    const additionalSegments = normalizeSigurPathSegments(sigurSubfolderInput);
+    const segments = [
+      ...(Array.isArray(selectedSigurDepartment?.path) ? selectedSigurDepartment.path : []),
+      ...additionalSegments,
+    ];
+    return segments;
+  }, [selectedSigurDepartment, sigurSubfolderInput]);
+
   const latestVisibleEventTime = state.events?.items?.[0]?.eventTime || null;
   const hasSkudAuthError = state.health?.authOk === false;
   const lastSyncAt = state.health?.lastSyncAt || null;
@@ -1459,12 +1603,60 @@ const SkudAdminSection = () => {
                       <Card title="1. Точечные действия по сотруднику">
                         <Space direction="vertical" size={12} style={{ width: "100%" }}>
                           <Text type="secondary">
-                            Используйте этот блок, когда нужно быстро синхронизировать, заблокировать или разблокировать конкретного сотрудника.
+                            Здесь можно выбрать сотрудника PassDesk, увидеть дерево папок Sigur, указать конкретную подпапку и отправить сотрудника именно туда. Если выбранной подпапки еще нет, она будет создана во время sync.
                           </Text>
+                          <Select
+                            showSearch
+                            allowClear
+                            placeholder="Выберите сотрудника PassDesk"
+                            value={employeeIdInput || undefined}
+                            options={employeeOptions}
+                            loading={employeeOptionsLoading}
+                            onSearch={setEmployeeSearch}
+                            onChange={(value) => setEmployeeIdInput(value || "")}
+                            optionFilterProp="label"
+                            filterOption={false}
+                            style={{ width: "100%" }}
+                          />
+                          <TreeSelect
+                            allowClear
+                            treeDefaultExpandAll
+                            showSearch
+                            placeholder="Папка Sigur (если не выбрать, уйдет в путь по умолчанию)"
+                            value={selectedSigurDepartmentId || undefined}
+                            treeData={providerDepartmentTreeData}
+                            onChange={(value) => setSelectedSigurDepartmentId(value || null)}
+                            loading={providerDepartmentsLoading}
+                            style={{ width: "100%" }}
+                            treeNodeFilterProp="title"
+                          />
                           <Input
-                            placeholder="employeeId сотрудника в PassDesk"
-                            value={employeeIdInput}
-                            onChange={(event) => setEmployeeIdInput(event.target.value)}
+                            placeholder="Новая подпапка внутри выбранной (можно через / или >)"
+                            value={sigurSubfolderInput}
+                            onChange={(event) => setSigurSubfolderInput(event.target.value)}
+                          />
+                          <Card size="small" title="Текущий путь Sync">
+                            <Space direction="vertical" size={6} style={{ width: "100%" }}>
+                              <Text>
+                                {syncPreviewPath.length > 0
+                                  ? syncPreviewPath.join(" / ")
+                                  : "Автоматический путь из настроек и данных сотрудника"}
+                              </Text>
+                              <Text type="secondary">
+                                Текущее дерево Sigur загружается с сервера. Можно выбрать существующую папку или дописать новую подпапку вручную.
+                              </Text>
+                            </Space>
+                          </Card>
+                          <Tree
+                            selectedKeys={
+                              selectedSigurDepartmentId ? [String(selectedSigurDepartmentId)] : []
+                            }
+                            treeData={providerDepartmentTreeData}
+                            onSelect={(selectedKeys) => {
+                              setSelectedSigurDepartmentId(selectedKeys?.[0] || null);
+                            }}
+                            defaultExpandAll
+                            height={280}
                           />
                           <Input
                             placeholder="Причина (опционально)"

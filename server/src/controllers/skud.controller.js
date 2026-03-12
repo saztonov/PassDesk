@@ -118,6 +118,54 @@ const toProviderItems = (result) =>
       ? result.items
       : [];
 
+const getAllProviderDepartments = async (provider) => {
+  const limit = 500;
+  const items = [];
+  let offset = 0;
+
+  while (true) {
+    const response = await provider.getDepartments({ limit, offset });
+    const page = toProviderItems(response);
+    if (!page.length) {
+      break;
+    }
+
+    items.push(...page);
+    if (page.length < limit) {
+      break;
+    }
+
+    offset += page.length;
+  }
+
+  return items;
+};
+
+const buildDepartmentPath = (item, departmentsById, seen = new Set()) => {
+  const id =
+    item?.id === undefined || item?.id === null ? null : String(item.id);
+  if (!id || seen.has(id)) {
+    return [];
+  }
+
+  const nextSeen = new Set(seen);
+  nextSeen.add(id);
+
+  const parentIdRaw = item?.parentId;
+  const parentId =
+    parentIdRaw === undefined || parentIdRaw === null
+      ? null
+      : String(parentIdRaw);
+  const parent =
+    parentId && parentId !== "0" ? departmentsById.get(parentId) : null;
+  const parentPath = parent
+    ? buildDepartmentPath(parent, departmentsById, nextSeen)
+    : [];
+  const name = String(item?.name || "").trim();
+
+  return name ? [...parentPath, name] : parentPath;
+};
+
 const getLatestSkudPullCursor = async () => {
   const latestByLogId = await SkudAccessEvent.findOne({
     where: {
@@ -782,6 +830,72 @@ export const skudController = {
           pagination: {
             limit,
             offset,
+            total: filtered.length,
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async providerDepartments(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const provider = getSkudProvider();
+      const search = String(req.query.search || "")
+        .trim()
+        .toLowerCase();
+      const rows = await getAllProviderDepartments(provider);
+      const departmentsById = new Map(
+        rows
+          .filter((item) => item?.id !== undefined && item?.id !== null)
+          .map((item) => [String(item.id), item]),
+      );
+
+      const mapped = rows.map((item) => {
+        const id =
+          item?.id === undefined || item?.id === null ? null : String(item.id);
+        const parentId =
+          item?.parentId === undefined || item?.parentId === null
+            ? null
+            : String(item.parentId);
+        const path = buildDepartmentPath(item, departmentsById);
+
+        return {
+          id,
+          parentId: parentId && parentId !== "0" ? parentId : null,
+          name: String(item?.name || "").trim() || "—",
+          description: String(item?.description || "").trim() || null,
+          path,
+          pathLabel: path.join(" / ") || String(item?.name || "").trim() || "—",
+          raw: item,
+        };
+      });
+
+      const filtered = search
+        ? mapped.filter((item) => {
+            return (
+              String(item.id || "")
+                .toLowerCase()
+                .includes(search) ||
+              String(item.name || "")
+                .toLowerCase()
+                .includes(search) ||
+              String(item.pathLabel || "")
+                .toLowerCase()
+                .includes(search)
+            );
+          })
+        : mapped;
+
+      res.json({
+        success: true,
+        data: {
+          items: filtered,
+          pagination: {
+            limit: filtered.length,
+            offset: 0,
             total: filtered.length,
           },
         },
