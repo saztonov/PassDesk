@@ -120,6 +120,42 @@ export class SigurClient {
     });
   }
 
+  async updateDepartment(departmentId, { name, parentId, description } = {}) {
+    const id = toNumber(departmentId);
+    if (!id) {
+      throw new Error("departmentId is required to update department in Sigur");
+    }
+
+    const data = {};
+    if (name !== undefined) {
+      data.name = String(name || "").trim();
+    }
+    if (parentId !== undefined) {
+      data.parentId = parentId;
+    }
+    if (description !== undefined) {
+      data.description = description;
+    }
+
+    return this.request({
+      method: "PUT",
+      url: `/api/v1/departments/${id}`,
+      data,
+    });
+  }
+
+  async deleteDepartment(departmentId) {
+    const id = toNumber(departmentId);
+    if (!id) {
+      throw new Error("departmentId is required to delete department in Sigur");
+    }
+
+    return this.request({
+      method: "DELETE",
+      url: `/api/v1/departments/${id}`,
+    });
+  }
+
   async getEvents({
     from,
     to,

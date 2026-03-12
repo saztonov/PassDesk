@@ -9,6 +9,8 @@ import {
   Descriptions,
   Drawer,
   Input,
+  Modal,
+  Popconfirm,
   Row,
   Select,
   Space,
@@ -22,7 +24,6 @@ import {
   TreeSelect,
   Typography,
   Upload,
-  Popconfirm,
 } from "antd";
 import {
   CopyOutlined,
@@ -195,6 +196,13 @@ const SkudAdminSection = () => {
   const [providerHierarchyLoadedDepartmentIds, setProviderHierarchyLoadedDepartmentIds] =
     useState([]);
   const [providerHierarchyExpandedKeys, setProviderHierarchyExpandedKeys] = useState([]);
+  const [providerHierarchySelectedDepartmentId, setProviderHierarchySelectedDepartmentId] =
+    useState(null);
+  const [providerHierarchyModalMode, setProviderHierarchyModalMode] = useState(null);
+  const [providerHierarchyModalOpen, setProviderHierarchyModalOpen] = useState(false);
+  const [providerHierarchyModalName, setProviderHierarchyModalName] = useState("");
+  const [providerHierarchyModalSubmitting, setProviderHierarchyModalSubmitting] = useState(false);
+  const [providerHierarchyDeleting, setProviderHierarchyDeleting] = useState(false);
   const [selectedSigurDepartmentId, setSelectedSigurDepartmentId] = useState(null);
   const [sigurSubfolderInput, setSigurSubfolderInput] = useState("");
   const [employeeActionLoading, setEmployeeActionLoading] = useState(false);
@@ -636,6 +644,13 @@ const SkudAdminSection = () => {
     }
   }, [message]);
 
+  const resetProviderHierarchyView = useCallback(() => {
+    setProviderHierarchyEmployeesByDepartment({});
+    setProviderHierarchyLoadedDepartmentIds([]);
+    setProviderHierarchyLoadingDepartmentIds([]);
+    setProviderHierarchyExpandedKeys([]);
+  }, []);
+
   const loadProviderHierarchyDepartmentEmployees = useCallback(
     async (departmentId) => {
       const normalizedDepartmentId = String(departmentId || "").trim();
@@ -786,11 +801,8 @@ const SkudAdminSection = () => {
     if (activeTab !== "employees") {
       return;
     }
-    setProviderHierarchyEmployeesByDepartment({});
-    setProviderHierarchyLoadedDepartmentIds([]);
-    setProviderHierarchyLoadingDepartmentIds([]);
-    setProviderHierarchyExpandedKeys([]);
-  }, [activeTab]);
+    resetProviderHierarchyView();
+  }, [activeTab, resetProviderHierarchyView]);
 
   useEffect(() => {
     if (activeTab !== "employees") {
@@ -1387,7 +1399,7 @@ const SkudAdminSection = () => {
         ]
           .join(" ")
           .toLowerCase(),
-        selectable: false,
+        selectable: true,
         isLeaf: false,
         children: [],
       });
@@ -1510,7 +1522,7 @@ const SkudAdminSection = () => {
         title: renderHierarchyFolderTitle(String(department.name || "—")),
         sortLabel: String(department.name || "—"),
         searchLabel: String(department.pathLabel || department.name || "").toLowerCase(),
-        selectable: false,
+        selectable: true,
         isLeaf: false,
         children: [],
       };
@@ -1607,6 +1619,125 @@ const SkudAdminSection = () => {
     },
     [loadProviderHierarchyDepartmentEmployees],
   );
+
+  const handleProviderHierarchySelect = useCallback((selectedKeys, info) => {
+    if (info?.node?.departmentId) {
+      setProviderHierarchySelectedDepartmentId(String(info.node.departmentId));
+      return;
+    }
+
+    setProviderHierarchySelectedDepartmentId(null);
+  }, []);
+
+  const selectedProviderHierarchyDepartment = useMemo(() => {
+    if (!providerHierarchySelectedDepartmentId) {
+      return null;
+    }
+
+    return providerDepartmentsById.get(String(providerHierarchySelectedDepartmentId)) || null;
+  }, [providerDepartmentsById, providerHierarchySelectedDepartmentId]);
+
+  const providerHierarchySelectedKeys = useMemo(() => {
+    if (!providerHierarchySelectedDepartmentId) {
+      return [];
+    }
+
+    return providerHierarchySearch
+      ? [`search-folder-${providerHierarchySelectedDepartmentId}`]
+      : [`folder-${providerHierarchySelectedDepartmentId}`];
+  }, [providerHierarchySearch, providerHierarchySelectedDepartmentId]);
+
+  const refreshProviderHierarchy = useCallback(async () => {
+    resetProviderHierarchyView();
+    await loadProviderDepartments();
+  }, [loadProviderDepartments, resetProviderHierarchyView]);
+
+  const openProviderHierarchyModal = useCallback((mode) => {
+    setProviderHierarchyModalMode(mode);
+    if (mode === "rename" && selectedProviderHierarchyDepartment) {
+      setProviderHierarchyModalName(selectedProviderHierarchyDepartment.name || "");
+    } else {
+      setProviderHierarchyModalName("");
+    }
+    setProviderHierarchyModalOpen(true);
+  }, [selectedProviderHierarchyDepartment]);
+
+  const closeProviderHierarchyModal = useCallback(() => {
+    setProviderHierarchyModalOpen(false);
+    setProviderHierarchyModalMode(null);
+    setProviderHierarchyModalName("");
+  }, []);
+
+  const handleSubmitProviderHierarchyModal = useCallback(async () => {
+    const name = String(providerHierarchyModalName || "").trim();
+    if (!name) {
+      message.warning("Укажите название папки");
+      return;
+    }
+
+    setProviderHierarchyModalSubmitting(true);
+    try {
+      if (providerHierarchyModalMode === "rename" && selectedProviderHierarchyDepartment?.id) {
+        await skudService.updateProviderDepartment(selectedProviderHierarchyDepartment.id, {
+          name,
+        });
+        message.success("Папка Sigur переименована");
+      } else if (providerHierarchyModalMode === "create_root") {
+        await skudService.createProviderDepartment({ name });
+        message.success("Корневая папка Sigur создана");
+      } else if (providerHierarchyModalMode === "create_child") {
+        const parentId = String(providerHierarchySelectedDepartmentId || "").trim();
+        if (!parentId) {
+          message.warning("Сначала выберите родительскую папку");
+          return;
+        }
+        await skudService.createProviderDepartment({ name, parentId });
+        message.success("Подпапка Sigur создана");
+      }
+
+      closeProviderHierarchyModal();
+      await refreshProviderHierarchy();
+    } catch (error) {
+      console.error("Failed to manage Sigur department:", error);
+      message.error(getRequestErrorMessage(error, "Не удалось изменить папку Sigur"));
+    } finally {
+      setProviderHierarchyModalSubmitting(false);
+    }
+  }, [
+    closeProviderHierarchyModal,
+    message,
+    providerHierarchyModalMode,
+    providerHierarchyModalName,
+    providerHierarchySelectedDepartmentId,
+    refreshProviderHierarchy,
+    selectedProviderHierarchyDepartment,
+  ]);
+
+  const handleDeleteProviderHierarchyDepartment = useCallback(async () => {
+    const departmentId = String(providerHierarchySelectedDepartmentId || "").trim();
+    if (!departmentId) {
+      message.warning("Сначала выберите папку");
+      return;
+    }
+
+    setProviderHierarchyDeleting(true);
+    try {
+      await skudService.deleteProviderDepartment(departmentId);
+      message.success("Папка Sigur удалена");
+      setProviderHierarchySelectedDepartmentId(null);
+      await refreshProviderHierarchy();
+    } catch (error) {
+      console.error("Failed to delete Sigur department:", error);
+      message.error(
+        getRequestErrorMessage(
+          error,
+          "Не удалось удалить папку Sigur. Удаляются только пустые папки без вложений и сотрудников.",
+        ),
+      );
+    } finally {
+      setProviderHierarchyDeleting(false);
+    }
+  }, [message, providerHierarchySelectedDepartmentId, refreshProviderHierarchy]);
 
   const latestVisibleEventTime = state.events?.items?.[0]?.eventTime || null;
   const hasSkudAuthError = state.health?.authOk === false;
@@ -1820,10 +1951,7 @@ const SkudAdminSection = () => {
                         <Button
                           icon={<ReloadOutlined />}
                           onClick={() => {
-                            setProviderHierarchyEmployeesByDepartment({});
-                            setProviderHierarchyLoadedDepartmentIds([]);
-                            setProviderHierarchyLoadingDepartmentIds([]);
-                            setProviderHierarchyExpandedKeys([]);
+                            resetProviderHierarchyView();
                             void loadProviderDepartments();
                           }}
                           loading={providerDepartmentsLoading}
@@ -1836,6 +1964,50 @@ const SkudAdminSection = () => {
                         <Text type="secondary">
                           Полная структура папок Sigur. Сотрудники подгружаются только при раскрытии нужной папки.
                         </Text>
+                        <Space wrap size={12}>
+                          <Button onClick={() => openProviderHierarchyModal("create_root")}>
+                            Создать папку
+                          </Button>
+                          <Button
+                            onClick={() => openProviderHierarchyModal("create_child")}
+                            disabled={!selectedProviderHierarchyDepartment}
+                          >
+                            Создать подпапку
+                          </Button>
+                          <Button
+                            onClick={() => openProviderHierarchyModal("rename")}
+                            disabled={!selectedProviderHierarchyDepartment}
+                          >
+                            Переименовать
+                          </Button>
+                          <Popconfirm
+                            title="Удалить выбранную папку Sigur?"
+                            description="Удаление сработает только для пустой папки без сотрудников и вложенных папок."
+                            okText="Удалить"
+                            cancelText="Отмена"
+                            onConfirm={() => {
+                              void handleDeleteProviderHierarchyDepartment();
+                            }}
+                            disabled={!selectedProviderHierarchyDepartment}
+                          >
+                            <Button
+                              danger
+                              disabled={!selectedProviderHierarchyDepartment}
+                              loading={providerHierarchyDeleting}
+                            >
+                              Удалить пустую
+                            </Button>
+                          </Popconfirm>
+                        </Space>
+                        {selectedProviderHierarchyDepartment ? (
+                          <Text type="secondary">
+                            Выбрана папка: {selectedProviderHierarchyDepartment.pathLabel || selectedProviderHierarchyDepartment.name}
+                          </Text>
+                        ) : (
+                          <Text type="secondary">
+                            Выберите папку в дереве, чтобы управлять ей.
+                          </Text>
+                        )}
                         <Input
                           placeholder="Поиск по ФИО в Sigur (с начала имени)"
                           value={providerHierarchySearch}
@@ -1856,11 +2028,13 @@ const SkudAdminSection = () => {
                                 ? providerHierarchySearchTreeData
                                 : filteredProviderHierarchyTreeData
                             }
+                            selectedKeys={providerHierarchySelectedKeys}
                             expandedKeys={
                               providerHierarchySearch
                                 ? providerHierarchySearchExpandedKeys
                                 : providerHierarchyExpandedKeys
                             }
+                            onSelect={handleProviderHierarchySelect}
                             onExpand={handleProviderHierarchyExpand}
                             height={640}
                             showIcon={false}
@@ -1871,6 +2045,43 @@ const SkudAdminSection = () => {
                     </Card>
                   </Col>
                 </Row>
+
+                <Modal
+                  title={
+                    providerHierarchyModalMode === "rename"
+                      ? "Переименовать папку Sigur"
+                      : providerHierarchyModalMode === "create_child"
+                        ? "Создать подпапку Sigur"
+                        : "Создать папку Sigur"
+                  }
+                  open={providerHierarchyModalOpen}
+                  onCancel={closeProviderHierarchyModal}
+                  onOk={() => {
+                    void handleSubmitProviderHierarchyModal();
+                  }}
+                  okText={providerHierarchyModalMode === "rename" ? "Сохранить" : "Создать"}
+                  cancelText="Отмена"
+                  confirmLoading={providerHierarchyModalSubmitting}
+                  destroyOnClose
+                >
+                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                    {selectedProviderHierarchyDepartment && providerHierarchyModalMode !== "create_root" ? (
+                      <Text type="secondary">
+                        {providerHierarchyModalMode === "rename" ? "Текущая папка:" : "Родительская папка:"}{" "}
+                        {selectedProviderHierarchyDepartment.pathLabel || selectedProviderHierarchyDepartment.name}
+                      </Text>
+                    ) : null}
+                    <Input
+                      autoFocus
+                      placeholder="Название папки"
+                      value={providerHierarchyModalName}
+                      onChange={(event) => setProviderHierarchyModalName(event.target.value)}
+                      onPressEnter={() => {
+                        void handleSubmitProviderHierarchyModal();
+                      }}
+                    />
+                  </Space>
+                </Modal>
 
                 <Card title="3. Импорт соответствий по пропускам (Excel)">
                   <Space direction="vertical" size={12} style={{ width: "100%" }}>

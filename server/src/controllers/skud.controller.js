@@ -900,6 +900,89 @@ export const skudController = {
     }
   },
 
+  async createProviderDepartment(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const provider = getSkudProvider();
+      const parentId = String(req.body?.parentId || "").trim();
+      const created = await provider.createDepartment({
+        name: req.body?.name,
+        parentId: parentId || 0,
+        description: req.body?.description || "",
+      });
+
+      res.status(201).json({
+        success: true,
+        data: {
+          id: created?.id === undefined || created?.id === null ? null : String(created.id),
+          parentId:
+            created?.parentId === undefined || created?.parentId === null
+              ? null
+              : String(created.parentId),
+          name: String(created?.name || req.body?.name || "").trim() || "—",
+          description: String(created?.description || "").trim() || null,
+          raw: created || null,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateProviderDepartment(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const provider = getSkudProvider();
+      const parentId =
+        req.body?.parentId === undefined || req.body?.parentId === null
+          ? undefined
+          : String(req.body.parentId).trim() || 0;
+
+      const updated = await provider.updateDepartment(req.params.departmentId, {
+        ...(req.body?.name !== undefined ? { name: req.body.name } : {}),
+        ...(parentId !== undefined ? { parentId } : {}),
+        ...(req.body?.description !== undefined ? { description: req.body.description } : {}),
+      });
+
+      res.json({
+        success: true,
+        data: {
+          id: updated?.id === undefined || updated?.id === null ? req.params.departmentId : String(updated.id),
+          parentId:
+            updated?.parentId === undefined || updated?.parentId === null
+              ? null
+              : String(updated.parentId),
+          name: String(updated?.name || req.body?.name || "").trim() || "—",
+          description:
+            updated?.description === undefined || updated?.description === null
+              ? null
+              : String(updated.description).trim() || null,
+          raw: updated || null,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteProviderDepartment(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const provider = getSkudProvider();
+      await provider.deleteDepartment(req.params.departmentId);
+
+      res.json({
+        success: true,
+        data: {
+          id: String(req.params.departmentId),
+          deleted: true,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async providerEmployee(req, res, next) {
     try {
       ensureSkudModuleEnabled();

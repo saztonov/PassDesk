@@ -58,6 +58,32 @@ router.get(
   authorize("admin", "manager"),
   skudController.providerDepartments,
 );
+router.post(
+  "/provider/departments",
+  authorize("admin", "manager"),
+  body("name").isString().trim().notEmpty(),
+  body("parentId").optional({ nullable: true }).isString().trim(),
+  body("description").optional().isString(),
+  validate,
+  skudController.createProviderDepartment,
+);
+router.put(
+  "/provider/departments/:departmentId",
+  authorize("admin", "manager"),
+  param("departmentId").isString().trim().notEmpty(),
+  body("name").optional().isString().trim().notEmpty(),
+  body("parentId").optional({ nullable: true }).isString().trim(),
+  body("description").optional().isString(),
+  validate,
+  skudController.updateProviderDepartment,
+);
+router.delete(
+  "/provider/departments/:departmentId",
+  authorize("admin", "manager"),
+  param("departmentId").isString().trim().notEmpty(),
+  validate,
+  skudController.deleteProviderDepartment,
+);
 router.get(
   "/provider/employees/:externalEmpId",
   authorize("admin", "manager"),

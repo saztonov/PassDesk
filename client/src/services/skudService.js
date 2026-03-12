@@ -28,6 +28,21 @@ const skudService = {
     return toData(response);
   },
 
+  createProviderDepartment: async (payload) => {
+    const response = await api.post("/skud/provider/departments", payload);
+    return toData(response);
+  },
+
+  updateProviderDepartment: async (departmentId, payload) => {
+    const response = await api.put(`/skud/provider/departments/${departmentId}`, payload);
+    return toData(response);
+  },
+
+  deleteProviderDepartment: async (departmentId) => {
+    const response = await api.delete(`/skud/provider/departments/${departmentId}`);
+    return toData(response);
+  },
+
   getProviderEmployee: async (externalEmpId) => {
     const response = await api.get(`/skud/provider/employees/${externalEmpId}`);
     return toData(response);
