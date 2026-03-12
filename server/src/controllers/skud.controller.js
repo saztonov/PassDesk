@@ -275,6 +275,81 @@ const buildProviderEventView = async ({
     return toProviderItems(result);
   };
 
+  const applyLiveFilters = (items) => {
+    let filtered = items;
+
+    if (direction !== undefined && direction !== null && direction !== "") {
+      const expectedDirection = Number.parseInt(String(direction), 10);
+      filtered = filtered.filter((item) => item.direction === expectedDirection);
+    }
+
+    if (allow !== undefined) {
+      filtered = filtered.filter((item) => item.allow === Boolean(allow));
+    }
+
+    if (passageOnly) {
+      filtered = filtered.filter(
+        (item) =>
+          [1, 2].includes(item.direction) ||
+          PASSAGE_EVENT_TYPES.includes(String(item.eventType || "")),
+      );
+    }
+
+    filtered.sort(
+      (left, right) =>
+        new Date(right.eventTime).getTime() - new Date(left.eventTime).getTime(),
+    );
+
+    return filtered;
+  };
+
+  if (from) {
+    const retainLimit = Math.max(
+      getLiveEventRawLimit({
+        limit: requiredCount,
+        direction,
+        allow,
+        departmentId,
+        passageOnly,
+      }),
+      3000,
+    );
+    const batchLimit = 3000;
+    let rawOffset = 0;
+    let rawItems = [];
+    let hasMore = false;
+
+    while (true) {
+      const batch = await fetchWindowPage(from, batchLimit, rawOffset);
+      if (!batch.length) {
+        break;
+      }
+
+      rawItems = rawItems.concat(batch).slice(-retainLimit);
+      rawOffset += batch.length;
+
+      if (batch.length < batchLimit) {
+        break;
+      }
+
+      if (rawItems.length >= retainLimit && rawOffset >= retainLimit) {
+        hasMore = true;
+        break;
+      }
+    }
+
+    const items = applyLiveFilters(rawItems.map((item) => normalizeProviderEvent(item)));
+    const visibleItems = items.slice(offset, offset + limit);
+    return {
+      items: visibleItems,
+      pagination: {
+        total: hasMore ? Math.max(items.length, offset + visibleItems.length + 1) : items.length,
+        limit,
+        offset,
+      },
+    };
+  }
+
   const countWindowItems = async (startTime) => {
     const firstItem = await fetchWindowPage(startTime, 1, 0);
     if (!firstItem.length) {
@@ -325,27 +400,7 @@ const buildProviderEventView = async ({
   });
   const rawOffset = Math.max(0, selectedWindowCount - rawLimit);
   const rawItems = await fetchWindowPage(selectedWindowStart, rawLimit, rawOffset);
-
-  let items = rawItems.map((item) => normalizeProviderEvent(item));
-
-  if (direction !== undefined && direction !== null && direction !== "") {
-    const expectedDirection = Number.parseInt(String(direction), 10);
-    items = items.filter((item) => item.direction === expectedDirection);
-  }
-
-  if (allow !== undefined) {
-    items = items.filter((item) => item.allow === Boolean(allow));
-  }
-
-  if (passageOnly) {
-    items = items.filter(
-      (item) =>
-        [1, 2].includes(item.direction) ||
-        PASSAGE_EVENT_TYPES.includes(String(item.eventType || "")),
-    );
-  }
-
-  items.sort((left, right) => new Date(right.eventTime).getTime() - new Date(left.eventTime).getTime());
+  const items = applyLiveFilters(rawItems.map((item) => normalizeProviderEvent(item)));
   return {
     items: items.slice(offset, offset + limit),
     pagination: {
