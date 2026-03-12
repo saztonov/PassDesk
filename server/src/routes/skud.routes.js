@@ -16,7 +16,7 @@ const paginationValidation = [
   query("to").optional().isISO8601(),
   query("eventType").optional().isString().trim().notEmpty(),
   query("allow").optional().isBoolean(),
-  query("departmentId").optional().isUUID(),
+  query("departmentId").optional().isString().trim().notEmpty(),
   query("passageOnly").optional().isBoolean(),
   validate,
 ];

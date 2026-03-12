@@ -780,10 +780,12 @@ export const skudController = {
       const search = String(req.query.search || "")
         .trim()
         .toLowerCase();
+      const departmentId = String(req.query.departmentId || "").trim();
 
       const response = await provider.getEmployees({
         limit,
         offset,
+        filters: departmentId ? { departmentId } : {},
       });
 
       const rows = Array.isArray(response)

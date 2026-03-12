@@ -127,10 +127,15 @@ const buildEmployeeName = (employee) =>
     .join(" ")
     .trim();
 
-const renderHierarchyFolderTitle = (label) => (
+const renderHierarchyFolderTitle = (label, { loading = false, loadedCount = null } = {}) => (
   <Space size={8}>
-    <FolderOpenOutlined />
+    {loading ? <SyncOutlined spin /> : <FolderOpenOutlined />}
     <span>{label}</span>
+    {loadedCount !== null ? (
+      <Text type="secondary" style={{ fontSize: 12 }}>
+        {loadedCount}
+      </Text>
+    ) : null}
   </Space>
 );
 
@@ -184,8 +189,13 @@ const SkudAdminSection = () => {
   const [providerDepartments, setProviderDepartments] = useState([]);
   const [providerDepartmentsLoading, setProviderDepartmentsLoading] = useState(false);
   const [providerHierarchySearch, setProviderHierarchySearch] = useState("");
-  const [providerHierarchyEmployeesLoading, setProviderHierarchyEmployeesLoading] = useState(false);
-  const [providerHierarchyEmployees, setProviderHierarchyEmployees] = useState([]);
+  const [providerHierarchyEmployeesByDepartment, setProviderHierarchyEmployeesByDepartment] =
+    useState({});
+  const [providerHierarchyLoadingDepartmentIds, setProviderHierarchyLoadingDepartmentIds] =
+    useState([]);
+  const [providerHierarchyLoadedDepartmentIds, setProviderHierarchyLoadedDepartmentIds] =
+    useState([]);
+  const [providerHierarchyExpandedKeys, setProviderHierarchyExpandedKeys] = useState([]);
   const [selectedSigurDepartmentId, setSelectedSigurDepartmentId] = useState(null);
   const [sigurSubfolderInput, setSigurSubfolderInput] = useState("");
   const [employeeActionLoading, setEmployeeActionLoading] = useState(false);
@@ -722,39 +732,72 @@ const SkudAdminSection = () => {
     }
   }, [message]);
 
-  const loadProviderHierarchyEmployees = useCallback(async () => {
-    setProviderHierarchyEmployeesLoading(true);
-    try {
-      const limit = 200;
-      let offset = 0;
-      let allItems = [];
-      let hasMore = true;
-
-      while (hasMore) {
-        const response = await skudService.getProviderEmployees({ limit, offset });
-        const items = Array.isArray(response?.items) ? response.items : [];
-        allItems = allItems.concat(items);
-
-        if (items.length < limit) {
-          hasMore = false;
-          break;
-        }
-
-        offset += items.length;
-        if (allItems.length >= 5000) {
-          hasMore = false;
-          break;
-        }
+  const loadProviderHierarchyDepartmentEmployees = useCallback(
+    async (departmentId) => {
+      const normalizedDepartmentId = String(departmentId || "").trim();
+      if (!normalizedDepartmentId) {
+        return;
       }
 
-      setProviderHierarchyEmployees(allItems);
-    } catch (error) {
-      console.error("Failed to load Sigur hierarchy employees:", error);
-      message.error("Не удалось загрузить сотрудников Sigur для иерархии");
-    } finally {
-      setProviderHierarchyEmployeesLoading(false);
-    }
-  }, [message]);
+      if (
+        providerHierarchyLoadedDepartmentIds.includes(normalizedDepartmentId)
+        || providerHierarchyLoadingDepartmentIds.includes(normalizedDepartmentId)
+      ) {
+        return;
+      }
+
+      setProviderHierarchyLoadingDepartmentIds((current) =>
+        current.includes(normalizedDepartmentId)
+          ? current
+          : current.concat(normalizedDepartmentId),
+      );
+
+      try {
+        const limit = 200;
+        let offset = 0;
+        let allItems = [];
+        let hasMore = true;
+
+        while (hasMore) {
+          const response = await skudService.getProviderEmployees({
+            limit,
+            offset,
+            departmentId: normalizedDepartmentId,
+          });
+          const items = Array.isArray(response?.items) ? response.items : [];
+          allItems = allItems.concat(items);
+
+          if (items.length < limit) {
+            hasMore = false;
+            break;
+          }
+
+          offset += items.length;
+          if (allItems.length >= 5000) {
+            hasMore = false;
+          }
+        }
+
+        setProviderHierarchyEmployeesByDepartment((current) => ({
+          ...current,
+          [normalizedDepartmentId]: allItems,
+        }));
+        setProviderHierarchyLoadedDepartmentIds((current) =>
+          current.includes(normalizedDepartmentId)
+            ? current
+            : current.concat(normalizedDepartmentId),
+        );
+      } catch (error) {
+        console.error("Failed to load Sigur hierarchy employees for department:", error);
+        message.error("Не удалось загрузить сотрудников выбранной папки Sigur");
+      } finally {
+        setProviderHierarchyLoadingDepartmentIds((current) =>
+          current.filter((item) => item !== normalizedDepartmentId),
+        );
+      }
+    },
+    [message, providerHierarchyLoadedDepartmentIds, providerHierarchyLoadingDepartmentIds],
+  );
 
   const loadEmployeePlacement = useCallback(async () => {
     const employeeId = String(employeeIdInput || "").trim();
@@ -847,8 +890,11 @@ const SkudAdminSection = () => {
     if (activeTab !== "employees") {
       return;
     }
-    loadProviderHierarchyEmployees();
-  }, [activeTab, loadProviderHierarchyEmployees]);
+    setProviderHierarchyEmployeesByDepartment({});
+    setProviderHierarchyLoadedDepartmentIds([]);
+    setProviderHierarchyLoadingDepartmentIds([]);
+    setProviderHierarchyExpandedKeys([]);
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab !== "employees") {
@@ -1530,11 +1576,26 @@ const SkudAdminSection = () => {
         continue;
       }
 
-      folderNodeMap.set(String(item.id), {
-        key: `folder-${item.id}`,
-        title: renderHierarchyFolderTitle(String(item.name || "—")),
+      const departmentId = String(item.id);
+      const loadedEmployees = providerHierarchyEmployeesByDepartment[departmentId] || [];
+      const isLoading = providerHierarchyLoadingDepartmentIds.includes(departmentId);
+
+      folderNodeMap.set(departmentId, {
+        key: `folder-${departmentId}`,
+        departmentId,
+        title: renderHierarchyFolderTitle(String(item.name || "—"), {
+          loading: isLoading,
+          loadedCount: providerHierarchyLoadedDepartmentIds.includes(departmentId)
+            ? loadedEmployees.length
+            : null,
+        }),
         sortLabel: String(item.name || "—"),
-        searchLabel: String(item.pathLabel || item.name || "").toLowerCase(),
+        searchLabel: [
+          item.pathLabel || item.name || "",
+          ...loadedEmployees.map((employee) => employee?.name || ""),
+        ]
+          .join(" ")
+          .toLowerCase(),
         selectable: false,
         children: [],
       });
@@ -1554,27 +1615,26 @@ const SkudAdminSection = () => {
       }
     }
 
-    for (const employee of providerHierarchyEmployees || []) {
-      const employeeNode = {
-        key: `employee-${employee.id || employee.name}`,
-        title: renderHierarchyEmployeeTitle(employee.name || "—", employee.id || null),
-        sortLabel: String(employee.name || "—"),
-        searchLabel: [
-          employee.name || "",
-          employee.id || "",
-          employee.departmentName || "",
-        ]
-          .join(" ")
-          .toLowerCase(),
-        selectable: false,
-        isLeaf: true,
-      };
+    for (const [departmentId, employees] of Object.entries(providerHierarchyEmployeesByDepartment)) {
+      if (!folderNodeMap.has(departmentId)) {
+        continue;
+      }
 
-      const departmentId = employee?.departmentId ? String(employee.departmentId) : null;
-      if (departmentId && folderNodeMap.has(departmentId)) {
-        folderNodeMap.get(departmentId).children.push(employeeNode);
-      } else {
-        roots.push(employeeNode);
+      for (const employee of employees || []) {
+        folderNodeMap.get(departmentId).children.push({
+          key: `employee-${departmentId}-${employee.id || employee.name}`,
+          title: renderHierarchyEmployeeTitle(employee.name || "—", employee.id || null),
+          sortLabel: String(employee.name || "—"),
+          searchLabel: [
+            employee.name || "",
+            employee.id || "",
+            employee.departmentName || "",
+          ]
+            .join(" ")
+            .toLowerCase(),
+          selectable: false,
+          isLeaf: true,
+        });
       }
     }
 
@@ -1591,7 +1651,12 @@ const SkudAdminSection = () => {
     };
 
     return sortNodes(roots);
-  }, [providerDepartments, providerHierarchyEmployees]);
+  }, [
+    providerDepartments,
+    providerHierarchyEmployeesByDepartment,
+    providerHierarchyLoadedDepartmentIds,
+    providerHierarchyLoadingDepartmentIds,
+  ]);
 
   const filteredProviderHierarchyTreeData = useMemo(() => {
     const search = String(providerHierarchySearch || "").trim().toLowerCase();
@@ -1617,6 +1682,18 @@ const SkudAdminSection = () => {
 
     return filterNodes(providerHierarchyTreeData);
   }, [providerHierarchySearch, providerHierarchyTreeData]);
+
+  const handleProviderHierarchyExpand = useCallback(
+    (nextExpandedKeys, info) => {
+      setProviderHierarchyExpandedKeys(nextExpandedKeys);
+
+      const departmentId = info?.node?.departmentId;
+      if (info?.expanded && departmentId) {
+        void loadProviderHierarchyDepartmentEmployees(departmentId);
+      }
+    },
+    [loadProviderHierarchyDepartmentEmployees],
+  );
 
   const providerDepartmentsById = useMemo(
     () =>
@@ -1958,14 +2035,13 @@ const SkudAdminSection = () => {
                           <Button
                             icon={<ReloadOutlined />}
                             onClick={() => {
-                              void Promise.all([
-                                loadProviderDepartments(),
-                                loadProviderHierarchyEmployees(),
-                              ]);
+                              setProviderHierarchyEmployeesByDepartment({});
+                              setProviderHierarchyLoadedDepartmentIds([]);
+                              setProviderHierarchyLoadingDepartmentIds([]);
+                              setProviderHierarchyExpandedKeys([]);
+                              void loadProviderDepartments();
                             }}
-                            loading={
-                              providerDepartmentsLoading || providerHierarchyEmployeesLoading
-                            }
+                            loading={providerDepartmentsLoading}
                           >
                             Обновить
                           </Button>
@@ -1973,16 +2049,17 @@ const SkudAdminSection = () => {
                       >
                         <Space direction="vertical" size={12} style={{ width: "100%" }}>
                           <Text type="secondary">
-                            Полная структура папок Sigur вместе с сотрудниками внутри них.
+                            Полная структура папок Sigur. Сотрудники подгружаются только при раскрытии нужной папки.
                           </Text>
                           <Input
-                            placeholder="Поиск по папке, пути или сотруднику"
+                            placeholder="Поиск по папке, пути или уже загруженному сотруднику"
                             value={providerHierarchySearch}
                             onChange={(event) => setProviderHierarchySearch(event.target.value)}
                           />
                           <Tree
                             treeData={filteredProviderHierarchyTreeData}
-                            defaultExpandAll
+                            expandedKeys={providerHierarchyExpandedKeys}
+                            onExpand={handleProviderHierarchyExpand}
                             height={520}
                             showIcon={false}
                             showLine
