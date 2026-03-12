@@ -158,7 +158,7 @@ const SkudAdminSection = () => {
   const [departmentOptions, setDepartmentOptions] = useState([]);
   const [departmentsLoading, setDepartmentsLoading] = useState(false);
   const [eventsPage, setEventsPage] = useState(1);
-  const [eventsPageSize, setEventsPageSize] = useState(200);
+  const [eventsPageSize, setEventsPageSize] = useState(20);
   const cardNumberInputRef = useRef(null);
   const eventsAutoRefreshRef = useRef(false);
   const [state, setState] = useState({
