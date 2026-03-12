@@ -1,9 +1,9 @@
-import { Op } from "sequelize";
 import {
   Employee,
   EmployeeCounterpartyMapping,
   Counterparty,
   Department,
+  ConstructionSite,
   SkudAccessState,
   SkudPersonBinding,
   SkudSyncJob,
@@ -12,6 +12,7 @@ import {
 } from "../../models/index.js";
 import { mapEmployeeToSigur } from "../../integrations/skud/providers/sigur/SigurMapper.js";
 import { getSkudProvider } from "../../integrations/skud/SkudProviderRegistry.js";
+import { skudConfig } from "./skudConfig.js";
 import {
   enqueueSkudBlockUnblockJob,
   enqueueSkudSyncJob,
@@ -40,6 +41,12 @@ const getEmployeeWithSkudContext = async (employeeId) => {
             model: Department,
             as: "department",
             attributes: ["id", "name"],
+            required: false,
+          },
+          {
+            model: ConstructionSite,
+            as: "constructionSite",
+            attributes: ["id", "shortName", "fullName"],
             required: false,
           },
         ],
@@ -200,54 +207,147 @@ const getEmployeeDepartmentName = (employee) => {
   );
 };
 
-const resolveSigurDepartmentId = async ({ provider, departmentName, description = "" }) => {
-  const normalizedName = String(departmentName || "").trim();
-  if (!normalizedName) {
-    return null;
+const normalizeSigurPathSegments = (input) => {
+  if (Array.isArray(input)) {
+    return input
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
   }
 
-  const response = await provider.getDepartments({ limit: 500, offset: 0 });
-  const items = Array.isArray(response)
+  const value = String(input || "").trim();
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(/[\\/|>]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+const getEmployeeSiteName = (employee) => {
+  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+    ? employee.employeeCounterpartyMappings
+    : [];
+  const site = mappings.find((item) => item?.constructionSite)?.constructionSite;
+  return (
+    String(site?.shortName || "").trim()
+    || String(site?.fullName || "").trim()
+    || null
+  );
+};
+
+const getEmployeeSigurDepartmentPath = ({ employee, payload = {} }) => {
+  const explicitPath = normalizeSigurPathSegments(payload?.sigurDepartmentPath);
+  if (explicitPath.length > 0) {
+    return explicitPath;
+  }
+
+  const segments = [];
+  const configuredRoot = String(skudConfig?.sigur?.departmentRoot || "").trim();
+  const siteName = getEmployeeSiteName(employee);
+  const departmentName = getEmployeeDepartmentName(employee);
+
+  if (configuredRoot) {
+    segments.push(configuredRoot);
+  }
+  if (siteName) {
+    segments.push(siteName);
+  }
+  if (departmentName) {
+    segments.push(departmentName);
+  }
+
+  return segments.filter(Boolean);
+};
+
+const getProviderItems = (response) => (
+  Array.isArray(response)
     ? response
     : Array.isArray(response?.items)
       ? response.items
-      : [];
+      : []
+);
 
-  const existing = items.find(
-    (item) => String(item?.name || "").trim().toLowerCase() === normalizedName.toLowerCase(),
-  );
+const getAllSigurDepartments = async (provider) => {
+  const limit = 500;
+  const items = [];
+  let offset = 0;
 
-  if (existing?.id !== undefined && existing?.id !== null) {
-    return existing.id;
+  while (true) {
+    const response = await provider.getDepartments({ limit, offset });
+    const page = getProviderItems(response);
+    if (!page.length) {
+      break;
+    }
+    items.push(...page);
+    if (page.length < limit) {
+      break;
+    }
+    offset += page.length;
   }
 
-  try {
-    const created = await provider.createDepartment({
-      name: normalizedName,
-      description,
-    });
-    const createdId =
-      created?.id ?? created?.departmentId ?? created?.data?.id ?? null;
-    if (createdId !== undefined && createdId !== null) {
-      return createdId;
+  return items;
+};
+
+const resolveSigurDepartmentId = async ({ provider, pathSegments = [], description = "" }) => {
+  const segments = normalizeSigurPathSegments(pathSegments);
+  if (!segments.length) {
+    return null;
+  }
+
+  let departments = await getAllSigurDepartments(provider);
+  let parentId = 0;
+  let resolvedId = null;
+
+  for (const segment of segments) {
+    const normalizedName = String(segment || "").trim();
+    if (!normalizedName) {
+      continue;
     }
-  } catch (error) {
-    const duplicateResponse = await provider.getDepartments({ limit: 500, offset: 0 });
-    const duplicateItems = Array.isArray(duplicateResponse)
-      ? duplicateResponse
-      : Array.isArray(duplicateResponse?.items)
-        ? duplicateResponse.items
-        : [];
-    const duplicate = duplicateItems.find(
-      (item) => String(item?.name || "").trim().toLowerCase() === normalizedName.toLowerCase(),
+
+    const existing = departments.find(
+      (item) =>
+        Number.parseInt(String(item?.parentId ?? 0), 10) === parentId
+        && String(item?.name || "").trim().toLowerCase() === normalizedName.toLowerCase(),
     );
-    if (duplicate?.id !== undefined && duplicate?.id !== null) {
-      return duplicate.id;
+
+    if (existing?.id !== undefined && existing?.id !== null) {
+      resolvedId = Number.parseInt(String(existing.id), 10);
+      parentId = resolvedId;
+      continue;
     }
-    throw error;
+
+    try {
+      const created = await provider.createDepartment({
+        name: normalizedName,
+        parentId,
+        description,
+      });
+      const createdId =
+        created?.id ?? created?.departmentId ?? created?.data?.id ?? null;
+      if (createdId === undefined || createdId === null) {
+        throw new Error(`Failed to create Sigur department: ${normalizedName}`);
+      }
+      resolvedId = Number.parseInt(String(createdId), 10);
+      parentId = resolvedId;
+      departments = await getAllSigurDepartments(provider);
+    } catch (error) {
+      departments = await getAllSigurDepartments(provider);
+      const duplicate = departments.find(
+        (item) =>
+          Number.parseInt(String(item?.parentId ?? 0), 10) === parentId
+          && String(item?.name || "").trim().toLowerCase() === normalizedName.toLowerCase(),
+      );
+      if (!duplicate?.id) {
+        throw error;
+      }
+      resolvedId = Number.parseInt(String(duplicate.id), 10);
+      parentId = resolvedId;
+    }
   }
 
-  return null;
+  return resolvedId;
 };
 
 const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
@@ -258,10 +358,10 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
 
   const counterpartyName =
     employee?.employeeCounterpartyMappings?.[0]?.counterparty?.name || "";
-  const departmentName = getEmployeeDepartmentName(employee);
+  const departmentPath = getEmployeeSigurDepartmentPath({ employee, payload });
   const departmentId = await resolveSigurDepartmentId({
     provider,
-    departmentName,
+    pathSegments: departmentPath,
     description: counterpartyName,
   });
 

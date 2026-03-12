@@ -846,6 +846,13 @@ export const skudController = {
         operation: "sync_employee",
         userId: req.user.id,
         source: "manual_sync",
+        payload: {
+          ...(req.body?.sigurDepartmentPath !== undefined
+            ? { sigurDepartmentPath: req.body.sigurDepartmentPath }
+            : {}),
+          ...(req.body?.accessStartTime ? { accessStartTime: req.body.accessStartTime } : {}),
+          ...(req.body?.accessEndTime ? { accessEndTime: req.body.accessEndTime } : {}),
+        },
       });
 
       res.status(202).json({ success: true, data: syncJob });

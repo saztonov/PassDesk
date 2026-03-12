@@ -19,6 +19,7 @@ export const skudConfig = {
     password: String(process.env.SKUD_SIGUR_PASSWORD || "").trim(),
     timeoutMs: toInt(process.env.SKUD_SIGUR_TIMEOUT_MS, 15000),
     insecureTls: toBool(process.env.SKUD_SIGUR_INSECURE_TLS, false),
+    departmentRoot: String(process.env.SKUD_SIGUR_DEPARTMENT_ROOT || "").trim(),
   },
   queue: {
     redisHost: String(process.env.REDIS_HOST || "redis").trim(),
