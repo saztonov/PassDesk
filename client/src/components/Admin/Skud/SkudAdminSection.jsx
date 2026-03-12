@@ -540,8 +540,11 @@ const SkudAdminSection = () => {
   }, [localEmployeeSearch, message, providerEmployeeSearch]);
 
   useEffect(() => {
+    if (activeTab !== "employees") {
+      return;
+    }
     loadMappingLists();
-  }, [loadMappingLists]);
+  }, [activeTab, loadMappingLists]);
 
   const fetchEmployeeOptions = useCallback(async (search = "") => {
     const response = await employeeService.getAll({
@@ -597,12 +600,18 @@ const SkudAdminSection = () => {
   );
 
   useEffect(() => {
+    if (activeTab !== "cards") {
+      return;
+    }
     loadCardEmployees(cardEmployeeSearch);
-  }, [cardEmployeeSearch, loadCardEmployees]);
+  }, [activeTab, cardEmployeeSearch, loadCardEmployees]);
 
   useEffect(() => {
+    if (activeTab !== "qr") {
+      return;
+    }
     loadQrEmployees(qrEmployeeSearch);
-  }, [loadQrEmployees, qrEmployeeSearch]);
+  }, [activeTab, loadQrEmployees, qrEmployeeSearch]);
 
   const handleBindSelectedEmployees = useCallback(async () => {
     const employeeId = String(selectedLocalEmployeeId || "").trim();
