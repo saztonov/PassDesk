@@ -175,6 +175,13 @@ const getLiveEventWindows = () => [
   30 * 24 * 60 * 60 * 1000,
 ];
 
+const getLiveEventRawLimit = ({ limit, direction, allow, departmentId, passageOnly }) => {
+  if (direction !== undefined || allow !== undefined || departmentId || passageOnly) {
+    return Math.max(limit * 5, 500);
+  }
+  return limit;
+};
+
 const normalizeProviderEvent = (item) => {
   const toNullableInt = (value) => {
     if (value === null || value === undefined || value === "") {
@@ -248,7 +255,6 @@ const buildProviderEventView = async ({
 }) => {
   const provider = getSkudProvider();
   const endTime = to || new Date().toISOString();
-  const batchLimit = 500;
   const requiredCount = offset + limit;
   const accessPointId =
     accessPoint === undefined || accessPoint === null || accessPoint === ""
@@ -258,41 +264,68 @@ const buildProviderEventView = async ({
     ? [from]
     : getLiveEventWindows().map((durationMs) => new Date(Date.now() - durationMs).toISOString());
 
-  let rawItems = [];
+  const fetchWindowPage = async (startTime, limitValue, offsetValue) => {
+    const result = await provider.getEvents({
+      startTime,
+      endTime,
+      eventType: eventType || undefined,
+      accessPointId,
+      limit: limitValue,
+      offset: offsetValue,
+    });
+    return toProviderItems(result);
+  };
 
-  for (const startTime of windowStartTimes) {
-    let batchOffset = 0;
-    let collectedItems = [];
+  const countWindowItems = async (startTime) => {
+    const firstItem = await fetchWindowPage(startTime, 1, 0);
+    if (!firstItem.length) {
+      return 0;
+    }
 
-    while (true) {
-      const result = await provider.getEvents({
-        startTime,
-        endTime,
-        eventType: eventType || undefined,
-        accessPointId,
-        limit: batchLimit,
-        offset: batchOffset,
-      });
-
-      const items = toProviderItems(result);
-      if (!items.length) {
-        break;
-      }
-
-      collectedItems = collectedItems.concat(items);
-      batchOffset += items.length;
-
-      if (items.length < batchLimit) {
+    let low = 0;
+    let high = 1;
+    while ((await fetchWindowPage(startTime, 1, high)).length) {
+      low = high;
+      high *= 2;
+      if (high > 1_000_000) {
         break;
       }
     }
 
-    rawItems = collectedItems;
+    while (low + 1 < high) {
+      const middle = Math.floor((low + high) / 2);
+      if ((await fetchWindowPage(startTime, 1, middle)).length) {
+        low = middle;
+      } else {
+        high = middle;
+      }
+    }
 
-    if (from || collectedItems.length >= requiredCount) {
+    return low + 1;
+  };
+
+  let selectedWindowStart = windowStartTimes[windowStartTimes.length - 1];
+  let selectedWindowCount = 0;
+
+  for (const startTime of windowStartTimes) {
+    const count = await countWindowItems(startTime);
+    selectedWindowStart = startTime;
+    selectedWindowCount = count;
+
+    if (from || count >= requiredCount) {
       break;
     }
   }
+
+  const rawLimit = getLiveEventRawLimit({
+    limit: requiredCount,
+    direction,
+    allow,
+    departmentId,
+    passageOnly,
+  });
+  const rawOffset = Math.max(0, selectedWindowCount - rawLimit);
+  const rawItems = await fetchWindowPage(selectedWindowStart, rawLimit, rawOffset);
 
   let items = rawItems.map((item) => normalizeProviderEvent(item));
 
