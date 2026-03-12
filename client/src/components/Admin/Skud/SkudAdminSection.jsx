@@ -18,7 +18,6 @@ import {
   Table,
   Tabs,
   Tag,
-  Tree,
   TreeSelect,
   Typography,
   Upload,
@@ -1367,16 +1366,6 @@ const SkudAdminSection = () => {
     [selectedProviderEmployeeId],
   );
 
-  const providerDepartmentMap = useMemo(
-    () =>
-      new Map(
-        (providerDepartments || [])
-          .filter((item) => item?.id)
-          .map((item) => [String(item.id), item]),
-      ),
-    [providerDepartments],
-  );
-
   const providerDepartmentTreeData = useMemo(() => {
     const nodeMap = new Map();
     const roots = [];
@@ -1417,23 +1406,6 @@ const SkudAdminSection = () => {
 
     return sortNodes(roots);
   }, [providerDepartments]);
-
-  const selectedSigurDepartment = useMemo(
-    () =>
-      selectedSigurDepartmentId
-        ? providerDepartmentMap.get(String(selectedSigurDepartmentId)) || null
-        : null,
-    [providerDepartmentMap, selectedSigurDepartmentId],
-  );
-
-  const syncPreviewPath = useMemo(() => {
-    const additionalSegments = normalizeSigurPathSegments(sigurSubfolderInput);
-    const segments = [
-      ...(Array.isArray(selectedSigurDepartment?.path) ? selectedSigurDepartment.path : []),
-      ...additionalSegments,
-    ];
-    return segments;
-  }, [selectedSigurDepartment, sigurSubfolderInput]);
 
   const latestVisibleEventTime = state.events?.items?.[0]?.eventTime || null;
   const hasSkudAuthError = state.health?.authOk === false;
@@ -1603,7 +1575,7 @@ const SkudAdminSection = () => {
                       <Card title="1. Точечные действия по сотруднику">
                         <Space direction="vertical" size={12} style={{ width: "100%" }}>
                           <Text type="secondary">
-                            Здесь можно выбрать сотрудника PassDesk, увидеть дерево папок Sigur, указать конкретную подпапку и отправить сотрудника именно туда. Если выбранной подпапки еще нет, она будет создана во время sync.
+                            Выберите сотрудника и папку Sigur. Если нужна новая подпапка, она будет создана во время sync.
                           </Text>
                           <Select
                             showSearch
@@ -1620,43 +1592,21 @@ const SkudAdminSection = () => {
                           />
                           <TreeSelect
                             allowClear
-                            treeDefaultExpandAll
                             showSearch
-                            placeholder="Папка Sigur (если не выбрать, уйдет в путь по умолчанию)"
+                            treeDefaultExpandAll
+                            placeholder="Выберите папку Sigur"
                             value={selectedSigurDepartmentId || undefined}
                             treeData={providerDepartmentTreeData}
                             onChange={(value) => setSelectedSigurDepartmentId(value || null)}
                             loading={providerDepartmentsLoading}
                             style={{ width: "100%" }}
                             treeNodeFilterProp="title"
+                            dropdownStyle={{ maxHeight: 360, overflow: "auto" }}
                           />
                           <Input
-                            placeholder="Новая подпапка внутри выбранной (можно через / или >)"
+                            placeholder="Новая подпапка внутри выбранной папки (опционально)"
                             value={sigurSubfolderInput}
                             onChange={(event) => setSigurSubfolderInput(event.target.value)}
-                          />
-                          <Card size="small" title="Текущий путь Sync">
-                            <Space direction="vertical" size={6} style={{ width: "100%" }}>
-                              <Text>
-                                {syncPreviewPath.length > 0
-                                  ? syncPreviewPath.join(" / ")
-                                  : "Автоматический путь из настроек и данных сотрудника"}
-                              </Text>
-                              <Text type="secondary">
-                                Текущее дерево Sigur загружается с сервера. Можно выбрать существующую папку или дописать новую подпапку вручную.
-                              </Text>
-                            </Space>
-                          </Card>
-                          <Tree
-                            selectedKeys={
-                              selectedSigurDepartmentId ? [String(selectedSigurDepartmentId)] : []
-                            }
-                            treeData={providerDepartmentTreeData}
-                            onSelect={(selectedKeys) => {
-                              setSelectedSigurDepartmentId(selectedKeys?.[0] || null);
-                            }}
-                            defaultExpandAll
-                            height={280}
                           />
                           <Input
                             placeholder="Причина (опционально)"
