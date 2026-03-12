@@ -3,6 +3,7 @@ import {
   Employee,
   EmployeeCounterpartyMapping,
   Counterparty,
+  SkudPersonBinding,
   SkudAccessEvent,
 } from "../models/index.js";
 import { AppError } from "../middleware/errorHandler.js";
