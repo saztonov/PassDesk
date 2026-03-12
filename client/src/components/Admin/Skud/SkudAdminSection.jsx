@@ -163,6 +163,8 @@ const SkudAdminSection = () => {
   const [providerDepartments, setProviderDepartments] = useState([]);
   const [providerDepartmentsLoading, setProviderDepartmentsLoading] = useState(false);
   const [providerHierarchySearch, setProviderHierarchySearch] = useState("");
+  const [providerHierarchyEmployeesLoading, setProviderHierarchyEmployeesLoading] = useState(false);
+  const [providerHierarchyEmployees, setProviderHierarchyEmployees] = useState([]);
   const [selectedSigurDepartmentId, setSelectedSigurDepartmentId] = useState(null);
   const [sigurSubfolderInput, setSigurSubfolderInput] = useState("");
   const [employeeActionLoading, setEmployeeActionLoading] = useState(false);
@@ -699,6 +701,40 @@ const SkudAdminSection = () => {
     }
   }, [message]);
 
+  const loadProviderHierarchyEmployees = useCallback(async () => {
+    setProviderHierarchyEmployeesLoading(true);
+    try {
+      const limit = 200;
+      let offset = 0;
+      let allItems = [];
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await skudService.getProviderEmployees({ limit, offset });
+        const items = Array.isArray(response?.items) ? response.items : [];
+        allItems = allItems.concat(items);
+
+        if (items.length < limit) {
+          hasMore = false;
+          break;
+        }
+
+        offset += items.length;
+        if (allItems.length >= 5000) {
+          hasMore = false;
+          break;
+        }
+      }
+
+      setProviderHierarchyEmployees(allItems);
+    } catch (error) {
+      console.error("Failed to load Sigur hierarchy employees:", error);
+      message.error("Не удалось загрузить сотрудников Sigur для иерархии");
+    } finally {
+      setProviderHierarchyEmployeesLoading(false);
+    }
+  }, [message]);
+
   const loadEmployeePlacement = useCallback(async () => {
     const employeeId = String(employeeIdInput || "").trim();
     if (!employeeId) {
@@ -785,6 +821,13 @@ const SkudAdminSection = () => {
     }
     loadProviderDepartments();
   }, [activeTab, loadProviderDepartments]);
+
+  useEffect(() => {
+    if (activeTab !== "employees") {
+      return;
+    }
+    loadProviderHierarchyEmployees();
+  }, [activeTab, loadProviderHierarchyEmployees]);
 
   useEffect(() => {
     if (activeTab !== "employees") {
@@ -1457,10 +1500,78 @@ const SkudAdminSection = () => {
     return sortNodes(roots);
   }, [providerDepartments]);
 
-  const filteredProviderDepartmentTreeData = useMemo(() => {
+  const providerHierarchyTreeData = useMemo(() => {
+    const folderNodeMap = new Map();
+    const roots = [];
+
+    for (const item of providerDepartments || []) {
+      if (!item?.id) {
+        continue;
+      }
+
+      folderNodeMap.set(String(item.id), {
+        key: `folder-${item.id}`,
+        title: String(item.name || "—"),
+        searchLabel: String(item.pathLabel || item.name || "").toLowerCase(),
+        selectable: false,
+        children: [],
+      });
+    }
+
+    for (const item of providerDepartments || []) {
+      if (!item?.id) {
+        continue;
+      }
+
+      const node = folderNodeMap.get(String(item.id));
+      const parentId = item?.parentId ? String(item.parentId) : null;
+      if (parentId && folderNodeMap.has(parentId)) {
+        folderNodeMap.get(parentId).children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+
+    for (const employee of providerHierarchyEmployees || []) {
+      const employeeNode = {
+        key: `employee-${employee.id || employee.name}`,
+        title: `${employee.name || "—"}${employee.id ? ` [${employee.id}]` : ""}`,
+        searchLabel: [
+          employee.name || "",
+          employee.id || "",
+          employee.departmentName || "",
+        ]
+          .join(" ")
+          .toLowerCase(),
+        selectable: false,
+        isLeaf: true,
+      };
+
+      const departmentId = employee?.departmentId ? String(employee.departmentId) : null;
+      if (departmentId && folderNodeMap.has(departmentId)) {
+        folderNodeMap.get(departmentId).children.push(employeeNode);
+      } else {
+        roots.push(employeeNode);
+      }
+    }
+
+    const sortNodes = (nodes) => {
+      nodes.sort((left, right) => String(left.title).localeCompare(String(right.title), "ru"));
+      nodes.forEach((node) => {
+        if (Array.isArray(node.children) && node.children.length > 0) {
+          sortNodes(node.children);
+        }
+      });
+      return nodes;
+    };
+
+    return sortNodes(roots);
+  }, [providerDepartments, providerHierarchyEmployees]);
+
+  const filteredProviderHierarchyTreeData = useMemo(() => {
     const search = String(providerHierarchySearch || "").trim().toLowerCase();
     if (!search) {
-      return providerDepartmentTreeData;
+      return providerHierarchyTreeData;
     }
 
     const filterNodes = (nodes) =>
@@ -1479,8 +1590,8 @@ const SkudAdminSection = () => {
         return acc;
       }, []);
 
-    return filterNodes(providerDepartmentTreeData);
-  }, [providerHierarchySearch, providerDepartmentTreeData]);
+    return filterNodes(providerHierarchyTreeData);
+  }, [providerHierarchySearch, providerHierarchyTreeData]);
 
   const providerDepartmentsById = useMemo(
     () =>
@@ -1822,9 +1933,14 @@ const SkudAdminSection = () => {
                           <Button
                             icon={<ReloadOutlined />}
                             onClick={() => {
-                              void loadProviderDepartments();
+                              void Promise.all([
+                                loadProviderDepartments(),
+                                loadProviderHierarchyEmployees(),
+                              ]);
                             }}
-                            loading={providerDepartmentsLoading}
+                            loading={
+                              providerDepartmentsLoading || providerHierarchyEmployeesLoading
+                            }
                           >
                             Обновить
                           </Button>
@@ -1832,15 +1948,15 @@ const SkudAdminSection = () => {
                       >
                         <Space direction="vertical" size={12} style={{ width: "100%" }}>
                           <Text type="secondary">
-                            Полная структура папок Sigur. Здесь можно просто смотреть, куда фактически создаются и переносятся сотрудники.
+                            Полная структура папок Sigur вместе с сотрудниками внутри них.
                           </Text>
                           <Input
-                            placeholder="Поиск по имени папки или пути"
+                            placeholder="Поиск по папке, пути или сотруднику"
                             value={providerHierarchySearch}
                             onChange={(event) => setProviderHierarchySearch(event.target.value)}
                           />
                           <Tree
-                            treeData={filteredProviderDepartmentTreeData}
+                            treeData={filteredProviderHierarchyTreeData}
                             defaultExpandAll
                             height={520}
                           />

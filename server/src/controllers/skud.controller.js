@@ -798,6 +798,10 @@ export const skudController = {
         name: String(item?.name || "").trim() || "—",
         description: String(item?.description || "").trim() || null,
         status: String(item?.status || "").trim() || null,
+        departmentId:
+          item?.departmentId === undefined || item?.departmentId === null
+            ? null
+            : String(item.departmentId),
         departmentName:
           String(item?.departmentName || item?.department_name || "").trim() ||
           null,
