@@ -11,6 +11,9 @@ const DOCUMENT_LABELS = DEFAULT_DOCUMENT_TYPES.reduce((accumulator, item) => {
 }, {});
 
 const getDocumentLabel = (documentType) =>
+  documentType === "employee_card"
+    ? "Карточка сотрудника"
+    :
   DOCUMENT_LABELS[documentType] || documentType || "Документ";
 
 const OcrConflictSummaryNotice = ({ summary }) => {
@@ -29,7 +32,7 @@ const OcrConflictSummaryNotice = ({ summary }) => {
       showIcon
       icon={<WarningOutlined />}
       style={{ marginBottom: 12 }}
-      message="Найдены расхождения в документах"
+      message="Найдены расхождения OCR"
       description={
         <Space direction="vertical" size={6} style={{ width: "100%" }}>
           <Space wrap size={[6, 6]}>

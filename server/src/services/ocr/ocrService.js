@@ -946,6 +946,45 @@ const buildOpenRouterPayload = ({
   return payload;
 };
 
+const buildProviderErrorMeta = (error) => {
+  const upstreamStatus = Number(error?.response?.status) || null;
+  const upstreamData = error?.response?.data || null;
+  const providerMessage =
+    upstreamData?.error?.message ||
+    upstreamData?.message ||
+    error?.message ||
+    "Неизвестная ошибка OCR-провайдера";
+  const errorCode = String(error?.code || "").trim().toUpperCase();
+
+  return {
+    upstreamStatus,
+    upstreamData,
+    providerMessage,
+    errorCode,
+  };
+};
+
+const isTransientProviderFailure = ({
+  upstreamStatus,
+  errorCode,
+}) => {
+  if (
+    errorCode === "ECONNABORTED" ||
+    errorCode === "ETIMEDOUT" ||
+    errorCode === "ECONNRESET"
+  ) {
+    return true;
+  }
+
+  return (
+    upstreamStatus === 408 ||
+    upstreamStatus === 409 ||
+    upstreamStatus === 425 ||
+    upstreamStatus === 429 ||
+    upstreamStatus >= 500
+  );
+};
+
 const postOpenRouterPayload = async ({
   config,
   payload,
@@ -958,16 +997,28 @@ const postOpenRouterPayload = async ({
       timeout: config.timeoutMs,
     });
   } catch (error) {
-    const status = error?.response?.status;
-    const providerMessage =
-      error?.response?.data?.error?.message ||
-      error?.response?.data?.message ||
-      error.message;
+    const { upstreamStatus, providerMessage, errorCode } =
+      buildProviderErrorMeta(error);
+    const transient = isTransientProviderFailure({
+      upstreamStatus,
+      errorCode,
+    });
 
-    throw new AppError(
-      `Ошибка ${errorLabel} провайдера${status ? ` (${status})` : ""}: ${providerMessage}`,
-      502,
+    let message = `Ошибка ${errorLabel} провайдера`;
+    if (upstreamStatus) {
+      message += ` (${upstreamStatus})`;
+    }
+    message += `: ${providerMessage}`;
+
+    const appError = new AppError(
+      message,
+      transient ? 503 : 502,
     );
+    appError.upstreamStatus = upstreamStatus;
+    appError.providerMessage = providerMessage;
+    appError.providerErrorCode = errorCode || null;
+    appError.isTransientProviderFailure = transient;
+    throw appError;
   }
 };
 
@@ -1123,6 +1174,7 @@ export const recognizeDocument = async ({
 
   let lastEmptyResponseMeta = null;
   let lastNoDataMeta = null;
+  let lastProviderError = null;
 
   for (const attempt of attempts) {
     const payload = buildOpenRouterPayload({
@@ -1133,12 +1185,33 @@ export const recognizeDocument = async ({
       maxTokens: attempt.enforceJson ? 1500 : 1800,
     });
 
-    const response = await postOpenRouterPayload({
-      config,
-      payload,
-      headers,
-      errorLabel: "OCR",
-    });
+    let response;
+    try {
+      response = await postOpenRouterPayload({
+        config,
+        payload,
+        headers,
+        errorLabel: "OCR",
+      });
+    } catch (error) {
+      lastProviderError = {
+        documentType: normalizedDocumentType,
+        model: attempt.model,
+        attempt: attempt.label,
+        provider: config.provider,
+        message: error?.message || "Ошибка OCR провайдера",
+        upstreamStatus: error?.upstreamStatus || null,
+        providerErrorCode: error?.providerErrorCode || null,
+        isTransientProviderFailure: Boolean(error?.isTransientProviderFailure),
+      };
+      console.warn("[ocr] provider request failed", lastProviderError);
+
+      if (error?.isTransientProviderFailure) {
+        continue;
+      }
+
+      throw error;
+    }
 
     const content = extractResponseContent(response.data);
     if (!String(content || "").trim()) {
@@ -1188,6 +1261,13 @@ export const recognizeDocument = async ({
     throw new AppError(
       "OCR провайдер вернул пустой ответ. Попробуйте еще раз или загрузите более четкое фото.",
       502,
+    );
+  }
+
+  if (lastProviderError) {
+    throw new AppError(
+      "OCR провайдер временно недоступен. Попробуйте еще раз через минуту.",
+      503,
     );
   }
 

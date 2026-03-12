@@ -124,7 +124,7 @@ export const useEmployeeOcrHandlers = ({
         }
 
         const currentValues = form.getFieldsValue(true);
-        const { autoFillPatch } = buildOcrApplyPlan({
+        const { autoFillPatch, conflicts } = buildOcrApplyPlan({
           currentValues,
           ocrPatch: formPatch,
         });
@@ -155,9 +155,18 @@ export const useEmployeeOcrHandlers = ({
               documentType: ocrDocumentType,
               normalized,
             },
-            conflicts: [],
+            conflicts: Object.values(conflicts || {}),
           });
-          await refreshConflictSummary(employeeId);
+          const summary = await refreshConflictSummary(employeeId);
+          if (summary?.hasConflicts) {
+            messageApi?.warning?.(
+              `OCR: найдены расхождения (${summary.conflictsCount})`,
+            );
+          } else {
+            messageApi?.info?.(
+              "OCR сохранен. Расхождений не найдено.",
+            );
+          }
         } catch (confirmError) {
           console.error("Failed to confirm OCR metadata:", confirmError);
         }

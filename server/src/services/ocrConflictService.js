@@ -27,6 +27,9 @@ const DOCUMENT_TYPE_LABELS = {
   kig: "КИГ",
 };
 
+const EMPLOYEE_CARD_SOURCE = "employee_card";
+const EMPLOYEE_CARD_LABEL = "Карточка сотрудника";
+
 const getEmployeeFullName = (employee) =>
   [employee?.lastName, employee?.firstName, employee?.middleName]
     .filter(Boolean)
@@ -103,6 +106,9 @@ const parseOcrResultPayload = (value) => {
 
   return null;
 };
+
+const toDocumentLabel = (documentType) =>
+  DOCUMENT_TYPE_LABELS[documentType] || documentType || "Документ";
 
 const getNormalizedOcrResult = (file) => {
   const payload = parseOcrResultPayload(file?.ocrResultJson);
@@ -184,7 +190,7 @@ const buildFioSourcesByEmployee = (files = []) => {
     const nextSource = {
       sourceKey,
       documentType: file.documentType,
-      documentLabel: DOCUMENT_TYPE_LABELS[file.documentType] || file.documentType || "Документ",
+      documentLabel: toDocumentLabel(file.documentType),
       fileId: file.id,
       fileName: file.originalName || file.fileName || "—",
       createdAt: file.ocrVerifiedAt || file.createdAt || null,
@@ -408,6 +414,152 @@ export const saveEmployeeOcrConflicts = async ({
   };
 };
 
+const listStoredEmployeeOcrConflicts = async ({
+  status = "open",
+  employeeId = null,
+}) => {
+  const rows = await EmployeeOcrConflict.findAll({
+    where: {
+      ...(employeeId ? { employeeId } : {}),
+      ...(status ? { status } : {}),
+    },
+    include: [
+      {
+        model: Employee,
+        as: "employee",
+        required: true,
+        attributes: ["id", "firstName", "lastName", "middleName"],
+        include: [
+          {
+            model: EmployeeCounterpartyMapping,
+            as: "employeeCounterpartyMappings",
+            required: false,
+            attributes: ["id", "counterpartyId"],
+            include: [
+              {
+                model: Counterparty,
+                as: "counterparty",
+                attributes: ["id", "name"],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        model: File,
+        as: "file",
+        required: false,
+        attributes: ["id", "fileName", "originalName", "documentType"],
+      },
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    type: "employee_vs_ocr",
+    status: row.status,
+    fieldName: row.fieldName,
+    fieldLabel: row.fieldLabel,
+    createdAt: row.createdAt,
+    employee: row.employee
+      ? {
+          id: row.employee.id,
+          fullName: getEmployeeFullName(row.employee),
+          counterpartyName: getCounterpartyName(row.employee),
+        }
+      : null,
+    sources: [
+      {
+        sourceType: EMPLOYEE_CARD_SOURCE,
+        documentType: EMPLOYEE_CARD_SOURCE,
+        documentLabel: EMPLOYEE_CARD_LABEL,
+        fileId: null,
+        fileName: null,
+        createdAt: row.createdAt,
+        value: row.currentValue,
+      },
+      {
+        sourceType: "ocr_document",
+        documentType: row.documentType || row.file?.documentType || "unknown",
+        documentLabel: toDocumentLabel(
+          row.documentType || row.file?.documentType || "unknown",
+        ),
+        fileId: row.fileId || row.file?.id || null,
+        fileName: row.file?.originalName || row.file?.fileName || "—",
+        createdAt: row.createdAt,
+        value: row.ocrValue,
+      },
+    ],
+  }));
+};
+
+const buildInterdocumentConflictItems = ({
+  employeeId = null,
+  files = [],
+}) => {
+  const employeeSources = buildFioSourcesByEmployee(files);
+  const items = [];
+
+  employeeSources.forEach(({ employee, sources }, groupedEmployeeId) => {
+    if (employeeId && groupedEmployeeId !== employeeId) {
+      return;
+    }
+
+    const resolvedSources = [...sources.values()];
+
+    FIO_FIELDS.forEach(({ fieldName, fieldLabel }) => {
+      const sourceValues = resolvedSources
+        .map((source) => ({
+          documentType: source.documentType,
+          documentLabel: source.documentLabel,
+          fileId: source.fileId,
+          fileName: source.fileName,
+          createdAt: source.createdAt,
+          value: source.values[fieldName] || "",
+          normalizedValue: normalizeComparableText(source.values[fieldName]),
+        }))
+        .filter((source) => source.normalizedValue);
+
+      if (sourceValues.length < 2) {
+        return;
+      }
+
+      const distinctValues = [...new Set(sourceValues.map((item) => item.normalizedValue))];
+      if (distinctValues.length < 2) {
+        return;
+      }
+
+      const createdAt = sourceValues.reduce((latest, item) => {
+        if (!latest || getTimestampValue(item.createdAt) > getTimestampValue(latest)) {
+          return item.createdAt;
+        }
+        return latest;
+      }, null);
+
+      items.push({
+        id: `${groupedEmployeeId}:${fieldName}:documents`,
+        type: "interdocument",
+        status: "open",
+        fieldName,
+        fieldLabel,
+        createdAt,
+        employee,
+        sources: sourceValues.map((item) => ({
+          documentType: item.documentType,
+          documentLabel: item.documentLabel,
+          fileId: item.fileId,
+          fileName: item.fileName,
+          createdAt: item.createdAt,
+          value: item.value,
+        })),
+      });
+    });
+  });
+
+  return items;
+};
+
 export const getEmployeeOcrConflictSummary = async (employeeId) => {
   const conflicts = await listEmployeeOcrConflicts({
     employeeId,
@@ -449,9 +601,15 @@ export const listEmployeeOcrConflicts = async ({
   page = 1,
   limit = 50,
 }) => {
+  const status = normalizeString(_status) || "open";
   const normalizedPage = Math.max(Number(page) || 1, 1);
   const normalizedLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
   const offset = (normalizedPage - 1) * normalizedLimit;
+
+  const storedConflicts = await listStoredEmployeeOcrConflicts({
+    status,
+    employeeId,
+  });
 
   const files = await File.findAll({
     where: {
@@ -506,59 +664,15 @@ export const listEmployeeOcrConflicts = async ({
     ],
   });
 
-  const employeeSources = buildFioSourcesByEmployee(files);
-  const items = [];
+  const interdocumentItems =
+    status === "open"
+      ? buildInterdocumentConflictItems({
+          employeeId,
+          files,
+        })
+      : [];
 
-  employeeSources.forEach(({ employee, sources }, employeeId) => {
-    const resolvedSources = [...sources.values()];
-
-    FIO_FIELDS.forEach(({ fieldName, fieldLabel }) => {
-      const sourceValues = resolvedSources
-        .map((source) => ({
-          documentType: source.documentType,
-          documentLabel: source.documentLabel,
-          fileId: source.fileId,
-          fileName: source.fileName,
-          createdAt: source.createdAt,
-          value: source.values[fieldName] || "",
-          normalizedValue: normalizeComparableText(source.values[fieldName]),
-        }))
-        .filter((source) => source.normalizedValue);
-
-      if (sourceValues.length < 2) {
-        return;
-      }
-
-      const distinctValues = [...new Set(sourceValues.map((item) => item.normalizedValue))];
-      if (distinctValues.length < 2) {
-        return;
-      }
-
-      const createdAt = sourceValues.reduce((latest, item) => {
-        if (!latest || getTimestampValue(item.createdAt) > getTimestampValue(latest)) {
-          return item.createdAt;
-        }
-        return latest;
-      }, null);
-
-      items.push({
-        id: `${employeeId}:${fieldName}`,
-        status: "open",
-        fieldName,
-        fieldLabel,
-        createdAt,
-        employee,
-        sources: sourceValues.map((item) => ({
-          documentType: item.documentType,
-          documentLabel: item.documentLabel,
-          fileId: item.fileId,
-          fileName: item.fileName,
-          createdAt: item.createdAt,
-          value: item.value,
-        })),
-      });
-    });
-  });
+  const items = [...storedConflicts, ...interdocumentItems];
 
   const sortedItems = items.sort(
     (left, right) =>

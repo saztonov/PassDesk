@@ -21,6 +21,9 @@ const DOCUMENT_LABELS = DEFAULT_DOCUMENT_TYPES.reduce((accumulator, item) => {
 }, {});
 
 const getDocumentLabel = (documentType) =>
+  documentType === "employee_card"
+    ? "Карточка сотрудника"
+    :
   DOCUMENT_LABELS[documentType] || documentType || "Документ";
 
 const toResponseData = (response) => response?.data || response || {};
@@ -45,10 +48,83 @@ const buildValuePreview = (sources = []) => {
   return `${uniqueValues.slice(0, 2).join(" / ")} ...`;
 };
 
+const buildSourcesSignature = (sources = []) =>
+  sources
+    .map((source) => `${source.documentType || "unknown"}:${source.fileId || "none"}`)
+    .sort()
+    .join("|");
+
+const buildFieldPreview = (fields = []) => {
+  const labels = [...new Set(fields.map((item) => item.fieldLabel).filter(Boolean))];
+
+  if (labels.length <= 2) {
+    return labels.join(", ");
+  }
+
+  return `${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
+};
+
+const buildGroupedValuePreview = (fields = []) => {
+  const previews = fields
+    .slice(0, 2)
+    .map((item) => `${item.fieldLabel}: ${buildValuePreview(item.sources || [])}`);
+
+  if (fields.length <= 2) {
+    return previews.join(" | ");
+  }
+
+  return `${previews.join(" | ")} | еще ${fields.length - 2}`;
+};
+
+const groupConflictItems = (items = []) => {
+  const grouped = new Map();
+
+  items.forEach((item) => {
+    const employeeId = item.employee?.id || "unknown-employee";
+    const signature = [
+      item.type || "unknown",
+      employeeId,
+      buildSourcesSignature(item.sources || []),
+    ].join("::");
+
+    const existing = grouped.get(signature);
+    const fieldEntry = {
+      id: item.id,
+      type: item.type,
+      fieldName: item.fieldName,
+      fieldLabel: item.fieldLabel,
+      createdAt: item.createdAt,
+      sources: item.sources || [],
+    };
+
+    if (existing) {
+      existing.fields.push(fieldEntry);
+      if (dayjs(item.createdAt).isAfter(dayjs(existing.createdAt))) {
+        existing.createdAt = item.createdAt;
+      }
+      return;
+    }
+
+    grouped.set(signature, {
+      id: signature,
+      type: item.type,
+      createdAt: item.createdAt,
+      employee: item.employee,
+      sources: item.sources || [],
+      fields: [fieldEntry],
+    });
+  });
+
+  return [...grouped.values()].sort(
+    (left, right) => dayjs(right.createdAt).valueOf() - dayjs(left.createdAt).valueOf(),
+  );
+};
+
 const OcrConflictsAdminSection = () => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [drawerRecord, setDrawerRecord] = useState(null);
+  const [actionLoadingKey, setActionLoadingKey] = useState(null);
   const [tableState, setTableState] = useState({
     items: [],
     pagination: {
@@ -68,8 +144,11 @@ const OcrConflictsAdminSection = () => {
           limit,
         });
         const payload = toResponseData(response);
+        const groupedItems = groupConflictItems(
+          Array.isArray(payload.items) ? payload.items : [],
+        );
         setTableState({
-          items: Array.isArray(payload.items) ? payload.items : [],
+          items: groupedItems,
           pagination: payload.pagination || {
             page,
             limit,
@@ -90,6 +169,105 @@ const OcrConflictsAdminSection = () => {
   useEffect(() => {
     loadData({ page: 1 });
   }, [loadData]);
+
+  const updateDrawerAfterResolve = useCallback((resolvedFieldIds = []) => {
+    if (!Array.isArray(resolvedFieldIds) || resolvedFieldIds.length === 0) {
+      return;
+    }
+
+    setDrawerRecord((prev) => {
+      if (!prev) {
+        return prev;
+      }
+
+      const remainingFields = (prev.fields || []).filter(
+        (field) => !resolvedFieldIds.includes(field.id),
+      );
+
+      if (remainingFields.length === 0) {
+        return null;
+      }
+
+      return {
+        ...prev,
+        fields: remainingFields,
+      };
+    });
+  }, []);
+
+  const handleFieldResolution = useCallback(
+    async (field, action) => {
+      if (!field?.id || field.type !== "employee_vs_ocr") {
+        return;
+      }
+
+      const loadingKey = `${action}:${field.id}`;
+      setActionLoadingKey(loadingKey);
+      try {
+        if (action === "apply") {
+          await ocrService.applyConflict(field.id);
+          message.success("Значение OCR применено");
+        } else {
+          await ocrService.resolveConflict(field.id);
+          message.success("Оставили значение карточки");
+        }
+
+        updateDrawerAfterResolve([field.id]);
+        await loadData({
+          page: tableState.pagination.page,
+          limit: tableState.pagination.limit,
+        });
+      } catch (error) {
+        console.error("Failed to resolve OCR conflict:", error);
+        message.error("Не удалось обработать OCR-расхождение");
+      } finally {
+        setActionLoadingKey(null);
+      }
+    },
+    [
+      loadData,
+      message,
+      tableState.pagination.limit,
+      tableState.pagination.page,
+      updateDrawerAfterResolve,
+    ],
+  );
+
+  const handleBulkResolution = useCallback(
+    async (action) => {
+      const eligibleFields = (drawerRecord?.fields || []).filter(
+        (field) => field.type === "employee_vs_ocr" && field.id,
+      );
+
+      if (eligibleFields.length === 0) {
+        return;
+      }
+
+      const loadingKey = action === "apply" ? "bulk-apply" : "bulk-resolve";
+      setActionLoadingKey(loadingKey);
+      try {
+        if (action === "apply") {
+          await Promise.all(eligibleFields.map((field) => ocrService.applyConflict(field.id)));
+          message.success("Все OCR-значения применены");
+        } else {
+          await Promise.all(eligibleFields.map((field) => ocrService.resolveConflict(field.id)));
+          message.success("Все значения карточки сохранены");
+        }
+
+        setDrawerRecord(null);
+        await loadData({
+          page: tableState.pagination.page,
+          limit: tableState.pagination.limit,
+        });
+      } catch (error) {
+        console.error("Failed to resolve OCR conflicts in bulk:", error);
+        message.error("Не удалось обработать все OCR-расхождения");
+      } finally {
+        setActionLoadingKey(null);
+      }
+    },
+    [drawerRecord, loadData, message, tableState.pagination.limit, tableState.pagination.page],
+  );
 
   const columns = useMemo(
     () => [
@@ -114,11 +292,17 @@ const OcrConflictsAdminSection = () => {
         ),
       },
       {
-        title: "Поле",
-        dataIndex: "fieldLabel",
-        key: "fieldLabel",
-        width: 150,
-        render: (value) => <Text strong>{value || "—"}</Text>,
+        title: "Поля",
+        key: "fields",
+        width: 220,
+        render: (_, record) => (
+          <Space direction="vertical" size={0}>
+            <Text strong>{buildFieldPreview(record.fields || []) || "—"}</Text>
+            <Text type="secondary">
+              {`Расхождений: ${(record.fields || []).length}`}
+            </Text>
+          </Space>
+        ),
       },
       {
         title: "Документы",
@@ -137,7 +321,7 @@ const OcrConflictsAdminSection = () => {
       {
         title: "Значения",
         key: "values",
-        render: (_, record) => buildValuePreview(record.sources || []),
+        render: (_, record) => buildGroupedValuePreview(record.fields || []),
       },
       {
         title: "Подробно",
@@ -159,8 +343,9 @@ const OcrConflictsAdminSection = () => {
         <Space direction="vertical" size={0}>
           <Text strong>Проверка ФИО по OCR-документам</Text>
           <Text type="secondary">
-            Таблица показывает расхождения ФИО между паспортом, переводом,
-            ИНН, СНИЛС, КИГ, патентом и банковскими реквизитами.
+            Таблица показывает расхождения OCR с карточкой сотрудника и между
+            документами: паспорт, перевод, ИНН, СНИЛС, КИГ, патент, банковские
+            реквизиты.
           </Text>
         </Space>
         <Button icon={<ReloadOutlined />} onClick={() => loadData()}>
@@ -173,6 +358,10 @@ const OcrConflictsAdminSection = () => {
         loading={loading}
         columns={columns}
         dataSource={tableState.items}
+        locale={{
+          emptyText:
+            "OCR-расхождений пока нет: ни с карточкой сотрудника, ни между документами.",
+        }}
         pagination={{
           current: tableState.pagination.page,
           pageSize: tableState.pagination.limit,
@@ -205,7 +394,9 @@ const OcrConflictsAdminSection = () => {
             </Space>
 
             <Space wrap>
-              <Tag color="orange">{drawerRecord.fieldLabel || "—"}</Tag>
+              <Tag color="orange">
+                {`Полей с расхождениями: ${(drawerRecord.fields || []).length}`}
+              </Tag>
               <Tag>{(drawerRecord.sources || []).length} источника(ов)</Tag>
             </Space>
 
@@ -214,9 +405,9 @@ const OcrConflictsAdminSection = () => {
             </Text>
 
             <Space direction="vertical" size={12} style={{ width: "100%" }}>
-              {(drawerRecord.sources || []).map((source) => (
+              {(drawerRecord.fields || []).map((field) => (
                 <div
-                  key={`${drawerRecord.id}-${source.fileId || source.documentType}`}
+                  key={`${drawerRecord.id}-${field.id}`}
                   style={{
                     padding: 12,
                     border: "1px solid #f0f0f0",
@@ -225,26 +416,88 @@ const OcrConflictsAdminSection = () => {
                   }}
                 >
                   <Space direction="vertical" size={6} style={{ width: "100%" }}>
-                    <Space wrap>
-                      <Tag color="gold">{getDocumentLabel(source.documentType)}</Tag>
-                      <Text type="secondary">{source.fileName || "—"}</Text>
+                    <Space
+                      style={{ width: "100%", justifyContent: "space-between" }}
+                      wrap
+                    >
+                      <Text strong>{field.fieldLabel || "—"}</Text>
+                      {field.type === "employee_vs_ocr" ? (
+                        <Space>
+                          <Button
+                            size="small"
+                            loading={actionLoadingKey === `resolve:${field.id}`}
+                            onClick={() => handleFieldResolution(field, "resolve")}
+                          >
+                            Оставить карточку
+                          </Button>
+                          <Button
+                            size="small"
+                            type="primary"
+                            loading={actionLoadingKey === `apply:${field.id}`}
+                            onClick={() => handleFieldResolution(field, "apply")}
+                          >
+                            Принять OCR
+                          </Button>
+                        </Space>
+                      ) : (
+                        <Tag>Только уведомление</Tag>
+                      )}
                     </Space>
-                    <div>
-                      <Text type="secondary">Значение в документе</Text>
-                      <div>{formatValue(source.value)}</div>
-                    </div>
-                    <Text type="secondary">
-                      OCR подтвержден: {formatDateTime(source.createdAt)}
-                    </Text>
+                    {(field.sources || []).map((source) => (
+                      <div
+                        key={`${field.id}-${source.fileId || source.documentType}`}
+                        style={{
+                          padding: 10,
+                          border: "1px solid #f0f0f0",
+                          borderRadius: 8,
+                          background: "#fff",
+                        }}
+                      >
+                        <Space direction="vertical" size={6} style={{ width: "100%" }}>
+                          <Space wrap>
+                            <Tag color="gold">{getDocumentLabel(source.documentType)}</Tag>
+                            <Text type="secondary">{source.fileName || "—"}</Text>
+                          </Space>
+                          <div>
+                            <Text type="secondary">Значение</Text>
+                            <div>{formatValue(source.value)}</div>
+                          </div>
+                          <Text type="secondary">
+                            OCR подтвержден: {formatDateTime(source.createdAt)}
+                          </Text>
+                        </Space>
+                      </div>
+                    ))}
                   </Space>
                 </div>
               ))}
             </Space>
 
-            <Text type="secondary">
-              Это уведомление: исправление ФИО должно происходить в карточке
-              сотрудника и/или в самих документах, а не через принятие OCR здесь.
-            </Text>
+            {drawerRecord.type === "employee_vs_ocr" ? (
+              <Space
+                style={{ width: "100%", justifyContent: "flex-end" }}
+                wrap
+              >
+                <Button
+                  loading={actionLoadingKey === "bulk-resolve"}
+                  onClick={() => handleBulkResolution("resolve")}
+                >
+                  Оставить карточку для всех
+                </Button>
+                <Button
+                  type="primary"
+                  loading={actionLoadingKey === "bulk-apply"}
+                  onClick={() => handleBulkResolution("apply")}
+                >
+                  Принять OCR для всех
+                </Button>
+              </Space>
+            ) : (
+              <Text type="secondary">
+                Это уведомление: исправление ФИО должно происходить в карточке
+                сотрудника и/или в самих документах, а не через принятие OCR здесь.
+              </Text>
+            )}
           </Space>
         ) : null}
       </Drawer>
