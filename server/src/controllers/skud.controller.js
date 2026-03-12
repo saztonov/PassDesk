@@ -166,6 +166,15 @@ const getDefaultSkudPullFrom = () => {
   return date.toISOString();
 };
 
+const getLiveEventWindows = () => [
+  60 * 60 * 1000,
+  6 * 60 * 60 * 1000,
+  24 * 60 * 60 * 1000,
+  3 * 24 * 60 * 60 * 1000,
+  7 * 24 * 60 * 60 * 1000,
+  30 * 24 * 60 * 60 * 1000,
+];
+
 const normalizeProviderEvent = (item) => {
   const toNullableInt = (value) => {
     if (value === null || value === undefined || value === "") {
@@ -238,34 +247,49 @@ const buildProviderEventView = async ({
   offset = 0,
 }) => {
   const provider = getSkudProvider();
-  const startTime = from || getDefaultSkudPullFrom();
   const endTime = to || new Date().toISOString();
   const batchLimit = 500;
-  let batchOffset = 0;
+  const requiredCount = offset + limit;
+  const accessPointId =
+    accessPoint === undefined || accessPoint === null || accessPoint === ""
+      ? undefined
+      : Number.parseInt(String(accessPoint), 10);
+  const windowStartTimes = from
+    ? [from]
+    : getLiveEventWindows().map((durationMs) => new Date(Date.now() - durationMs).toISOString());
+
   let rawItems = [];
 
-  while (true) {
-    const result = await provider.getEvents({
-      startTime,
-      endTime,
-      eventType: eventType || undefined,
-      accessPointId:
-        accessPoint === undefined || accessPoint === null || accessPoint === ""
-          ? undefined
-          : Number.parseInt(String(accessPoint), 10),
-      limit: batchLimit,
-      offset: batchOffset,
-    });
+  for (const startTime of windowStartTimes) {
+    let batchOffset = 0;
+    let collectedItems = [];
 
-    const items = toProviderItems(result);
-    if (!items.length) {
-      break;
+    while (true) {
+      const result = await provider.getEvents({
+        startTime,
+        endTime,
+        eventType: eventType || undefined,
+        accessPointId,
+        limit: batchLimit,
+        offset: batchOffset,
+      });
+
+      const items = toProviderItems(result);
+      if (!items.length) {
+        break;
+      }
+
+      collectedItems = collectedItems.concat(items);
+      batchOffset += items.length;
+
+      if (items.length < batchLimit) {
+        break;
+      }
     }
 
-    rawItems = rawItems.concat(items);
-    batchOffset += items.length;
+    rawItems = collectedItems;
 
-    if (items.length < batchLimit) {
+    if (from || collectedItems.length >= requiredCount) {
       break;
     }
   }
