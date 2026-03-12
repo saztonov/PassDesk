@@ -6,10 +6,13 @@ import {
   Card,
   Col,
   DatePicker,
+  Descriptions,
+  Drawer,
   Input,
   Row,
   Select,
   Space,
+  Spin,
   Statistic,
   Switch,
   Table,
@@ -105,6 +108,15 @@ const getZoneName = (record) => {
   return value ? String(value).trim() : "";
 };
 
+const getEventTypeLabel = (value) => EVENT_TYPE_LABELS[value] || value || "—";
+
+const getEventRowKey = (record) =>
+  record?.id
+  || record?.logId
+  || [record?.eventTime, record?.externalEmpId, record?.accessPoint, record?.direction]
+    .filter(Boolean)
+    .join(":");
+
 const buildEmployeeName = (employee) =>
   [employee?.lastName, employee?.firstName, employee?.middleName]
     .filter(Boolean)
@@ -179,6 +191,10 @@ const SkudAdminSection = () => {
   const [eventDateRange, setEventDateRange] = useState(getTodayEventRange);
   const [eventsPage, setEventsPage] = useState(1);
   const [eventsPageSize, setEventsPageSize] = useState(20);
+  const [eventDetailsOpen, setEventDetailsOpen] = useState(false);
+  const [eventDetailsLoading, setEventDetailsLoading] = useState(false);
+  const [eventDetailsRecord, setEventDetailsRecord] = useState(null);
+  const [eventDetailsLocalEmployee, setEventDetailsLocalEmployee] = useState(null);
   const cardNumberInputRef = useRef(null);
   const eventsAutoRefreshRef = useRef(false);
   const [state, setState] = useState({
@@ -284,6 +300,43 @@ const SkudAdminSection = () => {
 
     setEventsPage(nextPage);
   }, [eventsPageSize]);
+
+  const handleCloseEventDetails = useCallback(() => {
+    setEventDetailsOpen(false);
+    setEventDetailsLoading(false);
+    setEventDetailsRecord(null);
+    setEventDetailsLocalEmployee(null);
+  }, []);
+
+  const handleOpenEventDetails = useCallback(async (record) => {
+    setEventDetailsRecord(record || null);
+    setEventDetailsLocalEmployee(null);
+    setEventDetailsOpen(true);
+
+    const externalEmpId = String(record?.externalEmpId || "").trim();
+    if (!externalEmpId) {
+      setEventDetailsLoading(false);
+      return;
+    }
+
+    setEventDetailsLoading(true);
+    try {
+      const data = await skudService.getLocalEmployees({
+        limit: 20,
+        offset: 0,
+        search: externalEmpId,
+      });
+      const matchedEmployee = (data?.items || []).find(
+        (item) => String(item?.binding?.externalEmpId || "").trim() === externalEmpId,
+      );
+      setEventDetailsLocalEmployee(matchedEmployee || null);
+    } catch (error) {
+      console.error("Failed to load event details employee binding:", error);
+      message.error("Не удалось догрузить карточку сотрудника");
+    } finally {
+      setEventDetailsLoading(false);
+    }
+  }, [message]);
 
   const handleSyncEmployee = useCallback(async () => {
     const employeeId = String(employeeIdInput || "").trim();
@@ -510,7 +563,7 @@ const SkudAdminSection = () => {
         setPullingEvents(false);
       }
     },
-    [eventDateRange, loadData, message],
+    [loadData, message],
   );
 
   const handleRefreshEvents = useCallback(async () => {
@@ -861,19 +914,25 @@ const SkudAdminSection = () => {
         render: (_, record) => {
           const sigurName = getSigurPersonName(record);
           const ext = record.externalEmpId ? `ID ${record.externalEmpId}` : "—";
+          const triggerLabel = sigurName || ext;
 
-          if (sigurName) {
-            return (
-              <Space direction="vertical" size={0}>
-                <Text>{sigurName}</Text>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Sigur: {ext}
-                </Text>
-              </Space>
-            );
-          }
-
-          return ext;
+          return (
+            <Space direction="vertical" size={0}>
+              <Button
+                type="link"
+                size="small"
+                style={{ padding: 0, height: "auto", textAlign: "left" }}
+                onClick={() => {
+                  void handleOpenEventDetails(record);
+                }}
+              >
+                {triggerLabel}
+              </Button>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Sigur: {ext}
+              </Text>
+            </Space>
+          );
         },
       },
       {
@@ -910,7 +969,7 @@ const SkudAdminSection = () => {
         dataIndex: "eventType",
         key: "eventType",
         width: 180,
-        render: (value) => EVENT_TYPE_LABELS[value] || value || "—",
+        render: (value) => getEventTypeLabel(value),
       },
       {
         title: "Напр.",
@@ -951,7 +1010,7 @@ const SkudAdminSection = () => {
         render: (value) => value || "—",
       },
     ],
-    [],
+    [handleOpenEventDetails],
   );
 
   const eventTypeOptions = useMemo(() => {
@@ -1275,6 +1334,10 @@ const SkudAdminSection = () => {
   const latestVisibleEventTime = state.events?.items?.[0]?.eventTime || null;
   const hasSkudAuthError = state.health?.authOk === false;
   const lastSyncAt = state.health?.lastSyncAt || null;
+  const eventDetailsRawItem = getRawEventItem(eventDetailsRecord);
+  const eventDetailsLocalEmployeeName = eventDetailsLocalEmployee?.fullName || null;
+  const eventDetailsExternalEmpId = eventDetailsRecord?.externalEmpId || null;
+  const eventDetailsLocalEmployeeId = eventDetailsLocalEmployee?.id || null;
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%", padding: 16 }}>
@@ -1368,7 +1431,7 @@ const SkudAdminSection = () => {
 
                 <Card title="Журнал событий">
                   <Table
-                    rowKey="id"
+                    rowKey={getEventRowKey}
                     columns={eventsColumns}
                     dataSource={state.events?.items || []}
                     loading={loading}
@@ -1941,6 +2004,83 @@ const SkudAdminSection = () => {
           },
         ]}
       />
+
+      <Drawer
+        title="Детали события"
+        open={eventDetailsOpen}
+        onClose={handleCloseEventDetails}
+        width={560}
+        destroyOnClose
+      >
+        {eventDetailsRecord ? (
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+            <Spin spinning={eventDetailsLoading}>
+              <Descriptions bordered column={1} size="small">
+                <Descriptions.Item label="Время">
+                  {eventDetailsRecord?.eventTime
+                    ? dayjs(eventDetailsRecord.eventTime).format("DD.MM.YYYY HH:mm:ss")
+                    : "—"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Сотрудник PassDesk">
+                  {eventDetailsLocalEmployeeName ? (
+                    <Space direction="vertical" size={0}>
+                      <Text>{eventDetailsLocalEmployeeName}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        employeeId: {eventDetailsLocalEmployeeId}
+                      </Text>
+                    </Space>
+                  ) : (
+                    "Не найден по локальной привязке"
+                  )}
+                </Descriptions.Item>
+                <Descriptions.Item label="Sigur ID сотрудника">
+                  {eventDetailsExternalEmpId || "—"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Точка прохода">
+                  {getAccessPointName(eventDetailsRecord)
+                    || (eventDetailsRecord?.accessPoint
+                      ? `#${eventDetailsRecord.accessPoint}`
+                      : "—")}
+                </Descriptions.Item>
+                <Descriptions.Item label="Зона">
+                  {getZoneName(eventDetailsRecord) || "—"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Тип события">
+                  {getEventTypeLabel(eventDetailsRecord?.eventType)}
+                </Descriptions.Item>
+                <Descriptions.Item label="Направление">
+                  {eventDetailsRecord?.direction === 1
+                    ? "Вход"
+                    : eventDetailsRecord?.direction === 2
+                      ? "Выход"
+                      : "—"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Причина">
+                  {getPassReason(eventDetailsRecord) || "—"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Карта">
+                  {getCardKey(eventDetailsRecord) || "—"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Сообщение">
+                  {eventDetailsRecord?.decisionMessage || "—"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Источник">
+                  {eventDetailsRecord?.source || "—"}
+                </Descriptions.Item>
+              </Descriptions>
+            </Spin>
+
+            <Space direction="vertical" size={8} style={{ width: "100%" }}>
+              <Text strong>Raw Sigur payload</Text>
+              <TextArea
+                value={JSON.stringify(eventDetailsRawItem, null, 2)}
+                rows={14}
+                readOnly
+              />
+            </Space>
+          </Space>
+        ) : null}
+      </Drawer>
     </Space>
   );
 };
