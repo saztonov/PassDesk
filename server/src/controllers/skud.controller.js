@@ -777,10 +777,12 @@ export const skudController = {
       ensureSkudModuleEnabled();
       const provider = getSkudProvider();
       const { limit, offset } = parsePagination(req.query);
-      const search = String(req.query.search || "")
-        .trim()
-        .toLowerCase();
+      const search = String(req.query.search || "").trim();
       const departmentId = String(req.query.departmentId || "").trim();
+      const providerFilters = {
+        ...(departmentId ? { departmentId } : {}),
+        ...(search ? { name: search } : {}),
+      };
 
       const mapEmployee = (item) => ({
         id:
@@ -797,77 +799,24 @@ export const skudController = {
           null,
         raw: item,
       });
+      const response = await provider.getEmployees({
+        limit,
+        offset,
+        filters: providerFilters,
+      });
 
-      const matchesSearch = (item) => (
-        String(item.id || "")
-          .toLowerCase()
-          .includes(search)
-        || String(item.name || "")
-          .toLowerCase()
-          .includes(search)
-        || String(item.description || "")
-          .toLowerCase()
-          .includes(search)
-        || String(item.departmentName || "")
-          .toLowerCase()
-          .includes(search)
-      );
+      const rows = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.items)
+          ? response.items
+          : [];
 
-      let filtered = [];
-      let total = 0;
-
-      if (search) {
-        const batchLimit = 500;
-        let scanOffset = 0;
-        let scanned = 0;
-        let hasMore = true;
-
-        while (hasMore) {
-          const response = await provider.getEmployees({
-            limit: batchLimit,
-            offset: scanOffset,
-            filters: departmentId ? { departmentId } : {},
-          });
-
-          const rows = Array.isArray(response)
-            ? response
-            : Array.isArray(response?.items)
-              ? response.items
-              : [];
-
-          const matchedRows = rows
-            .map(mapEmployee)
-            .filter((item) => matchesSearch(item));
-
-          filtered.push(...matchedRows);
-          scanned += rows.length;
-
-          if (rows.length < batchLimit || scanned >= 10000) {
-            hasMore = false;
-            break;
-          }
-
-          scanOffset += rows.length;
-        }
-
-        total = filtered.length;
-        filtered = filtered.slice(offset, offset + limit);
-      } else {
-        const response = await provider.getEmployees({
-          limit,
-          offset,
-          filters: departmentId ? { departmentId } : {},
-        });
-
-        const rows = Array.isArray(response)
-          ? response
-          : Array.isArray(response?.items)
-            ? response.items
-            : [];
-
-        filtered = rows.map(mapEmployee);
-        total = filtered.length;
-      }
+      const filtered = rows.map(mapEmployee);
+      const total =
+        response?.pagination?.total
+        || response?.total
+        || response?.count
+        || filtered.length;
 
       res.json({
         success: true,

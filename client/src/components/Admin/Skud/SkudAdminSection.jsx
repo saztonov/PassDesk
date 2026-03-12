@@ -2213,7 +2213,7 @@ const SkudAdminSection = () => {
                             Полная структура папок Sigur. Сотрудники подгружаются только при раскрытии нужной папки.
                           </Text>
                           <Input
-                            placeholder="Поиск по папке, пути или уже загруженному сотруднику"
+                            placeholder="Поиск по ФИО в Sigur (с начала имени)"
                             value={providerHierarchySearch}
                             onChange={(event) => setProviderHierarchySearch(event.target.value)}
                             suffix={providerHierarchySearchLoading ? <SyncOutlined spin /> : null}
