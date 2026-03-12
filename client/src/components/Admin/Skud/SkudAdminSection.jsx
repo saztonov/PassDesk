@@ -157,6 +157,7 @@ const SkudAdminSection = () => {
   const [eventDateRange, setEventDateRange] = useState(null);
   const [departmentOptions, setDepartmentOptions] = useState([]);
   const [departmentsLoading, setDepartmentsLoading] = useState(false);
+  const [eventsPage, setEventsPage] = useState(1);
   const [eventsPageSize, setEventsPageSize] = useState(200);
   const cardNumberInputRef = useRef(null);
   const eventsAutoRefreshRef = useRef(false);
@@ -184,7 +185,7 @@ const SkudAdminSection = () => {
         skudService.getHealth(),
         skudService.getStats(),
         skudService.getEvents({
-          limit: eventsPageSize,
+          limit: 200,
           offset: 0,
           passageOnly: showOnlyPassages,
           ...(eventTypeFilter !== "all" ? { eventType: eventTypeFilter } : {}),
@@ -261,24 +262,42 @@ const SkudAdminSection = () => {
   }, [searchParams]);
 
   const handleShowOnlyPassagesChange = useCallback((checked) => {
+    setEventsPage(1);
     setShowOnlyPassages(checked);
   }, []);
 
   const handleEventTypeFilterChange = useCallback((value) => {
+    setEventsPage(1);
     setEventTypeFilter(value);
   }, []);
 
   const handleDecisionFilterChange = useCallback((value) => {
+    setEventsPage(1);
     setDecisionFilter(value);
   }, []);
 
   const handleDepartmentFilterChange = useCallback((value) => {
+    setEventsPage(1);
     setDepartmentFilter(value || undefined);
   }, []);
 
   const handleEventDateRangeChange = useCallback((value) => {
+    setEventsPage(1);
     setEventDateRange(value);
   }, []);
+
+  const handleEventsTableChange = useCallback((pagination) => {
+    const nextPageSize = Number(pagination?.pageSize || 20);
+    const nextPage = Number(pagination?.current || 1);
+
+    if (nextPageSize !== eventsPageSize) {
+      setEventsPageSize(nextPageSize);
+      setEventsPage(1);
+      return;
+    }
+
+    setEventsPage(nextPage);
+  }, [eventsPageSize]);
 
   const handleSyncEmployee = useCallback(async () => {
     const employeeId = String(employeeIdInput || "").trim();
@@ -987,6 +1006,12 @@ const SkudAdminSection = () => {
     return baseOptions;
   }, [state.events?.items]);
 
+  const pagedEvents = useMemo(() => {
+    const items = state.events?.items || [];
+    const start = (eventsPage - 1) * eventsPageSize;
+    return items.slice(start, start + eventsPageSize);
+  }, [eventsPage, eventsPageSize, state.events?.items]);
+
   const bindingImportColumns = useMemo(
     () => [
       {
@@ -1367,9 +1392,17 @@ const SkudAdminSection = () => {
                   <Table
                     rowKey="id"
                     columns={eventsColumns}
-                    dataSource={state.events?.items || []}
+                    dataSource={pagedEvents}
                     loading={loading}
-                    pagination={false}
+                    onChange={handleEventsTableChange}
+                    pagination={{
+                      current: eventsPage,
+                      pageSize: eventsPageSize,
+                      total: Number(state.events?.items?.length || 0),
+                      showSizeChanger: true,
+                      pageSizeOptions: ["20", "50", "100", "200"],
+                      showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+                    }}
                     scroll={{ x: 1500 }}
                   />
                 </Card>
