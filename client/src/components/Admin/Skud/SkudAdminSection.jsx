@@ -27,10 +27,12 @@ import {
 import {
   CopyOutlined,
   DownloadOutlined,
+  FolderOpenOutlined,
   QrcodeOutlined,
   ReloadOutlined,
   SyncOutlined,
   UploadOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 import { useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
@@ -124,6 +126,25 @@ const buildEmployeeName = (employee) =>
     .filter(Boolean)
     .join(" ")
     .trim();
+
+const renderHierarchyFolderTitle = (label) => (
+  <Space size={8}>
+    <FolderOpenOutlined />
+    <span>{label}</span>
+  </Space>
+);
+
+const renderHierarchyEmployeeTitle = (label, id = null) => (
+  <Space size={8}>
+    <UserOutlined />
+    <span>{label}</span>
+    {id ? (
+      <Text type="secondary" style={{ fontSize: 12 }}>
+        {id}
+      </Text>
+    ) : null}
+  </Space>
+);
 
 const getRequestErrorMessage = (error, fallback) =>
   error?.response?.data?.message
@@ -1511,7 +1532,8 @@ const SkudAdminSection = () => {
 
       folderNodeMap.set(String(item.id), {
         key: `folder-${item.id}`,
-        title: String(item.name || "—"),
+        title: renderHierarchyFolderTitle(String(item.name || "—")),
+        sortLabel: String(item.name || "—"),
         searchLabel: String(item.pathLabel || item.name || "").toLowerCase(),
         selectable: false,
         children: [],
@@ -1535,7 +1557,8 @@ const SkudAdminSection = () => {
     for (const employee of providerHierarchyEmployees || []) {
       const employeeNode = {
         key: `employee-${employee.id || employee.name}`,
-        title: `${employee.name || "—"}${employee.id ? ` [${employee.id}]` : ""}`,
+        title: renderHierarchyEmployeeTitle(employee.name || "—", employee.id || null),
+        sortLabel: String(employee.name || "—"),
         searchLabel: [
           employee.name || "",
           employee.id || "",
@@ -1556,7 +1579,9 @@ const SkudAdminSection = () => {
     }
 
     const sortNodes = (nodes) => {
-      nodes.sort((left, right) => String(left.title).localeCompare(String(right.title), "ru"));
+      nodes.sort((left, right) =>
+        String(left.sortLabel || "").localeCompare(String(right.sortLabel || ""), "ru"),
+      );
       nodes.forEach((node) => {
         if (Array.isArray(node.children) && node.children.length > 0) {
           sortNodes(node.children);
@@ -1959,6 +1984,8 @@ const SkudAdminSection = () => {
                             treeData={filteredProviderHierarchyTreeData}
                             defaultExpandAll
                             height={520}
+                            showIcon={false}
+                            showLine
                           />
                         </Space>
                       </Card>
