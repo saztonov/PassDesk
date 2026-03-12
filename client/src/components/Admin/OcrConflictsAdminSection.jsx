@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   App,
   Button,
+  Drawer,
   Segmented,
   Space,
   Table,
@@ -103,12 +104,97 @@ const groupConflictItems = (items = []) => {
   });
 };
 
-const renderConflictStack = (items = [], renderItem) => (
-  <Space direction="vertical" size={8} style={{ width: "100%" }}>
-    {items.map((item) => (
-      <div key={item.id}>{renderItem(item)}</div>
-    ))}
-  </Space>
+const ConflictDrawer = ({
+  record,
+  open,
+  onClose,
+  onResolve,
+  onApply,
+  resolvingKey,
+  applyingKey,
+}) => (
+  <Drawer
+    open={open}
+    title="Расхождения OCR"
+    width={560}
+    onClose={onClose}
+    destroyOnClose
+  >
+    {record ? (
+      <Space direction="vertical" size={16} style={{ width: "100%" }}>
+        <Space direction="vertical" size={2}>
+          <Text strong>{record.employee?.fullName || "—"}</Text>
+          <Text type="secondary">{record.employee?.counterpartyName || "—"}</Text>
+        </Space>
+
+        <Space wrap>
+          <Tag color="gold">
+            {getDocumentLabel(record.documentType || record.file?.documentType)}
+          </Tag>
+          <Tag color={record.status === "resolved" ? "green" : "orange"}>
+            {record.status === "resolved" ? "Решен" : "Требует решения"}
+          </Tag>
+        </Space>
+
+        <Space direction="vertical" size={2}>
+          <Text type="secondary">
+            Файл: {record.file?.originalName || record.file?.fileName || "—"}
+          </Text>
+          <Text type="secondary">
+            Когда:{" "}
+            {record.createdAt
+              ? dayjs(record.createdAt).format("DD.MM.YYYY HH:mm")
+              : "—"}
+          </Text>
+          <Text type="secondary">Расхождений: {record.conflicts.length}</Text>
+        </Space>
+
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          {record.conflicts.map((item) => (
+            <div
+              key={item.id}
+              style={{
+                padding: 12,
+                border: "1px solid #f0f0f0",
+                borderRadius: 8,
+                background: "#fafafa",
+              }}
+            >
+              <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                <Text strong>{item.fieldLabel || item.fieldName || "—"}</Text>
+                <div>
+                  <Text type="secondary">В карточке</Text>
+                  <div>{formatValue(item.currentValue)}</div>
+                </div>
+                <div>
+                  <Text type="secondary">OCR</Text>
+                  <div>{formatValue(item.ocrValue)}</div>
+                </div>
+              </Space>
+            </div>
+          ))}
+        </Space>
+
+        {record.status === "open" ? (
+          <Space wrap>
+            <Button
+              loading={resolvingKey === record.key}
+              onClick={() => onResolve(record)}
+            >
+              Оставить карточку
+            </Button>
+            <Button
+              type="primary"
+              loading={applyingKey === record.key}
+              onClick={() => onApply(record)}
+            >
+              Принять OCR
+            </Button>
+          </Space>
+        ) : null}
+      </Space>
+    ) : null}
+  </Drawer>
 );
 
 const OcrConflictsAdminSection = () => {
@@ -117,6 +203,7 @@ const OcrConflictsAdminSection = () => {
   const [loading, setLoading] = useState(false);
   const [resolvingKey, setResolvingKey] = useState(null);
   const [applyingKey, setApplyingKey] = useState(null);
+  const [drawerRecord, setDrawerRecord] = useState(null);
   const [tableState, setTableState] = useState({
     items: [],
     pagination: {
@@ -131,6 +218,14 @@ const OcrConflictsAdminSection = () => {
     () => groupConflictItems(tableState.items),
     [tableState.items],
   );
+
+  const closeDrawer = useCallback(() => {
+    setDrawerRecord(null);
+  }, []);
+
+  const openDrawer = useCallback((record) => {
+    setDrawerRecord(record);
+  }, []);
 
   const loadData = useCallback(
     async ({
@@ -176,6 +271,7 @@ const OcrConflictsAdminSection = () => {
         await Promise.all(
           record.conflictIds.map((id) => ocrService.resolveConflict(id)),
         );
+        closeDrawer();
         message.success(
           `Карточка оставлена без изменений, закрыто расхождений: ${record.conflictIds.length}`,
         );
@@ -192,6 +288,7 @@ const OcrConflictsAdminSection = () => {
       }
     },
     [
+      closeDrawer,
       loadData,
       message,
       statusFilter,
@@ -207,6 +304,7 @@ const OcrConflictsAdminSection = () => {
         await Promise.all(
           record.conflictIds.map((id) => ocrService.applyConflict(id)),
         );
+        closeDrawer();
         message.success(
           `OCR применен к карточке, закрыто расхождений: ${record.conflictIds.length}`,
         );
@@ -223,6 +321,7 @@ const OcrConflictsAdminSection = () => {
       }
     },
     [
+      closeDrawer,
       loadData,
       message,
       statusFilter,
@@ -238,7 +337,8 @@ const OcrConflictsAdminSection = () => {
         dataIndex: "createdAt",
         key: "createdAt",
         width: 150,
-        render: (value) => (value ? dayjs(value).format("DD.MM.YYYY HH:mm") : "—"),
+        render: (value) =>
+          value ? dayjs(value).format("DD.MM.YYYY HH:mm") : "—",
       },
       {
         title: "Сотрудник",
@@ -256,7 +356,7 @@ const OcrConflictsAdminSection = () => {
       {
         title: "Документ",
         key: "document",
-        width: 180,
+        width: 220,
         render: (_, record) => (
           <Space direction="vertical" size={0}>
             <Tag color="gold">
@@ -270,29 +370,14 @@ const OcrConflictsAdminSection = () => {
         ),
       },
       {
-        title: "Поле",
-        key: "fieldLabel",
-        width: 180,
-        render: (_, record) =>
-          renderConflictStack(record.conflicts, (item) => (
-            <Text strong>{item.fieldLabel || item.fieldName || "—"}</Text>
-          )),
-      },
-      {
-        title: "В карточке",
-        key: "currentValue",
-        render: (_, record) =>
-          renderConflictStack(record.conflicts, (item) => (
-            <Text>{formatValue(item.currentValue)}</Text>
-          )),
-      },
-      {
-        title: "OCR",
-        key: "ocrValue",
-        render: (_, record) =>
-          renderConflictStack(record.conflicts, (item) => (
-            <Text>{formatValue(item.ocrValue)}</Text>
-          )),
+        title: "Конфликты",
+        key: "conflicts",
+        width: 150,
+        render: (_, record) => (
+          <Button size="small" onClick={() => openDrawer(record)}>
+            Смотреть ({record.conflicts.length})
+          </Button>
+        ),
       },
       {
         title: "Статус",
@@ -334,7 +419,7 @@ const OcrConflictsAdminSection = () => {
           ),
       },
     ],
-    [applyingKey, handleApply, handleResolve, resolvingKey],
+    [applyingKey, handleApply, handleResolve, openDrawer, resolvingKey],
   );
 
   return (
@@ -380,7 +465,17 @@ const OcrConflictsAdminSection = () => {
             status: statusFilter,
           });
         }}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1000 }}
+      />
+
+      <ConflictDrawer
+        record={drawerRecord}
+        open={Boolean(drawerRecord)}
+        onClose={closeDrawer}
+        onResolve={handleResolve}
+        onApply={handleApply}
+        resolvingKey={resolvingKey}
+        applyingKey={applyingKey}
       />
     </Space>
   );
