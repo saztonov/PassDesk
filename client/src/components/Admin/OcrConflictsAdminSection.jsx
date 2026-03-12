@@ -27,15 +27,96 @@ const toResponseData = (response) => response?.data || response || {};
 
 const formatValue = (value) => {
   const normalized = String(value || "").trim();
-  return normalized || "—";
+  if (!normalized) {
+    return "—";
+  }
+
+  const parsedDate = dayjs(normalized);
+  if (
+    parsedDate.isValid() &&
+    (/^\d{4}-\d{2}-\d{2}/.test(normalized) || normalized.includes("T"))
+  ) {
+    return parsedDate.format("DD.MM.YYYY");
+  }
+
+  return normalized;
 };
+
+const buildConflictGroupKey = (item) =>
+  [
+    item.employee?.id || "employee",
+    item.file?.id || "file",
+    item.status || "status",
+  ].join(":");
+
+const groupConflictItems = (items = []) => {
+  const groups = new Map();
+
+  items.forEach((item) => {
+    const groupKey = buildConflictGroupKey(item);
+    const currentGroup = groups.get(groupKey);
+
+    if (!currentGroup) {
+      groups.set(groupKey, {
+        key: groupKey,
+        createdAt: item.createdAt,
+        documentType: item.documentType,
+        employee: item.employee,
+        file: item.file,
+        status: item.status,
+        conflictIds: [item.id],
+        conflicts: [
+          {
+            id: item.id,
+            fieldName: item.fieldName,
+            fieldLabel: item.fieldLabel,
+            currentValue: item.currentValue,
+            ocrValue: item.ocrValue,
+          },
+        ],
+      });
+      return;
+    }
+
+    currentGroup.conflictIds.push(item.id);
+    currentGroup.conflicts.push({
+      id: item.id,
+      fieldName: item.fieldName,
+      fieldLabel: item.fieldLabel,
+      currentValue: item.currentValue,
+      ocrValue: item.ocrValue,
+    });
+
+    if (
+      item.createdAt &&
+      (!currentGroup.createdAt ||
+        dayjs(item.createdAt).isAfter(dayjs(currentGroup.createdAt)))
+    ) {
+      currentGroup.createdAt = item.createdAt;
+    }
+  });
+
+  return Array.from(groups.values()).sort((left, right) => {
+    const leftTimestamp = left.createdAt ? dayjs(left.createdAt).valueOf() : 0;
+    const rightTimestamp = right.createdAt ? dayjs(right.createdAt).valueOf() : 0;
+    return rightTimestamp - leftTimestamp;
+  });
+};
+
+const renderConflictStack = (items = [], renderItem) => (
+  <Space direction="vertical" size={8} style={{ width: "100%" }}>
+    {items.map((item) => (
+      <div key={item.id}>{renderItem(item)}</div>
+    ))}
+  </Space>
+);
 
 const OcrConflictsAdminSection = () => {
   const { message } = App.useApp();
   const [statusFilter, setStatusFilter] = useState("open");
   const [loading, setLoading] = useState(false);
-  const [resolvingId, setResolvingId] = useState(null);
-  const [applyingId, setApplyingId] = useState(null);
+  const [resolvingKey, setResolvingKey] = useState(null);
+  const [applyingKey, setApplyingKey] = useState(null);
   const [tableState, setTableState] = useState({
     items: [],
     pagination: {
@@ -46,8 +127,17 @@ const OcrConflictsAdminSection = () => {
     },
   });
 
+  const groupedItems = useMemo(
+    () => groupConflictItems(tableState.items),
+    [tableState.items],
+  );
+
   const loadData = useCallback(
-    async ({ page = 1, limit = tableState.pagination.limit, status = statusFilter } = {}) => {
+    async ({
+      page = 1,
+      limit = tableState.pagination.limit,
+      status = statusFilter,
+    } = {}) => {
       setLoading(true);
       try {
         const response = await ocrService.getConflicts({
@@ -80,11 +170,15 @@ const OcrConflictsAdminSection = () => {
   }, [loadData, statusFilter]);
 
   const handleResolve = useCallback(
-    async (id) => {
-      setResolvingId(id);
+    async (record) => {
+      setResolvingKey(record.key);
       try {
-        await ocrService.resolveConflict(id);
-        message.success("Конфликт отмечен как просмотренный");
+        await Promise.all(
+          record.conflictIds.map((id) => ocrService.resolveConflict(id)),
+        );
+        message.success(
+          `Карточка оставлена без изменений, закрыто расхождений: ${record.conflictIds.length}`,
+        );
         await loadData({
           page: tableState.pagination.page,
           limit: tableState.pagination.limit,
@@ -94,18 +188,28 @@ const OcrConflictsAdminSection = () => {
         console.error("Failed to resolve OCR conflict:", error);
         message.error("Не удалось обновить статус конфликта");
       } finally {
-        setResolvingId(null);
+        setResolvingKey(null);
       }
     },
-    [loadData, message, statusFilter, tableState.pagination.limit, tableState.pagination.page],
+    [
+      loadData,
+      message,
+      statusFilter,
+      tableState.pagination.limit,
+      tableState.pagination.page,
+    ],
   );
 
   const handleApply = useCallback(
-    async (id) => {
-      setApplyingId(id);
+    async (record) => {
+      setApplyingKey(record.key);
       try {
-        await ocrService.applyConflict(id);
-        message.success("OCR применен к карточке, конфликт закрыт");
+        await Promise.all(
+          record.conflictIds.map((id) => ocrService.applyConflict(id)),
+        );
+        message.success(
+          `OCR применен к карточке, закрыто расхождений: ${record.conflictIds.length}`,
+        );
         await loadData({
           page: tableState.pagination.page,
           limit: tableState.pagination.limit,
@@ -115,10 +219,16 @@ const OcrConflictsAdminSection = () => {
         console.error("Failed to apply OCR conflict:", error);
         message.error("Не удалось применить OCR к карточке");
       } finally {
-        setApplyingId(null);
+        setApplyingKey(null);
       }
     },
-    [loadData, message, statusFilter, tableState.pagination.limit, tableState.pagination.page],
+    [
+      loadData,
+      message,
+      statusFilter,
+      tableState.pagination.limit,
+      tableState.pagination.page,
+    ],
   );
 
   const columns = useMemo(
@@ -137,7 +247,9 @@ const OcrConflictsAdminSection = () => {
         render: (_, record) => (
           <Space direction="vertical" size={0}>
             <Text strong>{record.employee?.fullName || "—"}</Text>
-            <Text type="secondary">{record.employee?.counterpartyName || "—"}</Text>
+            <Text type="secondary">
+              {record.employee?.counterpartyName || "—"}
+            </Text>
           </Space>
         ),
       },
@@ -147,39 +259,51 @@ const OcrConflictsAdminSection = () => {
         width: 180,
         render: (_, record) => (
           <Space direction="vertical" size={0}>
-            <Tag color="gold">{getDocumentLabel(record.documentType || record.file?.documentType)}</Tag>
-            <Text type="secondary">{record.file?.originalName || record.file?.fileName || "—"}</Text>
+            <Tag color="gold">
+              {getDocumentLabel(record.documentType || record.file?.documentType)}
+            </Tag>
+            <Text type="secondary">
+              {record.file?.originalName || record.file?.fileName || "—"}
+            </Text>
+            <Text type="secondary">Расхождений: {record.conflicts.length}</Text>
           </Space>
         ),
       },
       {
         title: "Поле",
-        dataIndex: "fieldLabel",
         key: "fieldLabel",
-        width: 160,
+        width: 180,
+        render: (_, record) =>
+          renderConflictStack(record.conflicts, (item) => (
+            <Text strong>{item.fieldLabel || item.fieldName || "—"}</Text>
+          )),
       },
       {
         title: "В карточке",
-        dataIndex: "currentValue",
         key: "currentValue",
-        render: (value) => formatValue(value),
+        render: (_, record) =>
+          renderConflictStack(record.conflicts, (item) => (
+            <Text>{formatValue(item.currentValue)}</Text>
+          )),
       },
       {
         title: "OCR",
-        dataIndex: "ocrValue",
         key: "ocrValue",
-        render: (value) => formatValue(value),
+        render: (_, record) =>
+          renderConflictStack(record.conflicts, (item) => (
+            <Text>{formatValue(item.ocrValue)}</Text>
+          )),
       },
       {
         title: "Статус",
         dataIndex: "status",
         key: "status",
-        width: 140,
-        render: (value) =>
+        width: 160,
+        render: (value, record) =>
           value === "resolved" ? (
             <Tag color="green">Решен</Tag>
           ) : (
-            <Tag color="orange">Требует решения</Tag>
+            <Tag color="orange">Требует решения: {record.conflicts.length}</Tag>
           ),
       },
       {
@@ -191,16 +315,16 @@ const OcrConflictsAdminSection = () => {
             <Space wrap>
               <Button
                 size="small"
-                loading={resolvingId === record.id}
-                onClick={() => handleResolve(record.id)}
+                loading={resolvingKey === record.key}
+                onClick={() => handleResolve(record)}
               >
                 Оставить карточку
               </Button>
               <Button
                 size="small"
                 type="primary"
-                loading={applyingId === record.id}
-                onClick={() => handleApply(record.id)}
+                loading={applyingKey === record.key}
+                onClick={() => handleApply(record)}
               >
                 Принять OCR
               </Button>
@@ -210,7 +334,7 @@ const OcrConflictsAdminSection = () => {
           ),
       },
     ],
-    [applyingId, handleApply, handleResolve, resolvingId],
+    [applyingKey, handleApply, handleResolve, resolvingKey],
   );
 
   return (
@@ -239,10 +363,10 @@ const OcrConflictsAdminSection = () => {
       </Space>
 
       <Table
-        rowKey="id"
+        rowKey="key"
         loading={loading}
         columns={columns}
-        dataSource={tableState.items}
+        dataSource={groupedItems}
         pagination={{
           current: tableState.pagination.page,
           pageSize: tableState.pagination.limit,
