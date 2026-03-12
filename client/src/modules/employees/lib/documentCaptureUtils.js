@@ -14,6 +14,7 @@ export const captureLayoutByMode = {
     frameWidth: 0.9,
     frameHeight: 0.64,
     cropPadding: 0.06,
+    fallbackCropExpand: 0.12,
     previewMaxDimension: 420,
   },
   document: {
@@ -22,6 +23,7 @@ export const captureLayoutByMode = {
     frameWidth: 0.78,
     frameHeight: 0.68,
     cropPadding: 0.05,
+    fallbackCropExpand: 0.04,
     previewMaxDimension: 420,
   },
 };
@@ -785,7 +787,9 @@ const buildGuideCropBlob = async (image, layout, viewportAspect) => {
   );
   const frameLeft = (1 - layout.frameWidth) / 2;
   const frameTop = (1 - layout.frameHeight) / 2;
-  const padding = Math.min(visibleRect.width, visibleRect.height) * layout.cropPadding;
+  const padding =
+    Math.min(visibleRect.width, visibleRect.height) *
+    (layout.cropPadding + (layout.fallbackCropExpand || 0));
 
   const cropX = Math.max(0, visibleRect.x + visibleRect.width * frameLeft - padding);
   const cropY = Math.max(0, visibleRect.y + visibleRect.height * frameTop - padding);

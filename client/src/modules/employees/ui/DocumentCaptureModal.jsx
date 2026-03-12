@@ -186,7 +186,7 @@ const DocumentCaptureModal = ({
     }
 
     if (scanState === "scanning") {
-      return "Ищем документ на сервере и готовим выровненный preview.";
+      return "Снимок зафиксирован. Ищем документ на сервере и готовим выровненный preview.";
     }
 
     if (preview?.url) {
@@ -215,6 +215,14 @@ const DocumentCaptureModal = ({
       const rawFile = new File([rawBlob], `document-capture-${Date.now()}.jpg`, {
         type: rawBlob.type || "image/jpeg",
         lastModified: Date.now(),
+      });
+      const frozenPreviewUrl = createPreviewUrl(rawBlob);
+      releasePreview();
+      previewUrlRef.current = frozenPreviewUrl;
+      setPreview({
+        url: frozenPreviewUrl,
+        file: rawFile,
+        processing: true,
       });
 
       let normalizedCorners = null;
@@ -248,6 +256,7 @@ const DocumentCaptureModal = ({
       setPreview({
         url: previewUrl,
         file: createCaptureFile(preparedBlob),
+        processing: false,
       });
       setScanMeta({
         detected,
@@ -256,6 +265,7 @@ const DocumentCaptureModal = ({
       setScanState(detected ? "detected" : "fallback");
     } catch (error) {
       message.error(error?.message || "Не удалось подготовить scan-копию");
+      setPreview(null);
       setScanState("idle");
       setScanMeta(null);
     } finally {
@@ -455,6 +465,32 @@ const DocumentCaptureModal = ({
             ) : null}
           </>
         )}
+        {preview?.processing ? (
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "grid",
+              placeItems: "center",
+              background: "rgba(6, 10, 14, 0.38)",
+              pointerEvents: "none",
+            }}
+          >
+            <div
+              style={{
+                padding: "10px 14px",
+                borderRadius: 12,
+                background: "rgba(12, 18, 24, 0.78)",
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 500,
+              }}
+            >
+              Обрабатываем снимок...
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <Space
@@ -495,6 +531,7 @@ const DocumentCaptureModal = ({
           <>
             <Button
               icon={<ReloadOutlined />}
+              disabled={Boolean(preview?.processing)}
               onClick={() => {
                 releasePreview();
                 previewUrlRef.current = "";
@@ -509,7 +546,8 @@ const DocumentCaptureModal = ({
             <Button
               type="primary"
               icon={<CheckOutlined />}
-              loading={submitting}
+              loading={submitting || preview?.processing}
+              disabled={Boolean(preview?.processing)}
               onClick={handleConfirmCapture}
               size={isMobile ? "large" : "middle"}
             >
