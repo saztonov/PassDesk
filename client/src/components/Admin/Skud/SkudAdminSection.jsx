@@ -182,10 +182,7 @@ const SkudAdminSection = () => {
   const [employeeOptions, setEmployeeOptions] = useState([]);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [employeeOptionsLoading, setEmployeeOptionsLoading] = useState(false);
-  const [externalEmpIdInput, setExternalEmpIdInput] = useState("");
   const [employeeReasonInput, setEmployeeReasonInput] = useState("");
-  const [employeePlacementLoading, setEmployeePlacementLoading] = useState(false);
-  const [employeePlacementInfo, setEmployeePlacementInfo] = useState(null);
   const [providerDepartments, setProviderDepartments] = useState([]);
   const [providerDepartmentsLoading, setProviderDepartmentsLoading] = useState(false);
   const [providerHierarchySearch, setProviderHierarchySearch] = useState("");
@@ -201,8 +198,6 @@ const SkudAdminSection = () => {
   const [selectedSigurDepartmentId, setSelectedSigurDepartmentId] = useState(null);
   const [sigurSubfolderInput, setSigurSubfolderInput] = useState("");
   const [employeeActionLoading, setEmployeeActionLoading] = useState(false);
-  const [bindingLookupLoading, setBindingLookupLoading] = useState(false);
-  const [bindingInfo, setBindingInfo] = useState(null);
   const [assigningCard, setAssigningCard] = useState(false);
   const [cardActionLoadingId, setCardActionLoadingId] = useState(null);
   const [cardEmployeeIdInput, setCardEmployeeIdInput] = useState("");
@@ -214,14 +209,6 @@ const SkudAdminSection = () => {
   const [cardNotesInput, setCardNotesInput] = useState("");
   const [cardReaderArmed, setCardReaderArmed] = useState(false);
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "events");
-  const [localEmployeeSearch, setLocalEmployeeSearch] = useState("");
-  const [providerEmployeeSearch, setProviderEmployeeSearch] = useState("");
-  const [mappingLoading, setMappingLoading] = useState(false);
-  const [localEmployees, setLocalEmployees] = useState([]);
-  const [providerEmployees, setProviderEmployees] = useState([]);
-  const [selectedLocalEmployeeId, setSelectedLocalEmployeeId] = useState(null);
-  const [selectedProviderEmployeeId, setSelectedProviderEmployeeId] = useState(null);
-  const [bindingActionLoading, setBindingActionLoading] = useState(false);
   const [bindingImportRows, setBindingImportRows] = useState([]);
   const [bindingImportFileName, setBindingImportFileName] = useState("");
   const [bindingImportPreview, setBindingImportPreview] = useState(null);
@@ -466,58 +453,6 @@ const SkudAdminSection = () => {
     }
   }, [employeeIdInput, employeeReasonInput, loadData, message]);
 
-  const handleLoadBinding = useCallback(async () => {
-    const employeeId = String(employeeIdInput || "").trim();
-    if (!employeeId) {
-      message.warning("Выберите сотрудника");
-      return;
-    }
-
-    setBindingLookupLoading(true);
-    try {
-      const binding = await skudService.getEmployeeBinding(employeeId);
-      setBindingInfo(binding || null);
-      setExternalEmpIdInput(binding?.externalEmpId || "");
-      if (binding?.externalEmpId) {
-        message.success("Привязка загружена");
-      } else {
-        message.info("Активная привязка не найдена");
-      }
-    } catch (error) {
-      console.error("Failed to load employee binding:", error);
-      setBindingInfo(null);
-      message.error("Не удалось загрузить привязку");
-    } finally {
-      setBindingLookupLoading(false);
-    }
-  }, [employeeIdInput, message]);
-
-  const handleSaveBinding = useCallback(async () => {
-    const employeeId = String(employeeIdInput || "").trim();
-    const externalEmpId = String(externalEmpIdInput || "").trim();
-    if (!employeeId || !externalEmpId) {
-      message.warning("Выберите сотрудника и укажите externalEmpId");
-      return;
-    }
-
-    setBindingLookupLoading(true);
-    try {
-      const binding = await skudService.upsertBinding(employeeId, {
-        externalSystem: "sigur",
-        externalEmpId,
-        source: "manual",
-      });
-      setBindingInfo(binding || null);
-      message.success("Привязка сохранена");
-      await loadData();
-    } catch (error) {
-      console.error("Failed to save employee binding:", error);
-      message.error("Не удалось сохранить привязку");
-    } finally {
-      setBindingLookupLoading(false);
-    }
-  }, [employeeIdInput, externalEmpIdInput, loadData, message]);
-
   const focusCardReaderInput = useCallback(() => {
     window.requestAnimationFrame(() => {
       cardNumberInputRef.current?.focus?.();
@@ -650,39 +585,6 @@ const SkudAdminSection = () => {
       setEventsPage(maxPage);
     }
   }, [eventsPage, eventsPageSize, state.events?.pagination?.total]);
-
-  const loadMappingLists = useCallback(async () => {
-    setMappingLoading(true);
-    try {
-      const [localResult, providerResult] = await Promise.all([
-        skudService.getLocalEmployees({
-          limit: 30,
-          offset: 0,
-          search: localEmployeeSearch || undefined,
-        }),
-        skudService.getProviderEmployees({
-          limit: 30,
-          offset: 0,
-          search: providerEmployeeSearch || undefined,
-        }),
-      ]);
-
-      setLocalEmployees(localResult?.items || []);
-      setProviderEmployees(providerResult?.items || []);
-    } catch (error) {
-      console.error("Failed to load mapping lists:", error);
-      message.error("Не удалось загрузить списки для сопоставления");
-    } finally {
-      setMappingLoading(false);
-    }
-  }, [localEmployeeSearch, message, providerEmployeeSearch]);
-
-  useEffect(() => {
-    if (activeTab !== "employees") {
-      return;
-    }
-    loadMappingLists();
-  }, [activeTab, loadMappingLists]);
 
   const fetchEmployeeOptions = useCallback(async (search = "") => {
     const response = await employeeService.getAll({
@@ -827,40 +729,6 @@ const SkudAdminSection = () => {
     [message],
   );
 
-  const loadEmployeePlacement = useCallback(async () => {
-    const employeeId = String(employeeIdInput || "").trim();
-    if (!employeeId) {
-      setEmployeePlacementInfo(null);
-      return;
-    }
-
-    setEmployeePlacementLoading(true);
-    try {
-      const binding = await skudService.getEmployeeBinding(employeeId);
-      if (!binding?.externalEmpId) {
-        setEmployeePlacementInfo({
-          binding: null,
-          providerEmployee: null,
-          department: null,
-        });
-        return;
-      }
-
-      const providerEmployee = await skudService.getProviderEmployee(binding.externalEmpId);
-      setEmployeePlacementInfo({
-        binding,
-        providerEmployee: providerEmployee || null,
-        department: null,
-      });
-    } catch (error) {
-      console.error("Failed to load employee placement in Sigur:", error);
-      setEmployeePlacementInfo(null);
-      message.error("Не удалось загрузить размещение сотрудника в Sigur");
-    } finally {
-      setEmployeePlacementLoading(false);
-    }
-  }, [employeeIdInput, message]);
-
   const loadCardEmployees = useCallback(
     async (search = "") => {
       setCardEmployeeOptionsLoading(true);
@@ -928,7 +796,6 @@ const SkudAdminSection = () => {
     if (activeTab !== "employees") {
       return;
     }
-
     const normalizedSearch = String(providerHierarchySearch || "").trim();
     if (!normalizedSearch) {
       setProviderHierarchySearchEmployees([]);
@@ -946,48 +813,11 @@ const SkudAdminSection = () => {
   }, [activeTab, loadProviderHierarchySearchEmployees, providerHierarchySearch]);
 
   useEffect(() => {
-    if (activeTab !== "employees") {
-      return;
-    }
-    if (!employeeIdInput) {
-      setEmployeePlacementInfo(null);
-      return;
-    }
-    loadEmployeePlacement();
-  }, [activeTab, employeeIdInput, loadEmployeePlacement]);
-
-  useEffect(() => {
     if (activeTab !== "qr") {
       return;
     }
     loadQrEmployees(qrEmployeeSearch);
   }, [activeTab, loadQrEmployees, qrEmployeeSearch]);
-
-  const handleBindSelectedEmployees = useCallback(async () => {
-    const employeeId = String(selectedLocalEmployeeId || "").trim();
-    const externalEmpId = String(selectedProviderEmployeeId || "").trim();
-
-    if (!employeeId || !externalEmpId) {
-      message.warning("Выбери сотрудника PassDesk и сотрудника Sigur");
-      return;
-    }
-
-    setBindingActionLoading(true);
-    try {
-      await skudService.upsertBinding(employeeId, {
-        externalSystem: "sigur",
-        externalEmpId,
-        source: "manual",
-      });
-      message.success("Сотрудники успешно сопоставлены");
-      await Promise.all([loadData(), loadMappingLists()]);
-    } catch (error) {
-      console.error("Failed to bind selected employees:", error);
-      message.error("Не удалось сохранить сопоставление");
-    } finally {
-      setBindingActionLoading(false);
-    }
-  }, [loadData, loadMappingLists, message, selectedLocalEmployeeId, selectedProviderEmployeeId]);
 
   const handleBindingImportFileSelect = useCallback(
     async (file) => {
@@ -1486,94 +1316,6 @@ const SkudAdminSection = () => {
     [cardActionLoadingId, handleBlockCard, handleUnbindCard],
   );
 
-  const localEmployeeColumns = useMemo(
-    () => [
-      {
-        title: "Сотрудник PassDesk",
-        key: "fullName",
-        render: (_, record) => (
-          <Space direction="vertical" size={0}>
-            <Text>{record.fullName || "—"}</Text>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {record.id}
-            </Text>
-          </Space>
-        ),
-      },
-      {
-        title: "ИНН",
-        dataIndex: "inn",
-        key: "inn",
-        width: 130,
-        render: (value) => value || "—",
-      },
-      {
-        title: "Sigur ID",
-        key: "binding",
-        width: 130,
-        render: (_, record) => record?.binding?.externalEmpId || "—",
-      },
-    ],
-    [],
-  );
-
-  const providerEmployeeColumns = useMemo(
-    () => [
-      {
-        title: "Sigur ID",
-        dataIndex: "id",
-        key: "id",
-        width: 120,
-        render: (value) => value || "—",
-      },
-      {
-        title: "Сотрудник Sigur",
-        dataIndex: "name",
-        key: "name",
-        render: (value, record) => (
-          <Space direction="vertical" size={0}>
-            <Text>{value || "—"}</Text>
-            {record?.departmentName ? (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {record.departmentName}
-              </Text>
-            ) : null}
-          </Space>
-        ),
-      },
-      {
-        title: "Статус",
-        dataIndex: "status",
-        key: "status",
-        width: 140,
-        render: (value) => value || "—",
-      },
-    ],
-    [],
-  );
-
-  const localRowSelection = useMemo(
-    () => ({
-      type: "radio",
-      selectedRowKeys: selectedLocalEmployeeId ? [selectedLocalEmployeeId] : [],
-      onChange: (selectedKeys) => {
-        setSelectedLocalEmployeeId(selectedKeys?.[0] || null);
-      },
-    }),
-    [selectedLocalEmployeeId],
-  );
-
-  const providerRowSelection = useMemo(
-    () => ({
-      type: "radio",
-      selectedRowKeys: selectedProviderEmployeeId ? [selectedProviderEmployeeId] : [],
-      onChange: (selectedKeys) => {
-        setSelectedProviderEmployeeId(selectedKeys?.[0] || null);
-      },
-    }),
-    [selectedProviderEmployeeId],
-  );
-
   const providerDepartmentTreeData = useMemo(() => {
     const nodeMap = new Map();
     const roots = [];
@@ -1866,14 +1608,6 @@ const SkudAdminSection = () => {
     [loadProviderHierarchyDepartmentEmployees],
   );
 
-  const employeePlacementDepartment = useMemo(() => {
-    const departmentId = employeePlacementInfo?.providerEmployee?.departmentId;
-    if (departmentId === undefined || departmentId === null) {
-      return null;
-    }
-    return providerDepartmentsById.get(String(departmentId)) || null;
-  }, [employeePlacementInfo?.providerEmployee?.departmentId, providerDepartmentsById]);
-
   const latestVisibleEventTime = state.events?.items?.[0]?.eventTime || null;
   const hasSkudAuthError = state.health?.authOk === false;
   const lastSyncAt = state.health?.lastSyncAt || null;
@@ -2036,18 +1770,19 @@ const SkudAdminSection = () => {
                   </Row>
                 </Card>
 
-                <Row gutter={[16, 16]} align="top">
-                  <Col xs={24} xl={9}>
-                    <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                      <Card title="1. Точечные действия по сотруднику">
+                <Row gutter={[24, 24]} align="top">
+                  <Col xs={24} lg={9} xl={8}>
+                    <Card title="1. Действия по сотруднику">
+                      <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                        <Text type="secondary">
+                          Выберите сотрудника, укажите папку Sigur и выполните нужное действие. Новая подпапка при необходимости создастся во время `sync`.
+                        </Text>
                         <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                          <Text type="secondary">
-                            Выберите сотрудника и папку Sigur. Если нужна новая подпапка, она будет создана во время sync.
-                          </Text>
+                          <Text strong>Сотрудник PassDesk</Text>
                           <Select
                             showSearch
                             allowClear
-                            placeholder="Выберите сотрудника PassDesk"
+                            placeholder="Выберите сотрудника"
                             value={employeeIdInput || undefined}
                             options={employeeOptions}
                             loading={employeeOptionsLoading}
@@ -2057,6 +1792,10 @@ const SkudAdminSection = () => {
                             filterOption={false}
                             style={{ width: "100%" }}
                           />
+                        </Space>
+
+                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                          <Text strong>Папка Sigur</Text>
                           <TreeSelect
                             allowClear
                             showSearch
@@ -2075,149 +1814,81 @@ const SkudAdminSection = () => {
                             value={sigurSubfolderInput}
                             onChange={(event) => setSigurSubfolderInput(event.target.value)}
                           />
+                        </Space>
+
+                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                          <Text strong>Комментарий</Text>
                           <Input
                             placeholder="Причина (опционально)"
                             value={employeeReasonInput}
                             onChange={(event) => setEmployeeReasonInput(event.target.value)}
                           />
-                          <Space wrap>
-                            <Button
-                              type="primary"
-                              icon={<SyncOutlined />}
-                              onClick={handleSyncEmployee}
-                              loading={employeeActionLoading}
-                            >
-                              Синхронизировать
-                            </Button>
-                            <Button
-                              danger
-                              onClick={handleBlockEmployee}
-                              loading={employeeActionLoading}
-                            >
-                              Блокировать
-                            </Button>
-                            <Button
-                              onClick={handleUnblockEmployee}
-                              loading={employeeActionLoading}
-                            >
-                              Разблокировать
-                            </Button>
-                          </Space>
                         </Space>
-                      </Card>
 
-                      <Card
-                        title="1.1 Фактическое размещение в Sigur"
-                        extra={
+                        <Space wrap size={12}>
                           <Button
-                            size="small"
-                            icon={<ReloadOutlined />}
-                            onClick={() => {
-                              void loadEmployeePlacement();
-                            }}
-                            loading={employeePlacementLoading}
-                            disabled={!employeeIdInput}
+                            type="primary"
+                            icon={<SyncOutlined />}
+                            onClick={handleSyncEmployee}
+                            loading={employeeActionLoading}
                           >
-                            Обновить
+                            Синхронизировать
                           </Button>
-                        }
-                      >
-                        {!employeeIdInput ? (
-                          <Text type="secondary">
-                            Сначала выберите сотрудника PassDesk.
-                          </Text>
-                        ) : employeePlacementLoading ? (
-                          <Spin size="small" />
-                        ) : !employeePlacementInfo?.binding?.externalEmpId ? (
-                          <Text type="secondary">
-                            У сотрудника пока нет активной привязки к Sigur.
-                          </Text>
-                        ) : (
-                          <Descriptions size="small" column={1} bordered>
-                            <Descriptions.Item label="Sigur ID">
-                              {employeePlacementInfo.binding.externalEmpId}
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Имя в Sigur">
-                              {employeePlacementInfo.providerEmployee?.name || "—"}
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Папка в Sigur">
-                              {employeePlacementDepartment?.pathLabel || "—"}
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Статус">
-                              {employeePlacementInfo.providerEmployee?.isBlocked === true
-                                ? "Заблокирован"
-                                : employeePlacementInfo.providerEmployee?.isBlocked === false
-                                  ? "Активен"
-                                  : "—"}
-                            </Descriptions.Item>
-                          </Descriptions>
-                        )}
-                      </Card>
-
-                      <Card title="2. Привязка Sigur ID вручную">
-                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                          <Text type="secondary">
-                            Нужен только для ручной коррекции, если сотрудника нужно связать с уже существующей записью Sigur.
-                          </Text>
-                          <Input
-                            placeholder="externalEmpId (ID сотрудника в Sigur)"
-                            value={externalEmpIdInput}
-                            onChange={(event) => setExternalEmpIdInput(event.target.value)}
-                          />
-                          <Space wrap>
-                            <Button onClick={handleLoadBinding} loading={bindingLookupLoading}>
-                              Загрузить текущую привязку
-                            </Button>
-                            <Button
-                              type="primary"
-                              onClick={handleSaveBinding}
-                              loading={bindingLookupLoading}
-                            >
-                              Сохранить привязку
-                            </Button>
-                          </Space>
-                          {bindingInfo ? (
-                            <Text type="secondary">
-                              Сейчас связан с Sigur ID {bindingInfo.externalEmpId}
-                            </Text>
-                          ) : (
-                            <Text type="secondary">Активная привязка пока не задана</Text>
-                          )}
+                          <Button
+                            danger
+                            onClick={handleBlockEmployee}
+                            loading={employeeActionLoading}
+                          >
+                            Блокировать
+                          </Button>
+                          <Button
+                            onClick={handleUnblockEmployee}
+                            loading={employeeActionLoading}
+                          >
+                            Разблокировать
+                          </Button>
                         </Space>
-                      </Card>
-                    </Space>
+                      </Space>
+                    </Card>
                   </Col>
 
-                  <Col xs={24} xl={15}>
-                    <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                      <Card
-                        title="3. Иерархия Sigur"
-                        extra={
-                          <Button
-                            icon={<ReloadOutlined />}
-                            onClick={() => {
-                              setProviderHierarchyEmployeesByDepartment({});
-                              setProviderHierarchyLoadedDepartmentIds([]);
-                              setProviderHierarchyLoadingDepartmentIds([]);
-                              setProviderHierarchyExpandedKeys([]);
-                              void loadProviderDepartments();
-                            }}
-                            loading={providerDepartmentsLoading}
-                          >
-                            Обновить
-                          </Button>
-                        }
-                      >
-                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                          <Text type="secondary">
-                            Полная структура папок Sigur. Сотрудники подгружаются только при раскрытии нужной папки.
-                          </Text>
-                          <Input
-                            placeholder="Поиск по ФИО в Sigur (с начала имени)"
-                            value={providerHierarchySearch}
-                            onChange={(event) => setProviderHierarchySearch(event.target.value)}
-                            suffix={providerHierarchySearchLoading ? <SyncOutlined spin /> : null}
-                          />
+                  <Col xs={24} lg={15} xl={16}>
+                    <Card
+                      title="2. Иерархия Sigur"
+                      extra={
+                        <Button
+                          icon={<ReloadOutlined />}
+                          onClick={() => {
+                            setProviderHierarchyEmployeesByDepartment({});
+                            setProviderHierarchyLoadedDepartmentIds([]);
+                            setProviderHierarchyLoadingDepartmentIds([]);
+                            setProviderHierarchyExpandedKeys([]);
+                            void loadProviderDepartments();
+                          }}
+                          loading={providerDepartmentsLoading}
+                        >
+                          Обновить
+                        </Button>
+                      }
+                    >
+                      <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                        <Text type="secondary">
+                          Полная структура папок Sigur. Сотрудники подгружаются только при раскрытии нужной папки.
+                        </Text>
+                        <Input
+                          placeholder="Поиск по ФИО в Sigur (с начала имени)"
+                          value={providerHierarchySearch}
+                          onChange={(event) => setProviderHierarchySearch(event.target.value)}
+                          suffix={providerHierarchySearchLoading ? <SyncOutlined spin /> : null}
+                        />
+                        <div
+                          style={{
+                            border: "1px solid #f0f0f0",
+                            borderRadius: 12,
+                            padding: 16,
+                            background: "#fff",
+                          }}
+                        >
                           <Tree
                             treeData={
                               providerHierarchySearch
@@ -2230,80 +1901,17 @@ const SkudAdminSection = () => {
                                 : providerHierarchyExpandedKeys
                             }
                             onExpand={handleProviderHierarchyExpand}
-                            height={520}
+                            height={640}
                             showIcon={false}
                             showLine
                           />
-                        </Space>
-                      </Card>
-
-                      <Card title="4. Ручное сопоставление PassDesk ↔ Sigur">
-                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                          <Text type="secondary">
-                            Используйте этот сценарий, когда нужно вручную выбрать сотрудника PassDesk и связать его с конкретной записью Sigur.
-                          </Text>
-                          <Space wrap>
-                            <Input
-                              placeholder="Поиск PassDesk (ФИО / UUID / ИНН / Sigur ID)"
-                              value={localEmployeeSearch}
-                              onChange={(event) => setLocalEmployeeSearch(event.target.value)}
-                              style={{ width: 320 }}
-                            />
-                            <Input
-                              placeholder="Поиск Sigur (имя / ID / отдел)"
-                              value={providerEmployeeSearch}
-                              onChange={(event) => setProviderEmployeeSearch(event.target.value)}
-                              style={{ width: 280 }}
-                            />
-                            <Button onClick={loadMappingLists} loading={mappingLoading}>
-                              Найти пары
-                            </Button>
-                            <Button
-                              type="primary"
-                              onClick={handleBindSelectedEmployees}
-                              loading={bindingActionLoading}
-                            >
-                              Связать выбранных
-                            </Button>
-                          </Space>
-
-                          <Row gutter={[12, 12]}>
-                            <Col xs={24} xl={12}>
-                              <Card size="small" title="PassDesk">
-                                <Table
-                                  rowKey="id"
-                                  size="small"
-                                  rowSelection={localRowSelection}
-                                  columns={localEmployeeColumns}
-                                  dataSource={localEmployees}
-                                  loading={mappingLoading}
-                                  pagination={false}
-                                  scroll={{ x: 700, y: 320 }}
-                                />
-                              </Card>
-                            </Col>
-                            <Col xs={24} xl={12}>
-                              <Card size="small" title="Sigur">
-                                <Table
-                                  rowKey={(record) => record.id || `sigur-${record.name}`}
-                                  size="small"
-                                  rowSelection={providerRowSelection}
-                                  columns={providerEmployeeColumns}
-                                  dataSource={providerEmployees}
-                                  loading={mappingLoading}
-                                  pagination={false}
-                                  scroll={{ x: 700, y: 320 }}
-                                />
-                              </Card>
-                            </Col>
-                          </Row>
-                        </Space>
-                      </Card>
-                    </Space>
+                        </div>
+                      </Space>
+                    </Card>
                   </Col>
                 </Row>
 
-                <Card title="5. Импорт соответствий по пропускам (Excel)">
+                <Card title="3. Импорт соответствий по пропускам (Excel)">
                   <Space direction="vertical" size={12} style={{ width: "100%" }}>
                     <Text type="secondary">
                       Этот сценарий нужен для массовой догрузки. Сначала загрузите Excel из 1С ЗУП, затем проверьте конфликты, потом отправьте в sync только строки со статусом «Готово».
