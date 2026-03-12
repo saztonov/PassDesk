@@ -496,19 +496,26 @@ const SkudAdminSection = () => {
   const refreshEvents = useCallback(
     async ({ silentSuccess = false } = {}) => {
       setPullingEvents(true);
+      let pullResult = null;
       try {
-        const pullResult = await skudService.pullEvents({
+        pullResult = await skudService.pullEvents({
           ...buildEventRangeParams(eventDateRange),
         });
+      } catch (error) {
+        console.error("Failed to refresh events from Sigur:", error);
+        message.error(getRequestErrorMessage(error, "Не удалось обновить события"));
+      }
+
+      try {
         await loadData();
-        if (!silentSuccess) {
+        if (!silentSuccess && pullResult) {
           const fetched = Number(pullResult?.fetched || 0);
           const imported = Number(pullResult?.imported || 0);
           message.success(`События обновлены: получено ${fetched}, добавлено ${imported}`);
         }
       } catch (error) {
-        console.error("Failed to refresh events from Sigur:", error);
-        message.error(getRequestErrorMessage(error, "Не удалось обновить события"));
+        console.error("Failed to reload local SKUD events:", error);
+        message.error(getRequestErrorMessage(error, "Не удалось загрузить локальные события"));
       } finally {
         setPullingEvents(false);
       }
@@ -528,6 +535,14 @@ const SkudAdminSection = () => {
     eventsAutoRefreshRef.current = true;
     refreshEvents({ silentSuccess: true });
   }, [activeTab, refreshEvents]);
+
+  useEffect(() => {
+    const total = Number(state.events?.pagination?.total || 0);
+    const maxPage = Math.max(1, Math.ceil(total / eventsPageSize));
+    if (eventsPage > maxPage) {
+      setEventsPage(maxPage);
+    }
+  }, [eventsPage, eventsPageSize, state.events?.pagination?.total]);
 
   const loadMappingLists = useCallback(async () => {
     setMappingLoading(true);
