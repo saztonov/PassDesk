@@ -271,6 +271,12 @@ router.post(
   authorize("admin"),
   employeeController.restoreEmployee,
 );
+router.post(
+  "/:id/discard-draft",
+  idParamValidation,
+  authorize("admin", "manager", "user"),
+  employeeController.discardDraftEmployee,
+);
 router.delete(
   "/:id/permanent",
   idParamValidation,

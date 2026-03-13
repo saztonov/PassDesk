@@ -46,6 +46,12 @@ export const employeeApi = {
     return response.data;
   },
 
+  // Отменить новый черновик сотрудника с очисткой файлов
+  discardDraft: async (id) => {
+    const response = await api.post(`/employees/${id}/discard-draft`);
+    return response.data;
+  },
+
   // Поиск сотрудников
   search: async (query) => {
     const response = await api.get('/employees/search', { params: { query } });
@@ -141,4 +147,3 @@ export const employeeApi = {
     return response;
   }
 };
-

@@ -9,6 +9,7 @@ export const useAddEmployeePage = ({ id, navigate, message, modal }) => {
   const [editingEmployee, setEditingEmployee] = useState(null);
   const employeeLoadedRef = useRef(false);
   const savedEmployeeIdRef = useRef(null);
+  const initialEmployeeIdRef = useRef(id || null);
 
   const { createEmployee, updateEmployee } = useEmployeeActions(() => {
     // Не нужно refetch, так как после сохранения выполняется переход
@@ -166,9 +167,30 @@ export const useAddEmployeePage = ({ id, navigate, message, modal }) => {
     }
   };
 
+  const handleCancel = async () => {
+    const currentEmployeeId = savedEmployeeIdRef.current || editingEmployee?.id || null;
+    const shouldDiscardDraft = !initialEmployeeIdRef.current && currentEmployeeId;
+
+    if (shouldDiscardDraft) {
+      try {
+        await employeeApi.discardDraft(currentEmployeeId);
+      } catch (error) {
+        console.error("Ошибка при отмене черновика сотрудника:", error);
+        message.error(
+          error.response?.data?.message ||
+            "Не удалось удалить временный черновик сотрудника",
+        );
+        return;
+      }
+    }
+
+    navigate("/employees");
+  };
+
   return {
     editingEmployee,
     handleCheckInn,
     handleFormSuccess,
+    handleCancel,
   };
 };

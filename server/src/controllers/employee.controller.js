@@ -1951,6 +1951,79 @@ export const deleteEmployee = async (req, res, next) => {
   }
 };
 
+export const discardDraftEmployee = async (req, res, next) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { id } = req.params;
+
+    const employee = await Employee.findByPk(id, {
+      include: employeeAccessInclude,
+      transaction,
+    });
+
+    if (!employee || employee.isDeleted) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Сотрудник не найден",
+      });
+    }
+
+    const canDiscard =
+      req.user.role === "admin" ||
+      String(employee.createdBy || "") === String(req.user.id || "");
+
+    if (!canDiscard) {
+      await transaction.rollback();
+      return next(new AppError("Недостаточно прав", 403));
+    }
+
+    await checkEmployeeAccess(req.user, employee);
+
+    const files = await File.findAll({
+      where: {
+        employeeId: employee.id,
+      },
+      transaction,
+    });
+
+    for (const file of files) {
+      if (!file?.filePath) {
+        continue;
+      }
+      try {
+        await storageProvider.deleteFile(file.filePath);
+      } catch (error) {
+        console.warn(
+          `Failed to delete employee draft file from storage: ${file.filePath}`,
+          error?.message || error,
+        );
+      }
+    }
+
+    await File.destroy({
+      where: {
+        employeeId: employee.id,
+      },
+      transaction,
+      force: true,
+    });
+
+    await employee.destroy({ transaction, force: true });
+    await transaction.commit();
+
+    res.json({
+      success: true,
+      message: "Черновик сотрудника удален",
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error("Error discarding employee draft:", error);
+    next(error);
+  }
+};
+
 export const permanentlyDeleteEmployee = async (req, res, next) => {
   try {
     const { id } = req.params;

@@ -21,7 +21,7 @@ const AddEmployeePage = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
-  const { editingEmployee, handleCheckInn, handleFormSuccess } =
+  const { editingEmployee, handleCheckInn, handleFormSuccess, handleCancel } =
     useAddEmployeePage({
       id,
       navigate,
@@ -29,12 +29,8 @@ const AddEmployeePage = () => {
       modal,
     });
 
-  const handleCancel = () => {
-    navigate("/employees");
-  };
-
   const handleClose = () => {
-    navigate("/employees");
+    void handleCancel();
   };
 
   usePageTitle(id ? "Редактирование" : "Добавление", isMobile);
