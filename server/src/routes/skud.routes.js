@@ -15,9 +15,12 @@ const paginationValidation = [
   query("from").optional().isISO8601(),
   query("to").optional().isISO8601(),
   query("eventType").optional().isString().trim().notEmpty(),
+  query("direction").optional().isInt({ min: 1, max: 2 }),
   query("allow").optional().isBoolean(),
   query("departmentId").optional().isString().trim().notEmpty(),
   query("passageOnly").optional().isBoolean(),
+  query("sortBy").optional().isIn(["eventTime"]),
+  query("sortOrder").optional().isIn(["asc", "desc"]),
   validate,
 ];
 
@@ -57,6 +60,11 @@ router.get(
   "/provider/departments",
   authorize("admin", "manager"),
   skudController.providerDepartments,
+);
+router.get(
+  "/provider/access-points",
+  authorize("admin", "manager"),
+  skudController.providerAccessPoints,
 );
 router.post(
   "/provider/departments",

@@ -77,8 +77,14 @@ const getSigurPersonName = (record) => {
 };
 
 const getAccessPointName = (record) => {
+  const explicitLabel = String(record?.accessPointLabel || "").trim();
+  if (explicitLabel) {
+    return explicitLabel;
+  }
+
   const rawItem = getRawEventItem(record);
   const value =
+    record?.accessPointName ||
     rawItem?.additionalData?.accessPoint?.name ||
     rawItem?.additionalData?.access_point?.name ||
     rawItem?.data?.accessPointName ||
@@ -128,6 +134,10 @@ const buildEmployeeName = (employee) =>
     .join(" ")
     .trim();
 
+const getLocalEmployeeName = (record) => String(record?.employeeName || "").trim();
+
+const getEmployeeDepartmentName = (record) => String(record?.departmentName || "").trim();
+
 const renderHierarchyFolderTitle = (label, { loading = false, loadedCount = null } = {}) => (
   <Space size={8}>
     {loading ? <SyncOutlined spin /> : <FolderOpenOutlined />}
@@ -165,6 +175,7 @@ const normalizeSigurPathSegments = (value) =>
     .filter(Boolean);
 
 const getTodayEventRange = () => [dayjs().startOf("day"), dayjs().endOf("day")];
+const EVENT_LOAD_LIMIT = 200;
 
 const buildEventRangeParams = (eventDateRange) =>
   Array.isArray(eventDateRange) && eventDateRange[0] && eventDateRange[1]
@@ -186,6 +197,8 @@ const SkudAdminSection = () => {
   const [employeeReasonInput, setEmployeeReasonInput] = useState("");
   const [providerDepartments, setProviderDepartments] = useState([]);
   const [providerDepartmentsLoading, setProviderDepartmentsLoading] = useState(false);
+  const [providerAccessPoints, setProviderAccessPoints] = useState([]);
+  const [providerAccessPointsLoading, setProviderAccessPointsLoading] = useState(false);
   const [providerHierarchySearch, setProviderHierarchySearch] = useState("");
   const [providerHierarchySearchLoading, setProviderHierarchySearchLoading] = useState(false);
   const [providerHierarchySearchEmployees, setProviderHierarchySearchEmployees] = useState([]);
@@ -236,9 +249,12 @@ const SkudAdminSection = () => {
   const [showOnlyPassages, setShowOnlyPassages] = useState(true);
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [decisionFilter, setDecisionFilter] = useState("all");
+  const [directionFilter, setDirectionFilter] = useState("all");
+  const [accessPointFilter, setAccessPointFilter] = useState(undefined);
   const [eventDateRange, setEventDateRange] = useState(getTodayEventRange);
   const [eventsPage, setEventsPage] = useState(1);
   const [eventsPageSize, setEventsPageSize] = useState(20);
+  const [eventsSortOrder, setEventsSortOrder] = useState("descend");
   const [eventDetailsOpen, setEventDetailsOpen] = useState(false);
   const [eventDetailsLoading, setEventDetailsLoading] = useState(false);
   const [eventDetailsRecord, setEventDetailsRecord] = useState(null);
@@ -250,7 +266,7 @@ const SkudAdminSection = () => {
     stats: null,
     events: {
       items: [],
-      pagination: { total: 0, limit: 200, offset: 0 },
+      pagination: { total: 0, limit: EVENT_LOAD_LIMIT, offset: 0 },
     },
     syncJobs: {
       items: [],
@@ -269,15 +285,19 @@ const SkudAdminSection = () => {
         skudService.getHealth(),
         skudService.getStats(),
         skudService.getEvents({
-          limit: eventsPageSize,
-          offset: Math.max(eventsPage - 1, 0) * eventsPageSize,
+          limit: EVENT_LOAD_LIMIT,
+          offset: 0,
           passageOnly: showOnlyPassages,
           ...(eventTypeFilter !== "all" ? { eventType: eventTypeFilter } : {}),
+          ...(directionFilter !== "all" ? { direction: directionFilter } : {}),
+          ...(accessPointFilter ? { accessPoint: accessPointFilter } : {}),
           ...(decisionFilter === "allowed"
             ? { allow: true }
             : decisionFilter === "denied"
               ? { allow: false }
               : {}),
+          sortBy: "eventTime",
+          sortOrder: eventsSortOrder === "ascend" ? "asc" : "desc",
           ...buildEventRangeParams(eventDateRange),
         }),
         skudService.getSyncJobs({ limit: 20, offset: 0 }),
@@ -298,11 +318,12 @@ const SkudAdminSection = () => {
       setLoading(false);
     }
   }, [
+    accessPointFilter,
     decisionFilter,
+    directionFilter,
     eventDateRange,
     eventTypeFilter,
-    eventsPage,
-    eventsPageSize,
+    eventsSortOrder,
     message,
     showOnlyPassages,
   ]);
@@ -331,14 +352,37 @@ const SkudAdminSection = () => {
     setDecisionFilter(value);
   }, []);
 
+  const handleDirectionFilterChange = useCallback((value) => {
+    setEventsPage(1);
+    setDirectionFilter(value);
+  }, []);
+
+  const handleAccessPointFilterChange = useCallback((value) => {
+    setEventsPage(1);
+    setAccessPointFilter(value || undefined);
+  }, []);
+
   const handleEventDateRangeChange = useCallback((value) => {
     setEventsPage(1);
     setEventDateRange(value);
   }, []);
 
-  const handleEventsTableChange = useCallback((pagination) => {
+  const handleEventsTableChange = useCallback((pagination, _filters, sorter) => {
     const nextPageSize = Number(pagination?.pageSize || 20);
     const nextPage = Number(pagination?.current || 1);
+    const nextSortOrder =
+      !Array.isArray(sorter) && sorter?.field === "eventTime" && sorter?.order
+        ? sorter.order
+        : "descend";
+
+    if (nextSortOrder !== eventsSortOrder) {
+      setEventsSortOrder(nextSortOrder);
+      setEventsPage(1);
+      if (nextPageSize !== eventsPageSize) {
+        setEventsPageSize(nextPageSize);
+      }
+      return;
+    }
 
     if (nextPageSize !== eventsPageSize) {
       setEventsPageSize(nextPageSize);
@@ -347,7 +391,7 @@ const SkudAdminSection = () => {
     }
 
     setEventsPage(nextPage);
-  }, [eventsPageSize]);
+  }, [eventsPageSize, eventsSortOrder]);
 
   const handleCloseEventDetails = useCallback(() => {
     setEventDetailsOpen(false);
@@ -587,12 +631,12 @@ const SkudAdminSection = () => {
   }, [activeTab, refreshEvents]);
 
   useEffect(() => {
-    const total = Number(state.events?.pagination?.total || 0);
+    const total = Array.isArray(state.events?.items) ? state.events.items.length : 0;
     const maxPage = Math.max(1, Math.ceil(total / eventsPageSize));
     if (eventsPage > maxPage) {
       setEventsPage(maxPage);
     }
-  }, [eventsPage, eventsPageSize, state.events?.pagination?.total]);
+  }, [eventsPage, eventsPageSize, state.events?.items]);
 
   const fetchEmployeeOptions = useCallback(async (search = "") => {
     const response = await employeeService.getAll({
@@ -641,6 +685,19 @@ const SkudAdminSection = () => {
       message.error("Не удалось загрузить структуру Sigur");
     } finally {
       setProviderDepartmentsLoading(false);
+    }
+  }, [message]);
+
+  const loadProviderAccessPoints = useCallback(async () => {
+    setProviderAccessPointsLoading(true);
+    try {
+      const response = await skudService.getProviderAccessPoints();
+      setProviderAccessPoints(Array.isArray(response?.items) ? response.items : []);
+    } catch (error) {
+      console.error("Failed to load Sigur access points:", error);
+      message.error("Не удалось загрузить точки доступа Sigur");
+    } finally {
+      setProviderAccessPointsLoading(false);
     }
   }, [message]);
 
@@ -796,6 +853,13 @@ const SkudAdminSection = () => {
     }
     loadProviderDepartments();
   }, [activeTab, loadProviderDepartments]);
+
+  useEffect(() => {
+    if (activeTab !== "events") {
+      return;
+    }
+    loadProviderAccessPoints();
+  }, [activeTab, loadProviderAccessPoints]);
 
   useEffect(() => {
     if (activeTab !== "employees") {
@@ -1020,6 +1084,8 @@ const SkudAdminSection = () => {
         dataIndex: "eventTime",
         key: "eventTime",
         width: 190,
+        sorter: true,
+        sortOrder: eventsSortOrder,
         render: (value) => (
           <span style={{ whiteSpace: "nowrap" }}>
             {value ? dayjs(value).format("DD.MM.YYYY HH:mm:ss") : "—"}
@@ -1029,26 +1095,82 @@ const SkudAdminSection = () => {
       {
         title: "Сотрудник",
         key: "employee",
+        width: 320,
         render: (_, record) => {
           const sigurName = getSigurPersonName(record);
+          const localName = getLocalEmployeeName(record);
+          const departmentName = getEmployeeDepartmentName(record);
           const ext = record.externalEmpId ? `ID ${record.externalEmpId}` : "—";
-          const triggerLabel = sigurName || ext;
+          const triggerLabel = localName || sigurName || ext;
 
           return (
-            <Space direction="vertical" size={0}>
+            <Space direction="vertical" size={0} style={{ width: "100%", minWidth: 0 }}>
               <Button
                 type="link"
                 size="small"
-                style={{ padding: 0, height: "auto", textAlign: "left" }}
+                title={triggerLabel}
+                style={{
+                  padding: 0,
+                  height: "auto",
+                  textAlign: "left",
+                  width: "100%",
+                  display: "block",
+                  overflow: "hidden",
+                }}
                 onClick={() => {
                   void handleOpenEventDetails(record);
                 }}
               >
-                {triggerLabel}
+                <span
+                  style={{
+                    display: "block",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {triggerLabel}
+                </span>
               </Button>
-              <Text type="secondary" style={{ fontSize: 12 }}>
+              {sigurName && localName && sigurName !== localName ? (
+                <Text
+                  type="secondary"
+                  style={{
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                  title={`Sigur ФИО: ${sigurName}`}
+                >
+                  Sigur ФИО: {sigurName}
+                </Text>
+              ) : null}
+              <Text
+                type="secondary"
+                style={{
+                  fontSize: 12,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
                 Sigur: {ext}
               </Text>
+              {departmentName ? (
+                <Text
+                  type="secondary"
+                  style={{
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                  title={`Отдел: ${departmentName}`}
+                >
+                  Отдел: {departmentName}
+                </Text>
+              ) : null}
             </Space>
           );
         },
@@ -1057,7 +1179,7 @@ const SkudAdminSection = () => {
         title: "Точка",
         dataIndex: "accessPoint",
         key: "accessPoint",
-        width: 220,
+        width: 320,
         render: (value, record) => {
           const pointName = getAccessPointName(record);
           if (!pointName) {
@@ -1065,11 +1187,28 @@ const SkudAdminSection = () => {
           }
 
           return (
-            <Space direction="vertical" size={0}>
-              <Text>{pointName}</Text>
+            <Space direction="vertical" size={0} style={{ width: "100%", minWidth: 0 }}>
+              <Text
+                style={{
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+                title={pointName}
+              >
+                {pointName}
+              </Text>
               {value !== null && value !== undefined ? (
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  ID: {value}
+                <Text
+                  type="secondary"
+                  style={{
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  Точка ID: {value}
                 </Text>
               ) : null}
             </Space>
@@ -1089,13 +1228,13 @@ const SkudAdminSection = () => {
         key: "direction",
         width: 90,
         render: (value) => {
-          if (value === 1) return <Tag color="blue">Вход</Tag>;
-          if (value === 2) return <Tag color="geekblue">Выход</Tag>;
+          if (value === 1) return <Tag color="green">Вход</Tag>;
+          if (value === 2) return <Tag color="volcano">Выход</Tag>;
           return <Tag>—</Tag>;
         },
       },
     ],
-    [handleOpenEventDetails],
+    [eventsSortOrder, handleOpenEventDetails],
   );
 
   const eventTypeOptions = useMemo(() => {
@@ -1120,6 +1259,15 @@ const SkudAdminSection = () => {
 
     return baseOptions;
   }, [state.events?.items]);
+
+  const accessPointOptions = useMemo(
+    () =>
+      (providerAccessPoints || []).map((item) => ({
+        value: item.id,
+        label: item.label || item.name || String(item.id),
+      })),
+    [providerAccessPoints],
+  );
 
   const bindingImportColumns = useMemo(
     () => [
@@ -1745,6 +1893,12 @@ const SkudAdminSection = () => {
   const eventDetailsProviderEmployeeName = eventDetailsProviderEmployee?.name || null;
   const eventDetailsProviderZone = eventDetailsProviderEmployee?.location?.zoneName || null;
   const eventDetailsExternalEmpId = eventDetailsRecord?.externalEmpId || null;
+  const totalEventsCount = Number(state.events?.pagination?.total || 0);
+  const loadedEventsCount = Array.isArray(state.events?.items) ? state.events.items.length : 0;
+  const displayedEventItems = useMemo(() => {
+    const start = Math.max(eventsPage - 1, 0) * eventsPageSize;
+    return (state.events?.items || []).slice(start, start + eventsPageSize);
+  }, [eventsPage, eventsPageSize, state.events?.items]);
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%", padding: 16 }}>
@@ -1819,6 +1973,32 @@ const SkudAdminSection = () => {
                         value={decisionFilter}
                         onChange={handleDecisionFilterChange}
                       />
+                      <Select
+                        style={{ width: 160 }}
+                        options={[
+                          { value: "all", label: "Все направления" },
+                          { value: "1", label: "Вход" },
+                          { value: "2", label: "Выход" },
+                        ]}
+                        value={directionFilter}
+                        onChange={handleDirectionFilterChange}
+                      />
+                      <Select
+                        showSearch
+                        allowClear
+                        style={{ width: 320 }}
+                        placeholder="Точка доступа"
+                        options={accessPointOptions}
+                        value={accessPointFilter}
+                        loading={providerAccessPointsLoading}
+                        onChange={handleAccessPointFilterChange}
+                        optionFilterProp="label"
+                        filterOption={(input, option) =>
+                          String(option?.label || "")
+                            .toLowerCase()
+                            .includes(String(input || "").trim().toLowerCase())
+                        }
+                      />
                     </Space>
                     <Space size={8}>
                       <Text type="secondary">Показывать только проходы</Text>
@@ -1836,22 +2016,29 @@ const SkudAdminSection = () => {
                   </Space>
                 </Card>
 
-                <Card title="Журнал событий">
+                <Card
+                  title="Журнал событий"
+                  extra={
+                    <Text type="secondary">
+                      Всего записей: {totalEventsCount}. Загружено: {loadedEventsCount}
+                    </Text>
+                  }
+                >
                   <Table
                     rowKey={getEventRowKey}
                     columns={eventsColumns}
-                    dataSource={state.events?.items || []}
+                    dataSource={displayedEventItems}
                     loading={loading}
                     onChange={handleEventsTableChange}
                     pagination={{
                       current: eventsPage,
                       pageSize: eventsPageSize,
-                      total: Number(state.events?.pagination?.total || 0),
+                      total: loadedEventsCount,
                       showSizeChanger: true,
                       pageSizeOptions: ["20", "50", "100", "200"],
-                      showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
+                      showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} загруженных`,
                     }}
-                    scroll={{ x: 900 }}
+                    scroll={{ x: 1200 }}
                   />
                 </Card>
               </Space>
@@ -2482,6 +2669,9 @@ const SkudAdminSection = () => {
                 </Descriptions.Item>
                 <Descriptions.Item label="Sigur ID сотрудника">
                   {eventDetailsExternalEmpId || "—"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Отдел сотрудника">
+                  {getEmployeeDepartmentName(eventDetailsRecord) || "—"}
                 </Descriptions.Item>
                 <Descriptions.Item label="Точка прохода">
                   {getAccessPointName(eventDetailsRecord)

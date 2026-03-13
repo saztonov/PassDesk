@@ -28,6 +28,11 @@ const skudService = {
     return toData(response);
   },
 
+  getProviderAccessPoints: async (params = {}) => {
+    const response = await api.get("/skud/provider/access-points", { params });
+    return toData(response);
+  },
+
   createProviderDepartment: async (payload) => {
     const response = await api.post("/skud/provider/departments", payload);
     return toData(response);

@@ -108,6 +108,37 @@ export class SigurClient {
     });
   }
 
+  async getAccessPoints({ limit = 100, offset = 0, filters = {} } = {}) {
+    return this.request({
+      method: "GET",
+      url: "/api/v1/accesspoints",
+      params: {
+        limit,
+        offset,
+        ...filters,
+      },
+    });
+  }
+
+  async getAccessPointById(accessPointId) {
+    const id = toNumber(accessPointId);
+    if (!id) {
+      throw new Error("accessPointId is required to fetch access point in Sigur");
+    }
+
+    return this.request({
+      method: "GET",
+      url: `/api/v1/accesspoints/${id}`,
+    });
+  }
+
+  async getAccessPointHierarchy() {
+    return this.request({
+      method: "GET",
+      url: "/api/v1/accesspoints/hierarchy",
+    });
+  }
+
   async createDepartment({ name, parentId = 0, description = "" }) {
     return this.request({
       method: "POST",

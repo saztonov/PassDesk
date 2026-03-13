@@ -3,6 +3,7 @@ import {
   Employee,
   EmployeeCounterpartyMapping,
   Counterparty,
+  Department,
   SkudPersonBinding,
   SkudAccessEvent,
 } from "../models/index.js";
@@ -118,6 +119,13 @@ const toProviderItems = (result) =>
       ? result.items
       : [];
 
+const ACCESS_POINT_CATALOG_TTL_MS = 60 * 1000;
+let accessPointCatalogCache = {
+  expiresAt: 0,
+  value: null,
+  promise: null,
+};
+
 const getAllProviderDepartments = async (provider) => {
   const limit = 500;
   const items = [];
@@ -125,6 +133,29 @@ const getAllProviderDepartments = async (provider) => {
 
   while (true) {
     const response = await provider.getDepartments({ limit, offset });
+    const page = toProviderItems(response);
+    if (!page.length) {
+      break;
+    }
+
+    items.push(...page);
+    if (page.length < limit) {
+      break;
+    }
+
+    offset += page.length;
+  }
+
+  return items;
+};
+
+const getAllProviderAccessPoints = async (provider) => {
+  const limit = 500;
+  const items = [];
+  let offset = 0;
+
+  while (true) {
+    const response = await provider.getAccessPoints({ limit, offset });
     const page = toProviderItems(response);
     if (!page.length) {
       break;
@@ -164,6 +195,248 @@ const buildDepartmentPath = (item, departmentsById, seen = new Set()) => {
   const name = String(item?.name || "").trim();
 
   return name ? [...parentPath, name] : parentPath;
+};
+
+const buildAccessPointFolderPath = (item, foldersById, seen = new Set()) => {
+  const id = item?.id === undefined || item?.id === null ? null : String(item.id);
+  if (!id || seen.has(id)) {
+    return [];
+  }
+
+  const nextSeen = new Set(seen);
+  nextSeen.add(id);
+
+  const parentIdRaw = item?.parentId;
+  const parentId =
+    parentIdRaw === undefined || parentIdRaw === null ? null : String(parentIdRaw);
+  const parent = parentId && parentId !== "0" ? foldersById.get(parentId) : null;
+  const parentPath = parent ? buildAccessPointFolderPath(parent, foldersById, nextSeen) : [];
+  const name = String(item?.name || "").trim();
+
+  return name ? [...parentPath, name] : parentPath;
+};
+
+const mapAccessPointLabel = ({ accessPoint, hierarchyById }) => {
+  if (!accessPoint || accessPoint.id === undefined || accessPoint.id === null) {
+    return null;
+  }
+
+  const pointName = String(accessPoint?.name || "").trim();
+  const folderIdRaw =
+    accessPoint?.folderId ?? accessPoint?.folder?.id ?? accessPoint?.folder_id ?? null;
+  const folderId =
+    folderIdRaw === undefined || folderIdRaw === null ? null : String(folderIdRaw);
+  const folder = folderId && hierarchyById.has(folderId) ? hierarchyById.get(folderId) : null;
+  const folderPath = folder ? buildAccessPointFolderPath(folder, hierarchyById) : [];
+
+  if (folderPath.length && pointName) {
+    return `${folderPath.join(" / ")} / ${pointName}`;
+  }
+  if (folderPath.length) {
+    return folderPath.join(" / ");
+  }
+  return pointName || null;
+};
+
+const getAccessPointCatalog = async (provider) => {
+  const now = Date.now();
+  if (accessPointCatalogCache.value && accessPointCatalogCache.expiresAt > now) {
+    return accessPointCatalogCache.value;
+  }
+
+  if (accessPointCatalogCache.promise) {
+    return accessPointCatalogCache.promise;
+  }
+
+  accessPointCatalogCache.promise = (async () => {
+    try {
+      const [points, hierarchyResponse] = await Promise.all([
+        getAllProviderAccessPoints(provider),
+        provider.getAccessPointHierarchy(),
+      ]);
+      const hierarchyItems = toProviderItems(hierarchyResponse);
+      const hierarchyById = new Map(
+        hierarchyItems
+          .filter((item) => item?.id !== undefined && item?.id !== null)
+          .map((item) => [String(item.id), item]),
+      );
+      const pointsById = new Map(
+        points
+          .filter((item) => item?.id !== undefined && item?.id !== null)
+          .map((item) => [String(item.id), item]),
+      );
+
+      const value = {
+        hierarchyById,
+        pointsById,
+      };
+      accessPointCatalogCache = {
+        expiresAt: Date.now() + ACCESS_POINT_CATALOG_TTL_MS,
+        value,
+        promise: null,
+      };
+      return value;
+    } catch (error) {
+      accessPointCatalogCache = {
+        expiresAt: 0,
+        value: null,
+        promise: null,
+      };
+      throw error;
+    }
+  })();
+
+  return accessPointCatalogCache.promise;
+};
+
+const mapProviderAccessPoint = ({ accessPoint, hierarchyById }) => {
+  if (!accessPoint || accessPoint?.id === undefined || accessPoint?.id === null) {
+    return null;
+  }
+
+  const id = String(accessPoint.id);
+  const name = String(accessPoint?.name || "").trim() || "—";
+  const folderIdRaw =
+    accessPoint?.folderId ?? accessPoint?.folder?.id ?? accessPoint?.folder_id ?? null;
+  const folderId =
+    folderIdRaw === undefined || folderIdRaw === null ? null : String(folderIdRaw);
+  const folder = folderId && hierarchyById.has(folderId) ? hierarchyById.get(folderId) : null;
+  const folderPath = folder ? buildAccessPointFolderPath(folder, hierarchyById) : [];
+  const pathLabel = folderPath.length ? folderPath.join(" / ") : null;
+  const label = mapAccessPointLabel({ accessPoint, hierarchyById }) || name;
+
+  return {
+    id,
+    name,
+    folderId,
+    pathLabel,
+    label,
+    raw: accessPoint,
+  };
+};
+
+const buildEmployeeDepartmentName = (employee) => {
+  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+    ? employee.employeeCounterpartyMappings
+    : [];
+  return (
+    mappings.find((item) => item?.department?.name)?.department?.name
+    || null
+  );
+};
+
+const buildEmployeeDepartmentId = (employee) => {
+  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+    ? employee.employeeCounterpartyMappings
+    : [];
+  const value = mappings.find((item) => item?.departmentId)?.departmentId;
+  return value || null;
+};
+
+const enrichProviderEvents = async ({ items, provider }) => {
+  const normalizedItems = Array.isArray(items) ? items : [];
+  if (!normalizedItems.length) {
+    return normalizedItems;
+  }
+
+  const externalEmpIds = Array.from(
+    new Set(
+      normalizedItems
+        .map((item) => String(item?.externalEmpId || "").trim())
+        .filter(Boolean),
+    ),
+  );
+
+  const employeeBindings = externalEmpIds.length
+    ? await SkudPersonBinding.findAll({
+        where: {
+          externalSystem: "sigur",
+          isActive: true,
+          externalEmpId: {
+            [Op.in]: externalEmpIds,
+          },
+        },
+        attributes: ["externalEmpId", "employeeId"],
+        include: [
+          {
+            model: Employee,
+            as: "employee",
+            required: false,
+            attributes: ["id", "firstName", "lastName", "middleName", "isActive"],
+            include: [
+              {
+                model: EmployeeCounterpartyMapping,
+                as: "employeeCounterpartyMappings",
+                required: false,
+                attributes: ["id", "departmentId"],
+                include: [
+                  {
+                    model: Department,
+                    as: "department",
+                    required: false,
+                    attributes: ["id", "name"],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+    : [];
+
+  const employeeByExternalId = new Map(
+    employeeBindings.map((binding) => [
+      String(binding.externalEmpId),
+      {
+        employeeId: binding.employee?.id || binding.employeeId || null,
+        employeeName: buildEmployeeDisplayName(binding.employee) || null,
+        departmentId: buildEmployeeDepartmentId(binding.employee),
+        departmentName: buildEmployeeDepartmentName(binding.employee),
+        employee: binding.employee || null,
+      },
+    ]),
+  );
+
+  let accessPointCatalog = null;
+  try {
+    accessPointCatalog = await getAccessPointCatalog(provider);
+  } catch (error) {
+    console.warn("Failed to load Sigur access point catalog:", error?.message || error);
+  }
+
+  return normalizedItems.map((item) => {
+    const externalEmpId = String(item?.externalEmpId || "").trim();
+    const accessPointId =
+      item?.accessPoint === undefined || item?.accessPoint === null
+        ? null
+        : String(item.accessPoint);
+    const employeeMeta = externalEmpId ? employeeByExternalId.get(externalEmpId) : null;
+    const accessPointMeta =
+      accessPointCatalog && accessPointId
+        ? accessPointCatalog.pointsById.get(accessPointId) || null
+        : null;
+    const accessPointLabel = accessPointMeta
+      ? mapAccessPointLabel({
+          accessPoint: accessPointMeta,
+          hierarchyById: accessPointCatalog.hierarchyById,
+        })
+      : null;
+
+    return {
+      ...item,
+      employeeId: item?.employeeId || employeeMeta?.employeeId || null,
+      employeeName: item?.employeeName || employeeMeta?.employeeName || null,
+      departmentId: item?.departmentId || employeeMeta?.departmentId || null,
+      departmentName: employeeMeta?.departmentName || null,
+      accessPointLabel: accessPointLabel || null,
+      accessPointName:
+        String(accessPointMeta?.name || "").trim() || item?.accessPointName || null,
+      accessPointFolderId:
+        accessPointMeta?.folderId === undefined || accessPointMeta?.folderId === null
+          ? null
+          : String(accessPointMeta.folderId),
+    };
+  });
 };
 
 const getLatestSkudPullCursor = async () => {
@@ -332,6 +605,8 @@ const buildProviderEventView = async ({
   allow,
   departmentId,
   passageOnly = false,
+  sortBy = "eventTime",
+  sortOrder = "desc",
   limit = 200,
   offset = 0,
 }) => {
@@ -383,12 +658,33 @@ const buildProviderEventView = async ({
       );
     }
 
-    filtered.sort(
-      (left, right) =>
-        new Date(right.eventTime).getTime() - new Date(left.eventTime).getTime(),
-    );
+    const normalizedSortOrder = String(sortOrder || "desc").toLowerCase() === "asc" ? "asc" : "desc";
+    if (sortBy === "eventTime") {
+      filtered.sort((left, right) => {
+        const leftTime = new Date(left.eventTime).getTime();
+        const rightTime = new Date(right.eventTime).getTime();
+        return normalizedSortOrder === "asc" ? leftTime - rightTime : rightTime - leftTime;
+      });
+    }
 
     return filtered;
+  };
+
+  const finalizeItems = async (items, { hasMore = false } = {}) => {
+    const enrichedItems = await enrichProviderEvents({ items, provider });
+    const departmentFiltered = departmentId
+      ? enrichedItems.filter(
+          (item) => String(item?.departmentId || "") === String(departmentId),
+        )
+      : enrichedItems;
+    const visibleItems = departmentFiltered.slice(offset, offset + limit);
+
+    return {
+      items: visibleItems,
+      total: hasMore
+        ? Math.max(departmentFiltered.length, offset + visibleItems.length + 1)
+        : departmentFiltered.length,
+    };
   };
 
   if (canUseRawEventLog) {
@@ -406,13 +702,16 @@ const buildProviderEventView = async ({
     const rawItems = toProviderItems(rawResult);
     const normalizedItems = rawItems.map((item) => normalizeRawProviderEvent(item));
     const items = applyLiveFilters(normalizedItems);
-    const visibleItems = items.slice(0, limit);
     const hasMore = rawItems.length > limit;
+    const enrichedItems = await enrichProviderEvents({
+      items: items.slice(0, limit),
+      provider,
+    });
 
     return {
-      items: visibleItems,
+      items: enrichedItems,
       pagination: {
-        total: hasMore ? offset + visibleItems.length + 1 : offset + visibleItems.length,
+        total: hasMore ? offset + enrichedItems.length + 1 : offset + enrichedItems.length,
         limit,
         offset,
       },
@@ -455,11 +754,11 @@ const buildProviderEventView = async ({
     }
 
     const items = applyLiveFilters(rawItems.map((item) => normalizeProviderEvent(item)));
-    const visibleItems = items.slice(offset, offset + limit);
+    const finalized = await finalizeItems(items, { hasMore });
     return {
-      items: visibleItems,
+      items: finalized.items,
       pagination: {
-        total: hasMore ? Math.max(items.length, offset + visibleItems.length + 1) : items.length,
+        total: finalized.total,
         limit,
         offset,
       },
@@ -517,10 +816,11 @@ const buildProviderEventView = async ({
   const rawOffset = Math.max(0, selectedWindowCount - rawLimit);
   const rawItems = await fetchWindowPage(selectedWindowStart, rawLimit, rawOffset);
   const items = applyLiveFilters(rawItems.map((item) => normalizeProviderEvent(item)));
+  const finalized = await finalizeItems(items);
   return {
-    items: items.slice(offset, offset + limit),
+    items: finalized.items,
     pagination: {
-      total: items.length,
+      total: finalized.total,
       limit,
       offset,
     },
@@ -618,6 +918,8 @@ export const skudController = {
             : parseBooleanParam(req.query.allow, false),
         departmentId: req.query.departmentId,
         passageOnly: parseBooleanParam(req.query.passageOnly, false),
+        sortBy: req.query.sortBy,
+        sortOrder: req.query.sortOrder,
         limit,
         offset,
       });
@@ -883,6 +1185,47 @@ export const skudController = {
             );
           })
         : mapped;
+
+      res.json({
+        success: true,
+        data: {
+          items: filtered,
+          pagination: {
+            limit: filtered.length,
+            offset: 0,
+            total: filtered.length,
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async providerAccessPoints(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const provider = getSkudProvider();
+      const search = String(req.query.search || "").trim().toLowerCase();
+      const catalog = await getAccessPointCatalog(provider);
+      const items = Array.from(catalog.pointsById.values())
+        .map((accessPoint) =>
+          mapProviderAccessPoint({
+            accessPoint,
+            hierarchyById: catalog.hierarchyById,
+          }),
+        )
+        .filter(Boolean);
+
+      const filtered = search
+        ? items.filter((item) =>
+            [item.id, item.name, item.pathLabel, item.label]
+              .filter(Boolean)
+              .some((value) => String(value).toLowerCase().includes(search)),
+          )
+        : items;
+
+      filtered.sort((left, right) => String(left.label).localeCompare(String(right.label), "ru"));
 
       res.json({
         success: true,
