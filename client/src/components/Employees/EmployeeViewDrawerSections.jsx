@@ -25,6 +25,7 @@ export const buildEmployeeViewDrawerFormData = (employee) => {
     inn: employee.inn,
     snils: employee.snils,
     bankAccountNumber: employee.bankAccountNumber,
+    passportType: employee.passportType,
     passportNumber: employee.passportNumber,
     passportDate: employee.passportDate
       ? dayjs(employee.passportDate).format(DATE_FORMAT)
@@ -198,6 +199,15 @@ export const buildEmployeeViewDrawerItems = ({
                 size="large"
                 disabled
               />
+            </Form.Item>
+          )}
+
+          {!getFieldProps("passportType").hidden && (
+            <Form.Item label="Тип паспорта" name="passportType">
+              <Select size="large" disabled>
+                <Select.Option value="russian">Российский</Select.Option>
+                <Select.Option value="foreign">Иностранный</Select.Option>
+              </Select>
             </Form.Item>
           )}
 

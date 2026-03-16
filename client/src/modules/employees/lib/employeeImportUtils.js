@@ -19,6 +19,7 @@ export const buildEmployeesForImport = ({
 
     if (source) {
       employees.push({
+        ...source,
         ...conflict.newEmployee,
         counterpartyInn: source.counterpartyInn,
         counterpartyKpp: source.counterpartyKpp,

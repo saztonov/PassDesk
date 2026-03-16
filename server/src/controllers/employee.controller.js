@@ -3,6 +3,7 @@ import {
   Counterparty,
   User,
   Citizenship,
+  Pass,
   File,
   UserEmployeeMapping,
   EmployeeCounterpartyMapping,
@@ -131,6 +132,29 @@ const normalizeTextSearch = (value = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
+const normalizeComparableEmployeeValue = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      return null;
+    }
+    return value.toISOString();
+  }
+
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  return value;
+};
+
+const hasComparableValueChanged = (currentValue, nextValue) =>
+  normalizeComparableEmployeeValue(currentValue) !==
+  normalizeComparableEmployeeValue(nextValue);
+
 const normalizeDocSearch = (value = "") =>
   String(value || "")
     .toUpperCase()
@@ -257,6 +281,7 @@ const buildInnLookupEmployeePayload = (employee) => {
           counterpartyId: mapping.counterpartyId,
           departmentId: mapping.departmentId,
           constructionSiteId: mapping.constructionSiteId,
+          dismissedAt: mapping.dismissedAt || null,
           counterparty: mapping.counterparty
             ? {
                 id: mapping.counterparty.id,
@@ -1362,11 +1387,6 @@ export const updateEmployee = async (req, res, next) => {
       );
     }
 
-    const updates = {
-      ...applyEmployeeSensitiveFieldEncryption(cleanedData),
-      updatedBy: req.user.id,
-    };
-
     const employee = await Employee.findByPk(id, {
       include: employeeAccessInclude,
     });
@@ -1380,50 +1400,120 @@ export const updateEmployee = async (req, res, next) => {
 
     // ПРОВЕРКА ПРАВ ДОСТУПА
     await checkEmployeeAccess(req.user, employee);
+    const currentMapping = await EmployeeCounterpartyMapping.findOne({
+      where: {
+        employeeId: id,
+      },
+    });
+    const currentActiveStatusBeforeUpdate =
+      await EmployeeStatusService.getCurrentStatus(id, "status_active");
+    const currentActiveStatusNameBeforeUpdate =
+      currentActiveStatusBeforeUpdate?.status?.name || null;
 
-    await employee.update(updates);
+    const changedEmployeeFields = Object.entries(cleanedData).filter(
+      ([key, value]) => hasComparableValueChanged(employee[key], value),
+    );
+    const hasEmployeeFieldChanges = changedEmployeeFields.length > 0;
 
-    // Если был передан counterpartyId, обновляем маппинг
-    if (counterpartyId !== undefined && counterpartyId !== null) {
-      // Получаем текущий маппинг сотрудника
-      const currentMapping = await EmployeeCounterpartyMapping.findOne({
-        where: {
-          employeeId: id,
-        },
+    const hasCounterpartyChange =
+      counterpartyId !== undefined &&
+      counterpartyId !== null &&
+      hasComparableValueChanged(currentMapping?.counterpartyId, counterpartyId);
+
+    const normalizedConstructionSiteId = constructionSiteId || null;
+    const hasConstructionSiteChange =
+      constructionSiteId !== undefined &&
+      hasComparableValueChanged(
+        currentMapping?.constructionSiteId,
+        normalizedConstructionSiteId,
+      );
+
+    const desiredActiveStatusName = isFired
+      ? "status_active_fired"
+      : isInactive
+        ? "status_active_inactive"
+        : "status_active_employed";
+    const hasActiveStatusChange =
+      currentActiveStatusNameBeforeUpdate !== desiredActiveStatusName;
+    const isDraftRequest = Boolean(isDraft) || req.path.endsWith("/draft");
+
+    const hasDataChanges =
+      hasEmployeeFieldChanges || hasCounterpartyChange || hasConstructionSiteChange;
+    const shouldRefreshCompletenessStatuses =
+      hasDataChanges || isDraftRequest;
+
+    if (!hasDataChanges && !hasActiveStatusChange && !isDraftRequest) {
+      const employeeWithoutChanges = await Employee.findByPk(id, {
+        include: [
+          {
+            model: Citizenship,
+            as: "citizenship",
+            attributes: ["id", "name", "code", "requiresPatent"],
+          },
+          {
+            model: Position,
+            as: "position",
+            attributes: ["id", "name"],
+          },
+          {
+            model: EmployeeCounterpartyMapping,
+            as: "employeeCounterpartyMappings",
+            include: [
+              {
+                model: Counterparty,
+                as: "counterparty",
+                attributes: ["id", "name"],
+              },
+            ],
+          },
+        ],
       });
 
-      // Если counterpartyId изменился, обновляем маппинг
-      if (currentMapping && currentMapping.counterpartyId !== counterpartyId) {
-        await currentMapping.update({
-          counterpartyId: counterpartyId,
-        });
-        console.log("✓ Employee counterparty mapping updated:", {
-          employeeId: id,
-          oldCounterpartyId: currentMapping.counterpartyId,
-          newCounterpartyId: counterpartyId,
-        });
-      }
+      const employeeDataWithoutChanges = employeeWithoutChanges.toJSON();
+      const formConfig = await getEmployeeFormConfig(employeeDataWithoutChanges);
+      employeeDataWithoutChanges.statusCard = calculateStatusCard(
+        employeeDataWithoutChanges,
+        formConfig,
+      );
+
+      return res.json({
+        success: true,
+        message: "Изменений не обнаружено",
+        data: employeeDataWithoutChanges,
+      });
     }
 
-    // Если был передан constructionSiteId, обновляем маппинг
-    if (constructionSiteId !== undefined) {
-      // Сначала получаем текущий маппинг
-      const currentMapping = await EmployeeCounterpartyMapping.findOne({
-        where: {
-          employeeId: id,
-        },
-      });
+    if (hasEmployeeFieldChanges) {
+      const changedFieldNames = changedEmployeeFields.map(([key]) => key);
+      const updates = {
+        ...applyEmployeeSensitiveFieldEncryption(cleanedData),
+        updatedBy: req.user.id,
+      };
+      await employee.update(updates);
+      console.log("✓ Employee fields updated:", changedFieldNames);
+    }
 
-      // Проверяем, нужно ли обновлять (если значение изменилось)
-      const newConstructionSiteId = constructionSiteId || null;
-      if (
-        currentMapping &&
-        currentMapping.constructionSiteId !== newConstructionSiteId
-      ) {
-        await currentMapping.update({
-          constructionSiteId: newConstructionSiteId,
-        });
-      }
+    if (hasCounterpartyChange && currentMapping) {
+      const previousCounterpartyId = currentMapping.counterpartyId;
+      await currentMapping.update({
+        counterpartyId,
+      });
+      console.log("✓ Employee counterparty mapping updated:", {
+        employeeId: id,
+        oldCounterpartyId: previousCounterpartyId,
+        newCounterpartyId: counterpartyId,
+      });
+    }
+
+    if (hasConstructionSiteChange && currentMapping) {
+      await currentMapping.update({
+        constructionSiteId: normalizedConstructionSiteId,
+      });
+      console.log("✓ Employee construction site mapping updated:", {
+        employeeId: id,
+        oldConstructionSiteId: currentMapping.constructionSiteId,
+        newConstructionSiteId: normalizedConstructionSiteId,
+      });
     }
 
     // Получаем обновленного сотрудника с гражданством для правильного расчета statusCard
@@ -1455,7 +1545,6 @@ export const updateEmployee = async (req, res, next) => {
 
     const employeeDataWithStatus = updatedEmployee.toJSON();
     const formConfig = await getEmployeeFormConfig(employeeDataWithStatus);
-    const isDraftRequest = Boolean(isDraft) || req.path.endsWith("/draft");
     const calculatedStatusCard = isDraftRequest
       ? "draft"
       : calculateStatusCard(employeeDataWithStatus, formConfig);
@@ -1463,21 +1552,25 @@ export const updateEmployee = async (req, res, next) => {
 
     // Обновляем статусы на основе текущего состояния
     try {
-      // Используем единую логику обновления статусов (как при импорте)
-      // Это обеспечивает корректный переход между draft/completed статусами для всех контрагентов
-      const statusMap = await getImportStatuses();
-      await updateEmployeeStatusesByCompleteness(
-        employeeDataWithStatus,
-        formConfig,
-        statusMap,
-        req.user.id,
-        { forceDraft: isDraftRequest },
-      );
+      if (shouldRefreshCompletenessStatuses) {
+        // Используем единую логику обновления статусов (как при импорте)
+        // Это обеспечивает корректный переход между draft/completed статусами для всех контрагентов
+        const statusMap = await getImportStatuses();
+        await updateEmployeeStatusesByCompleteness(
+          employeeDataWithStatus,
+          formConfig,
+          statusMap,
+          req.user.id,
+          { forceDraft: isDraftRequest },
+        );
+      }
 
       // НОВАЯ ЛОГИКА: если в группе status_hr есть активный статус с is_upload=true - очищаем группу и активируем status_hr_edited
       console.log("=== CHECKING STATUS_HR GROUP ===");
       const currentHRStatusBeforeUpdate =
-        await EmployeeStatusService.getCurrentStatus(id, "status_hr");
+        hasDataChanges
+          ? await EmployeeStatusService.getCurrentStatus(id, "status_hr")
+          : null;
       if (currentHRStatusBeforeUpdate?.isUpload === true) {
         console.log(
           `Found active status_hr with is_upload=true: ${currentHRStatusBeforeUpdate?.status?.name}`,
@@ -1663,6 +1756,25 @@ export const updateEmployee = async (req, res, next) => {
           );
           console.log("✓ Employee status_active updated to employed");
         }
+      }
+
+      if (hasDataChanges) {
+        const [updatedUploadFlags] = await EmployeeStatusMapping.update(
+          {
+            isUpload: false,
+            updatedBy: req.user.id,
+            updatedAt: new Date(),
+          },
+          {
+            where: {
+              employeeId: id,
+              isActive: true,
+            },
+          },
+        );
+        console.log(
+          `✓ Active status upload flags reset to false after data changes: ${updatedUploadFlags}`,
+        );
       }
     } catch (statusError) {
       console.warn("Warning: could not update statuses:", statusError.message);
@@ -3346,6 +3458,7 @@ export const getMyProfile = async (req, res, next) => {
                 "counterpartyId",
                 "departmentId",
                 "constructionSiteId",
+                "dismissedAt",
               ],
               include: [
                 {
@@ -3353,12 +3466,36 @@ export const getMyProfile = async (req, res, next) => {
                   as: "counterparty",
                   attributes: ["id", "name", "type"],
                 },
+                {
+                  model: Department,
+                  as: "department",
+                  attributes: ["id", "name"],
+                },
               ],
             },
             {
               model: Citizenship,
               as: "citizenship",
               attributes: ["id", "name", "code"],
+            },
+            {
+              model: Position,
+              as: "position",
+              attributes: ["id", "name"],
+            },
+            {
+              model: Pass,
+              as: "passes",
+              attributes: [
+                "id",
+                "passNumber",
+                "status",
+                "type",
+                "validFrom",
+                "validUntil",
+              ],
+              where: { status: "active" },
+              required: false,
             },
           ],
         },

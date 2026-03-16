@@ -106,23 +106,6 @@ export const useEmployeesCrudActions = ({
       if (editingEmployee) {
         const updated = await updateEmployee(editingEmployee.id, valuesToSave);
         setEditingEmployee(updated);
-
-        if (
-          editingEmployee.statusMappings &&
-          editingEmployee.statusMappings.length > 0
-        ) {
-          const hasUploadedStatus = editingEmployee.statusMappings.some(
-            (mapping) => mapping.isUpload,
-          );
-
-          if (hasUploadedStatus) {
-            try {
-              await employeeApi.setEditedStatus(editingEmployee.id, true);
-            } catch (error) {
-              console.warn("Error setting edited status:", error);
-            }
-          }
-        }
         refetchEmployees();
         return updated;
       } else if (draftEmployeeId) {

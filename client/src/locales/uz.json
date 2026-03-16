@@ -27,6 +27,7 @@
     "counterparties": "Kontragentlar",
     "counterpartyDocuments": "Kontragent hujjatlari",
     "analytics": "Analitika",
+    "cabinet": "Kabinet",
     "constructionSites": "Obyektlar",
     "contracts": "Shartnomalar",
     "directories": "Bo'limlar",
@@ -35,6 +36,7 @@
   },
   "roles": {
     "admin": "Administrator",
+    "laborer": "Ishchi",
     "ot_admin": "MM administratori",
     "ot_engineer": "MM muhandisi",
     "manager": "Menejer",
@@ -84,6 +86,37 @@
     "passwordChangeError": "Parolni o'zgartirishda xatolik",
     "language": "Interfeys tili",
     "languageHint": "Pudratchilar uchun mavjud"
+  },
+  "cabinet": {
+    "title": "Shaxsiy kabinet",
+    "employee": "Xodim",
+    "cardTitle": "Mening ma'lumotlarim",
+    "getQr": "QR olish",
+    "refreshQr": "QR yangilash",
+    "qrPlaceholder": "QR yaratish uchun tugmani bosing",
+    "qrIssued": "QR yaratildi",
+    "qrIssueError": "QR yaratib bo'lmadi",
+    "copyCode": "Koddan nusxa olish",
+    "tokenCopied": "Kod nusxalandi",
+    "tokenCopyError": "Koddan nusxa olib bo'lmadi",
+    "validUntil": "Amal qiladi",
+    "passLabel": "Ruxsatnoma",
+    "noPass": "Faol ruxsatnoma yo'q",
+    "noActivePassDescription": "Faol ruxsatnoma hali topilmadi.",
+    "profileLoadError": "Xodim ma'lumotlarini yuklab bo'lmadi",
+    "notFoundTitle": "Kabinet mavjud emas",
+    "notFoundDescription": "Bu foydalanuvchi uchun xodim profili hali yaratilmagan.",
+    "retry": "Qayta urinish",
+    "dismissedWarning": "Xodim ishdan bo'shatilgan deb belgilangan.",
+    "dismissedAt": "Oxirgi bo'shatish",
+    "fields": {
+      "fullName": "F.I.Sh.",
+      "counterparty": "Kontragent",
+      "department": "Bo'lim",
+      "position": "Lavozim",
+      "phone": "Telefon",
+      "citizenship": "Fuqarolik"
+    }
   },
   "languages": {
     "ru": "Ruscha",

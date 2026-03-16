@@ -60,7 +60,7 @@ const createUserValidation = [
   body("lastName").optional().trim(),
   body("role")
     .optional()
-    .isIn(["admin", "user", "ot_engineer", "ot_admin", "manager"]),
+    .isIn(["admin", "user", "laborer", "ot_engineer", "ot_admin", "manager"]),
   body("userLanguage").optional().isIn(["ru", "uz", "tj", "kz"]),
 ];
 
@@ -70,7 +70,7 @@ const updateUserValidation = [
   body("lastName").optional().trim(),
   body("role")
     .optional()
-    .isIn(["admin", "user", "ot_engineer", "ot_admin", "manager"]),
+    .isIn(["admin", "user", "laborer", "ot_engineer", "ot_admin", "manager"]),
   body("userLanguage").optional().isIn(["ru", "uz", "tj", "kz"]),
 ];
 

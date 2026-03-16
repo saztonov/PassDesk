@@ -27,6 +27,7 @@
     "counterparties": "Контрагентҳо",
     "counterpartyDocuments": "Ҳуҷҷатҳои контрагент",
     "analytics": "Таҳлил",
+    "cabinet": "Кабинет",
     "constructionSites": "Объектҳо",
     "contracts": "Шартномаҳо",
     "directories": "Шуъбаҳо",
@@ -35,6 +36,7 @@
   },
   "roles": {
     "admin": "Администратор",
+    "laborer": "Коргар",
     "ot_admin": "Администратори ҲМ",
     "ot_engineer": "Муҳандиси ҲМ",
     "manager": "Менеҷер",
@@ -84,6 +86,37 @@
     "passwordChangeError": "Хатои иваз кардани рамз",
     "language": "Забони интерфейс",
     "languageHint": "Барои пудратчиён дастрас"
+  },
+  "cabinet": {
+    "title": "Кабинети шахсӣ",
+    "employee": "Корманд",
+    "cardTitle": "Маълумоти ман",
+    "getQr": "Гирифтани QR",
+    "refreshQr": "Навсозии QR",
+    "qrPlaceholder": "Барои барориши QR тугмаро пахш кунед",
+    "qrIssued": "QR омода шуд",
+    "qrIssueError": "QR омода карда нашуд",
+    "copyCode": "Нусхаи код",
+    "tokenCopied": "Код нусха шуд",
+    "tokenCopyError": "Нусха гирифтани код нашуд",
+    "validUntil": "Эътибор дорад то",
+    "passLabel": "Пропуск",
+    "noPass": "Пропуски фаъол нест",
+    "noActivePassDescription": "Пропуски фаъол ҳоло ёфт нашуд.",
+    "profileLoadError": "Боркунии маълумоти корманд нашуд",
+    "notFoundTitle": "Кабинет дастрас нест",
+    "notFoundDescription": "Барои ин корбар профили корманд ҳоло эҷод нашудааст.",
+    "retry": "Такрор",
+    "dismissedWarning": "Корманд ҳамчун аз кор озодшуда қайд шудааст.",
+    "dismissedAt": "Охирин озодкунӣ",
+    "fields": {
+      "fullName": "Ному насаб",
+      "counterparty": "Контрагент",
+      "department": "Шуъба",
+      "position": "Вазифа",
+      "phone": "Телефон",
+      "citizenship": "Шаҳрвандӣ"
+    }
   },
   "languages": {
     "ru": "Русӣ",

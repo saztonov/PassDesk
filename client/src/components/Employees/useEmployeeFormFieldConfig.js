@@ -3,7 +3,6 @@ import { DEFAULT_FORM_CONFIG } from "../../shared/config/employeeFields";
 
 const TEMP_HIDDEN_FIELDS = new Set([
   "birthCountryId",
-  "passportType",
   "passportExpiryDate",
   "gender",
   "email",

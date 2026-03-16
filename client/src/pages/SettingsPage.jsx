@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
-import { Form, Select, Button, message, Spin, Typography, Divider } from "antd";
+import { Form, Select, Button, message, Spin, Typography, Divider, Space } from "antd";
 import { SaveOutlined, UploadOutlined, FormOutlined } from "@ant-design/icons";
 import settingsService from "@/services/settingsService";
 import { counterpartyService } from "@/services/counterpartyService";
 import EmployeeFieldsSettingsModal from "@/components/Admin/EmployeeFieldsSettingsModal";
 import EmployeeImportModal from "@/modules/employees/ui/EmployeeImportModal";
+import {
+  EMPLOYEE_IMPORT_PROFILE_1C_ZUP,
+  EMPLOYEE_IMPORT_PROFILE_DEFAULT,
+  getEmployeeImportProfile,
+} from "@/modules/employees/model/employeeImportProfiles";
 
 const { Title, Text } = Typography;
 
@@ -14,6 +19,7 @@ const SettingsPage = () => {
   const [counterparties, setCounterparties] = useState([]);
   const [modals, setModals] = useState({
     importOpen: false,
+    importProfile: EMPLOYEE_IMPORT_PROFILE_DEFAULT,
     fieldsSettingsOpen: false,
   });
   const [form] = Form.useForm();
@@ -181,21 +187,55 @@ const SettingsPage = () => {
         <Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
           Импортируйте сотрудников из файла Excel
         </Text>
-        <Button
-          type="primary"
-          icon={<UploadOutlined />}
-          onClick={() => setModals((prev) => ({ ...prev, importOpen: true }))}
-          size="large"
-        >
-          Загрузка сотрудников из Excel
-        </Button>
+        <Space wrap>
+          <Button
+            type="primary"
+            icon={<UploadOutlined />}
+            onClick={() =>
+              setModals((prev) => ({
+                ...prev,
+                importOpen: true,
+                importProfile: EMPLOYEE_IMPORT_PROFILE_DEFAULT,
+              }))
+            }
+            size="large"
+          >
+            {getEmployeeImportProfile(EMPLOYEE_IMPORT_PROFILE_DEFAULT).actionTitle}
+          </Button>
+          <Button
+            icon={<UploadOutlined />}
+            onClick={() =>
+              setModals((prev) => ({
+                ...prev,
+                importOpen: true,
+                importProfile: EMPLOYEE_IMPORT_PROFILE_1C_ZUP,
+              }))
+            }
+            size="large"
+          >
+            {getEmployeeImportProfile(EMPLOYEE_IMPORT_PROFILE_1C_ZUP).actionTitle}
+          </Button>
+        </Space>
       </div>
       <EmployeeImportModal
         visible={modals.importOpen}
-        onCancel={() => setModals((prev) => ({ ...prev, importOpen: false }))}
+        profile={modals.importProfile}
+        onCancel={() =>
+          setModals((prev) => ({
+            ...prev,
+            importOpen: false,
+            importProfile: EMPLOYEE_IMPORT_PROFILE_DEFAULT,
+          }))
+        }
         onSuccess={() => {
-          message.success("Сотрудники успешно импортированы");
-          setModals((prev) => ({ ...prev, importOpen: false }));
+          message.success(
+            getEmployeeImportProfile(modals.importProfile).successMessage,
+          );
+          setModals((prev) => ({
+            ...prev,
+            importOpen: false,
+            importProfile: EMPLOYEE_IMPORT_PROFILE_DEFAULT,
+          }));
         }}
       />
 

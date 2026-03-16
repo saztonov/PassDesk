@@ -10,6 +10,7 @@
     "db:check": "node src/database/check-connection.js",
     "db:migrate": "node src/database/runMigrations.js",
     "encryption:clear-legacy-plaintext": "node src/scripts/clearEmployeeSensitiveLegacyPlaintext.js",
+    "backfill:zup-upload-flag": "node src/scripts/backfillEmployeeStatusUploadFlag.js --write",
     "recalculate-statuses": "node src/scripts/recalculateEmployeeStatuses.js",
     "telegram:bot": "node src/telegram/botRunner.js"
   },

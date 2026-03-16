@@ -27,6 +27,7 @@
     "counterparties": "Контрагенты",
     "counterpartyDocuments": "Документы контрагента",
     "analytics": "Аналитика",
+    "cabinet": "Кабинет",
     "constructionSites": "Объекты",
     "contracts": "Договора",
     "directories": "Подразделения",
@@ -35,6 +36,7 @@
   },
   "roles": {
     "admin": "Администратор",
+    "laborer": "Рабочий",
     "ot_admin": "Администратор ОТ",
     "ot_engineer": "Инженер ОТ",
     "manager": "Менеджер",
@@ -84,6 +86,37 @@
     "passwordChangeError": "Ошибка смены пароля",
     "language": "Язык интерфейса",
     "languageHint": "Доступно для подрядчиков"
+  },
+  "cabinet": {
+    "title": "Личный кабинет",
+    "employee": "Сотрудник",
+    "cardTitle": "Мои данные",
+    "getQr": "Получить QR",
+    "refreshQr": "Обновить QR",
+    "qrPlaceholder": "Нажмите кнопку, чтобы выпустить QR",
+    "qrIssued": "QR сформирован",
+    "qrIssueError": "Не удалось сформировать QR",
+    "copyCode": "Скопировать код",
+    "tokenCopied": "Код скопирован",
+    "tokenCopyError": "Не удалось скопировать код",
+    "validUntil": "Действует до",
+    "passLabel": "Пропуск",
+    "noPass": "Нет активного пропуска",
+    "noActivePassDescription": "Активный пропуск пока не найден.",
+    "profileLoadError": "Не удалось загрузить данные сотрудника",
+    "notFoundTitle": "Кабинет недоступен",
+    "notFoundDescription": "Профиль сотрудника для этого пользователя пока не создан.",
+    "retry": "Повторить",
+    "dismissedWarning": "Сотрудник помечен как уволенный.",
+    "dismissedAt": "Последнее увольнение",
+    "fields": {
+      "fullName": "ФИО",
+      "counterparty": "Контрагент",
+      "department": "Подразделение",
+      "position": "Должность",
+      "phone": "Телефон",
+      "citizenship": "Гражданство"
+    }
   },
   "languages": {
     "ru": "Русский",

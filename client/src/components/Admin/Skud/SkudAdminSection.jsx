@@ -1278,6 +1278,13 @@ const SkudAdminSection = () => {
         width: 90,
       },
       {
+        title: "UUID",
+        dataIndex: "idAll",
+        key: "idAll",
+        width: 260,
+        render: (value) => value || "—",
+      },
+      {
         title: "Номер пропуска",
         dataIndex: "passNumber",
         key: "passNumber",
@@ -1319,9 +1326,9 @@ const SkudAdminSection = () => {
           if (value === "ready_to_sync") return <Tag color="green">Готово</Tag>;
           if (value === "already_bound") return <Tag color="blue">Уже связано</Tag>;
           if (value === "sync_queued") return <Tag color="gold">Уже в очереди</Tag>;
-          if (value === "new_pass") return <Tag color="orange">Новый пропуск</Tag>;
-          if (value === "missing_pass_number") return <Tag>Нет номера</Tag>;
-          if (value === "duplicate_pass_number") return <Tag color="red">Дубль в файле</Tag>;
+          if (value === "employee_not_found") return <Tag color="orange">Не найден</Tag>;
+          if (value === "missing_id_all") return <Tag>Нет UUID</Tag>;
+          if (value === "duplicate_id_all") return <Tag color="red">Дубль UUID</Tag>;
           if (value === "conflict_employee_data") return <Tag color="red">Конфликт</Tag>;
           return <Tag>{value || "—"}</Tag>;
         },
@@ -2348,8 +2355,8 @@ const SkudAdminSection = () => {
                         <Col xs={24} sm={12} md={8} lg={4}>
                           <Card size="small">
                             <Statistic
-                              title="Новые"
-                              value={bindingImportPreview.summary.newPassCount || 0}
+                              title="Не найдено"
+                              value={bindingImportPreview.summary.unmatchedCount || 0}
                             />
                           </Card>
                         </Col>
@@ -2366,8 +2373,8 @@ const SkudAdminSection = () => {
                             <Statistic
                               title="Дубли/пусто"
                               value={
-                                (bindingImportPreview.summary.duplicatePassCount || 0)
-                                + (bindingImportPreview.summary.missingPassNumberCount || 0)
+                                (bindingImportPreview.summary.duplicateIdAllCount || 0)
+                                + (bindingImportPreview.summary.missingIdAllCount || 0)
                               }
                             />
                           </Card>

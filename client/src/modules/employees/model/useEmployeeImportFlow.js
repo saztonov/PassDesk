@@ -6,6 +6,7 @@ import {
   calculateTotalEmployeesForImport,
   resolveAllConflictResolutions,
 } from "@/modules/employees/lib/employeeImportUtils";
+import { getEmployeeImportProfile } from "@/modules/employees/model/employeeImportProfiles";
 
 export const EMPLOYEE_IMPORT_STEPS = [
   { title: "Загрузка", description: "Выбор файла" },
@@ -19,7 +20,9 @@ export const useEmployeeImportFlow = ({
   messageApi,
   onCancel,
   onSuccess,
+  profile = "default",
 }) => {
+  const profileConfig = getEmployeeImportProfile(profile);
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [fileData, setFileData] = useState(null);
@@ -184,7 +187,7 @@ export const useEmployeeImportFlow = ({
 
   const modalTitle = useMemo(() => {
     if (step !== 4) {
-      return "Загрузка сотрудников из Excel";
+      return profileConfig.baseModalTitle;
     }
 
     const hasErrors = (importResult?.errors?.length || 0) > 0;
@@ -198,9 +201,10 @@ export const useEmployeeImportFlow = ({
     }
 
     return "Результаты импорта";
-  }, [importResult, step]);
+  }, [importResult, profileConfig.baseModalTitle, step]);
 
   return {
+    profileConfig,
     step,
     loading,
     fileData,

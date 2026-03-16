@@ -76,5 +76,8 @@ export default defineConfig(({ mode }) => {
       outDir: "dist",
       sourcemap: false,
     },
+    worker: {
+      format: "iife",
+    },
   };
 });

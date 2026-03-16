@@ -92,26 +92,6 @@ const ExportPage = () => {
       // Обновление существующего сотрудника
       const updated = await updateEmployee(selectedEmployee.id, values);
       setSelectedEmployee(updated);
-
-      // Проверяем есть ли у сотрудника статусы с is_upload = true
-      // Если есть - устанавливаем статус "Редактирован" с is_upload = true
-      if (
-        selectedEmployee.statusMappings &&
-        selectedEmployee.statusMappings.length > 0
-      ) {
-        const hasUploadedStatus = selectedEmployee.statusMappings.some(
-          (mapping) => mapping.isUpload,
-        );
-
-        if (hasUploadedStatus) {
-          try {
-            // Устанавливаем статус "Редактирован" с is_upload = true
-            await employeeApi.setEditedStatus(selectedEmployee.id, true);
-          } catch (error) {
-            console.warn("Error setting edited status:", error);
-          }
-        }
-      }
     }
     await refetch();
     setIsEditModalOpen(false);

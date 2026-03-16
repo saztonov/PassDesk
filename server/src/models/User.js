@@ -49,6 +49,7 @@ User.init(
       type: DataTypes.ENUM(
         "admin",
         "user",
+        "laborer",
         "manager",
         "ot_engineer",
         "ot_admin",

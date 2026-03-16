@@ -5,6 +5,7 @@ import {
   Employee,
   EmployeeCounterpartyMapping,
   Counterparty,
+  SkudPersonBinding,
 } from "../models/index.js";
 import {
   checkEmployeeAccess,
@@ -222,6 +223,19 @@ const syncPassWithSkudIfNeeded = async ({ pass, userId, source }) => {
   }
 
   if (pass.status === "expired" || pass.status === "revoked") {
+    const existingBinding = await SkudPersonBinding.findOne({
+      where: {
+        employeeId: pass.employeeId,
+        externalSystem: "sigur",
+        isActive: true,
+      },
+      attributes: ["id", "externalEmpId"],
+    });
+
+    if (!existingBinding?.externalEmpId) {
+      return null;
+    }
+
     return enqueueSkudSyncForEmployee({
       employeeId: pass.employeeId,
       operation: "block_employee",

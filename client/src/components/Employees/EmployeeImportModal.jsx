@@ -9,13 +9,16 @@ import {
   useEmployeeImportFlow,
 } from "@/modules/employees/model/useEmployeeImportFlow";
 
-const TEMPLATE_URL =
-  "https://docs.google.com/spreadsheets/d/1oho6qSjuhuq524-RZXmvN8XJh6-lSXSjAyYaRunzTP8/edit?usp=sharing";
-
-const EmployeeImportModal = ({ visible, onCancel, onSuccess }) => {
+const EmployeeImportModal = ({
+  visible,
+  onCancel,
+  onSuccess,
+  profile = "default",
+}) => {
   const { message: messageApp } = App.useApp();
 
   const {
+    profileConfig,
     step,
     loading,
     fileData,
@@ -36,19 +39,30 @@ const EmployeeImportModal = ({ visible, onCancel, onSuccess }) => {
     messageApi: messageApp,
     onCancel,
     onSuccess,
+    profile,
   });
 
   let content = null;
   if (step === 0) {
     content = (
       <EmployeeImportStepUpload
+        profileConfig={profileConfig}
         fileName={fileName}
         onFileSelect={handleFileSelect}
-        onOpenTemplate={() => window.open(TEMPLATE_URL, "_blank")}
+        onOpenTemplate={() =>
+          profileConfig.templateUrl
+            ? window.open(profileConfig.templateUrl, "_blank")
+            : null
+        }
       />
     );
   } else if (step === 1) {
-    content = <EmployeeImportStepPreview fileData={fileData || []} />;
+    content = (
+      <EmployeeImportStepPreview
+        fileData={fileData || []}
+        profile={profileConfig.id}
+      />
+    );
   } else if (step === 2) {
     content = (
       <EmployeeImportStepConflicts

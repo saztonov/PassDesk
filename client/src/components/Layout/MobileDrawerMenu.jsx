@@ -8,6 +8,7 @@ import {
   TeamOutlined,
   SafetyCertificateOutlined,
   KeyOutlined,
+  QrcodeOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/store/authStore";
 import { useTranslation } from "react-i18next";
@@ -25,7 +26,6 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
   const [defaultCounterpartyId, setDefaultCounterpartyId] = useState(null);
   const isOtEngineer = user?.role === "ot_engineer";
   const isOtAdmin = user?.role === "ot_admin";
-  const isManager = user?.role === "manager";
 
   useEffect(() => {
     const loadDefaultCounterpartyId = async () => {
@@ -44,6 +44,14 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
 
   // Верхняя часть меню (для админов и пользователей)
   const topMenuItems = [];
+
+  if (user?.role === "laborer") {
+    topMenuItems.push({
+      key: "/cabinet",
+      icon: <QrcodeOutlined />,
+      label: t("menu.cabinet"),
+    });
+  }
 
   // Сотрудники доступны админам и пользователям
   if (user?.role === "admin" || user?.role === "user") {
@@ -79,7 +87,7 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
     });
   }
 
-  if (user?.role === "admin" || isManager) {
+  if (user?.role === "admin") {
     topMenuItems.push({
       key: "/skud",
       icon: <KeyOutlined />,
@@ -88,19 +96,29 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
   }
 
   // Нижняя часть меню (профиль и выход)
-  const bottomMenuItems = [
-    {
-      key: "/profile",
-      icon: <UserOutlined />,
-      label: t("common.profile"),
-    },
-    {
-      key: "logout",
-      icon: <LogoutOutlined />,
-      label: t("common.logout"),
-      danger: true,
-    },
-  ];
+  const bottomMenuItems =
+    user?.role === "laborer"
+      ? [
+          {
+            key: "logout",
+            icon: <LogoutOutlined />,
+            label: t("common.logout"),
+            danger: true,
+          },
+        ]
+      : [
+          {
+            key: "/profile",
+            icon: <UserOutlined />,
+            label: t("common.profile"),
+          },
+          {
+            key: "logout",
+            icon: <LogoutOutlined />,
+            label: t("common.logout"),
+            danger: true,
+          },
+        ];
 
   const handleMenuClick = ({ key }) => {
     if (key === "logout") {

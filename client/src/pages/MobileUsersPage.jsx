@@ -33,6 +33,7 @@ const MobileUsersPage = () => {
   // Роли
   const roleLabels = {
     admin: { text: "Администратор", color: "red" },
+    laborer: { text: "Рабочий", color: "cyan" },
     ot_admin: { text: "Администратор ОТ", color: "magenta" },
     ot_engineer: { text: "Инженер ОТ", color: "blue" },
     manager: { text: "Менеджер", color: "gold" },

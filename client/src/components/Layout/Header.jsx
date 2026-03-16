@@ -17,6 +17,7 @@ import {
   SettingOutlined,
   TeamOutlined,
   KeyOutlined,
+  QrcodeOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/store/authStore";
 import { usePageTitleStore } from "@/store/pageTitleStore";
@@ -36,6 +37,7 @@ const Header = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const isLaborer = user?.role === "laborer";
 
   const userMenuItems = [
     // Пункты только для админов
@@ -70,29 +72,27 @@ const Header = () => {
           },
         ]
       : []),
-    ...(user?.role === "manager"
+    ...(isLaborer
       ? [
           {
-            key: "skud",
-            label: t("menu.skud"),
-            icon: <KeyOutlined />,
+            key: "cabinet",
+            label: t("menu.cabinet"),
+            icon: <QrcodeOutlined />,
             onClick: () => {
-              navigate("/skud");
+              navigate("/cabinet");
             },
           },
-          {
-            type: "divider",
-          },
         ]
-      : []),
-    {
-      key: "profile",
-      label: t("common.profile"),
-      icon: <UserOutlined />,
-      onClick: () => {
-        navigate("/profile");
-      },
-    },
+      : [
+          {
+            key: "profile",
+            label: t("common.profile"),
+            icon: <UserOutlined />,
+            onClick: () => {
+              navigate("/profile");
+            },
+          },
+        ]),
     {
       type: "divider",
     },
@@ -112,6 +112,7 @@ const Header = () => {
       admin: t("roles.admin"),
       ot_admin: t("roles.ot_admin"),
       ot_engineer: t("roles.ot_engineer"),
+      laborer: t("roles.laborer"),
       manager: t("roles.manager"),
       user: t("roles.user"),
     };

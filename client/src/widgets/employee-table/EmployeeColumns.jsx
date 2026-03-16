@@ -197,6 +197,10 @@ export const useEmployeeColumns = ({
                 text: dept,
                 value: dept,
               })),
+              filterSearch: (input, filter) =>
+                String(filter?.text || "")
+                  .toLowerCase()
+                  .includes(String(input || "").toLowerCase()),
               filteredValue: filters.department || [],
               onFilter: (value, record) => {
                 const mappings = record.employeeCounterpartyMappings || [];

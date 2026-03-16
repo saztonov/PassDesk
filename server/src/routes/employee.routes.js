@@ -55,7 +55,6 @@ const uploadRateLimiter = rateLimit({
 
 // Все маршруты требуют аутентификации
 router.use(authenticate);
-router.use(authorize("admin", "manager", "user"));
 
 // Validation rules
 // Для черновиков - мягкая валидация (без обязательных ФИО полей)
@@ -147,31 +146,42 @@ const employeeStatusMappingParamsValidation = [
 
 // Employee routes
 // ⚠️ Специфичные маршруты ДОЛЖНЫ быть перед параметризованными (/:id)
-router.get("/my-profile", employeeController.getMyProfile); // Получить свой профиль
+router.get(
+  "/my-profile",
+  authorize("admin", "manager", "user", "laborer"),
+  employeeController.getMyProfile,
+); // Получить свой профиль
 router.put(
   "/my-profile",
+  authorize("admin", "manager", "user", "laborer"),
   updateMyProfileValidation,
   validate,
   employeeController.updateMyProfile,
 ); // Обновить свой профиль
 router.get(
   "/my-profile/telegram",
+  authorize("admin", "manager", "user"),
   telegramController.getMyTelegramBindingState,
 );
 router.post(
   "/my-profile/telegram/link-code",
+  authorize("admin", "manager", "user"),
   telegramController.createMyTelegramLinkCode,
 );
 router.delete(
   "/my-profile/telegram/link",
+  authorize("admin", "manager", "user"),
   telegramController.unlinkMyTelegramBinding,
 );
 router.post(
   "/my-profile/skud/qr",
+  authorize("admin", "manager", "user", "laborer"),
   body("channel").optional().isIn(["mobile", "web"]),
   validate,
   employeeController.issueMyProfileSkudQr,
 );
+
+router.use(authorize("admin", "manager", "user"));
 router.get(
   "/check-inn",
   checkInnRateLimiter,

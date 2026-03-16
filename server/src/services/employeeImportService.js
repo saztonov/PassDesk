@@ -8,6 +8,8 @@ import {
   Citizenship,
   CitizenshipSynonym,
   Position,
+  Department,
+  Pass,
   Status,
   EmployeeCounterpartyMapping,
   EmployeeStatusMapping,
@@ -27,6 +29,7 @@ import {
   getImportStatuses,
   updateEmployeeStatusesByCompleteness,
 } from "../utils/employeeStatusUpdater.js";
+import EmployeeStatusService from "./employeeStatusService.js";
 import { DEFAULT_FORM_CONFIG } from "../utils/employeeFieldsConfig.js";
 import {
   applyLegacySensitivePlaintextPolicy,
@@ -45,6 +48,42 @@ const applyEmployeeSensitiveFieldEncryption = (payload = {}) => {
     ...normalizedPayload,
     ...encryptionPatch,
   };
+};
+
+const normalizeDepartmentName = (value) =>
+  String(value || "")
+    .replace(/\/\s*закр\b/gi, "")
+    .replace(/\(\d+\)\s*$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const normalizePassNumber = (value) => String(value || "").trim();
+const IMPORTED_PASS_VALID_UNTIL = new Date("2099-12-31T23:59:59.999Z");
+
+const normalizeEmploymentStatus = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized.includes("уволен") || normalized === "fired") {
+    return "fired";
+  }
+
+  if (normalized.includes("неактив") || normalized === "inactive") {
+    return "inactive";
+  }
+
+  if (
+    normalized.includes("устроен") ||
+    normalized.includes("работает") ||
+    normalized.includes("актив") ||
+    normalized === "employed"
+  ) {
+    return "employed";
+  }
+
+  return "";
 };
 
 /**
@@ -88,6 +127,7 @@ export const validateEmployeesImport = async (
     allCitizenships,
     allCitizenshipSynonyms,
     allPositions,
+    defaultCounterpartyId,
   ] = await Promise.all([
     // Статусы
     Status.findAll({
@@ -114,6 +154,7 @@ export const validateEmployeesImport = async (
     Position.findAll({
       attributes: ["id", "name"],
     }),
+    Setting.getSetting("default_counterparty_id"),
   ]);
 
   console.log(`✅ Справочники загружены за ${Date.now() - startTime}ms:`, {
@@ -142,6 +183,16 @@ export const validateEmployeesImport = async (
     userCounterpartyId,
     ...subcontractors.map((s) => s.childCounterpartyId),
   ];
+  const defaultCounterparty =
+    allCounterparties.find((counterparty) => counterparty.id === defaultCounterpartyId) ||
+    null;
+
+  if (employees.some((employee) => employee?.idAll) && !defaultCounterparty) {
+    throw new AppError(
+      "Не настроен контрагент по умолчанию для импорта сотрудников из 1С",
+      500,
+    );
+  }
   console.log(
     `🔒 Разрешенные контрагенты для импорта: ${allowedCounterpartyIds.length} (свой + ${subcontractors.length} субподрядчиков)`,
   );
@@ -153,16 +204,29 @@ export const validateEmployeesImport = async (
     .map((inn) => String(inn).replace(/[^\d]/g, ""));
 
   const uniqueInns = [...new Set(innsFromFile)];
+  const uniqueIdAlls = [
+    ...new Set(
+      employees
+        .map((emp) => String(emp.idAll || "").trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ];
   console.log(
-    `⚡ ОПТИМИЗАЦИЯ: Загружаем существующих сотрудников по ${uniqueInns.length} уникальным ИНН из файла...`,
+    `⚡ ОПТИМИЗАЦИЯ: Загружаем существующих сотрудников по ${uniqueInns.length} ИНН и ${uniqueIdAlls.length} id_all из файла...`,
   );
 
   const existingEmployees =
-    uniqueInns.length > 0
+    uniqueInns.length > 0 || uniqueIdAlls.length > 0
       ? await Employee.findAll({
-          where: { inn: { [Op.in]: uniqueInns } },
+          where: {
+            [Op.or]: [
+              uniqueInns.length > 0 ? { inn: { [Op.in]: uniqueInns } } : null,
+              uniqueIdAlls.length > 0 ? { idAll: { [Op.in]: uniqueIdAlls } } : null,
+            ].filter(Boolean),
+          },
           attributes: [
             "id",
+            "idAll",
             "firstName",
             "lastName",
             "lastNameHash",
@@ -188,6 +252,7 @@ export const validateEmployeesImport = async (
 
   // Мапа для новых должностей, созданных во время валидации
   const newPositionsMap = new Map();
+  const newCitizenshipsMap = new Map();
 
   // Проверяем консистентность КПП для одного ИНН
   const kppErrors = validateKppConsistency(employees);
@@ -223,6 +288,10 @@ export const validateEmployeesImport = async (
         userId,
         caches,
         newPositionsMap,
+        {
+          defaultCounterparty: defaultCounterparty?.toJSON?.() || defaultCounterparty,
+          newCitizenshipsMap,
+        },
       );
 
       if (!validation.valid) {
@@ -239,10 +308,13 @@ export const validateEmployeesImport = async (
       const validated = validation.validated;
       validated.rowIndex = index + 1;
 
+      const useDefaultCounterparty = Boolean(validated.idAll && defaultCounterparty);
+
       // 🔒 ПРОВЕРКА БЕЗОПАСНОСТИ: Контрагент должен быть разрешен для импорта
       if (
         validated.counterparty &&
-        !allowedCounterpartyIds.includes(validated.counterparty.id)
+        !allowedCounterpartyIds.includes(validated.counterparty.id) &&
+        !useDefaultCounterparty
       ) {
         validationErrors.push({
           rowIndex: index + 1,
@@ -278,6 +350,11 @@ export const validateEmployeesImport = async (
         caches.existingEmployees,
       );
 
+      if (useDefaultCounterparty && conflicts.length > 0) {
+        validatedEmployees.push(validated);
+        continue;
+      }
+
       if (conflicts.length > 0 && validated.inn) {
         // Есть конфликты по ИНН, СНИЛС или ФИО
         const existingByInn = caches.existingEmployees.find(
@@ -288,6 +365,7 @@ export const validateEmployeesImport = async (
           conflictingInns.push({
             inn: validated.inn,
             newEmployee: {
+              idAll: validated.idAll,
               firstName: validated.firstName,
               lastName: validated.lastName,
               middleName: validated.middleName,
@@ -299,6 +377,23 @@ export const validateEmployeesImport = async (
               position: validated.position,
               citizenship: validated.citizenship,
               counterparty: validated.counterparty,
+              department: validated.department,
+              isClosedBrigade: validated.isClosedBrigade,
+              employmentStatus: validated.employmentStatus,
+              dismissalDate: validated.dismissalDate,
+              phone: validated.phone,
+              personalPhone: validated.personalPhone,
+              workPhone: validated.workPhone,
+              passportType: validated.passportType,
+              passportNumber: validated.passportNumber,
+              passportDate: validated.passportDate,
+              passportIssuer: validated.passportIssuer,
+              passportExpiryDate: validated.passportExpiryDate,
+              registrationAddress: validated.registrationAddress,
+              patentIssueDate: validated.patentIssueDate,
+              patentNumber: validated.patentNumber,
+              blankNumber: validated.blankNumber,
+              passNumber: validated.passNumber,
             },
             existingEmployee: {
               id: existingByInn.id,
@@ -307,6 +402,7 @@ export const validateEmployeesImport = async (
               middleName: existingByInn.middleName,
               inn: existingByInn.inn,
               snils: existingByInn.snils,
+              idAll: existingByInn.idAll,
             },
           });
           existingEmployeesMap[validated.inn] = existingByInn;
@@ -387,10 +483,37 @@ export const importEmployees = async (
     `🔒 Разрешенные контрагенты для импорта: ${allowedCounterpartyIds.length} (свой + ${subcontractors.length} субподрядчиков)`,
   );
 
+  // Получаем все необходимые статусы (включая для полных карточек)
+  const statusMap = await getImportStatuses();
+
+  // Загружаем конфигурацию полей для контрагента пользователя
+  const defaultCounterpartyId = await Setting.getSetting(
+    "default_counterparty_id",
+  );
+  const isDefaultCounterparty = userCounterparty.id === defaultCounterpartyId;
+  const defaultCounterparty =
+    defaultCounterpartyId && userCounterparty.id === defaultCounterpartyId
+      ? userCounterparty
+      : defaultCounterpartyId
+        ? await Counterparty.findByPk(defaultCounterpartyId)
+        : null;
+
+  if (validatedEmployees.some((employee) => employee?.idAll) && !defaultCounterparty) {
+    throw new AppError(
+      "Не настроен контрагент по умолчанию для импорта сотрудников из 1С",
+      500,
+    );
+  }
+
   // 🔒 БЕЗОПАСНОСТЬ: Проверяем что все контрагенты разрешены
   validatedEmployees.forEach((emp) => {
-    const targetCounterpartyId = emp.counterparty?.id || userCounterpartyId;
-    if (!allowedCounterpartyIds.includes(targetCounterpartyId)) {
+    const targetCounterpartyId = emp.idAll
+      ? defaultCounterparty?.id || defaultCounterpartyId
+      : emp.counterparty?.id || userCounterpartyId;
+    if (
+      targetCounterpartyId !== defaultCounterpartyId &&
+      !allowedCounterpartyIds.includes(targetCounterpartyId)
+    ) {
       throw new AppError(
         `Строка ${emp.rowIndex}: Контрагент "${emp.counterparty?.name}" не является вашим субподрядчиком`,
         403,
@@ -401,15 +524,6 @@ export const importEmployees = async (
   console.log(
     `✅ Все ${validatedEmployees.length} сотрудников относятся к разрешенным контрагентам`,
   );
-
-  // Получаем все необходимые статусы (включая для полных карточек)
-  const statusMap = await getImportStatuses();
-
-  // Загружаем конфигурацию полей для контрагента пользователя
-  const defaultCounterpartyId = await Setting.getSetting(
-    "default_counterparty_id",
-  );
-  const isDefaultCounterparty = userCounterparty.id === defaultCounterpartyId;
 
   let formConfig = DEFAULT_FORM_CONFIG;
 
@@ -435,6 +549,280 @@ export const importEmployees = async (
     );
   }
 
+  const departmentCache = new Map();
+  const findOrCreateDepartmentForCounterparty = async (
+    counterpartyId,
+    departmentName,
+  ) => {
+    const normalizedName = normalizeDepartmentName(departmentName);
+    if (!counterpartyId || !normalizedName) {
+      return null;
+    }
+
+    const cacheKey = `${counterpartyId}:${normalizedName.toLowerCase()}`;
+    if (departmentCache.has(cacheKey)) {
+      return departmentCache.get(cacheKey);
+    }
+
+    let department = await Department.findOne({
+      where: {
+        counterpartyId,
+        name: { [Op.iLike]: normalizedName },
+      },
+    });
+
+    if (!department) {
+      department = await Department.create({
+        counterpartyId,
+        name: normalizedName,
+      });
+      console.log(`   ✨ Создано подразделение: ${normalizedName}`);
+    }
+
+    departmentCache.set(cacheKey, department);
+    return department;
+  };
+
+  const upsertImportedPassForEmployee = async (employeeId, passNumber) => {
+    const normalizedPassNumber = normalizePassNumber(passNumber);
+    if (!employeeId || !normalizedPassNumber) {
+      return null;
+    }
+
+    const now = new Date();
+    let pass = await Pass.findOne({
+      where: { passNumber: normalizedPassNumber },
+      order: [["updatedAt", "DESC"]],
+    });
+
+    if (pass) {
+      const updates = {};
+      if (String(pass.employeeId || "") !== String(employeeId)) {
+        updates.employeeId = employeeId;
+      }
+      if (pass.passType !== "contractor") {
+        updates.passType = "contractor";
+      }
+      if (pass.status !== "active") {
+        updates.status = "active";
+      }
+      if (!pass.validFrom) {
+        updates.validFrom = now;
+      }
+      if (!pass.validUntil) {
+        updates.validUntil = IMPORTED_PASS_VALID_UNTIL;
+      }
+      if (Object.keys(updates).length > 0) {
+        await pass.update(updates);
+      }
+      return pass;
+    }
+
+    pass = await Pass.findOne({
+      where: { employeeId },
+      order: [["updatedAt", "DESC"], ["createdAt", "DESC"]],
+    });
+
+    if (pass) {
+      await pass.update({
+        passNumber: normalizedPassNumber,
+        passType: "contractor",
+        status: "active",
+        validFrom: pass.validFrom || now,
+        validUntil: pass.validUntil || IMPORTED_PASS_VALID_UNTIL,
+      });
+      return pass;
+    }
+
+    return Pass.create({
+      employeeId,
+      passNumber: normalizedPassNumber,
+      passType: "contractor",
+      validFrom: now,
+      validUntil: IMPORTED_PASS_VALID_UNTIL,
+      status: "active",
+      accessZones: [],
+      issuedBy: userId,
+      notes: "Imported from 1C employee Excel",
+    });
+  };
+
+  const revokeImportedPassForEmployee = async (employeeId, passNumber) => {
+    if (!employeeId) {
+      return null;
+    }
+
+    const normalizedPassNumber = normalizePassNumber(passNumber);
+    let pass = null;
+
+    if (normalizedPassNumber) {
+      pass = await Pass.findOne({
+        where: { passNumber: normalizedPassNumber },
+        order: [["updatedAt", "DESC"]],
+      });
+    }
+
+    if (!pass) {
+      pass = await Pass.findOne({
+        where: { employeeId },
+        order: [["updatedAt", "DESC"], ["createdAt", "DESC"]],
+      });
+    }
+
+    if (!pass) {
+      return null;
+    }
+
+    const updates = {};
+    if (String(pass.employeeId || "") !== String(employeeId)) {
+      updates.employeeId = employeeId;
+    }
+    if (pass.passType !== "contractor") {
+      updates.passType = "contractor";
+    }
+    if (pass.status !== "revoked") {
+      updates.status = "revoked";
+    }
+    if (!pass.revokedAt) {
+      updates.revokedAt = new Date();
+    }
+    if (!pass.revokedBy) {
+      updates.revokedBy = userId;
+    }
+    if (!pass.revokeReason) {
+      updates.revokeReason = "Imported fired from 1C employee Excel";
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await pass.update(updates);
+    }
+
+    return pass;
+  };
+
+  const resolveImportedEmploymentStatus = (employeeData) => {
+    const explicitStatus = normalizeEmploymentStatus(employeeData?.employmentStatus);
+    if (explicitStatus) {
+      return explicitStatus;
+    }
+
+    if (employeeData?.dismissalDate) {
+      return "fired";
+    }
+
+    if (employeeData?.isClosedBrigade) {
+      return "fired";
+    }
+
+    return "employed";
+  };
+
+  const resolveImportedDismissalDate = (employeeData) => {
+    const targetEmploymentStatus = resolveImportedEmploymentStatus(employeeData);
+    if (targetEmploymentStatus !== "fired") {
+      return null;
+    }
+
+    return employeeData?.dismissalDate || null;
+  };
+
+  const syncImportedEmployeeStatuses = async (employeeId, employeeData) => {
+    if (!employeeId) {
+      return null;
+    }
+
+    const targetEmploymentStatus = resolveImportedEmploymentStatus(employeeData);
+    const now = new Date();
+    const currentActiveStatus = await EmployeeStatusService.getCurrentStatus(
+      employeeId,
+      "status_active",
+    );
+    const currentActiveStatusName = currentActiveStatus?.status?.name || null;
+
+    if (targetEmploymentStatus === "fired") {
+      await EmployeeStatusMapping.update(
+        {
+          isActive: false,
+          isUpload: false,
+          updatedBy: userId,
+          updatedAt: now,
+        },
+        {
+          where: {
+            employeeId,
+            statusGroup: "status_hr",
+          },
+        },
+      );
+    }
+
+    if (
+      targetEmploymentStatus === "employed" &&
+      currentActiveStatusName === "status_active_fired"
+    ) {
+      const firedOffStatus = await Status.findOne({
+        where: { name: "status_hr_fired_off" },
+        attributes: ["id"],
+      });
+
+      if (firedOffStatus) {
+        await EmployeeStatusMapping.update(
+          {
+            isActive: false,
+            isUpload: false,
+            updatedBy: userId,
+            updatedAt: now,
+          },
+          {
+            where: {
+              employeeId,
+              statusGroup: "status_hr",
+              statusId: { [Op.ne]: firedOffStatus.id },
+            },
+          },
+        );
+        await EmployeeStatusService.activateOrCreateStatus(
+          employeeId,
+          "status_hr_fired_off",
+          userId,
+          false,
+        );
+      }
+    }
+
+    const statusName =
+      targetEmploymentStatus === "fired"
+        ? "status_active_fired"
+        : targetEmploymentStatus === "inactive"
+          ? "status_active_inactive"
+          : "status_active_employed";
+
+    await EmployeeStatusService.setStatusByName(employeeId, statusName, userId);
+    return statusName;
+  };
+
+  const markEmployeeUploadedToZup = async (employeeId) => {
+    if (!employeeId) {
+      return 0;
+    }
+
+    const [updatedCount] = await EmployeeStatusMapping.update(
+      {
+        isUpload: true,
+        updatedBy: userId,
+        updatedAt: new Date(),
+      },
+      {
+        where: {
+          employeeId,
+          isActive: true,
+        },
+      },
+    );
+
+    return updatedCount;
+  };
+
   const results = {
     created: 0,
     updated: 0,
@@ -456,6 +844,7 @@ export const importEmployees = async (
           );
           // ⚠️ ПДН не выводятся в логи (ИНН, СНИЛС, КИГ удалены для безопасности)
           console.log(`   📋 Данные из файла:`, {
+            idAll: emp.idAll || null,
             hasInn: !!emp.inn,
             hasSnils: !!emp.snils,
             hasKig: !!emp.kig,
@@ -463,6 +852,10 @@ export const importEmployees = async (
             kigEndDate: emp.kigEndDate,
             citizenship: emp.citizenship?.name,
             position: emp.position?.name,
+            department: emp.department || null,
+            isClosedBrigade: emp.isClosedBrigade === true,
+            employmentStatus: resolveImportedEmploymentStatus(emp),
+            hasPhone: !!emp.phone,
             hasCounterparty: !!emp.counterparty,
           });
 
@@ -473,8 +866,28 @@ export const importEmployees = async (
           let isCreated = false;
           let existingEmployee = null;
 
-          // ШАГ 1: Поиск по ИНН (если есть)
-          if (emp.inn) {
+          // ШАГ 1: Поиск по id_all (если есть)
+          if (emp.idAll) {
+            console.log(`   🔍 Ищем по id_all`);
+            existingEmployee = await Employee.findOne({
+              where: { idAll: emp.idAll },
+            });
+
+            if (existingEmployee) {
+              console.log(`   ✅ Найден сотрудник по id_all:`, {
+                id: existingEmployee.id,
+                uuid: existingEmployee.id,
+                idAll: existingEmployee.idAll,
+                fio: `${existingEmployee.lastName} ${existingEmployee.firstName} ${existingEmployee.middleName || ""}`,
+                hasInn: !!existingEmployee.inn,
+                hasSnils: !!existingEmployee.snils,
+                hasCitizenship: !!existingEmployee.citizenshipId,
+              });
+            }
+          }
+
+          // ШАГ 2: Если не нашли по id_all - ищем по ИНН
+          if (!existingEmployee && emp.inn) {
             console.log(`   🔍 Ищем по ИНН`);
             existingEmployee = await Employee.findOne({
               where: { inn: emp.inn },
@@ -495,7 +908,7 @@ export const importEmployees = async (
             }
           }
 
-          // ШАГ 2: Если не нашли по ИНН - ищем по ФИО среди сотрудников ЭТОГО контрагента
+          // ШАГ 3: Если не нашли по id_all/ИНН - ищем по ФИО среди сотрудников ЭТОГО контрагента
           if (!existingEmployee && emp.firstName && emp.lastName) {
             console.log(
               `   🔍 Ищем по ФИО среди сотрудников контрагента: ${emp.lastName} ${emp.firstName} ${emp.middleName || ""}`,
@@ -573,7 +986,7 @@ export const importEmployees = async (
             }
           }
 
-          // ШАГ 3: Обработка найденного сотрудника или создание нового
+          // ШАГ 4: Обработка найденного сотрудника или создание нового
           if (existingEmployee) {
             // Сотрудник найден - обновляем
             console.log(`   🔄 ОБНОВЛЕНИЕ существующего сотрудника`);
@@ -661,6 +1074,98 @@ export const importEmployees = async (
                 `citizenshipId: ${existingEmployee.citizenshipId || "пусто"} → ${emp.citizenship.id}`,
               );
             }
+            if (emp.idAll && !existingEmployee.idAll) {
+              updateData.idAll = emp.idAll;
+              changes.push(`idAll: пусто → ${emp.idAll}`);
+            }
+            if (emp.phone && emp.phone !== existingEmployee.phone) {
+              updateData.phone = emp.phone;
+              changes.push(
+                `phone: ${existingEmployee.phone || "пусто"} → ${emp.phone}`,
+              );
+            }
+            if (
+              emp.bankAccountNumber &&
+              emp.bankAccountNumber !== existingEmployee.bankAccountNumber
+            ) {
+              updateData.bankAccountNumber = emp.bankAccountNumber;
+              changes.push(
+                `bankAccountNumber: ${existingEmployee.bankAccountNumber || "пусто"} → ${emp.bankAccountNumber}`,
+              );
+            }
+            if (
+              emp.passportNumber &&
+              emp.passportNumber !== existingEmployee.passportNumber
+            ) {
+              updateData.passportNumber = emp.passportNumber;
+              changes.push("passportNumber: обновлено");
+            }
+            if (
+              emp.passportDate &&
+              emp.passportDate !== existingEmployee.passportDate
+            ) {
+              updateData.passportDate = emp.passportDate;
+              changes.push(
+                `passportDate: ${existingEmployee.passportDate || "пусто"} → ${emp.passportDate}`,
+              );
+            }
+            if (
+              emp.passportIssuer &&
+              emp.passportIssuer !== existingEmployee.passportIssuer
+            ) {
+              updateData.passportIssuer = emp.passportIssuer;
+              changes.push("passportIssuer: обновлено");
+            }
+            if (
+              emp.passportType &&
+              emp.passportType !== existingEmployee.passportType
+            ) {
+              updateData.passportType = emp.passportType;
+              changes.push(
+                `passportType: ${existingEmployee.passportType || "пусто"} → ${emp.passportType}`,
+              );
+            }
+            if (
+              emp.passportExpiryDate &&
+              emp.passportExpiryDate !== existingEmployee.passportExpiryDate
+            ) {
+              updateData.passportExpiryDate = emp.passportExpiryDate;
+              changes.push(
+                `passportExpiryDate: ${existingEmployee.passportExpiryDate || "пусто"} → ${emp.passportExpiryDate}`,
+              );
+            }
+            if (
+              emp.registrationAddress &&
+              emp.registrationAddress !== existingEmployee.registrationAddress
+            ) {
+              updateData.registrationAddress = emp.registrationAddress;
+              changes.push("registrationAddress: обновлено");
+            }
+            if (
+              emp.patentIssueDate &&
+              emp.patentIssueDate !== existingEmployee.patentIssueDate
+            ) {
+              updateData.patentIssueDate = emp.patentIssueDate;
+              changes.push(
+                `patentIssueDate: ${existingEmployee.patentIssueDate || "пусто"} → ${emp.patentIssueDate}`,
+              );
+            }
+            if (
+              emp.patentNumber &&
+              emp.patentNumber !== existingEmployee.patentNumber
+            ) {
+              updateData.patentNumber = emp.patentNumber;
+              changes.push("patentNumber: обновлено");
+            }
+            if (
+              emp.blankNumber &&
+              emp.blankNumber !== existingEmployee.blankNumber
+            ) {
+              updateData.blankNumber = emp.blankNumber;
+              changes.push(
+                `blankNumber: ${existingEmployee.blankNumber || "пусто"} → ${emp.blankNumber}`,
+              );
+            }
 
             if (Object.keys(updateData).length > 0) {
               const encryptedUpdateData =
@@ -684,6 +1189,7 @@ export const importEmployees = async (
             // Сотрудник не найден - создаем нового
             console.log(`   ✨ СОЗДАНИЕ нового сотрудника`);
             const createPayload = applyEmployeeSensitiveFieldEncryption({
+              idAll: emp.idAll,
               firstName: emp.firstName,
               lastName: emp.lastName,
               middleName: emp.middleName,
@@ -694,10 +1200,25 @@ export const importEmployees = async (
               kigEndDate: emp.kigEndDate,
               positionId: emp.position?.id,
               citizenshipId: emp.citizenship?.id,
+              phone: emp.phone,
+              bankAccountNumber: emp.bankAccountNumber,
+              passportNumber: emp.passportNumber,
+              passportDate: emp.passportDate,
+              passportIssuer: emp.passportIssuer,
+              passportType: emp.passportType,
+              passportExpiryDate: emp.passportExpiryDate,
+              registrationAddress: emp.registrationAddress,
+              patentIssueDate: emp.patentIssueDate,
+              patentNumber: emp.patentNumber,
+              blankNumber: emp.blankNumber,
               createdBy: userId,
             });
             employee = await Employee.create(createPayload);
             isCreated = true;
+            await EmployeeStatusService.initializeEmployeeStatuses(
+              employee.id,
+              userId,
+            );
             console.log(`   ✅ СОЗДАН новый сотрудник:`, {
               id: employee.id,
               uuid: employee.id,
@@ -709,9 +1230,17 @@ export const importEmployees = async (
 
           // 🔗 КРИТИЧЕСКИ ВАЖНО: Создаем маппинг сотрудник-контрагент
           // Определяем целевого контрагента: из validated или пользователя
+          const targetCounterparty = emp.idAll
+            ? defaultCounterparty || emp.counterparty || userCounterparty
+            : emp.counterparty || userCounterparty;
           const targetCounterpartyId =
-            emp.counterparty?.id || userCounterpartyId;
-          const targetCounterparty = emp.counterparty || userCounterparty;
+            targetCounterparty?.id || userCounterpartyId;
+          const importedEmploymentStatus = resolveImportedEmploymentStatus(emp);
+          const importedDismissalDate = resolveImportedDismissalDate(emp);
+          const targetDepartment = await findOrCreateDepartmentForCounterparty(
+            targetCounterpartyId,
+            importedEmploymentStatus === "fired" ? null : emp.department,
+          );
 
           console.log(
             `   🔗 Проверка маппинга с контрагентом ${targetCounterparty.name}`,
@@ -727,16 +1256,54 @@ export const importEmployees = async (
             await EmployeeCounterpartyMapping.create({
               employeeId: employee.id,
               counterpartyId: targetCounterpartyId,
+              departmentId: targetDepartment?.id || null,
+              dismissedAt: importedDismissalDate,
               createdBy: userId,
             });
             console.log(
               `   ✅ СОЗДАН маппинг сотрудник → контрагент (ID: ${targetCounterpartyId}, ${targetCounterparty.name})`,
             );
           } else {
+            if (
+              (existingMapping.dismissedAt
+                ? new Date(existingMapping.dismissedAt).toISOString()
+                : null) !==
+                (importedDismissalDate
+                  ? new Date(importedDismissalDate).toISOString()
+                  : null) ||
+              (targetDepartment?.id || null) !==
+              (existingMapping.departmentId || null)
+            ) {
+              await existingMapping.update({
+                departmentId: targetDepartment?.id || null,
+                dismissedAt: importedDismissalDate,
+              });
+              console.log(
+                `   ✅ ОБНОВЛЕН маппинг: подразделение=${targetDepartment?.name || "пусто"}, дата увольнения=${importedDismissalDate || "пусто"}`,
+              );
+            }
             console.log(
               `   ℹ️  Маппинг уже существует (ID: ${existingMapping.id})`,
             );
           }
+
+          const importedPass =
+            importedEmploymentStatus === "fired"
+              ? await revokeImportedPassForEmployee(employee.id, emp.passNumber)
+              : await upsertImportedPassForEmployee(employee.id, emp.passNumber);
+          if (importedPass) {
+            console.log(
+              importedEmploymentStatus === "fired"
+                ? `   🎫 Пропуск отозван: ${importedPass.passNumber}`
+                : `   🎫 Пропуск сохранен: ${importedPass.passNumber}`,
+            );
+          }
+
+          const importedStatusName = await syncImportedEmployeeStatuses(
+            employee.id,
+            emp,
+          );
+          console.log(`   🏷️ Статус активности синхронизирован: ${importedStatusName}`);
 
           // 🎯 АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ СТАТУСОВ в зависимости от полноты данных
           try {
@@ -789,6 +1356,19 @@ export const importEmployees = async (
               `   ℹ️  Сотрудник импортирован, но статусы не обновлены`,
             );
             // Не останавливаем импорт, продолжаем
+          }
+
+          try {
+            const updatedUploadStatuses = await markEmployeeUploadedToZup(
+              employee.id,
+            );
+            console.log(
+              `   ☁️ Флаг "загружен в ЗУП" обновлен для активных статусов: ${updatedUploadStatuses}`,
+            );
+          } catch (uploadError) {
+            console.error(
+              `   ⚠️ Ошибка при установке флага is_upload: ${uploadError.message}`,
+            );
           }
 
           // Обновляем КПП контрагента если нужно (некритичная операция)

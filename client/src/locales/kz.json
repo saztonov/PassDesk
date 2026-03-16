@@ -27,6 +27,7 @@
     "counterparties": "Контрагенттер",
     "counterpartyDocuments": "Контрагент құжаттары",
     "analytics": "Аналитика",
+    "cabinet": "Кабинет",
     "constructionSites": "Нысандар",
     "contracts": "Келісімшарттар",
     "directories": "Бөлімдер",
@@ -35,6 +36,7 @@
   },
   "roles": {
     "admin": "Әкімші",
+    "laborer": "Жұмысшы",
     "ot_admin": "ЕҚ әкімшісі",
     "ot_engineer": "ЕҚ инженері",
     "manager": "Менеджер",
@@ -84,6 +86,37 @@
     "passwordChangeError": "Құпиясөзді өзгерту қатесі",
     "language": "Интерфейс тілі",
     "languageHint": "Мердігерлер үшін қолжетімді"
+  },
+  "cabinet": {
+    "title": "Жеке кабинет",
+    "employee": "Қызметкер",
+    "cardTitle": "Менің деректерім",
+    "getQr": "QR алу",
+    "refreshQr": "QR жаңарту",
+    "qrPlaceholder": "QR шығару үшін батырманы басыңыз",
+    "qrIssued": "QR жасалды",
+    "qrIssueError": "QR жасау мүмкін болмады",
+    "copyCode": "Кодты көшіру",
+    "tokenCopied": "Код көшірілді",
+    "tokenCopyError": "Кодты көшіру мүмкін болмады",
+    "validUntil": "Жарамды уақыты",
+    "passLabel": "Рұқсаттама",
+    "noPass": "Белсенді рұқсаттама жоқ",
+    "noActivePassDescription": "Белсенді рұқсаттама әзірге табылмады.",
+    "profileLoadError": "Қызметкер деректерін жүктеу мүмкін болмады",
+    "notFoundTitle": "Кабинет қолжетімсіз",
+    "notFoundDescription": "Бұл пайдаланушы үшін қызметкер профилі әлі жасалмаған.",
+    "retry": "Қайталау",
+    "dismissedWarning": "Қызметкер жұмыстан шығарылған деп белгіленген.",
+    "dismissedAt": "Соңғы жұмыстан шығару",
+    "fields": {
+      "fullName": "Аты-жөні",
+      "counterparty": "Контрагент",
+      "department": "Бөлім",
+      "position": "Лауазым",
+      "phone": "Телефон",
+      "citizenship": "Азаматтығы"
+    }
   },
   "languages": {
     "ru": "Орысша",

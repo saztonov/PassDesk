@@ -42,33 +42,33 @@ const webhookLimiter = rateLimit({
 
 router.use(authenticate);
 
-router.get("/health", authorize("admin", "manager"), skudController.health);
-router.get("/stats", authorize("admin", "manager"), skudController.stats);
+router.get("/health", authorize("admin"), skudController.health);
+router.get("/stats", authorize("admin"), skudController.stats);
 router.get(
   "/local/employees",
-  authorize("admin", "manager"),
+  authorize("admin"),
   paginationValidation,
   skudController.localEmployees,
 );
 router.get(
   "/provider/employees",
-  authorize("admin", "manager"),
+  authorize("admin"),
   paginationValidation,
   skudController.providerEmployees,
 );
 router.get(
   "/provider/departments",
-  authorize("admin", "manager"),
+  authorize("admin"),
   skudController.providerDepartments,
 );
 router.get(
   "/provider/access-points",
-  authorize("admin", "manager"),
+  authorize("admin"),
   skudController.providerAccessPoints,
 );
 router.post(
   "/provider/departments",
-  authorize("admin", "manager"),
+  authorize("admin"),
   body("name").isString().trim().notEmpty(),
   body("parentId").optional({ nullable: true }).isString().trim(),
   body("description").optional().isString(),
@@ -77,7 +77,7 @@ router.post(
 );
 router.put(
   "/provider/departments/:departmentId",
-  authorize("admin", "manager"),
+  authorize("admin"),
   param("departmentId").isString().trim().notEmpty(),
   body("name").optional().isString().trim().notEmpty(),
   body("parentId").optional({ nullable: true }).isString().trim(),
@@ -87,27 +87,27 @@ router.put(
 );
 router.delete(
   "/provider/departments/:departmentId",
-  authorize("admin", "manager"),
+  authorize("admin"),
   param("departmentId").isString().trim().notEmpty(),
   validate,
   skudController.deleteProviderDepartment,
 );
 router.get(
   "/provider/employees/:externalEmpId",
-  authorize("admin", "manager"),
+  authorize("admin"),
   param("externalEmpId").isString().trim().notEmpty(),
   validate,
   skudController.providerEmployee,
 );
 router.get(
   "/events",
-  authorize("admin", "manager"),
+  authorize("admin"),
   paginationValidation,
   skudController.events,
 );
 router.post(
   "/events/pull",
-  authorize("admin", "manager"),
+  authorize("admin"),
   body("limit").optional().isInt({ min: 1, max: 500 }),
   body("offset").optional().isInt({ min: 0 }),
   body("from").optional().isISO8601(),
@@ -117,27 +117,27 @@ router.post(
 );
 router.get(
   "/sync-jobs",
-  authorize("admin", "manager"),
+  authorize("admin"),
   paginationValidation,
   skudController.syncJobs,
 );
 router.post(
   "/bindings/import/preview",
-  authorize("admin", "manager"),
+  authorize("admin"),
   body("rows").isArray({ min: 1, max: 5000 }),
   validate,
   skudController.previewBindingImport,
 );
 router.post(
   "/bindings/import/execute",
-  authorize("admin", "manager"),
+  authorize("admin"),
   body("rows").isArray({ min: 1, max: 5000 }),
   validate,
   skudController.executeBindingImport,
 );
 router.post(
   "/bindings/employee/:employeeId",
-  authorize("admin", "manager"),
+  authorize("admin"),
   employeeIdParamValidation,
   body("externalEmpId").isString().trim().notEmpty(),
   validate,
@@ -145,19 +145,19 @@ router.post(
 );
 router.get(
   "/bindings/employee/:employeeId",
-  authorize("admin", "manager"),
+  authorize("admin"),
   employeeIdParamValidation,
   skudController.getEmployeeBinding,
 );
 router.post(
   "/sync/employee/:employeeId",
-  authorize("admin", "manager"),
+  authorize("admin"),
   employeeIdParamValidation,
   skudController.syncEmployee,
 );
 router.post(
   "/sync/employee/:employeeId/block",
-  authorize("admin", "manager"),
+  authorize("admin"),
   employeeIdParamValidation,
   body("reasonCode").optional().isString().trim(),
   body("statusReason").optional().isString().trim(),
@@ -167,7 +167,7 @@ router.post(
 );
 router.post(
   "/sync/employee/:employeeId/unblock",
-  authorize("admin", "manager"),
+  authorize("admin"),
   employeeIdParamValidation,
   body("reasonCode").optional().isString().trim(),
   body("statusReason").optional().isString().trim(),
@@ -177,7 +177,7 @@ router.post(
 );
 router.post(
   "/sync/employee/:employeeId/blacklist",
-  authorize("admin", "manager"),
+  authorize("admin"),
   employeeIdParamValidation,
   body("reasonCode").optional().isString().trim(),
   body("statusReason").optional().isString().trim(),
@@ -186,7 +186,7 @@ router.post(
 );
 router.post(
   "/sync/employee/:employeeId/blacklist/clear",
-  authorize("admin", "manager"),
+  authorize("admin"),
   employeeIdParamValidation,
   body("reasonCode").optional().isString().trim(),
   body("statusReason").optional().isString().trim(),
@@ -196,13 +196,13 @@ router.post(
 
 router.get(
   "/cards",
-  authorize("admin", "manager"),
+  authorize("admin"),
   paginationValidation,
   skudController.listCards,
 );
 router.post(
   "/cards/assign",
-  authorize("admin", "manager"),
+  authorize("admin"),
   body("employeeId").isUUID(),
   body("cardNumber").isString().trim().notEmpty(),
   body("cardType").optional().isString().trim(),
@@ -212,14 +212,14 @@ router.post(
 );
 router.post(
   "/cards/block",
-  authorize("admin", "manager"),
+  authorize("admin"),
   body("cardId").isUUID(),
   validate,
   skudController.blockCard,
 );
 router.post(
   "/cards/unbind",
-  authorize("admin", "manager"),
+  authorize("admin"),
   body("cardId").isUUID(),
   validate,
   skudController.unbindCard,
@@ -227,7 +227,7 @@ router.post(
 
 router.post(
   "/qr/issue",
-  authorize("admin", "manager", "user"),
+  authorize("admin"),
   body("employeeId").isUUID(),
   body("tokenType").optional().isIn(["persistent", "one_time"]),
   body("channel").optional().isIn(["web", "mobile", "telegram"]),

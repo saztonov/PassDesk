@@ -11,6 +11,7 @@ import AddEmployeePage from "./pages/employees/AddEmployeePage";
 import ApplicationRequestPage from "./pages/employees/ApplicationRequestPage";
 import DocumentCaptureDebugPage from "./pages/employees/DocumentCaptureDebugPage";
 import ExistingEmployeeOcrPage from "./pages/employees/ExistingEmployeeOcrPage";
+import LaborerCabinetPage from "./pages/employees/LaborerCabinetPage";
 import CounterpartiesPage from "./pages/CounterpartiesPage";
 import CounterpartyDocumentsPage from "./pages/CounterpartyDocumentsPage";
 import UserProfilePage from "./pages/UserProfilePage";
@@ -29,8 +30,13 @@ import { useEffect, useState } from "react";
 import { setLanguage } from "./i18n";
 import settingsService from "./services/settingsService";
 
-// Компонент для перенаправления на employees для всех ролей
 const RoleBasedRedirect = () => {
+  const { user } = useAuthStore();
+
+  if (user?.role === "laborer") {
+    return <Navigate to="/cabinet" replace />;
+  }
+
   return <Navigate to="/employees" replace />;
 };
 
@@ -90,7 +96,25 @@ function App() {
             <Route index element={<RoleBasedRedirect />} />
 
             {/* Profile route - доступен всем авторизованным (даже неактивным) */}
-            <Route path="profile" element={<ProfilePage />} />
+            <Route
+              path="profile"
+              element={
+                user?.role === "laborer" && user?.isActive ? (
+                  <Navigate to="/cabinet" replace />
+                ) : (
+                  <ProfilePage />
+                )
+              }
+            />
+
+            <Route
+              path="cabinet"
+              element={
+                <ProtectedRoute allowedRoles={["laborer"]}>
+                  <LaborerCabinetPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Routes for admin and user - требуют активации */}
             <Route
@@ -207,7 +231,7 @@ function App() {
             <Route
               path="skud"
               element={
-                <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                <ProtectedRoute allowedRoles={["admin"]}>
                   <SkudPage />
                 </ProtectedRoute>
               }
@@ -236,7 +260,14 @@ function App() {
             />
 
             {/* Route for regular users (employee profile) */}
-            <Route path="my-profile" element={<UserProfilePage />} />
+            <Route
+              path="my-profile"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
+                  <UserProfilePage />
+                </ProtectedRoute>
+              }
+            />
           </Route>
 
           {/* 404 */}

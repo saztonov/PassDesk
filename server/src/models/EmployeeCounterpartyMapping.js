@@ -50,6 +50,12 @@ EmployeeCounterpartyMapping.init(
         key: 'id'
       },
       comment: 'ID объекта строительства (может быть NULL)'
+    },
+    dismissedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 'dismissed_at',
+      comment: 'Последняя актуальная дата увольнения сотрудника у контрагента'
     }
   },
   {
@@ -70,6 +76,9 @@ EmployeeCounterpartyMapping.init(
       },
       {
         fields: ['construction_site_id']
+      },
+      {
+        fields: ['dismissed_at']
       }
       // Уникальный индекс создан в миграции: unique_employee_counterparty_site_mapping
     ]
@@ -77,4 +86,3 @@ EmployeeCounterpartyMapping.init(
 );
 
 export default EmployeeCounterpartyMapping;
-

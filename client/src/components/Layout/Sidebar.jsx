@@ -10,6 +10,7 @@ import {
   ControlOutlined,
   SafetyCertificateOutlined,
   KeyOutlined,
+  QrcodeOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/store/authStore";
 import settingsService from "@/services/settingsService";
@@ -34,7 +35,6 @@ const Sidebar = () => {
   const [defaultCounterpartyId, setDefaultCounterpartyId] = useState(null);
   const isOtEngineer = user?.role === "ot_engineer";
   const isOtAdmin = user?.role === "ot_admin";
-  const isManager = user?.role === "manager";
 
   // Загрузить defaultCounterpartyId при монтировании
   useEffect(() => {
@@ -135,26 +135,25 @@ const Sidebar = () => {
   ];
 
   const otAdminMenuItems = [...engineerMenuItems];
-  const managerMenuItems = [
+  const laborerMenuItems = [
     {
-      key: "/skud",
-      icon: <KeyOutlined />,
-      label: t("menu.skud"),
+      key: "/cabinet",
+      icon: <QrcodeOutlined />,
+      label: t("menu.cabinet"),
     },
   ];
-
   // Выбираем меню на основе роли пользователя
   let menuItems = [];
   if (user?.role === "user") {
     menuItems = [...userMenuItems];
   } else if (user?.role === "admin") {
     menuItems = [...adminMenuItems];
+  } else if (user?.role === "laborer") {
+    menuItems = [...laborerMenuItems];
   } else if (user?.role === "ot_engineer") {
     menuItems = [...engineerMenuItems];
   } else if (user?.role === "ot_admin") {
     menuItems = [...otAdminMenuItems];
-  } else if (isManager) {
-    menuItems = [...managerMenuItems];
   }
 
   const handleMenuClick = ({ key }) => {

@@ -166,6 +166,15 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
               {formatSnils(employee.snils)}
             </Descriptions.Item>
           )}
+          {!getFieldProps("passportType").hidden && (
+            <Descriptions.Item label="Тип паспорта" span={1}>
+              {employee.passportType === "russian"
+                ? "Российский"
+                : employee.passportType === "foreign"
+                  ? "Иностранный"
+                  : "-"}
+            </Descriptions.Item>
+          )}
           {!getFieldProps("passportNumber").hidden && (
             <Descriptions.Item label="№ паспорта" span={1}>
               {employee.passportNumber || "-"}

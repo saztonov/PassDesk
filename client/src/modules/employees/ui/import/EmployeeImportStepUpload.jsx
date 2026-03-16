@@ -2,7 +2,12 @@ import { memo } from "react";
 import { LinkOutlined, UploadOutlined } from "@ant-design/icons";
 import { Button, Divider, Upload } from "antd";
 
-const EmployeeImportStepUpload = memo(({ fileName, onFileSelect, onOpenTemplate }) => (
+const EmployeeImportStepUpload = memo(({
+  profileConfig,
+  fileName,
+  onFileSelect,
+  onOpenTemplate,
+}) => (
   <div style={{ padding: "40px 20px" }}>
     <div style={{ textAlign: "center", marginBottom: "32px" }}>
       <Upload
@@ -24,9 +29,9 @@ const EmployeeImportStepUpload = memo(({ fileName, onFileSelect, onOpenTemplate 
     <Divider />
 
     <div style={{ marginBottom: "24px" }}>
-      <h4 style={{ marginBottom: "12px" }}>📋 Структура файла:</h4>
+      <h4 style={{ marginBottom: "12px" }}>📋 {profileConfig.uploadTitle}:</h4>
       <p style={{ color: "#666", marginBottom: "8px", fontSize: "12px" }}>
-        Файл должен содержать следующие столбцы:
+        {profileConfig.uploadDescription}
       </p>
       <div
         style={{
@@ -36,22 +41,25 @@ const EmployeeImportStepUpload = memo(({ fileName, onFileSelect, onOpenTemplate 
           fontSize: "12px",
         }}
       >
-        <div>
-          №, Фамилия, Имя, Отчество, КИГ, Срок окончания КИГ, Гражданство,
-        </div>
-        <div>Дата рождения, СНИЛС, Должность, ИНН сотрудника,</div>
-        <div>
-          Организация, <strong>ИНН организации</strong>, <strong>КПП организации</strong>
-        </div>
+        {profileConfig.schemaLines.map((line) => (
+          <div key={line}>{line}</div>
+        ))}
       </div>
     </div>
 
-    <div style={{ marginBottom: "16px" }}>
-      <h4 style={{ marginBottom: "8px" }}>🔗 Скачать шаблон:</h4>
-      <Button type="link" icon={<LinkOutlined />} onClick={onOpenTemplate} style={{ padding: 0 }}>
-        Google таблица с бланком
-      </Button>
-    </div>
+    {profileConfig.templateUrl ? (
+      <div style={{ marginBottom: "16px" }}>
+        <h4 style={{ marginBottom: "8px" }}>🔗 Скачать шаблон:</h4>
+        <Button
+          type="link"
+          icon={<LinkOutlined />}
+          onClick={onOpenTemplate}
+          style={{ padding: 0 }}
+        >
+          Google таблица с бланком
+        </Button>
+      </div>
+    ) : null}
 
     <div
       style={{
@@ -61,12 +69,14 @@ const EmployeeImportStepUpload = memo(({ fileName, onFileSelect, onOpenTemplate 
         fontSize: "12px",
       }}
     >
-      <div style={{ marginBottom: "8px" }}>
-        <strong>ℹ️ Примечание:</strong> Столбец № пропускается. Столбцы, не указанные выше, игнорируются.
-      </div>
-      <div>
-        <strong>🏢 Контрагенты:</strong> <strong>ИНН организации</strong> и <strong>КПП организации</strong> - контрагент должен быть вашей организацией или вашим субподрядчиком.
-      </div>
+      {profileConfig.notes.map((note, index) => (
+        <div
+          key={note.title}
+          style={{ marginBottom: index < profileConfig.notes.length - 1 ? "8px" : 0 }}
+        >
+          <strong>ℹ️ {note.title}:</strong> {note.text}
+        </div>
+      ))}
     </div>
   </div>
 ));

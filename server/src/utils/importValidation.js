@@ -16,6 +16,52 @@ import {
   isFieldEncryptionEnabled,
 } from "../services/encryptionService.js";
 
+const normalizeCitizenshipLookupValue = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+const CITIZENSHIP_LOOKUP_ALIASES = {
+  россия: "российская федерация",
+  рф: "российская федерация",
+};
+
+const NON_PATENT_CITIZENSHIPS = new Set([
+  "российская федерация",
+  "россия",
+  "рф",
+  "армения",
+  "беларусь",
+  "казахстан",
+  "киргизия",
+  "кыргызстан",
+]);
+
+const toTitleCase = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/(^|[\s-])([a-zа-яё])/giu, (_, prefix, char) =>
+      `${prefix}${char.toUpperCase()}`,
+    );
+
+const formatCitizenshipDisplayName = (value) =>
+  String(value || "")
+    .trim()
+    .split(",")
+    .map((part) => toTitleCase(part.trim()))
+    .join(", ");
+
+const inferCitizenshipRequiresPatent = (citizenshipName) =>
+  !NON_PATENT_CITIZENSHIPS.has(
+    CITIZENSHIP_LOOKUP_ALIASES[normalizeCitizenshipLookupValue(citizenshipName)] ||
+      normalizeCitizenshipLookupValue(citizenshipName),
+  );
+
+const shouldSkipPatentValidation = (employeeData) =>
+  employeeData?.isClosedBrigade === true ||
+  String(employeeData?.employmentStatus || "").trim().toLowerCase() === "fired";
+
 const buildLastNameHash = (lastName) => {
   if (!lastName || !isFieldEncryptionEnabled()) {
     return null;
@@ -105,14 +151,36 @@ export const validateDate = (dateString, fieldName = "Дата") => {
   };
 };
 
+export const validateUuid = (uuid, fieldName = "UUID") => {
+  if (!uuid) return { valid: true, normalizedUuid: null };
+
+  const normalized = String(uuid).trim().toLowerCase();
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  if (!uuidRegex.test(normalized)) {
+    return {
+      valid: false,
+      error: `${fieldName}: неверный формат UUID`,
+    };
+  }
+
+  return { valid: true, normalizedUuid: normalized };
+};
+
 /**
  * Валидирует ФИО (кириллица, первая буква заглавная)
  */
 export const validateFio = (firstName, lastName, middleName) => {
-  const cyrillicRegex = /^[А-ЯЁ][а-яё]*(?:\s+[А-ЯЁ][а-яё]*)*$/;
+  const cyrillicRegex = /^[А-ЯЁ][а-яё]*(?:[-\s]+[А-ЯЁ][а-яё]*)*$/;
   const errors = [];
   const normalizeFioPart = (value) =>
     String(value || "")
+      .toLowerCase()
+      .replace(/\s*-\s*/g, "-")
+      .replace(/(^|[\s-])([а-яё])/g, (_, prefix, char) =>
+        `${prefix}${char.toUpperCase()}`,
+      )
       .replace(/\s+/g, " ")
       .trim();
   const normalizedLastName = normalizeFioPart(lastName);
@@ -159,7 +227,10 @@ export const validateFio = (firstName, lastName, middleName) => {
 export const validateKig = (kig) => {
   if (!kig) return { valid: false, error: "КИГ обязателен" };
 
-  const original = String(kig).trim();
+  const original = String(kig)
+    .trim()
+    .replace(/[Аа]/g, "A")
+    .replace(/[Вв]/g, "B");
 
   // Проверяем наличие кириллицы
   const hasCyrillic = /[А-Яа-яЁё]/.test(original);
@@ -197,7 +268,8 @@ export const validateKig = (kig) => {
 export const findCitizenshipByName = async (citizenshipName) => {
   if (!citizenshipName) return null;
 
-  const name = String(citizenshipName).trim();
+  const normalizedName = normalizeCitizenshipLookupValue(citizenshipName);
+  const name = CITIZENSHIP_LOOKUP_ALIASES[normalizedName] || normalizedName;
 
   // Сначала ищем точное совпадение
   let citizenship = await Citizenship.findOne({
@@ -228,16 +300,19 @@ export const findCitizenshipByNameFromCache = (
 ) => {
   if (!citizenshipName) return null;
 
-  const name = String(citizenshipName).trim().toLowerCase();
+  const normalizedName = normalizeCitizenshipLookupValue(citizenshipName);
+  const name = CITIZENSHIP_LOOKUP_ALIASES[normalizedName] || normalizedName;
 
   // Ищем точное совпадение
   let citizenship = citizenshipsCache.find(
-    (c) => c.name.toLowerCase() === name,
+    (c) => normalizeCitizenshipLookupValue(c.name) === name,
   );
 
   if (!citizenship) {
     // Ищем через синонимы
-    const synonym = synonymsCache.find((s) => s.synonym.toLowerCase() === name);
+    const synonym = synonymsCache.find(
+      (s) => normalizeCitizenshipLookupValue(s.synonym) === name,
+    );
     if (synonym) {
       citizenship = citizenshipsCache.find(
         (c) => c.id === synonym.citizenshipId,
@@ -246,6 +321,52 @@ export const findCitizenshipByNameFromCache = (
   }
 
   return citizenship || null;
+};
+
+const ensureCitizenshipFromCache = async (
+  citizenshipName,
+  citizenshipsCache,
+  synonymsCache,
+  newCitizenshipsMap,
+) => {
+  const existing = findCitizenshipByNameFromCache(
+    citizenshipName,
+    citizenshipsCache,
+    synonymsCache,
+  );
+  if (existing) {
+    return existing;
+  }
+
+  const normalizedName = normalizeCitizenshipLookupValue(citizenshipName);
+  const aliasedName = CITIZENSHIP_LOOKUP_ALIASES[normalizedName] || normalizedName;
+
+  if (newCitizenshipsMap?.has(aliasedName)) {
+    return newCitizenshipsMap.get(aliasedName);
+  }
+
+  const citizenship = await Citizenship.create({
+    name: formatCitizenshipDisplayName(aliasedName),
+    code: null,
+    requiresPatent: inferCitizenshipRequiresPatent(aliasedName),
+  });
+
+  const plainCitizenship = citizenship.toJSON();
+  citizenshipsCache.push(plainCitizenship);
+  if (newCitizenshipsMap) {
+    newCitizenshipsMap.set(aliasedName, plainCitizenship);
+  }
+
+  const originalInput = String(citizenshipName || "").trim();
+  if (originalInput && normalizeCitizenshipLookupValue(originalInput) !== aliasedName) {
+    const synonym = await CitizenshipSynonym.create({
+      citizenshipId: citizenship.id,
+      synonym: originalInput,
+    });
+    synonymsCache.push(synonym.toJSON());
+  }
+
+  return plainCitizenship;
 };
 
 /**
@@ -434,10 +555,13 @@ export const validateEmployeeForImport = async (employeeData, rowIndex) => {
     citizenship = await findCitizenshipByName(employeeData.citizenship);
     if (!citizenship) {
       errors.push(`Гражданство "${employeeData.citizenship}" не найдено`);
-    } else if (citizenship.requiresPatent !== false) {
+    } else if (
+      citizenship.requiresPatent !== false &&
+      !shouldSkipPatentValidation(employeeData)
+    ) {
       // Проверяем КИГ если требуется патент
       if (!employeeData.kig) {
-        errors.push(`КИГ обязателен для граждан ${employeeData.citizenship}`);
+        warnings.push(`КИГ не указан для граждан ${employeeData.citizenship}`);
       } else {
         const kigValidation = validateKig(employeeData.kig);
         if (!kigValidation.valid) {
@@ -485,6 +609,19 @@ export const validateEmployeeForImport = async (employeeData, rowIndex) => {
     }
   }
 
+  let dismissalDateNormalized = null;
+  if (employeeData.dismissalDate) {
+    const dismissalDateValidation = validateDate(
+      employeeData.dismissalDate,
+      "Дата увольнения",
+    );
+    if (!dismissalDateValidation.valid) {
+      errors.push(dismissalDateValidation.error);
+    } else {
+      dismissalDateNormalized = dismissalDateValidation.normalizedDate;
+    }
+  }
+
   // Срок окончания КИГ
   let kigEndDateNormalized = null;
   if (employeeData.kigEndDate) {
@@ -516,6 +653,7 @@ export const validateEmployeeForImport = async (employeeData, rowIndex) => {
       counterparty: counterpartyValidation.counterparty,
       kppToUpdate: counterpartyValidation.kppToUpdate,
       position,
+      dismissalDate: dismissalDateNormalized,
     },
   };
 };
@@ -528,9 +666,13 @@ export const validateEmployeeForImportOptimized = async (
   userId,
   caches,
   newPositionsMap,
+  options = {},
 ) => {
   const errors = [];
   const warnings = [];
+  const defaultCounterparty = options.defaultCounterparty || null;
+  const newCitizenshipsMap = options.newCitizenshipsMap || null;
+  const useDefaultCounterparty = Boolean(employeeData.idAll && defaultCounterparty);
 
   // ФИО
   const fioValidation = validateFio(
@@ -574,23 +716,40 @@ export const validateEmployeeForImportOptimized = async (
     warnings.push("СНИЛС не указан");
   }
 
+  let idAllNormalized = null;
+  if (employeeData.idAll) {
+    const idAllValidation = validateUuid(
+      employeeData.idAll,
+      "ID из внешней системы",
+    );
+    if (!idAllValidation.valid) {
+      errors.push(idAllValidation.error);
+    } else {
+      idAllNormalized = idAllValidation.normalizedUuid;
+    }
+  }
+
   // КИГ и гражданство
   let kigNormalized = null;
   let citizenship = null;
 
   if (employeeData.citizenship) {
-    citizenship = findCitizenshipByNameFromCache(
+    citizenship = await ensureCitizenshipFromCache(
       employeeData.citizenship,
       caches.citizenships,
       caches.citizenshipSynonyms,
+      newCitizenshipsMap,
     );
 
     if (!citizenship) {
       errors.push(`Гражданство "${employeeData.citizenship}" не найдено`);
-    } else if (citizenship.requiresPatent !== false) {
+    } else if (
+      citizenship.requiresPatent !== false &&
+      !shouldSkipPatentValidation(employeeData)
+    ) {
       // Проверяем КИГ если требуется патент
       if (!employeeData.kig) {
-        errors.push(`КИГ обязателен для граждан ${employeeData.citizenship}`);
+        warnings.push(`КИГ не указан для граждан ${employeeData.citizenship}`);
       } else {
         const kigValidation = validateKig(employeeData.kig);
         if (!kigValidation.valid) {
@@ -603,11 +762,17 @@ export const validateEmployeeForImportOptimized = async (
   }
 
   // Контрагент и КПП
-  const counterpartyValidation = validateCounterpartyAndKppFromCache(
-    employeeData.counterpartyInn,
-    employeeData.counterpartyKpp,
-    caches.counterparties,
-  );
+  const counterpartyValidation = useDefaultCounterparty
+    ? {
+        valid: true,
+        counterparty: defaultCounterparty,
+        kppToUpdate: null,
+      }
+    : validateCounterpartyAndKppFromCache(
+        employeeData.counterpartyInn,
+        employeeData.counterpartyKpp,
+        caches.counterparties,
+      );
 
   if (!counterpartyValidation.valid) {
     errors.push(...counterpartyValidation.errors);
@@ -660,6 +825,19 @@ export const validateEmployeeForImportOptimized = async (
     }
   }
 
+  let dismissalDateNormalized = null;
+  if (employeeData.dismissalDate) {
+    const dismissalDateValidation = validateDate(
+      employeeData.dismissalDate,
+      "Дата увольнения",
+    );
+    if (!dismissalDateValidation.valid) {
+      errors.push(dismissalDateValidation.error);
+    } else {
+      dismissalDateNormalized = dismissalDateValidation.normalizedDate;
+    }
+  }
+
   // Срок окончания КИГ
   let kigEndDateNormalized = null;
   if (employeeData.kigEndDate) {
@@ -679,6 +857,7 @@ export const validateEmployeeForImportOptimized = async (
     errors,
     warnings,
     validated: {
+      idAll: idAllNormalized,
       firstName: employeeData.firstName,
       lastName: employeeData.lastName,
       middleName: employeeData.middleName,
@@ -691,6 +870,24 @@ export const validateEmployeeForImportOptimized = async (
       counterparty: counterpartyValidation.counterparty,
       kppToUpdate: counterpartyValidation.kppToUpdate,
       position,
+      department: employeeData.department || null,
+      isClosedBrigade: employeeData.isClosedBrigade === true,
+      employmentStatus: employeeData.employmentStatus || null,
+      dismissalDate: dismissalDateNormalized,
+      phone: employeeData.phone || null,
+      personalPhone: employeeData.personalPhone || null,
+      workPhone: employeeData.workPhone || null,
+      bankAccountNumber: employeeData.bankAccountNumber || null,
+      passportType: employeeData.passportType || null,
+      passportNumber: employeeData.passportNumber || null,
+      passportDate: employeeData.passportDate || null,
+      passportIssuer: employeeData.passportIssuer || null,
+      passportExpiryDate: employeeData.passportExpiryDate || null,
+      registrationAddress: employeeData.registrationAddress || null,
+      patentIssueDate: employeeData.patentIssueDate || null,
+      patentNumber: employeeData.patentNumber || null,
+      blankNumber: employeeData.blankNumber || null,
+      passNumber: employeeData.passNumber || null,
     },
   };
 };
@@ -769,13 +966,18 @@ export const checkEmployeeConflictFromCache = (
 ) => {
   const conflicts = [];
   const lastNameHash = buildLastNameHash(validatedEmployee.lastName);
+  const existingByIdAll = validatedEmployee.idAll
+    ? existingEmployeesCache.find((e) => e.idAll === validatedEmployee.idAll)
+    : null;
+  const isSameEmployee = (existing) =>
+    !!existingByIdAll && String(existing?.id || "") === String(existingByIdAll?.id || "");
 
   // Проверяем ИНН
   if (validatedEmployee.inn) {
     const existing = existingEmployeesCache.find(
       (e) => e.inn === validatedEmployee.inn,
     );
-    if (existing) {
+    if (existing && !isSameEmployee(existing)) {
       conflicts.push({
         type: "inn",
         existingEmployee: existing,
@@ -789,7 +991,7 @@ export const checkEmployeeConflictFromCache = (
     const existing = existingEmployeesCache.find(
       (e) => e.snils === validatedEmployee.snils,
     );
-    if (existing) {
+    if (existing && !isSameEmployee(existing)) {
       conflicts.push({
         type: "snils",
         existingEmployee: existing,
@@ -807,7 +1009,7 @@ export const checkEmployeeConflictFromCache = (
       e.middleName === validatedEmployee.middleName,
   );
 
-  if (existingByFio) {
+  if (existingByFio && !isSameEmployee(existingByFio)) {
     conflicts.push({
       type: "fio",
       existingEmployee: existingByFio,

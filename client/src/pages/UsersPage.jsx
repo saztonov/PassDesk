@@ -119,6 +119,7 @@ const UsersPage = () => {
 
   const roleLabels = {
     admin: { text: "Администратор", color: "red" },
+    laborer: { text: "Рабочий", color: "cyan" },
     ot_admin: { text: "Администратор ОТ", color: "magenta" },
     ot_engineer: { text: "Инженер ОТ", color: "blue" },
     manager: { text: "Менеджер", color: "gold" },
@@ -128,6 +129,7 @@ const UsersPage = () => {
   // Роли для селекта при создании/редактировании
   const selectableRoles = {
     admin: { text: "Администратор", color: "red" },
+    laborer: { text: "Рабочий", color: "cyan" },
     ot_admin: { text: "Администратор ОТ", color: "magenta" },
     ot_engineer: { text: "Инженер ОТ", color: "blue" },
     user: { text: "Пользователь", color: "default" },

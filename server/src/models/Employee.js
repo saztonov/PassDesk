@@ -450,8 +450,12 @@ Employee.init(
     underscored: true,
     hooks: {
       beforeUpdate(employee) {
-        // id_all не может быть изменен после создания
+        // Разрешаем только первичное заполнение id_all, но запрещаем его менять после установки.
         if (employee.changed("idAll")) {
+          const previousValue = employee.previous("idAll");
+          if (!previousValue) {
+            return;
+          }
           throw new Error(
             "Поле id_all (ID из внешней системы) не может быть изменено",
           );

@@ -19,6 +19,14 @@ const userProfileService = {
   },
 
   /**
+   * Выпустить QR для активного пропуска текущего сотрудника
+   */
+  issueMyProfileSkudQr: async (payload = {}) => {
+    const response = await api.post("/employees/my-profile/skud/qr", payload);
+    return response.data;
+  },
+
+  /**
    * Загрузить файлы для профиля
    * @param {string} employeeId - ID сотрудника
    * @param {File[]} files - Массив файлов для загрузки
