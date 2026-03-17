@@ -21,17 +21,29 @@ router.use(authenticate);
 // ======================================
 // ЧТЕНИЕ - доступно всем авторизованным пользователям
 // ======================================
-router.get("/", authorize("admin", "user"), getAllCounterparties);
+router.get(
+  "/",
+  authorize("admin", "user", "ot_admin", "ot_engineer"),
+  getAllCounterparties,
+);
 router.get(
   "/available",
   authorize("admin", "user", "manager", "ot_admin", "ot_engineer"),
   getAvailableCounterparties,
 ); // Список доступных контрагентов для выбора
-router.get("/stats", authorize("admin", "user"), getCounterpartiesStats);
-router.get("/:id", authorize("admin", "user"), getCounterpartyById);
+router.get(
+  "/stats",
+  authorize("admin", "user", "ot_admin", "ot_engineer"),
+  getCounterpartiesStats,
+);
+router.get(
+  "/:id",
+  authorize("admin", "user", "ot_admin", "ot_engineer"),
+  getCounterpartyById,
+);
 router.get(
   "/:id/construction-sites",
-  authorize("admin", "user"),
+  authorize("admin", "user", "ot_admin", "ot_engineer"),
   getCounterpartyConstructionSites,
 );
 
