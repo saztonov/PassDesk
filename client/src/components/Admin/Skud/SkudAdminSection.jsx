@@ -749,9 +749,6 @@ const SkudAdminSection = () => {
           }
 
           offset += items.length;
-          if (allItems.length >= 5000) {
-            hasMore = false;
-          }
         }
 
         setProviderHierarchyEmployeesByDepartment((current) => ({

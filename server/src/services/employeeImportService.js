@@ -103,15 +103,6 @@ export const validateEmployeesImport = async (
     throw new AppError("Данные сотрудников не предоставлены", 400);
   }
 
-  // 🔒 ЗАЩИТА ОТ DoS: Ограничение на количество записей
-  const MAX_RECORDS = 5000;
-  if (employees.length > MAX_RECORDS) {
-    throw new AppError(
-      `Превышен лимит записей. Максимум ${MAX_RECORDS} записей за один импорт. В файле: ${employees.length}`,
-      400,
-    );
-  }
-
   if (!userCounterpartyId) {
     throw new AppError("У пользователя не указан контрагент", 403);
   }

@@ -9,8 +9,6 @@ import {
 import { AppError } from "../../middleware/errorHandler.js";
 import { enqueueSkudSyncForEmployee } from "./SkudSyncService.js";
 
-const MAX_ROWS = 5000;
-
 const FIELD_ALIASES = {
   fullName: [
     "ФИО",
@@ -202,10 +200,6 @@ export const previewSkudBindingImport = async (rows = []) => {
   if (!Array.isArray(rows) || rows.length === 0) {
     throw new AppError("rows обязателен и должен содержать хотя бы одну строку", 400);
   }
-  if (rows.length > MAX_ROWS) {
-    throw new AppError(`Превышен лимит строк: максимум ${MAX_ROWS}`, 400);
-  }
-
   const normalizedRows = rows.map((row, index) => normalizeImportRow(row, index));
   const idAllCounts = normalizedRows.reduce((acc, row) => {
     if (!row.idAll) return acc;

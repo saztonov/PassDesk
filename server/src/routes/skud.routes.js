@@ -124,14 +124,14 @@ router.get(
 router.post(
   "/bindings/import/preview",
   authorize("admin"),
-  body("rows").isArray({ min: 1, max: 5000 }),
+  body("rows").isArray({ min: 1 }),
   validate,
   skudController.previewBindingImport,
 );
 router.post(
   "/bindings/import/execute",
   authorize("admin"),
-  body("rows").isArray({ min: 1, max: 5000 }),
+  body("rows").isArray({ min: 1 }),
   validate,
   skudController.executeBindingImport,
 );
