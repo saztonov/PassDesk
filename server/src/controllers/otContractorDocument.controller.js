@@ -7,6 +7,7 @@ import {
   ConstructionSite,
   File,
 } from "../models/index.js";
+import { Op } from "sequelize";
 import { AppError } from "../middleware/errorHandler.js";
 import {
   assertOtAccess,
@@ -285,6 +286,8 @@ export const uploadOtContractorDocument = async (req, res, next) => {
 
     const {
       documentId,
+      categoryId,
+      documentName,
       constructionSiteId,
       counterpartyId: counterpartyIdBody,
     } = req.body;
@@ -293,8 +296,8 @@ export const uploadOtContractorDocument = async (req, res, next) => {
       throw new AppError("Файл не предоставлен", 400);
     }
 
-    if (!documentId || !constructionSiteId) {
-      throw new AppError("documentId и constructionSiteId обязательны", 400);
+    if (!constructionSiteId) {
+      throw new AppError("constructionSiteId обязателен", 400);
     }
 
     const counterpartyId = isStaff
@@ -311,9 +314,45 @@ export const uploadOtContractorDocument = async (req, res, next) => {
       constructionSiteId,
     );
 
-    const document = await OtDocument.findByPk(documentId);
-    if (!document || document.isDeleted) {
-      throw new AppError("Документ не найден", 404);
+    const normalizedDocumentName = String(documentName || "").trim();
+
+    let document = null;
+    if (documentId) {
+      document = await OtDocument.findByPk(documentId);
+      if (!document || document.isDeleted) {
+        throw new AppError("Документ не найден", 404);
+      }
+    } else {
+      if (!categoryId || !normalizedDocumentName) {
+        throw new AppError(
+          "Для создания документа нужны categoryId и documentName",
+          400,
+        );
+      }
+
+      const category = await OtCategory.findByPk(categoryId);
+      if (!category || category.isDeleted) {
+        throw new AppError("Категория не найдена", 404);
+      }
+
+      document = await OtDocument.findOne({
+        where: {
+          categoryId,
+          isDeleted: false,
+          name: {
+            [Op.iLike]: normalizedDocumentName,
+          },
+        },
+      });
+
+      if (!document) {
+        document = await OtDocument.create({
+          categoryId,
+          name: normalizedDocumentName,
+          description: null,
+          isRequired: false,
+        });
+      }
     }
 
     const [counterparty, constructionSite] = await Promise.all([
@@ -332,11 +371,11 @@ export const uploadOtContractorDocument = async (req, res, next) => {
       ],
       uploadedBy: req.user.id,
       entityType: "other",
-      entityId: documentId,
+      entityId: document.id,
     });
 
     let contractorDocument = await OtContractorDocument.findOne({
-      where: { documentId, counterpartyId, constructionSiteId },
+      where: { documentId: document.id, counterpartyId, constructionSiteId },
     });
 
     if (contractorDocument) {
@@ -350,7 +389,7 @@ export const uploadOtContractorDocument = async (req, res, next) => {
       });
     } else {
       contractorDocument = await OtContractorDocument.create({
-        documentId,
+        documentId: document.id,
         counterpartyId,
         constructionSiteId,
         fileId: fileRecord.id,

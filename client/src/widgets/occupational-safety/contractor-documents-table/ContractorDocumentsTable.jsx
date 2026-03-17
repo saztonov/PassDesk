@@ -277,9 +277,21 @@ const ContractorDocumentsTable = ({
         const docRecord = getDocumentPayload(record);
         if (!docRecord) {
           return (
-            <Tag bordered={false} className="ot-tag-soft">
-              Категория
-            </Tag>
+            <Space size={6} wrap>
+              <Tag bordered={false} className="ot-tag-soft">
+                Категория
+              </Tag>
+              {(isContractorUser || isStaff) && (
+                <Button
+                  size="small"
+                  icon={<UploadOutlined />}
+                  loading={uploadingDocId === record.id}
+                  onClick={() => onUploadClick(record)}
+                >
+                  Загрузить
+                </Button>
+              )}
+            </Space>
           );
         }
 

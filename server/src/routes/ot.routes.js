@@ -127,7 +127,20 @@ const contractorDocsQueryValidation = [
 ];
 
 const contractorDocsBodyValidation = [
-  body("documentId").isUUID().withMessage("documentId должен быть UUID"),
+  body("documentId")
+    .optional()
+    .isUUID()
+    .withMessage("documentId должен быть UUID"),
+  body("categoryId")
+    .optional()
+    .isUUID()
+    .withMessage("categoryId должен быть UUID"),
+  body("documentName")
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("documentName обязателен"),
   body("constructionSiteId")
     .isUUID()
     .withMessage("constructionSiteId должен быть UUID"),
@@ -135,6 +148,20 @@ const contractorDocsBodyValidation = [
     .optional()
     .isUUID()
     .withMessage("counterpartyId должен быть UUID"),
+  body().custom((value) => {
+    const hasDocumentId = Boolean(value?.documentId);
+    const hasCategoryId = Boolean(value?.categoryId);
+    const hasDocumentName =
+      typeof value?.documentName === "string" && value.documentName.trim() !== "";
+
+    if (hasDocumentId || (hasCategoryId && hasDocumentName)) {
+      return true;
+    }
+
+    throw new Error(
+      "Нужно передать либо documentId, либо categoryId вместе с documentName",
+    );
+  }),
   validate,
 ];
 

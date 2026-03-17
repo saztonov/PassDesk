@@ -68,6 +68,49 @@ const useOtContractorDocumentActions = ({
   };
 
   const handleUploadClick = (doc) => {
+    if (doc?.type === "category") {
+      let nextDocumentName = "";
+
+      Modal.confirm({
+        title: "Новый документ",
+        content: (
+          <Input
+            autoFocus
+            placeholder="Название документа"
+            onChange={(event) => {
+              nextDocumentName = event.target.value;
+            }}
+            onPressEnter={(event) => {
+              event.preventDefault();
+            }}
+          />
+        ),
+        okText: "Продолжить",
+        cancelText: "Отмена",
+        onOk: () => {
+          const normalizedDocumentName = nextDocumentName.trim();
+          if (!normalizedDocumentName) {
+            message.error("Укажите название документа");
+            return Promise.reject(new Error("documentName is required"));
+          }
+
+          uploadTargetRef.current = {
+            type: "category",
+            id: doc.id,
+            documentName: normalizedDocumentName,
+          };
+
+          if (uploadInputRef.current) {
+            uploadInputRef.current.value = "";
+            uploadInputRef.current.click();
+          }
+
+          return true;
+        },
+      });
+      return;
+    }
+
     uploadTargetRef.current = doc;
     if (uploadInputRef.current) {
       uploadInputRef.current.value = "";
@@ -84,10 +127,17 @@ const useOtContractorDocumentActions = ({
 
     try {
       setUploadingDocId(doc.id);
-      const payload = {
-        documentId: doc.id,
-        constructionSiteId: selectedConstructionSiteId,
-      };
+      const payload =
+        doc?.type === "category"
+          ? {
+              categoryId: doc.id,
+              documentName: doc.documentName,
+              constructionSiteId: selectedConstructionSiteId,
+            }
+          : {
+              documentId: doc.id,
+              constructionSiteId: selectedConstructionSiteId,
+            };
       if (isStaffMode) {
         if (!counterpartyId) {
           message.error("Выберите подрядчика для загрузки");
