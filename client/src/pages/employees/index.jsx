@@ -223,6 +223,17 @@ const EmployeesPage = () => {
     setCurrentPage(page);
   };
 
+  useEffect(() => {
+    if (loading || totalCount <= 0 || employees.length > 0 || currentPage <= 1) {
+      return;
+    }
+
+    const lastPage = Math.max(1, Math.ceil(totalCount / pageSize));
+    if (currentPage > lastPage) {
+      setCurrentPage(lastPage);
+    }
+  }, [currentPage, employees.length, loading, pageSize, setCurrentPage, totalCount]);
+
   const {
     canExport,
     showCounterpartyColumn,
