@@ -1,4 +1,5 @@
 import api from '@/services/api';
+import { deduplicateRequest } from "@/utils/requestCache";
 
 /**
  * API для работы с сотрудниками
@@ -12,8 +13,11 @@ export const employeeApi = {
       ...params,
       activeOnly: params.activeOnly !== undefined ? String(params.activeOnly) : 'false'
     };
-    const response = await api.get('/employees', { params: queryParams });
-    return response.data;
+    const key = `entities:employees:getAll:${JSON.stringify(queryParams)}`;
+    return deduplicateRequest(key, async () => {
+      const response = await api.get('/employees', { params: queryParams });
+      return response.data;
+    });
   },
 
   // Получить сотрудника по ID

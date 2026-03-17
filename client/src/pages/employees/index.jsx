@@ -131,7 +131,11 @@ const EmployeesPage = () => {
           ? [statusFilter]
           : [];
 
-    if (effectiveStatusFilters.length > 0) {
+    const activeOnlyRequest =
+      effectiveStatusFilters.length === 1 &&
+      effectiveStatusFilters[0] === "active";
+
+    if (effectiveStatusFilters.length > 0 && !activeOnlyRequest) {
       filters.statuses = JSON.stringify(effectiveStatusFilters);
     }
 
@@ -161,6 +165,7 @@ const EmployeesPage = () => {
 
     filters.page = currentPage;
     filters.limit = pageSize;
+    filters.activeOnly = activeOnlyRequest;
 
     return filters;
   }, [
@@ -204,7 +209,7 @@ const EmployeesPage = () => {
     totalCount,
     refetch: refetchEmployees,
   } = useEmployees(
-    false,
+    Boolean(employeeRequestFilters.activeOnly),
     employeeRequestFilters,
     isCounterpartyFilterReady,
   );

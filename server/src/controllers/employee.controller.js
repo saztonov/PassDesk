@@ -771,7 +771,7 @@ export const getAllEmployees = async (req, res, next) => {
         where,
         include: employeeInclude,
         distinct: true,
-        col: "Employee.id",
+        col: "id",
       });
     }
 

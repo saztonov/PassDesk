@@ -188,7 +188,25 @@ export const EmployeeTable = ({
 
   // Обработчик изменения таблицы (фильтры, сортировка, пагинация)
   const handleTableChange = (pagination, nextFilters, _sorter, extra) => {
-    const normalizedFilters = nextFilters || {};
+    const rawFilters = nextFilters || {};
+    const normalizedFilters = Object.entries(rawFilters).reduce(
+      (acc, [key, value]) => {
+        if (Array.isArray(value)) {
+          if (value.length > 0) {
+            acc[key] = value;
+          }
+          return acc;
+        }
+
+        if (value !== null && value !== undefined) {
+          acc[key] = value;
+        }
+
+        return acc;
+      },
+      {},
+    );
+
     const hasAnyFilterValue = Object.values(normalizedFilters).some((value) => {
       if (Array.isArray(value)) {
         return value.length > 0;
