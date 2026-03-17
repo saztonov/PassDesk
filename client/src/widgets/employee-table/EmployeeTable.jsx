@@ -1,5 +1,5 @@
 import { Table } from "antd";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useEmployeeColumns } from "./EmployeeColumns";
 import { useTableFilters } from "./useTableFilters";
 
@@ -106,14 +106,16 @@ const tableStyles = `
  * Оптимизирован для быстрой загрузки и рендеринга
  * Сохраняет состояние фильтров в localStorage
  */
-// Ключ для localStorage
-const PAGE_SIZE_KEY = "employees_table_page_size";
 const EMPTY_HIDDEN_COLUMN_KEYS = [];
 
 export const EmployeeTable = ({
   employees,
+  total = 0,
   departments,
   loading,
+  currentPage,
+  pageSize,
+  onPaginationChange,
   onEdit,
   onView,
   onDelete,
@@ -137,13 +139,6 @@ export const EmployeeTable = ({
     onFiltersChange: handleLocalFiltersChange,
     clearFilters,
   } = useTableFilters();
-
-  // Состояние для количества строк на странице с сохранением в localStorage
-  const [pageSize, setPageSize] = useState(() => {
-    const saved = localStorage.getItem(PAGE_SIZE_KEY);
-    return saved ? parseInt(saved, 10) : 20;
-  });
-  const [currentPage, setCurrentPage] = useState(1);
 
   const columns = useEmployeeColumns({
     departments,
@@ -217,14 +212,12 @@ export const EmployeeTable = ({
       }
     }
 
-    // Сохраняем pageSize в localStorage при изменении
-    if (pagination.pageSize !== pageSize) {
-      setPageSize(pagination.pageSize);
-      localStorage.setItem(PAGE_SIZE_KEY, pagination.pageSize.toString());
+    if (onPaginationChange) {
+      const nextPage =
+        extra?.action === "filter" ? 1 : (pagination.current ?? currentPage);
+      const nextPageSize = pagination.pageSize ?? pageSize;
+      onPaginationChange(nextPage, nextPageSize);
     }
-
-    // Обновляем текущую страницу
-    setCurrentPage(pagination.current);
   };
 
   return (
@@ -239,6 +232,7 @@ export const EmployeeTable = ({
         pagination={{
           current: currentPage,
           pageSize: pageSize,
+          total,
           showSizeChanger: true,
           pageSizeOptions: ["10", "20", "50", "100"],
           showTotal: (total) => `Всего: ${total}`,

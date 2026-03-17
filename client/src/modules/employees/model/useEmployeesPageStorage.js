@@ -28,16 +28,24 @@ const getInitialPageState = () => {
   try {
     const saved = localStorage.getItem(EMPLOYEES_PAGE_STATE_STORAGE_KEY);
     if (!saved) {
-      return { searchText: "", statusFilter: null };
+      return { searchText: "", statusFilter: null, currentPage: 1, pageSize: 20 };
     }
     const parsed = JSON.parse(saved);
     return {
       searchText: parsed.searchText || "",
       statusFilter: parsed.statusFilter || null,
+      currentPage:
+        Number.isInteger(parsed.currentPage) && parsed.currentPage > 0
+          ? parsed.currentPage
+          : 1,
+      pageSize:
+        Number.isInteger(parsed.pageSize) && parsed.pageSize > 0
+          ? parsed.pageSize
+          : 20,
     };
   } catch (error) {
     console.warn("Ошибка при загрузке состояния страницы сотрудников:", error);
-    return { searchText: "", statusFilter: null };
+    return { searchText: "", statusFilter: null, currentPage: 1, pageSize: 20 };
   }
 };
 
@@ -62,6 +70,8 @@ export const useEmployeesPageStorage = () => {
   const [statusFilter, setStatusFilter] = useState(
     initialPageState.statusFilter,
   );
+  const [currentPage, setCurrentPage] = useState(initialPageState.currentPage);
+  const [pageSize, setPageSize] = useState(initialPageState.pageSize);
   const [tableFilters, setTableFilters] = useState(getInitialFilters);
   const [resetTrigger, setResetTrigger] = useState(0);
   const [hiddenColumns, setHiddenColumns] = useState(getInitialHiddenColumns);
@@ -69,9 +79,9 @@ export const useEmployeesPageStorage = () => {
   useEffect(() => {
     localStorage.setItem(
       EMPLOYEES_PAGE_STATE_STORAGE_KEY,
-      JSON.stringify({ searchText, statusFilter }),
+      JSON.stringify({ searchText, statusFilter, currentPage, pageSize }),
     );
-  }, [searchText, statusFilter]);
+  }, [searchText, statusFilter, currentPage, pageSize]);
 
   useEffect(() => {
     const normalizedFilters = normalizeTableFilters(tableFilters);
@@ -89,6 +99,7 @@ export const useEmployeesPageStorage = () => {
     setSearchText("");
     setStatusFilter(null);
     setTableFilters({});
+    setCurrentPage(1);
     setResetTrigger((prev) => prev + 1);
   };
 
@@ -112,6 +123,10 @@ export const useEmployeesPageStorage = () => {
     setSearchText,
     statusFilter,
     setStatusFilter,
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
     tableFilters,
     setTableFilters,
     resetTrigger,

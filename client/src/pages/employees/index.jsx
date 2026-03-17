@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Grid } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useEmployees } from "@/entities/employee";
@@ -35,6 +35,10 @@ const EmployeesPage = () => {
     setSearchText,
     statusFilter,
     setStatusFilter,
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
     tableFilters,
     setTableFilters,
     resetTrigger,
@@ -84,12 +88,14 @@ const EmployeesPage = () => {
 
   usePageTitle(t("employees.title"), isMobile);
 
-  const counterpartyIdForFilter = useMemo(() => {
+  const counterpartyIdsForFilter = useMemo(() => {
     if (!tableFilters.counterparty || tableFilters.counterparty.length === 0) {
-      return null;
+      return [];
     }
-    const counterpartyName = tableFilters.counterparty[0];
-    return counterpartyMap[counterpartyName] || null;
+
+    return tableFilters.counterparty
+      .map((counterpartyName) => counterpartyMap[counterpartyName])
+      .filter(Boolean);
   }, [tableFilters.counterparty, counterpartyMap]);
 
   const isCounterpartyFilterReady =
@@ -97,6 +103,7 @@ const EmployeesPage = () => {
     Object.keys(counterpartyMap).length > 0;
 
   const [debouncedSearchText, setDebouncedSearchText] = useState(searchText);
+  const filtersInitializedRef = useRef(false);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -109,16 +116,86 @@ const EmployeesPage = () => {
   const employeeRequestFilters = useMemo(() => {
     const filters = {};
 
-    if (counterpartyIdForFilter) {
-      filters.counterpartyId = counterpartyIdForFilter;
+    if (counterpartyIdsForFilter.length > 0) {
+      filters.counterpartyIds = JSON.stringify(counterpartyIdsForFilter);
     }
 
     if (debouncedSearchText) {
       filters.search = debouncedSearchText;
     }
 
+    const effectiveStatusFilters =
+      tableFilters.status?.length > 0
+        ? tableFilters.status
+        : statusFilter
+          ? [statusFilter]
+          : [];
+
+    if (effectiveStatusFilters.length > 0) {
+      filters.statuses = JSON.stringify(effectiveStatusFilters);
+    }
+
+    if (tableFilters.position?.length > 0) {
+      filters.positionNames = JSON.stringify(tableFilters.position);
+    }
+
+    if (tableFilters.department?.length > 0) {
+      filters.departmentNames = JSON.stringify(tableFilters.department);
+    }
+
+    if (tableFilters.constructionSite?.length > 0) {
+      filters.constructionSiteNames = JSON.stringify(
+        tableFilters.constructionSite,
+      );
+    }
+
+    if (tableFilters.citizenship?.length > 0) {
+      filters.citizenshipNames = JSON.stringify(tableFilters.citizenship);
+    }
+
+    const createdAtRange = tableFilters.createdAt;
+    if (Array.isArray(createdAtRange) && createdAtRange.length > 0) {
+      filters.dateFrom = createdAtRange[0];
+      filters.dateTo = createdAtRange[1] || createdAtRange[0];
+    }
+
+    filters.page = currentPage;
+    filters.limit = pageSize;
+
     return filters;
-  }, [counterpartyIdForFilter, debouncedSearchText]);
+  }, [
+    counterpartyIdsForFilter,
+    currentPage,
+    debouncedSearchText,
+    pageSize,
+    statusFilter,
+    tableFilters.citizenship,
+    tableFilters.constructionSite,
+    tableFilters.createdAt,
+    tableFilters.department,
+    tableFilters.position,
+    tableFilters.status,
+  ]);
+
+  useEffect(() => {
+    if (!filtersInitializedRef.current) {
+      filtersInitializedRef.current = true;
+      return;
+    }
+
+    setCurrentPage(1);
+  }, [
+    debouncedSearchText,
+    statusFilter,
+    tableFilters.counterparty,
+    tableFilters.position,
+    tableFilters.department,
+    tableFilters.constructionSite,
+    tableFilters.citizenship,
+    tableFilters.status,
+    tableFilters.createdAt,
+    setCurrentPage,
+  ]);
 
   const {
     employees,
@@ -136,6 +213,16 @@ const EmployeesPage = () => {
 
   const loading = employeesLoading || departmentsLoading || settingsLoading;
 
+  const handlePaginationChange = (page, nextPageSize) => {
+    if (nextPageSize !== pageSize) {
+      setPageSize(nextPageSize);
+      setCurrentPage(1);
+      return;
+    }
+
+    setCurrentPage(page);
+  };
+
   const {
     canExport,
     showCounterpartyColumn,
@@ -150,10 +237,10 @@ const EmployeesPage = () => {
 
   const { filteredEmployees, uniqueFilters } = useFilteredEmployees({
     employees,
-    searchText: debouncedSearchText,
-    statusFilter,
+    searchText: "",
+    statusFilter: null,
     counterpartyFilter: tableFilters.counterparty,
-    skipSearchFiltering: Boolean(debouncedSearchText),
+    skipSearchFiltering: true,
   });
 
   const {
@@ -219,6 +306,8 @@ const EmployeesPage = () => {
     setIsSecurityModalOpen,
     filteredEmployees,
     loading,
+    currentPage,
+    pageSize,
     departments,
     uniqueFilters,
     defaultCounterpartyId,
@@ -232,6 +321,7 @@ const EmployeesPage = () => {
     handleViewFiles,
     handleMarkForDeletion,
     handleDepartmentChange,
+    handlePaginationChange,
     setTableFilters,
     handleConstructionSitesEdit,
     isModalOpen,

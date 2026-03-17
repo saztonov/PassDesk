@@ -6,7 +6,11 @@ const EmployeesListSection = memo(({ isMobile, model, actions }) => {
     return (
       <MobileEmployeeList
         employees={model.filteredEmployees}
+        total={model.totalCount}
         loading={model.loading}
+        currentPage={model.currentPage}
+        pageSize={model.pageSize}
+        onPageChange={actions.onPaginationChange}
         onView={actions.onView}
         onEdit={actions.onEdit}
         onDelete={actions.onDelete}
@@ -31,8 +35,12 @@ const EmployeesListSection = memo(({ isMobile, model, actions }) => {
     >
       <EmployeeTable
         employees={model.filteredEmployees}
+        total={model.totalCount}
         departments={model.departments}
         loading={model.loading}
+        currentPage={model.currentPage}
+        pageSize={model.pageSize}
+        onPaginationChange={actions.onPaginationChange}
         onEdit={actions.onEdit}
         onView={actions.onView}
         onDelete={actions.onDelete}

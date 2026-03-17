@@ -7,6 +7,7 @@ import {
   Spin,
   Empty,
   Modal,
+  Pagination,
 } from "antd";
 import {
   UserOutlined,
@@ -26,7 +27,11 @@ const { Text } = Typography;
  */
 const MobileEmployeeList = ({
   employees,
+  total = 0,
   loading,
+  currentPage,
+  pageSize,
+  onPageChange,
   onView,
   onEdit,
   onDelete,
@@ -298,6 +303,19 @@ const MobileEmployeeList = ({
           </div>
         </Card>
       ))}
+      {onPageChange ? (
+        <div style={{ display: "flex", justifyContent: "center", paddingTop: 8 }}>
+          <Pagination
+            size="small"
+            current={currentPage}
+            pageSize={pageSize}
+            total={total}
+            showSizeChanger
+            pageSizeOptions={["10", "20", "50", "100"]}
+            onChange={(page, nextPageSize) => onPageChange(page, nextPageSize)}
+          />
+        </div>
+      ) : null}
     </div>
   );
 };

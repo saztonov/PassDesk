@@ -160,6 +160,37 @@ const normalizeDocSearch = (value = "") =>
     .toUpperCase()
     .replace(/[^0-9A-ZА-ЯЁ]/g, "");
 
+const normalizeQueryArray = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((item) => normalizeQueryArray(item))
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    if (trimmed.startsWith("[")) {
+      try {
+        return normalizeQueryArray(JSON.parse(trimmed));
+      } catch {
+        return [trimmed];
+      }
+    }
+
+    return [trimmed];
+  }
+
+  return [String(value)];
+};
+
 const getEmployeeSearchSource = (employee) =>
   employee?.toJSON ? employee.toJSON() : employee || {};
 
@@ -223,6 +254,66 @@ const matchesEmployeeSearch = (employee, rawSearch) => {
       normalizeDocSearch(source.patentNumber) === normalizedDocSearchValue);
 
   return isTextMatch || isDigitsMatch || isDocumentExact;
+};
+
+const matchesEmployeeStatusFilter = (employee, requestedStatuses = []) => {
+  if (!requestedStatuses.length) {
+    return true;
+  }
+
+  const source = getEmployeeSearchSource(employee);
+  const statusMappings = source.statusMappings || [];
+
+  const getStatusByGroup = (group, alternativeGroups = []) => {
+    const groupsToCheck = [group, ...alternativeGroups];
+    const mapping = statusMappings.find((item) =>
+      groupsToCheck.includes(item.statusGroup || item.status_group),
+    );
+
+    return mapping?.status?.name || mapping?.Status?.name || null;
+  };
+
+  const secureStatus = getStatusByGroup("status_secure");
+  const activeStatus = getStatusByGroup("status_active");
+  const cardStatus = getStatusByGroup("status_card", ["card draft"]);
+  const mainStatus = getStatusByGroup("status", ["draft"]);
+
+  return requestedStatuses.some((value) => {
+    if (value === "blocked") {
+      return (
+        secureStatus === "status_secure_block" ||
+        secureStatus === "status_secure_block_compl"
+      );
+    }
+
+    if (value === "fired") {
+      return (
+        activeStatus === "status_active_fired" ||
+        activeStatus === "status_active_fired_compl"
+      );
+    }
+
+    if (value === "inactive") {
+      return activeStatus === "status_active_inactive";
+    }
+
+    if (value === "draft") {
+      return (
+        cardStatus === "status_card_draft" ||
+        mainStatus === "status_draft"
+      );
+    }
+
+    if (value === "active") {
+      return (
+        mainStatus === "status_new" ||
+        mainStatus === "status_tb_passed" ||
+        mainStatus === "status_processed"
+      );
+    }
+
+    return false;
+  });
 };
 
 const buildEmployeeDuplicateChecks = (employeeLike = {}) => {
@@ -407,12 +498,22 @@ export const getAllEmployees = async (req, res, next) => {
     const where = { isDeleted: false, markedForDeletion: false };
     const normalizedSearch = String(search || "").trim();
     const hasSearchQuery = normalizedSearch.length > 0;
-
-    // Фильтр по контрагенту (если выбран)
-    if (counterpartyId) {
-      // Если пользователь выбрал контрагента, добавляем фильтр
-      // Но нужно учитывать роль пользователя - админ может смотреть всех, user только своих
-    }
+    const requestedStatusFilters = normalizeQueryArray(req.query.statuses);
+    const requestedPositionNames = normalizeQueryArray(req.query.positionNames);
+    const requestedDepartmentNames = normalizeQueryArray(
+      req.query.departmentNames,
+    );
+    const requestedConstructionSiteNames = normalizeQueryArray(
+      req.query.constructionSiteNames,
+    );
+    const requestedCitizenshipNames = normalizeQueryArray(
+      req.query.citizenshipNames,
+    );
+    const requestedCounterpartyIds = normalizeQueryArray(
+      req.query.counterpartyIds,
+    );
+    const requiresPostFiltering =
+      hasSearchQuery || requestedStatusFilters.length > 0;
 
     // В режиме full encryption поиск по фамилии и ФИО делаем после чтения записей,
     // чтобы поддержать частичные совпадения и комбинированные запросы.
@@ -534,28 +635,82 @@ export const getAllEmployees = async (req, res, next) => {
     ];
 
     const mappingInclude = employeeInclude[4];
+    const positionInclude = employeeInclude[3];
+    const citizenshipInclude = employeeInclude[0];
+    const departmentInclude = mappingInclude.include.find(
+      (include) => include.as === "department",
+    );
+    const constructionSiteInclude = mappingInclude.include.find(
+      (include) => include.as === "constructionSite",
+    );
     const ensureMappingWhere = () => {
       mappingInclude.where = mappingInclude.where || {};
       mappingInclude.required = true;
       return mappingInclude.where;
     };
 
+    const effectiveCounterpartyIds = requestedCounterpartyIds.length
+      ? requestedCounterpartyIds
+      : counterpartyId
+        ? [counterpartyId]
+        : [];
+
     if (constructionSiteId) {
       const mappingWhere = ensureMappingWhere();
       mappingWhere.constructionSiteId = constructionSiteId;
     }
 
-    // Добавляем загрузку файлов согласий на перс. данные Застройщика
-    employeeInclude.push({
-      model: File,
-      as: "files",
-      attributes: ["id", "fileKey", "fileName", "documentType"],
-      where: {
-        documentType: "biometric_consent_developer",
-        isDeleted: false,
-      },
-      required: false,
-    });
+    if (effectiveCounterpartyIds.length > 0) {
+      const mappingWhere = ensureMappingWhere();
+      mappingWhere.counterpartyId = effectiveCounterpartyIds;
+    }
+
+    if (requestedDepartmentNames.length > 0 && departmentInclude) {
+      departmentInclude.where = {
+        name: {
+          [Op.in]: requestedDepartmentNames,
+        },
+      };
+      departmentInclude.required = true;
+      mappingInclude.required = true;
+    }
+
+    if (requestedConstructionSiteNames.length > 0 && constructionSiteInclude) {
+      constructionSiteInclude.where = {
+        [Op.or]: [
+          {
+            shortName: {
+              [Op.in]: requestedConstructionSiteNames,
+            },
+          },
+          {
+            fullName: {
+              [Op.in]: requestedConstructionSiteNames,
+            },
+          },
+        ],
+      };
+      constructionSiteInclude.required = true;
+      mappingInclude.required = true;
+    }
+
+    if (requestedPositionNames.length > 0) {
+      positionInclude.where = {
+        name: {
+          [Op.in]: requestedPositionNames,
+        },
+      };
+      positionInclude.required = true;
+    }
+
+    if (requestedCitizenshipNames.length > 0) {
+      citizenshipInclude.where = {
+        name: {
+          [Op.in]: requestedCitizenshipNames,
+        },
+      };
+      citizenshipInclude.required = true;
+    }
 
     // Для роли 'user' - применяем фильтрацию
     // Для админа и manager - могут видеть сотрудников всех контрагентов
@@ -600,84 +755,52 @@ export const getAllEmployees = async (req, res, next) => {
 
         // Фильтруем по EmployeeCounterpartyMapping (индекс 4)
         const mappingWhere = ensureMappingWhere();
-        mappingWhere.counterpartyId = allowedCounterpartyIds;
+        mappingWhere.counterpartyId = effectiveCounterpartyIds.length
+          ? allowedCounterpartyIds.filter((id) =>
+              effectiveCounterpartyIds.includes(String(id)),
+            )
+          : allowedCounterpartyIds;
       }
-    } else if (
-      (userRole === "admin" || userRole === "manager") &&
-      counterpartyId
-    ) {
-      // Для админа и manager - если выбран конкретный контрагент в фильтре - фильтруем по нему
-      const mappingWhere = ensureMappingWhere();
-      mappingWhere.counterpartyId = counterpartyId;
     }
-    // Если админ/manager не выбрал контрагент - видят всех из всех контрагентов
 
-    // Для режима с поиском общий total считаем после in-memory фильтрации.
-    // Для режима без поиска оставляем SQL count.
+    // Для режима с поиском и статусным пост-фильтром общий total считаем после in-memory фильтрации.
+    // Для режима без пост-фильтра используем SQL count с текущими include.
     let totalCount = null;
-    if (!hasSearchQuery) {
-      if (
-        userRole === "user" &&
-        userCounterpartyId ===
-          (await Setting.getSetting("default_counterparty_id"))
-      ) {
-        // Для user в default контрагенте считаем по createdBy
-        totalCount = await Employee.count({
-          where: {
-            ...where,
-            createdBy: userId,
-          },
-        });
-      } else if (userRole === "user") {
-        // Для user в других контрагентах считаем через маппинг (включая субподрядчиков)
-        const { CounterpartySubcounterpartyMapping } =
-          await import("../models/index.js");
-        const subcontractors = await CounterpartySubcounterpartyMapping.findAll(
-          {
-            where: { parentCounterpartyId: userCounterpartyId },
-            attributes: ["childCounterpartyId"],
-          },
-        );
-
-        const subcontractorIds = subcontractors.map(
-          (s) => s.childCounterpartyId,
-        );
-        const allowedCounterpartyIds = [
-          userCounterpartyId,
-          ...subcontractorIds,
-        ];
-
-        totalCount = await Employee.count({
-          where,
-          include: [
-            {
-              model: EmployeeCounterpartyMapping,
-              as: "employeeCounterpartyMappings",
-              where: { counterpartyId: allowedCounterpartyIds },
-              required: true,
-              attributes: [],
-            },
-          ],
-          distinct: true,
-        });
-      } else {
-        // Для админа и manager просто считаем всех
-        totalCount = await Employee.count({ where });
-      }
+    if (!requiresPostFiltering) {
+      totalCount = await Employee.count({
+        where,
+        include: employeeInclude,
+        distinct: true,
+        col: "Employee.id",
+      });
     }
+
+    const rowsInclude = [
+      ...employeeInclude,
+      {
+        model: File,
+        as: "files",
+        attributes: ["id", "fileKey", "fileName", "documentType"],
+        where: {
+          documentType: "biometric_consent_developer",
+          isDeleted: false,
+        },
+        required: false,
+      },
+    ];
 
     // Загружаем сотрудников с полными данными
     // ВАЖНО: subQuery: true чтобы LIMIT/OFFSET применялись к уникальным Employee,
     // а не к строкам JOIN (иначе при множественных маппингах получаем дубликаты)
     const rows = await Employee.findAll({
       where,
-      limit: hasSearchQuery ? undefined : parseInt(limit),
-      offset: hasSearchQuery ? undefined : parseInt(offset),
+      limit: requiresPostFiltering ? undefined : parseInt(limit),
+      offset: requiresPostFiltering ? undefined : parseInt(offset),
       order: [
         ["firstName", "ASC"],
         ["middleName", "ASC"],
       ],
-      include: employeeInclude,
+      include: rowsInclude,
       // Добавляем подсчет файлов для каждого сотрудника
       attributes: {
         include: [
@@ -693,7 +816,7 @@ export const getAllEmployees = async (req, res, next) => {
           ],
         ],
       },
-      subQuery: !hasSearchQuery,
+      subQuery: !requiresPostFiltering,
       raw: false,
       nest: true,
     });
@@ -826,12 +949,27 @@ export const getAllEmployees = async (req, res, next) => {
     let employeesForResponse = employeesWithStatus;
     let finalTotalCount = totalCount ?? employeesWithStatus.length;
 
-    if (hasSearchQuery) {
-      const searchedEmployees = employeesWithStatus.filter((employee) =>
-        matchesEmployeeSearch(employee, normalizedSearch),
-      );
-      finalTotalCount = searchedEmployees.length;
-      employeesForResponse = searchedEmployees.slice(
+    if (requiresPostFiltering) {
+      const postFilteredEmployees = employeesWithStatus.filter((employee) => {
+        if (
+          hasSearchQuery &&
+          !matchesEmployeeSearch(employee, normalizedSearch)
+        ) {
+          return false;
+        }
+
+        if (
+          requestedStatusFilters.length > 0 &&
+          !matchesEmployeeStatusFilter(employee, requestedStatusFilters)
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+
+      finalTotalCount = postFilteredEmployees.length;
+      employeesForResponse = postFilteredEmployees.slice(
         parseInt(offset),
         parseInt(offset) + parseInt(limit),
       );
