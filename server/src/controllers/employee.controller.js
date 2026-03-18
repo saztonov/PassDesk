@@ -512,8 +512,13 @@ export const getAllEmployees = async (req, res, next) => {
     const requestedCounterpartyIds = normalizeQueryArray(
       req.query.counterpartyIds,
     );
+    const requestedStatusCardFilters = normalizeQueryArray(req.query.statusCard)
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter((value) => value === "completed" || value === "draft");
     const requiresPostFiltering =
-      hasSearchQuery || requestedStatusFilters.length > 0;
+      hasSearchQuery ||
+      requestedStatusFilters.length > 0 ||
+      requestedStatusCardFilters.length > 0;
 
     // В режиме full encryption поиск по фамилии и ФИО делаем после чтения записей,
     // чтобы поддержать частичные совпадения и комбинированные запросы.
@@ -924,8 +929,15 @@ export const getAllEmployees = async (req, res, next) => {
       }
     }
 
-    const attachStatusCard = (employee) => {
+    const statusCardCache = new Map();
+
+    const resolveStatusCard = (employee) => {
       const employeeData = employee?.toJSON ? employee.toJSON() : employee;
+      const employeeId = employeeData?.id;
+      if (employeeId && statusCardCache.has(employeeId)) {
+        return statusCardCache.get(employeeId);
+      }
+
       const counterpartyId =
         employeeData.employeeCounterpartyMappings?.[0]?.counterpartyId;
       const isDefaultCounterparty = counterpartyId === defaultCounterpartyId;
@@ -938,7 +950,18 @@ export const getAllEmployees = async (req, res, next) => {
         formConfig,
         false,
       );
-      employeeData.statusCard = isComplete ? "completed" : "draft";
+      const statusCard = isComplete ? "completed" : "draft";
+
+      if (employeeId) {
+        statusCardCache.set(employeeId, statusCard);
+      }
+
+      return statusCard;
+    };
+
+    const attachStatusCard = (employee) => {
+      const employeeData = employee?.toJSON ? employee.toJSON() : employee;
+      employeeData.statusCard = resolveStatusCard(employee);
 
       return employeeData;
     };
@@ -958,6 +981,13 @@ export const getAllEmployees = async (req, res, next) => {
         if (
           requestedStatusFilters.length > 0 &&
           !matchesEmployeeStatusFilter(employee, requestedStatusFilters)
+        ) {
+          return false;
+        }
+
+        if (
+          requestedStatusCardFilters.length > 0 &&
+          !requestedStatusCardFilters.includes(resolveStatusCard(employee))
         ) {
           return false;
         }

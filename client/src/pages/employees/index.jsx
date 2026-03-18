@@ -157,6 +157,10 @@ const EmployeesPage = () => {
       filters.citizenshipNames = JSON.stringify(tableFilters.citizenship);
     }
 
+    if (tableFilters.statusCard?.length > 0) {
+      filters.statusCard = JSON.stringify(tableFilters.statusCard);
+    }
+
     const createdAtRange = tableFilters.createdAt;
     if (Array.isArray(createdAtRange) && createdAtRange.length > 0) {
       filters.dateFrom = createdAtRange[0];
@@ -180,6 +184,7 @@ const EmployeesPage = () => {
     tableFilters.department,
     tableFilters.position,
     tableFilters.status,
+    tableFilters.statusCard,
   ]);
 
   useEffect(() => {
@@ -198,6 +203,7 @@ const EmployeesPage = () => {
     tableFilters.constructionSite,
     tableFilters.citizenship,
     tableFilters.status,
+    tableFilters.statusCard,
     tableFilters.createdAt,
     setCurrentPage,
   ]);
