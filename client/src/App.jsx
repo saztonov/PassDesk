@@ -120,7 +120,7 @@ function App() {
             <Route
               path="employees"
               element={
-                <ProtectedRoute allowedRoles={["admin", "user"]}>
+                <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
                   <EmployeesPage />
                 </ProtectedRoute>
               }
@@ -128,7 +128,7 @@ function App() {
             <Route
               path="employees/add"
               element={
-                <ProtectedRoute allowedRoles={["admin", "user"]}>
+                <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
                   <AddEmployeePage />
                 </ProtectedRoute>
               }
@@ -136,7 +136,7 @@ function App() {
             <Route
               path="employees/edit/:id"
               element={
-                <ProtectedRoute allowedRoles={["admin", "user"]}>
+                <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
                   <AddEmployeePage />
                 </ProtectedRoute>
               }
@@ -144,7 +144,7 @@ function App() {
             <Route
               path="employees/request"
               element={
-                <ProtectedRoute allowedRoles={["admin", "user"]}>
+                <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
                   <ApplicationRequestPage />
                 </ProtectedRoute>
               }
@@ -152,7 +152,7 @@ function App() {
             <Route
               path="employees/debug/document-capture"
               element={
-                <ProtectedRoute allowedRoles={["admin", "user"]}>
+                <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
                   <DocumentCaptureDebugPage />
                 </ProtectedRoute>
               }
@@ -160,7 +160,7 @@ function App() {
             <Route
               path="employees/debug/existing-ocr"
               element={
-                <ProtectedRoute allowedRoles={["admin", "user"]}>
+                <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
                   <ExistingEmployeeOcrPage />
                 </ProtectedRoute>
               }
@@ -176,8 +176,8 @@ function App() {
             <Route
               path="counterparties"
               element={
-                <ProtectedRoute allowedRoles={["admin", "user"]}>
-                  {user?.role === "admin" ? (
+                <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
+                  {user?.role === "admin" || user?.role === "manager" ? (
                     <Navigate to="/directories?tab=counterparties" replace />
                   ) : (
                     <CounterpartiesPage />
@@ -188,7 +188,7 @@ function App() {
             <Route
               path="construction-sites"
               element={
-                <ProtectedRoute allowedRoles={["admin"]}>
+                <ProtectedRoute allowedRoles={["admin", "manager"]}>
                   <Navigate to="/directories?tab=construction-sites" replace />
                 </ProtectedRoute>
               }
@@ -196,7 +196,7 @@ function App() {
             <Route
               path="contracts"
               element={
-                <ProtectedRoute allowedRoles={["admin"]}>
+                <ProtectedRoute allowedRoles={["admin", "manager"]}>
                   <Navigate to="/directories?tab=contracts" replace />
                 </ProtectedRoute>
               }
@@ -213,7 +213,7 @@ function App() {
             <Route
               path="directories"
               element={
-                <ProtectedRoute allowedRoles={["admin"]}>
+                <ProtectedRoute allowedRoles={["admin", "manager"]}>
                   <DirectoriesPage />
                 </ProtectedRoute>
               }
@@ -223,7 +223,7 @@ function App() {
             <Route
               path="administration"
               element={
-                <ProtectedRoute allowedRoles={["admin"]}>
+                <ProtectedRoute allowedRoles={["admin", "manager"]}>
                   <AdministrationPage />
                 </ProtectedRoute>
               }
@@ -240,7 +240,13 @@ function App() {
               path="ot"
               element={
                 <ProtectedRoute
-                  allowedRoles={["admin", "user", "ot_engineer", "ot_admin"]}
+                  allowedRoles={[
+                    "admin",
+                    "manager",
+                    "user",
+                    "ot_engineer",
+                    "ot_admin",
+                  ]}
                 >
                   {isDefaultCounterpartyUser ? (
                     <Navigate to="/employees" replace />
@@ -253,7 +259,7 @@ function App() {
             <Route
               path="admin"
               element={
-                <ProtectedRoute allowedRoles={["admin"]}>
+                <ProtectedRoute allowedRoles={["admin", "manager"]}>
                   <AdministrationPage />
                 </ProtectedRoute>
               }

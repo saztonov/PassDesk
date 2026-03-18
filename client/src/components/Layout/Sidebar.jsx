@@ -125,6 +125,7 @@ const Sidebar = () => {
       label: t("menu.skud"),
     },
   ];
+  const managerMenuItems = adminMenuItems.filter((item) => item.key !== "/skud");
 
   const engineerMenuItems = [
     {
@@ -148,6 +149,8 @@ const Sidebar = () => {
     menuItems = [...userMenuItems];
   } else if (user?.role === "admin") {
     menuItems = [...adminMenuItems];
+  } else if (user?.role === "manager") {
+    menuItems = [...managerMenuItems];
   } else if (user?.role === "laborer") {
     menuItems = [...laborerMenuItems];
   } else if (user?.role === "ot_engineer") {

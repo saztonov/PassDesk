@@ -54,7 +54,7 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
   }
 
   // Сотрудники доступны админам и пользователям
-  if (user?.role === "admin" || user?.role === "user") {
+  if (user?.role === "admin" || user?.role === "manager" || user?.role === "user") {
     topMenuItems.push({
       key: "/employees",
       icon: <TeamOutlined />,
@@ -66,6 +66,7 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
     isOtEngineer ||
     isOtAdmin ||
     user?.role === "admin" ||
+    user?.role === "manager" ||
     (user?.role === "user" &&
       (!defaultCounterpartyId ||
         String(user?.counterpartyId) !== String(defaultCounterpartyId)));
@@ -79,7 +80,7 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
   }
 
   // Администирование только для админов
-  if (user?.role === "admin") {
+  if (user?.role === "admin" || user?.role === "manager") {
     topMenuItems.push({
       key: "/admin",
       icon: <SettingOutlined />,

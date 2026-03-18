@@ -16,14 +16,14 @@ router.use(authenticate);
 // ======================================
 // ЧТЕНИЕ - доступно всем авторизованным пользователям
 // ======================================
-router.get("/", authorize("admin"), getAllContracts);
-router.get("/:id", authorize("admin"), getContractById);
+router.get("/", authorize("admin", "manager"), getAllContracts);
+router.get("/:id", authorize("admin", "manager"), getContractById);
 
 // ======================================
 // ИЗМЕНЕНИЕ - только для администраторов
 // ======================================
-router.post("/", authorize("admin"), createContract);
-router.put("/:id", authorize("admin"), updateContract);
-router.delete("/:id", authorize("admin"), deleteContract);
+router.post("/", authorize("admin", "manager"), createContract);
+router.put("/:id", authorize("admin", "manager"), updateContract);
+router.delete("/:id", authorize("admin", "manager"), deleteContract);
 
 export default router;

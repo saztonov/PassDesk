@@ -30,8 +30,8 @@ router.get(
 // ======================================
 // ИЗМЕНЕНИЕ - только для администраторов
 // ======================================
-router.post("/", authorize("admin"), createConstructionSite);
-router.put("/:id", authorize("admin"), updateConstructionSite);
-router.delete("/:id", authorize("admin"), deleteConstructionSite);
+router.post("/", authorize("admin", "manager"), createConstructionSite);
+router.put("/:id", authorize("admin", "manager"), updateConstructionSite);
+router.delete("/:id", authorize("admin", "manager"), deleteConstructionSite);
 
 export default router;

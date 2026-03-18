@@ -46,9 +46,9 @@ router.post(
   userController.changeMyPassword,
 );
 
-// Остальные маршруты требуют активного пользователя и роли admin
+// Остальные маршруты требуют активного пользователя и роли admin/manager
 router.use(authenticate);
-router.use(authorize("admin"));
+router.use(authorize("admin", "manager"));
 
 // Validation rules
 const createUserValidation = [

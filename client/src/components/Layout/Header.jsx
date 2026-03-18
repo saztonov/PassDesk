@@ -41,7 +41,7 @@ const Header = () => {
 
   const userMenuItems = [
     // Пункты только для админов
-    ...(user?.role === "admin"
+    ...(user?.role === "admin" || user?.role === "manager"
       ? [
           {
             key: "employees",
@@ -59,14 +59,18 @@ const Header = () => {
               navigate("/admin");
             },
           },
-          {
-            key: "skud",
-            label: t("menu.skud"),
-            icon: <KeyOutlined />,
-            onClick: () => {
-              navigate("/skud");
-            },
-          },
+          ...(user?.role === "admin"
+            ? [
+                {
+                  key: "skud",
+                  label: t("menu.skud"),
+                  icon: <KeyOutlined />,
+                  onClick: () => {
+                    navigate("/skud");
+                  },
+                },
+              ]
+            : []),
           {
             type: "divider",
           },

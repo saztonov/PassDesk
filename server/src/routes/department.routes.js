@@ -20,13 +20,12 @@ router.get('/', getAllDepartments);
 router.get('/:id', getDepartmentById);
 
 // Создать подразделение (только admin)
-router.post('/', authorize('admin'), createDepartment);
+router.post('/', authorize('admin', 'manager'), createDepartment);
 
 // Обновить подразделение (только admin)
-router.put('/:id', authorize('admin'), updateDepartment);
+router.put('/:id', authorize('admin', 'manager'), updateDepartment);
 
 // Удалить подразделение (только admin)
-router.delete('/:id', authorize('admin'), deleteDepartment);
+router.delete('/:id', authorize('admin', 'manager'), deleteDepartment);
 
 export default router;
-

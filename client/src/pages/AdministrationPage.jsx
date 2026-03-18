@@ -20,11 +20,14 @@ import ExportPage from "./ExportPage";
 import TrashPage from "./TrashPage";
 import DocumentSamplesPage from "./DocumentSamplesPage";
 import OcrConflictsAdminSection from "@/components/Admin/OcrConflictsAdminSection";
+import { useAuthStore } from "@/store/authStore";
 
 const { Title } = Typography;
 const { useBreakpoint } = Grid;
 
 const AdministrationPage = () => {
+  const { user } = useAuthStore();
+  const isManager = user?.role === "manager";
   const renderTabLabel = (IconComponent, text) => (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <IconComponent />
@@ -32,7 +35,7 @@ const AdministrationPage = () => {
     </span>
   );
 
-  const validDesktopTabKeys = [
+  const adminDesktopTabKeys = [
     "users",
     "counterparties",
     "citizenships",
@@ -42,6 +45,17 @@ const AdministrationPage = () => {
     "ocr-conflicts",
     "settings",
   ];
+  const managerDesktopTabKeys = [
+    "users",
+    "counterparties",
+    "citizenships",
+    "export",
+    "trash",
+    "ocr-conflicts",
+  ];
+  const validDesktopTabKeys = isManager
+    ? managerDesktopTabKeys
+    : adminDesktopTabKeys;
 
   const [activeTab, setActiveTab] = useState(() => {
     // Загружаем сохраненную вкладку из localStorage
@@ -84,20 +98,24 @@ const AdministrationPage = () => {
       children: <TrashPage />,
     },
     {
-      key: "document-samples",
-      label: renderTabLabel(FileImageOutlined, "Образцы документов"),
-      children: <DocumentSamplesPage />,
-    },
-    {
       key: "ocr-conflicts",
       label: renderTabLabel(WarningOutlined, "OCR расхождения"),
       children: <OcrConflictsAdminSection />,
     },
-    {
-      key: "settings",
-      label: renderTabLabel(SettingOutlined, "Настройки"),
-      children: <SettingsPage />,
-    },
+    ...(!isManager
+      ? [
+          {
+            key: "document-samples",
+            label: renderTabLabel(FileImageOutlined, "Образцы документов"),
+            children: <DocumentSamplesPage />,
+          },
+          {
+            key: "settings",
+            label: renderTabLabel(SettingOutlined, "Настройки"),
+            children: <SettingsPage />,
+          },
+        ]
+      : []),
   ];
 
   // Мобильный рендер с полным контролем layout

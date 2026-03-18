@@ -19,14 +19,13 @@ router.use(authenticate);
 router.get('/', getAllCitizenships);
 
 // Создать/обновить/удалить гражданство (только admin)
-router.post('/', authorize('admin'), createCitizenship);
-router.put('/:id', authorize('admin'), updateCitizenship);
-router.delete('/:id', authorize('admin'), deleteCitizenship);
+router.post('/', authorize('admin', 'manager'), createCitizenship);
+router.put('/:id', authorize('admin', 'manager'), updateCitizenship);
+router.delete('/:id', authorize('admin', 'manager'), deleteCitizenship);
 
 // Работа с синонимами (только admin)
-router.post('/:citizenshipId/synonyms', authorize('admin'), addSynonym);
-router.put('/synonyms/:id', authorize('admin'), updateSynonym);
-router.delete('/synonyms/:id', authorize('admin'), deleteSynonym);
+router.post('/:citizenshipId/synonyms', authorize('admin', 'manager'), addSynonym);
+router.put('/synonyms/:id', authorize('admin', 'manager'), updateSynonym);
+router.delete('/synonyms/:id', authorize('admin', 'manager'), deleteSynonym);
 
 export default router;
-
