@@ -37,6 +37,10 @@ import {
   applyLegacySensitivePlaintextPolicy,
   buildEmployeeSensitiveFieldsPatch,
 } from "../services/employeeSensitiveFieldService.js";
+import {
+  ENCRYPTED_EMPLOYEE_FIELDS,
+  hashForSearch,
+} from "../services/encryptionService.js";
 import { enqueueSkudSyncForEmployee } from "../services/skud/SkudSyncService.js";
 import { isSkudEnabled } from "../services/skud/skudConfig.js";
 import { issueSkudQrTokenForEmployeeActivePass } from "../services/skud/SkudQrService.js";
@@ -498,6 +502,12 @@ export const getAllEmployees = async (req, res, next) => {
     const where = { isDeleted: false, markedForDeletion: false };
     const normalizedSearch = String(search || "").trim();
     const hasSearchQuery = normalizedSearch.length > 0;
+    const normalizedSearchText = normalizeTextSearch(normalizedSearch);
+    const searchTokens = normalizedSearchText
+      ? normalizedSearchText.split(" ").filter(Boolean)
+      : [];
+    const normalizedDigitsSearchValue = normalizeDigitsSearch(normalizedSearch);
+    const normalizedDocSearchValue = normalizeDocSearch(normalizedSearch);
     const requestedStatusFilters = normalizeQueryArray(req.query.statuses);
     const requestedPositionNames = normalizeQueryArray(req.query.positionNames);
     const requestedDepartmentNames = normalizeQueryArray(
@@ -516,9 +526,93 @@ export const getAllEmployees = async (req, res, next) => {
       .map((value) => String(value || "").trim().toLowerCase())
       .filter((value) => value === "completed" || value === "draft");
     const requiresPostFiltering =
-      hasSearchQuery ||
       requestedStatusFilters.length > 0 ||
       requestedStatusCardFilters.length > 0;
+    const searchAndConditions = [];
+
+    if (hasSearchQuery) {
+      if (normalizedDigitsSearchValue.length > 0) {
+        searchAndConditions.push({
+          [Op.or]: [
+            { inn: { [Op.iLike]: `%${normalizedDigitsSearchValue}%` } },
+            { snils: { [Op.iLike]: `%${normalizedDigitsSearchValue}%` } },
+            { phone: { [Op.iLike]: `%${normalizedDigitsSearchValue}%` } },
+          ],
+        });
+      }
+
+      if (normalizedDocSearchValue.length > 0) {
+        const docOrConditions = [];
+
+        try {
+          const kigHash = hashForSearch(
+            ENCRYPTED_EMPLOYEE_FIELDS.KIG,
+            normalizedDocSearchValue,
+          );
+          const passportHash = hashForSearch(
+            ENCRYPTED_EMPLOYEE_FIELDS.PASSPORT_NUMBER,
+            normalizedDocSearchValue,
+          );
+          const patentHash = hashForSearch(
+            ENCRYPTED_EMPLOYEE_FIELDS.PATENT_NUMBER,
+            normalizedDocSearchValue,
+          );
+
+          if (kigHash) {
+            docOrConditions.push({ kigHash });
+          }
+          if (passportHash) {
+            docOrConditions.push({ passportNumberHash: passportHash });
+          }
+          if (patentHash) {
+            docOrConditions.push({ patentNumberHash: patentHash });
+          }
+        } catch {
+          // Если недоступен конфиг шифрования, пропускаем hash-предикаты.
+        }
+
+        if (docOrConditions.length > 0) {
+          searchAndConditions.push({ [Op.or]: docOrConditions });
+        }
+      }
+
+      if (searchTokens.length > 0) {
+        const tokenConditions = searchTokens
+          .map((token) => {
+            const orConditions = [
+              { firstName: { [Op.iLike]: `${token}%` } },
+              { middleName: { [Op.iLike]: `${token}%` } },
+            ];
+
+            try {
+              const lastNameHash = hashForSearch(
+                ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME,
+                token,
+              );
+              if (lastNameHash) {
+                orConditions.push({ lastNameHash });
+              }
+            } catch {
+              // ignore hashing errors for search token
+            }
+
+            if (orConditions.length === 0) {
+              return null;
+            }
+
+            return { [Op.or]: orConditions };
+          })
+          .filter(Boolean);
+
+        if (tokenConditions.length > 0) {
+          searchAndConditions.push(...tokenConditions);
+        }
+      }
+    }
+
+    if (searchAndConditions.length > 0) {
+      where[Op.and] = [...(where[Op.and] || []), ...searchAndConditions];
+    }
 
     // В режиме full encryption поиск по фамилии и ФИО делаем после чтения записей,
     // чтобы поддержать частичные совпадения и комбинированные запросы.
@@ -642,6 +736,7 @@ export const getAllEmployees = async (req, res, next) => {
     const mappingInclude = employeeInclude[4];
     const positionInclude = employeeInclude[3];
     const citizenshipInclude = employeeInclude[0];
+    let hasJoinBasedFilters = false;
     const departmentInclude = mappingInclude.include.find(
       (include) => include.as === "department",
     );
@@ -649,6 +744,7 @@ export const getAllEmployees = async (req, res, next) => {
       (include) => include.as === "constructionSite",
     );
     const ensureMappingWhere = () => {
+      hasJoinBasedFilters = true;
       mappingInclude.where = mappingInclude.where || {};
       mappingInclude.required = true;
       return mappingInclude.where;
@@ -671,6 +767,7 @@ export const getAllEmployees = async (req, res, next) => {
     }
 
     if (requestedDepartmentNames.length > 0 && departmentInclude) {
+      hasJoinBasedFilters = true;
       departmentInclude.where = {
         name: {
           [Op.in]: requestedDepartmentNames,
@@ -681,6 +778,7 @@ export const getAllEmployees = async (req, res, next) => {
     }
 
     if (requestedConstructionSiteNames.length > 0 && constructionSiteInclude) {
+      hasJoinBasedFilters = true;
       constructionSiteInclude.where = {
         [Op.or]: [
           {
@@ -700,6 +798,7 @@ export const getAllEmployees = async (req, res, next) => {
     }
 
     if (requestedPositionNames.length > 0) {
+      hasJoinBasedFilters = true;
       positionInclude.where = {
         name: {
           [Op.in]: requestedPositionNames,
@@ -709,6 +808,7 @@ export const getAllEmployees = async (req, res, next) => {
     }
 
     if (requestedCitizenshipNames.length > 0) {
+      hasJoinBasedFilters = true;
       citizenshipInclude.where = {
         name: {
           [Op.in]: requestedCitizenshipNames,
@@ -768,10 +868,22 @@ export const getAllEmployees = async (req, res, next) => {
       }
     }
 
-    // Для режима с поиском и статусным пост-фильтром общий total считаем после in-memory фильтрации.
-    // Для режима без пост-фильтра используем SQL count с текущими include.
+    // Для JOIN-фильтров (подразделение/контрагент/объект/должность/гражданство)
+    // применяем in-memory пагинацию по уникальным сотрудникам, иначе LIMIT на SQL JOIN
+    // может "обрезать" выдачу и дать меньше строк, чем pageSize.
+    const shouldUseInMemoryPagination =
+      requiresPostFiltering || hasJoinBasedFilters;
+    const canUseLightIdScan =
+      shouldUseInMemoryPagination &&
+      !hasSearchQuery &&
+      requestedStatusFilters.length === 0 &&
+      requestedStatusCardFilters.length === 0 &&
+      !dateFrom &&
+      !dateTo;
+
+    // Для режима без in-memory пагинации используем SQL count с текущими include.
     let totalCount = null;
-    if (!requiresPostFiltering) {
+    if (!shouldUseInMemoryPagination) {
       totalCount = await Employee.count({
         where,
         include: employeeInclude,
@@ -799,35 +911,61 @@ export const getAllEmployees = async (req, res, next) => {
       ["middleName", "ASC"],
     ];
 
-    // В режиме пост-фильтрации (поиск/часть статусов) сначала делаем легкий scan без файлов,
-    // затем загружаем полные данные только для текущей страницы.
-    const rows = await Employee.findAll({
-      where,
-      limit: requiresPostFiltering ? undefined : parseInt(limit),
-      offset: requiresPostFiltering ? undefined : parseInt(offset),
-      order: queryOrder,
-      include: requiresPostFiltering ? employeeInclude : rowsInclude,
-      // filesCount нужен только в финальной выдаче страницы
-      attributes: requiresPostFiltering
-        ? undefined
-        : {
-            include: [
-              [
-                sequelize.literal(`(
-                  SELECT COUNT(*)::int
-                  FROM files
-                  WHERE files.entity_type = 'employee'
-                    AND files.entity_id = "Employee"."id"
-                    AND files.is_deleted = false
-                )`),
-                "filesCount",
+    // В режиме in-memory пагинации сначала делаем scan, затем загружаем
+    // полные данные только для текущей страницы.
+    let rows;
+    if (canUseLightIdScan) {
+      const idOnlyRows = await Employee.findAll({
+        where,
+        order: queryOrder,
+        include: employeeInclude,
+        attributes: ["id"],
+        subQuery: false,
+        raw: false,
+        nest: true,
+      });
+
+      const seenIds = new Set();
+      rows = idOnlyRows
+        .map((item) => item?.id)
+        .filter((id) => {
+          if (!id || seenIds.has(id)) {
+            return false;
+          }
+          seenIds.add(id);
+          return true;
+        })
+        .map((id) => ({ id }));
+    } else {
+      rows = await Employee.findAll({
+        where,
+        limit: shouldUseInMemoryPagination ? undefined : parseInt(limit),
+        offset: shouldUseInMemoryPagination ? undefined : parseInt(offset),
+        order: queryOrder,
+        include: shouldUseInMemoryPagination ? employeeInclude : rowsInclude,
+        // filesCount нужен только в финальной выдаче страницы
+        attributes: shouldUseInMemoryPagination
+          ? undefined
+          : {
+              include: [
+                [
+                  sequelize.literal(`(
+                    SELECT COUNT(*)::int
+                    FROM files
+                    WHERE files.entity_type = 'employee'
+                      AND files.entity_id = "Employee"."id"
+                      AND files.is_deleted = false
+                  )`),
+                  "filesCount",
+                ],
               ],
-            ],
-          },
-      subQuery: !requiresPostFiltering,
-      raw: false,
-      nest: true,
-    });
+            },
+        // При in-memory пагинации subQuery не нужен.
+        subQuery: !shouldUseInMemoryPagination,
+        raw: false,
+        nest: true,
+      });
+    }
 
     // Статусы уже загружены через include в основной запрос
     const employeesWithStatuses = rows;
@@ -969,15 +1107,8 @@ export const getAllEmployees = async (req, res, next) => {
     let employeesForResponseRows = [];
     let finalTotalCount = totalCount ?? filteredRows.length;
 
-    if (requiresPostFiltering) {
+    if (shouldUseInMemoryPagination) {
       const postFilteredEmployees = filteredRows.filter((employee) => {
-        if (
-          hasSearchQuery &&
-          !matchesEmployeeSearch(employee, normalizedSearch)
-        ) {
-          return false;
-        }
-
         if (
           requestedStatusFilters.length > 0 &&
           !matchesEmployeeStatusFilter(employee, requestedStatusFilters)

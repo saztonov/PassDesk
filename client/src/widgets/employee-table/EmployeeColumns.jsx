@@ -43,6 +43,9 @@ export const useEmployeeColumns = ({
   // Видно ТОЛЬКО для пользователей контрагента по умолчанию
   const showDepartmentColumn =
     defaultCounterpartyId && userCounterpartyId === defaultCounterpartyId;
+  const departmentFilterOptions = [
+    ...new Set((departments || []).map((dept) => dept?.name).filter(Boolean)),
+  ].sort();
 
   return useMemo(() => {
     const columns = [
@@ -193,7 +196,7 @@ export const useEmployeeColumns = ({
                   b.employeeCounterpartyMappings?.[0]?.department?.name || "";
                 return aDept.localeCompare(bDept);
               },
-              filters: uniqueFilters.departments.map((dept) => ({
+              filters: departmentFilterOptions.map((dept) => ({
                 text: dept,
                 value: dept,
               })),
@@ -748,5 +751,6 @@ export const useEmployeeColumns = ({
     resetTrigger,
     canMarkForDeletion,
     onMarkForDeletion,
+    departmentFilterOptions,
   ]);
 };
