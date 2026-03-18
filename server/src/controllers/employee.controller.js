@@ -789,33 +789,36 @@ export const getAllEmployees = async (req, res, next) => {
       },
     ];
 
-    // Загружаем сотрудников с полными данными
-    // ВАЖНО: subQuery: true чтобы LIMIT/OFFSET применялись к уникальным Employee,
-    // а не к строкам JOIN (иначе при множественных маппингах получаем дубликаты)
+    const queryOrder = [
+      ["firstName", "ASC"],
+      ["middleName", "ASC"],
+    ];
+
+    // В режиме пост-фильтрации (поиск/часть статусов) сначала делаем легкий scan без файлов,
+    // затем загружаем полные данные только для текущей страницы.
     const rows = await Employee.findAll({
       where,
       limit: requiresPostFiltering ? undefined : parseInt(limit),
       offset: requiresPostFiltering ? undefined : parseInt(offset),
-      order: [
-        ["firstName", "ASC"],
-        ["middleName", "ASC"],
-      ],
-      include: rowsInclude,
-      // Добавляем подсчет файлов для каждого сотрудника
-      attributes: {
-        include: [
-          [
-            sequelize.literal(`(
-              SELECT COUNT(*)::int
-              FROM files
-              WHERE files.entity_type = 'employee'
-                AND files.entity_id = "Employee"."id"
-                AND files.is_deleted = false
-            )`),
-            "filesCount",
-          ],
-        ],
-      },
+      order: queryOrder,
+      include: requiresPostFiltering ? employeeInclude : rowsInclude,
+      // filesCount нужен только в финальной выдаче страницы
+      attributes: requiresPostFiltering
+        ? undefined
+        : {
+            include: [
+              [
+                sequelize.literal(`(
+                  SELECT COUNT(*)::int
+                  FROM files
+                  WHERE files.entity_type = 'employee'
+                    AND files.entity_id = "Employee"."id"
+                    AND files.is_deleted = false
+                )`),
+                "filesCount",
+              ],
+            ],
+          },
       subQuery: !requiresPostFiltering,
       raw: false,
       nest: true,
@@ -921,21 +924,15 @@ export const getAllEmployees = async (req, res, next) => {
       }
     }
 
-    // Пересчитываем statusCard для каждого сотрудника с учетом настроек контрагента
-    const employeesWithStatus = filteredRows.map((employee) => {
-      const employeeData = employee.toJSON();
-
-      // Определяем контрагента сотрудника
+    const attachStatusCard = (employee) => {
+      const employeeData = employee?.toJSON ? employee.toJSON() : employee;
       const counterpartyId =
         employeeData.employeeCounterpartyMappings?.[0]?.counterpartyId;
       const isDefaultCounterparty = counterpartyId === defaultCounterpartyId;
-
-      // Выбираем конфигурацию
       const formConfig = isDefaultCounterparty
         ? formConfigDefault
         : formConfigExternal;
 
-      // Рассчитываем статус
       const isComplete = isEmployeeCardComplete(
         employeeData,
         formConfig,
@@ -944,13 +941,13 @@ export const getAllEmployees = async (req, res, next) => {
       employeeData.statusCard = isComplete ? "completed" : "draft";
 
       return employeeData;
-    });
+    };
 
-    let employeesForResponse = employeesWithStatus;
-    let finalTotalCount = totalCount ?? employeesWithStatus.length;
+    let employeesForResponseRows = [];
+    let finalTotalCount = totalCount ?? filteredRows.length;
 
     if (requiresPostFiltering) {
-      const postFilteredEmployees = employeesWithStatus.filter((employee) => {
+      const postFilteredEmployees = filteredRows.filter((employee) => {
         if (
           hasSearchQuery &&
           !matchesEmployeeSearch(employee, normalizedSearch)
@@ -969,11 +966,57 @@ export const getAllEmployees = async (req, res, next) => {
       });
 
       finalTotalCount = postFilteredEmployees.length;
-      employeesForResponse = postFilteredEmployees.slice(
+      const pageSlice = postFilteredEmployees.slice(
         parseInt(offset),
         parseInt(offset) + parseInt(limit),
       );
+
+      const pageIds = pageSlice.map((employee) => employee.id);
+
+      if (pageIds.length > 0) {
+        const detailedRows = await Employee.findAll({
+          where: {
+            ...where,
+            id: {
+              [Op.in]: pageIds,
+            },
+          },
+          order: queryOrder,
+          include: rowsInclude,
+          attributes: {
+            include: [
+              [
+                sequelize.literal(`(
+                  SELECT COUNT(*)::int
+                  FROM files
+                  WHERE files.entity_type = 'employee'
+                    AND files.entity_id = "Employee"."id"
+                    AND files.is_deleted = false
+                )`),
+                "filesCount",
+              ],
+            ],
+          },
+          subQuery: false,
+          raw: false,
+          nest: true,
+        });
+
+        const detailedById = new Map(
+          detailedRows.map((employee) => [employee.id, employee]),
+        );
+
+        employeesForResponseRows = pageIds
+          .map((id) => detailedById.get(id))
+          .filter(Boolean);
+      } else {
+        employeesForResponseRows = [];
+      }
+    } else {
+      employeesForResponseRows = filteredRows;
     }
+
+    const employeesForResponse = employeesForResponseRows.map(attachStatusCard);
 
     res.json({
       success: true,
