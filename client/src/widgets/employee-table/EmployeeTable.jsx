@@ -29,18 +29,19 @@ const tableStyles = `
     background-color: #e6f7ff !important;
   }
 
-  /* Перенос текста в Select для столбца Подразделение */
+  /* Однострочное отображение Select в столбце "Подразделение" */
   .department-select .ant-select-selection-item {
-    white-space: normal !important;
-    word-break: keep-all !important;
-    overflow-wrap: break-word !important;
-    line-height: 1.4 !important;
-    height: auto !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 22px !important;
+    height: 22px !important;
   }
 
   .department-select .ant-select-selector {
-    height: auto !important;
+    height: 32px !important;
     padding: 4px 11px !important;
+    align-items: center !important;
   }
 
   /* Контейнер таблицы занимает всю доступную высоту */
