@@ -531,8 +531,12 @@ export const getAllEmployees = async (req, res, next) => {
     const searchAndConditions = [];
 
     if (hasSearchQuery) {
+      // Условия разных типов поиска объединяются через OR:
+      // достаточно совпадения по любому из типов (цифры, документ, текст).
+      const searchTypeConditions = [];
+
       if (normalizedDigitsSearchValue.length > 0) {
-        searchAndConditions.push({
+        searchTypeConditions.push({
           [Op.or]: [
             { inn: { [Op.iLike]: `%${normalizedDigitsSearchValue}%` } },
             { snils: { [Op.iLike]: `%${normalizedDigitsSearchValue}%` } },
@@ -572,7 +576,7 @@ export const getAllEmployees = async (req, res, next) => {
         }
 
         if (docOrConditions.length > 0) {
-          searchAndConditions.push({ [Op.or]: docOrConditions });
+          searchTypeConditions.push({ [Op.or]: docOrConditions });
         }
       }
 
@@ -605,13 +609,17 @@ export const getAllEmployees = async (req, res, next) => {
           .filter(Boolean);
 
         if (tokenConditions.length > 0) {
-          searchAndConditions.push(...tokenConditions);
+          // Все токены текстового поиска должны совпасть (AND внутри типа)
+          searchTypeConditions.push({ [Op.and]: tokenConditions });
         }
       }
-    }
 
-    if (searchAndConditions.length > 0) {
-      where[Op.and] = [...(where[Op.and] || []), ...searchAndConditions];
+      if (searchTypeConditions.length > 0) {
+        where[Op.and] = [
+          ...(where[Op.and] || []),
+          { [Op.or]: searchTypeConditions },
+        ];
+      }
     }
 
     // В режиме full encryption поиск по фамилии и ФИО делаем после чтения записей,
