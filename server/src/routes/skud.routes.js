@@ -149,6 +149,12 @@ router.get(
   employeeIdParamValidation,
   skudController.getEmployeeBinding,
 );
+router.get(
+  "/bindings/audit",
+  authorize("admin"),
+  paginationValidation,
+  skudController.auditBindings,
+);
 router.post(
   "/sync/employee/:employeeId",
   authorize("admin"),

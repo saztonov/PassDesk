@@ -4,6 +4,8 @@ import {
   EmployeeCounterpartyMapping,
   Counterparty,
   Department,
+  Pass,
+  SkudCard,
   SkudPersonBinding,
   SkudAccessEvent,
 } from "../models/index.js";
@@ -90,6 +92,12 @@ const buildEmployeeDisplayName = (employee) =>
     .join(" ")
     .trim();
 
+const normalizePersonNameForCompare = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[^a-zа-я0-9]/gi, "");
+
 const PASSAGE_EVENT_TYPES = ["PASS_DETECTED", "PASS_GRANTED", "PASS_DENIED", "PASS_ATTEMPT"];
 const RAW_PASSAGE_EVENT_TYPE = 6;
 
@@ -124,6 +132,45 @@ let accessPointCatalogCache = {
   expiresAt: 0,
   value: null,
   promise: null,
+};
+
+const EVENTS_RESPONSE_CACHE_TTL_MS = 10 * 1000;
+const eventsResponseCache = new Map();
+
+const buildEventsCacheKey = (query = {}) =>
+  JSON.stringify({
+    from: query.from || null,
+    to: query.to || null,
+    accessPoint: query.accessPoint || null,
+    direction: query.direction || null,
+    eventType: query.eventType || null,
+    allow: query.allow === undefined ? "__unset__" : query.allow,
+    departmentId: query.departmentId || null,
+    passageOnly: query.passageOnly || "false",
+    useRawLog: query.useRawLog || "false",
+    sortBy: query.sortBy || "eventTime",
+    sortOrder: query.sortOrder || "desc",
+    limit: query.limit || null,
+    offset: query.offset || null,
+  });
+
+const getCachedEventsResponse = (key) => {
+  const cached = eventsResponseCache.get(key);
+  if (!cached) {
+    return null;
+  }
+  if (cached.expiresAt <= Date.now()) {
+    eventsResponseCache.delete(key);
+    return null;
+  }
+  return cached.data;
+};
+
+const setCachedEventsResponse = (key, data) => {
+  eventsResponseCache.set(key, {
+    data,
+    expiresAt: Date.now() + EVENTS_RESPONSE_CACHE_TTL_MS,
+  });
 };
 
 const getAllProviderDepartments = async (provider) => {
@@ -333,6 +380,20 @@ const buildEmployeeDepartmentId = (employee) => {
   return value || null;
 };
 
+const normalizeCardToken = (value) =>
+  String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+
+const mapEmployeeMeta = (employee, fallbackEmployeeId = null) => ({
+  employeeId: employee?.id || fallbackEmployeeId || null,
+  employeeName: buildEmployeeDisplayName(employee) || null,
+  departmentId: buildEmployeeDepartmentId(employee),
+  departmentName: buildEmployeeDepartmentName(employee),
+  employee: employee || null,
+});
+
 const enrichProviderEvents = async ({ items, provider }) => {
   const normalizedItems = Array.isArray(items) ? items : [];
   if (!normalizedItems.length) {
@@ -387,21 +448,133 @@ const enrichProviderEvents = async ({ items, provider }) => {
   const employeeByExternalId = new Map(
     employeeBindings.map((binding) => [
       String(binding.externalEmpId),
-      {
-        employeeId: binding.employee?.id || binding.employeeId || null,
-        employeeName: buildEmployeeDisplayName(binding.employee) || null,
-        departmentId: buildEmployeeDepartmentId(binding.employee),
-        departmentName: buildEmployeeDepartmentName(binding.employee),
-        employee: binding.employee || null,
-      },
+      mapEmployeeMeta(binding.employee, binding.employeeId),
     ]),
   );
 
+  const keyTokens = Array.from(
+    new Set(
+      normalizedItems
+        .map((item) => normalizeCardToken(item?.keyHex))
+        .filter(Boolean),
+    ),
+  );
+
+  const cardsByKeyToken = new Map();
+  const passesByKeyToken = new Map();
+
+  if (keyTokens.length > 0) {
+    const cards = await SkudCard.findAll({
+      where: {
+        externalSystem: "sigur",
+        cardNumberNormalized: {
+          [Op.in]: keyTokens,
+        },
+      },
+      attributes: ["cardNumberNormalized", "employeeId"],
+      include: [
+        {
+          model: Employee,
+          as: "employee",
+          required: false,
+          attributes: ["id", "firstName", "lastName", "middleName", "isActive"],
+          include: [
+            {
+              model: EmployeeCounterpartyMapping,
+              as: "employeeCounterpartyMappings",
+              required: false,
+              attributes: ["id", "departmentId"],
+              include: [
+                {
+                  model: Department,
+                  as: "department",
+                  required: false,
+                  attributes: ["id", "name"],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    cards.forEach((card) => {
+      const key = normalizeCardToken(card.cardNumberNormalized || card.cardNumber);
+      if (!key || cardsByKeyToken.has(key)) {
+        return;
+      }
+      cardsByKeyToken.set(key, mapEmployeeMeta(card.employee, card.employeeId));
+    });
+
+    const passLookupValues = Array.from(
+      new Set(
+        keyTokens.flatMap((token) => [token, String(token).trim()]).filter(Boolean),
+      ),
+    );
+
+    const passes = await Pass.findAll({
+      where: {
+        passNumber: {
+          [Op.in]: passLookupValues,
+        },
+      },
+      attributes: ["passNumber", "employeeId"],
+      include: [
+        {
+          model: Employee,
+          as: "employee",
+          required: false,
+          attributes: ["id", "firstName", "lastName", "middleName", "isActive"],
+          include: [
+            {
+              model: EmployeeCounterpartyMapping,
+              as: "employeeCounterpartyMappings",
+              required: false,
+              attributes: ["id", "departmentId"],
+              include: [
+                {
+                  model: Department,
+                  as: "department",
+                  required: false,
+                  attributes: ["id", "name"],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    passes.forEach((pass) => {
+      const key = normalizeCardToken(pass.passNumber);
+      if (!key || passesByKeyToken.has(key)) {
+        return;
+      }
+      passesByKeyToken.set(key, mapEmployeeMeta(pass.employee, pass.employeeId));
+    });
+  }
+
+  const needsAccessPointCatalog = normalizedItems.some((item) => {
+    const raw = item?.rawItem || {};
+    const rawPointName =
+      raw?.additionalData?.accessPoint?.name ||
+      raw?.additionalData?.access_point?.name ||
+      raw?.data?.accessPointName ||
+      raw?.data?.access_point_name ||
+      item?.accessPointName;
+    return !String(rawPointName || "").trim();
+  });
+
   let accessPointCatalog = null;
-  try {
-    accessPointCatalog = await getAccessPointCatalog(provider);
-  } catch (error) {
-    console.warn("Failed to load Sigur access point catalog:", error?.message || error);
+  if (needsAccessPointCatalog) {
+    try {
+      accessPointCatalog = await getAccessPointCatalog(provider);
+    } catch (error) {
+      console.warn(
+        "Failed to load Sigur access point catalog:",
+        error?.message || error,
+      );
+    }
   }
 
   return normalizedItems.map((item) => {
@@ -411,6 +584,11 @@ const enrichProviderEvents = async ({ items, provider }) => {
         ? null
         : String(item.accessPoint);
     const employeeMeta = externalEmpId ? employeeByExternalId.get(externalEmpId) : null;
+    const keyHexToken = normalizeCardToken(item?.keyHex);
+    const employeeMetaByCard = keyHexToken ? cardsByKeyToken.get(keyHexToken) : null;
+    const employeeMetaByPass = keyHexToken ? passesByKeyToken.get(keyHexToken) : null;
+    const resolvedEmployeeMeta =
+      employeeMeta || employeeMetaByCard || employeeMetaByPass || null;
     const accessPointMeta =
       accessPointCatalog && accessPointId
         ? accessPointCatalog.pointsById.get(accessPointId) || null
@@ -424,10 +602,10 @@ const enrichProviderEvents = async ({ items, provider }) => {
 
     return {
       ...item,
-      employeeId: item?.employeeId || employeeMeta?.employeeId || null,
-      employeeName: item?.employeeName || employeeMeta?.employeeName || null,
-      departmentId: item?.departmentId || employeeMeta?.departmentId || null,
-      departmentName: employeeMeta?.departmentName || null,
+      employeeId: item?.employeeId || resolvedEmployeeMeta?.employeeId || null,
+      employeeName: item?.employeeName || resolvedEmployeeMeta?.employeeName || null,
+      departmentId: item?.departmentId || resolvedEmployeeMeta?.departmentId || null,
+      departmentName: resolvedEmployeeMeta?.departmentName || null,
       accessPointLabel: accessPointLabel || null,
       accessPointName:
         String(accessPointMeta?.name || "").trim() || item?.accessPointName || null,
@@ -488,10 +666,7 @@ const getDefaultSkudPullFrom = () => {
 };
 
 const getLiveEventWindows = () => [
-  60 * 60 * 1000,
-  6 * 60 * 60 * 1000,
   24 * 60 * 60 * 1000,
-  3 * 24 * 60 * 60 * 1000,
   7 * 24 * 60 * 60 * 1000,
   30 * 24 * 60 * 60 * 1000,
 ];
@@ -605,6 +780,7 @@ const buildProviderEventView = async ({
   allow,
   departmentId,
   passageOnly = false,
+  useRawLog = false,
   sortBy = "eventTime",
   sortOrder = "desc",
   limit = 200,
@@ -618,6 +794,7 @@ const buildProviderEventView = async ({
       ? undefined
       : Number.parseInt(String(accessPoint), 10);
   const canUseRawEventLog =
+    useRawLog &&
     allow === undefined &&
     !departmentId &&
     passageOnly &&
@@ -765,58 +942,44 @@ const buildProviderEventView = async ({
     };
   }
 
-  const countWindowItems = async (startTime) => {
-    const firstItem = await fetchWindowPage(startTime, 1, 0);
-    if (!firstItem.length) {
-      return 0;
-    }
+  const probeLimit = Math.min(
+    Math.max(
+      getLiveEventRawLimit({
+        limit: requiredCount,
+        direction,
+        allow,
+        departmentId,
+        passageOnly,
+      }),
+      requiredCount * 2,
+      200,
+    ),
+    3000,
+  );
 
-    let low = 0;
-    let high = 1;
-    while ((await fetchWindowPage(startTime, 1, high)).length) {
-      low = high;
-      high *= 2;
-      if (high > 1_000_000) {
-        break;
-      }
-    }
-
-    while (low + 1 < high) {
-      const middle = Math.floor((low + high) / 2);
-      if ((await fetchWindowPage(startTime, 1, middle)).length) {
-        low = middle;
-      } else {
-        high = middle;
-      }
-    }
-
-    return low + 1;
-  };
-
-  let selectedWindowStart = windowStartTimes[windowStartTimes.length - 1];
-  let selectedWindowCount = 0;
+  let selectedItems = [];
+  let selectedHasMore = false;
 
   for (const startTime of windowStartTimes) {
-    const count = await countWindowItems(startTime);
-    selectedWindowStart = startTime;
-    selectedWindowCount = count;
+    const rawItems = await fetchWindowPage(startTime, probeLimit, 0);
+    const items = applyLiveFilters(rawItems.map((item) => normalizeProviderEvent(item)));
 
-    if (from || count >= requiredCount) {
+    selectedItems = items;
+    selectedHasMore = rawItems.length >= probeLimit;
+
+    // Если данных уже достаточно для требуемой страницы — не расширяем окно.
+    if (items.length >= requiredCount) {
       break;
+    }
+
+    // Если даже в текущем окне данных меньше лимита запроса, расширяем окно;
+    // если это последнее окно — выходим.
+    if (rawItems.length < probeLimit) {
+      continue;
     }
   }
 
-  const rawLimit = getLiveEventRawLimit({
-    limit: requiredCount,
-    direction,
-    allow,
-    departmentId,
-    passageOnly,
-  });
-  const rawOffset = Math.max(0, selectedWindowCount - rawLimit);
-  const rawItems = await fetchWindowPage(selectedWindowStart, rawLimit, rawOffset);
-  const items = applyLiveFilters(rawItems.map((item) => normalizeProviderEvent(item)));
-  const finalized = await finalizeItems(items);
+  const finalized = await finalizeItems(selectedItems, { hasMore: selectedHasMore });
   return {
     items: finalized.items,
     pagination: {
@@ -905,6 +1068,15 @@ export const skudController = {
   async events(req, res, next) {
     try {
       ensureSkudModuleEnabled();
+      const cacheKey = buildEventsCacheKey(req.query);
+      const cachedData = getCachedEventsResponse(cacheKey);
+      if (cachedData) {
+        res.json({
+          success: true,
+          data: cachedData,
+        });
+        return;
+      }
       const { limit, offset } = parsePagination(req.query);
       const data = await buildProviderEventView({
         from: req.query.from,
@@ -918,11 +1090,14 @@ export const skudController = {
             : parseBooleanParam(req.query.allow, false),
         departmentId: req.query.departmentId,
         passageOnly: parseBooleanParam(req.query.passageOnly, false),
+        useRawLog: parseBooleanParam(req.query.useRawLog, false),
         sortBy: req.query.sortBy,
         sortOrder: req.query.sortOrder,
         limit,
         offset,
       });
+
+      setCachedEventsResponse(cacheKey, data);
 
       res.json({
         success: true,
@@ -1350,6 +1525,98 @@ export const skudController = {
               : Boolean(employee.isBlocked),
           location: employee?.location || null,
           raw: employee || null,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async auditBindings(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const provider = getSkudProvider();
+      const { limit, offset } = parsePagination(req.query);
+      const mismatchOnly = parseBooleanParam(req.query.mismatchOnly, false);
+      const search = String(req.query.search || "").trim().toLowerCase();
+
+      const { count, rows } = await SkudPersonBinding.findAndCountAll({
+        where: {
+          externalSystem: "sigur",
+          isActive: true,
+        },
+        attributes: ["id", "employeeId", "externalEmpId", "updatedAt"],
+        include: [
+          {
+            model: Employee,
+            as: "employee",
+            required: false,
+            attributes: ["id", "firstName", "lastName", "middleName"],
+          },
+        ],
+        order: [["updatedAt", "DESC"]],
+        limit,
+        offset,
+      });
+
+      const providerEmployees = await Promise.all(
+        rows.map(async (binding) => {
+          const externalEmpId = String(binding.externalEmpId || "").trim();
+          if (!externalEmpId) {
+            return null;
+          }
+          try {
+            return await provider.getEmployeeById(externalEmpId);
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      let items = rows.map((binding, index) => {
+        const localName = buildEmployeeDisplayName(binding.employee) || null;
+        const providerEmployee = providerEmployees[index];
+        const sigurName = String(providerEmployee?.name || "").trim() || null;
+        const nameMatch =
+          normalizePersonNameForCompare(localName) &&
+          normalizePersonNameForCompare(localName) ===
+            normalizePersonNameForCompare(sigurName);
+
+        return {
+          id: binding.id,
+          employeeId: binding.employeeId || null,
+          externalEmpId: binding.externalEmpId || null,
+          localName,
+          sigurName,
+          nameMatch: Boolean(nameMatch),
+          updatedAt: binding.updatedAt,
+        };
+      });
+
+      if (mismatchOnly) {
+        items = items.filter((item) => !item.nameMatch);
+      }
+
+      if (search) {
+        items = items.filter((item) => {
+          return (
+            String(item.employeeId || "").toLowerCase().includes(search) ||
+            String(item.externalEmpId || "").toLowerCase().includes(search) ||
+            String(item.localName || "").toLowerCase().includes(search) ||
+            String(item.sigurName || "").toLowerCase().includes(search)
+          );
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          items,
+          pagination: {
+            limit,
+            offset,
+            total: count,
+          },
         },
       });
     } catch (error) {

@@ -132,6 +132,7 @@ const UsersPage = () => {
     laborer: { text: "Рабочий", color: "cyan" },
     ot_admin: { text: "Администратор ОТ", color: "magenta" },
     ot_engineer: { text: "Инженер ОТ", color: "blue" },
+    manager: { text: "Менеджер", color: "gold" },
     user: { text: "Пользователь", color: "default" },
   };
 

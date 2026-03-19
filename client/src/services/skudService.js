@@ -103,6 +103,11 @@ const skudService = {
     return toData(response);
   },
 
+  getBindingsAudit: async (params = {}) => {
+    const response = await api.get("/skud/bindings/audit", { params });
+    return toData(response);
+  },
+
   getCards: async (params = {}) => {
     const response = await api.get("/skud/cards", { params });
     return toData(response);

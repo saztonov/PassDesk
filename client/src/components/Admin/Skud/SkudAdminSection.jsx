@@ -138,6 +138,21 @@ const getLocalEmployeeName = (record) => String(record?.employeeName || "").trim
 
 const getEmployeeDepartmentName = (record) => String(record?.departmentName || "").trim();
 
+const normalizePersonNameForCompare = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[^a-zа-я0-9]/gi, "");
+
+const arePersonNamesMatching = (left, right) => {
+  const normalizedLeft = normalizePersonNameForCompare(left);
+  const normalizedRight = normalizePersonNameForCompare(right);
+  if (!normalizedLeft || !normalizedRight) {
+    return null;
+  }
+  return normalizedLeft === normalizedRight;
+};
+
 const renderHierarchyFolderTitle = (label, { loading = false, loadedCount = null } = {}) => (
   <Space size={8}>
     {loading ? <SyncOutlined spin /> : <FolderOpenOutlined />}
@@ -259,8 +274,15 @@ const SkudAdminSection = () => {
   const [eventDetailsLoading, setEventDetailsLoading] = useState(false);
   const [eventDetailsRecord, setEventDetailsRecord] = useState(null);
   const [eventDetailsProviderEmployee, setEventDetailsProviderEmployee] = useState(null);
+  const [bindingsAuditLoading, setBindingsAuditLoading] = useState(false);
+  const [bindingsAuditItems, setBindingsAuditItems] = useState([]);
+  const [bindingsAuditMismatchOnly, setBindingsAuditMismatchOnly] = useState(true);
   const cardNumberInputRef = useRef(null);
   const eventsAutoRefreshRef = useRef(false);
+  const wsRef = useRef(null);
+  const handleAssignCardRef = useRef(null);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [uidFormat, setUidFormat] = useState("decBe");
   const [state, setState] = useState({
     health: null,
     stats: null,
@@ -558,10 +580,76 @@ const SkudAdminSection = () => {
     message,
   ]);
 
+  // Держим актуальную ссылку на handleAssignCard для вызова из WebSocket-callback
+  useEffect(() => {
+    handleAssignCardRef.current = handleAssignCard;
+  }, [handleAssignCard]);
+
+  // Закрываем WebSocket при размонтировании компонента
+  useEffect(() => {
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleDisarmCardReader = useCallback(() => {
+    setCardReaderArmed(false);
+    setWsConnected(false);
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+  }, []);
+
   const handleArmCardReader = useCallback(() => {
+    if (cardReaderArmed) {
+      handleDisarmCardReader();
+      return;
+    }
+
     setCardReaderArmed(true);
     focusCardReaderInput();
-  }, [focusCardReaderInput]);
+
+    // Подключаемся к локальному агенту Sigur Reader EH
+    try {
+      const ws = new WebSocket("ws://localhost:8765");
+      wsRef.current = ws;
+
+      ws.onopen = () => setWsConnected(true);
+
+      ws.onclose = () => {
+        setWsConnected(false);
+        wsRef.current = null;
+      };
+
+      ws.onerror = () => {
+        message.warning(
+          "Агент считывателя недоступен. Запустите start.bat из папки server/skud-agent на этом ПК.",
+          6,
+        );
+        setWsConnected(false);
+        // Не разоружаем — пользователь может вводить номер вручную
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type !== "card") return;
+          // Используем формат, выбранный пользователем
+          const uid = data[uidFormat] || data.hexUid;
+          if (!uid) return;
+          void handleAssignCardRef.current?.({ cardNumber: uid });
+        } catch (_e) {
+          // Некорректный JSON от агента — игнорируем
+        }
+      };
+    } catch (_e) {
+      // Браузер не поддерживает WebSocket — продолжаем в режиме клавиатуры
+    }
+  }, [cardReaderArmed, focusCardReaderInput, handleDisarmCardReader, uidFormat, message]);
 
   const handleBlockCard = useCallback(
     async (cardId) => {
@@ -700,6 +788,30 @@ const SkudAdminSection = () => {
       setProviderAccessPointsLoading(false);
     }
   }, [message]);
+
+  const loadBindingsAudit = useCallback(async () => {
+    setBindingsAuditLoading(true);
+    try {
+      const data = await skudService.getBindingsAudit({
+        limit: 100,
+        offset: 0,
+        mismatchOnly: bindingsAuditMismatchOnly,
+      });
+      setBindingsAuditItems(Array.isArray(data?.items) ? data.items : []);
+    } catch (error) {
+      console.error("Failed to load SKUD bindings audit:", error);
+      message.error("Не удалось загрузить сверку связок Sigur");
+    } finally {
+      setBindingsAuditLoading(false);
+    }
+  }, [bindingsAuditMismatchOnly, message]);
+
+  useEffect(() => {
+    if (activeTab !== "employees") {
+      return;
+    }
+    void loadBindingsAudit();
+  }, [activeTab, loadBindingsAudit]);
 
   const resetProviderHierarchyView = useCallback(() => {
     setProviderHierarchyEmployeesByDepartment({});
@@ -1897,6 +2009,11 @@ const SkudAdminSection = () => {
   const eventDetailsProviderEmployeeName = eventDetailsProviderEmployee?.name || null;
   const eventDetailsProviderZone = eventDetailsProviderEmployee?.location?.zoneName || null;
   const eventDetailsExternalEmpId = eventDetailsRecord?.externalEmpId || null;
+  const eventDetailsLocalEmployeeName = getLocalEmployeeName(eventDetailsRecord) || null;
+  const eventDetailsNameMatch = arePersonNamesMatching(
+    eventDetailsProviderEmployeeName,
+    eventDetailsLocalEmployeeName,
+  );
   const totalEventsCount = Number(state.events?.pagination?.total || 0);
   const loadedEventsCount = Array.isArray(state.events?.items) ? state.events.items.length : 0;
   const displayedEventItems = useMemo(() => {
@@ -2406,6 +2523,75 @@ const SkudAdminSection = () => {
                     scroll={{ x: 1000 }}
                   />
                 </Card>
+
+                <Card
+                  title="6. Сверка связок Sigur ↔ PassDesk"
+                  extra={
+                    <Space>
+                      <Space size={8}>
+                        <Text type="secondary">Только несовпадения</Text>
+                        <Switch
+                          checked={bindingsAuditMismatchOnly}
+                          onChange={(value) => setBindingsAuditMismatchOnly(value)}
+                        />
+                      </Space>
+                      <Button
+                        icon={<ReloadOutlined />}
+                        loading={bindingsAuditLoading}
+                        onClick={() => {
+                          void loadBindingsAudit();
+                        }}
+                      >
+                        Проверить
+                      </Button>
+                    </Space>
+                  }
+                >
+                  <Table
+                    rowKey={(record) => record.id}
+                    size="small"
+                    loading={bindingsAuditLoading}
+                    dataSource={bindingsAuditItems}
+                    pagination={{
+                      pageSize: 20,
+                      showSizeChanger: true,
+                      pageSizeOptions: ["20", "50", "100"],
+                    }}
+                    columns={[
+                      {
+                        title: "Sigur ID",
+                        dataIndex: "externalEmpId",
+                        key: "externalEmpId",
+                        width: 140,
+                        render: (value) => value || "—",
+                      },
+                      {
+                        title: "ФИО Sigur",
+                        dataIndex: "sigurName",
+                        key: "sigurName",
+                        render: (value) => value || "—",
+                      },
+                      {
+                        title: "ФИО сотрудника",
+                        dataIndex: "localName",
+                        key: "localName",
+                        render: (value) => value || "—",
+                      },
+                      {
+                        title: "Статус",
+                        dataIndex: "nameMatch",
+                        key: "nameMatch",
+                        width: 180,
+                        render: (value) => (
+                          <Tag color={value ? "green" : "red"}>
+                            {value ? "Совпадает" : "Несовпадение"}
+                          </Tag>
+                        ),
+                      },
+                    ]}
+                    scroll={{ x: 900 }}
+                  />
+                </Card>
               </Space>
             ),
           },
@@ -2437,7 +2623,8 @@ const SkudAdminSection = () => {
                       popupMatchSelectWidth
                     />
                     <Text type="secondary">
-                      Для работы со считывателем выберите сотрудника, нажмите «Ожидать карту» и приложите карту к программатору.
+                      Выберите сотрудника, нажмите «Ожидать карту» и приложите карту к считывателю. Требуется запущенный агент{" "}
+                      <Text code>server/skud-agent/start.bat</Text>.
                     </Text>
                     <Input
                       ref={cardNumberInputRef}
@@ -2453,23 +2640,43 @@ const SkudAdminSection = () => {
                         });
                       }}
                     />
-                    <Select
-                      value={cardTypeInput}
-                      onChange={setCardTypeInput}
-                      options={[
-                        { value: "rfid", label: "RFID" },
-                        { value: "nfc", label: "NFC" },
-                        { value: "other", label: "Другое" },
-                      ]}
-                    />
+                    <Space wrap>
+                      <Select
+                        value={cardTypeInput}
+                        onChange={setCardTypeInput}
+                        options={[
+                          { value: "rfid", label: "RFID" },
+                          { value: "nfc", label: "NFC" },
+                          { value: "other", label: "Другое" },
+                        ]}
+                      />
+                      <Select
+                        value={uidFormat}
+                        onChange={setUidFormat}
+                        title="Формат UID карты"
+                        options={[
+                          { value: "decBe", label: "Decimal (BE)" },
+                          { value: "decLe", label: "Decimal (LE)" },
+                          { value: "hexUid", label: "HEX" },
+                        ]}
+                      />
+                    </Space>
                     <Input
                       placeholder="Комментарий (опционально)"
                       value={cardNotesInput}
                       onChange={(event) => setCardNotesInput(event.target.value)}
                     />
                     <Space wrap>
-                      <Button onClick={handleArmCardReader}>
-                        {cardReaderArmed ? "Считыватель активен" : "Ожидать карту"}
+                      <Button
+                        onClick={handleArmCardReader}
+                        type={cardReaderArmed ? "default" : "default"}
+                        danger={cardReaderArmed}
+                      >
+                        {cardReaderArmed
+                          ? wsConnected
+                            ? "Считыватель активен (остановить)"
+                            : "Режим ввода активен (остановить)"
+                          : "Ожидать карту"}
                       </Button>
                       <Button
                         type="primary"
@@ -2669,6 +2876,18 @@ const SkudAdminSection = () => {
                     </Space>
                   ) : (
                     "Не удалось загрузить карточку из Sigur"
+                  )}
+                </Descriptions.Item>
+                <Descriptions.Item label="Сотрудник PassDesk">
+                  {eventDetailsLocalEmployeeName || "—"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Сверка ФИО">
+                  {eventDetailsNameMatch === null ? (
+                    <Text type="secondary">Недостаточно данных для сравнения</Text>
+                  ) : (
+                    <Tag color={eventDetailsNameMatch ? "green" : "red"}>
+                      {eventDetailsNameMatch ? "Совпадает" : "Несовпадение"}
+                    </Tag>
                   )}
                 </Descriptions.Item>
                 <Descriptions.Item label="Sigur ID сотрудника">

@@ -1,0 +1,13 @@
+{
+  "name": "sigur-reader-eh-agent",
+  "version": "1.0.0",
+  "description": "Локальный WebSocket-агент для считывателя Sigur Reader EH",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "node-hid": "^3.1.0",
+    "ws": "^8.18.0"
+  }
+}
