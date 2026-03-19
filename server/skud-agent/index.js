@@ -72,7 +72,10 @@ function parseUid(bytes) {
   // Decimal little-endian (альтернативный формат)
   const decLe = String((uid[0] | (uid[1] << 8) | (uid[2] << 16) | (uid[3] << 24)) >>> 0);
 
-  return { rawHex, hexUid, decBe, decLe };
+  // Формат Sigur: raw HID байты в hex, дополненные нулями до 16 символов (8 байт)
+  const sigurCard = bytes.map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase().padEnd(16, '0');
+
+  return { rawHex, hexUid, decBe, decLe, sigurCard };
 }
 
 // Подключение к устройству с автоповтором при отключении
@@ -101,8 +104,9 @@ function connectDevice() {
 
       lastCardTime = now;
       console.log(`🃏 Карта считана:`);
+      console.log(`   Sigur  : ${uid.sigurCard}  ← используется в PassDesk`);
       console.log(`   HEX    : ${uid.hexUid}`);
-      console.log(`   DEC_BE : ${uid.decBe}  (рекомендуемый формат)`);
+      console.log(`   DEC_BE : ${uid.decBe}`);
       console.log(`   DEC_LE : ${uid.decLe}`);
       console.log(`   Сырые  : ${uid.rawHex}\n`);
 
