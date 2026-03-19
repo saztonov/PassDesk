@@ -35,7 +35,7 @@ const getEmployeeWithSkudContext = async (employeeId) => {
           {
             model: Counterparty,
             as: "counterparty",
-            attributes: ["id", "name"],
+            attributes: ["id", "name", "type"],
           },
           {
             model: Department,
@@ -237,6 +237,14 @@ const getEmployeeSiteName = (employee) => {
   );
 };
 
+const isContractorEmployee = (employee) => {
+  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+    ? employee.employeeCounterpartyMappings
+    : [];
+  const counterpartyType = mappings[0]?.counterparty?.type || "";
+  return counterpartyType === "contractor" || counterpartyType === "general_contractor";
+};
+
 const getEmployeeSigurDepartmentPath = ({ employee, payload = {} }) => {
   const explicitPath = normalizeSigurPathSegments(payload?.sigurDepartmentPath);
   if (explicitPath.length > 0) {
@@ -244,7 +252,10 @@ const getEmployeeSigurDepartmentPath = ({ employee, payload = {} }) => {
   }
 
   const segments = [];
-  const configuredRoot = String(skudConfig?.sigur?.departmentRoot || "").trim();
+  const isContractor = isContractorEmployee(employee);
+  const contractorsRoot = String(skudConfig?.sigur?.departmentRootContractors || "").trim();
+  const ownRoot = String(skudConfig?.sigur?.departmentRoot || "").trim();
+  const configuredRoot = (isContractor && contractorsRoot) ? contractorsRoot : ownRoot;
   const siteName = getEmployeeSiteName(employee);
   const departmentName = getEmployeeDepartmentName(employee);
 
