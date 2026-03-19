@@ -8,6 +8,7 @@ import {
   SkudCard,
   SkudPersonBinding,
   SkudAccessEvent,
+  SkudSiteAccessPoint,
 } from "../models/index.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { checkEmployeeAccess } from "../utils/permissionUtils.js";
@@ -2138,6 +2139,58 @@ export const skudController = {
       });
 
       res.json({ success: true, data: binding });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // --- Site Access Points mapping ---
+
+  async getSiteAccessPoints(req, res, next) {
+    try {
+      const { siteId } = req.params;
+      const rows = await SkudSiteAccessPoint.findAll({
+        where: { constructionSiteId: siteId },
+        order: [["createdAt", "ASC"]],
+      });
+      res.json({ success: true, data: rows });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Body: { accessPointIds: number[] }
+  // Replaces all mappings for the site atomically
+  async setSiteAccessPoints(req, res, next) {
+    try {
+      const { siteId } = req.params;
+      const ids = req.body.accessPointIds;
+
+      await SkudSiteAccessPoint.destroy({ where: { constructionSiteId: siteId } });
+
+      if (ids && ids.length > 0) {
+        await SkudSiteAccessPoint.bulkCreate(
+          ids.map((apId) => ({ constructionSiteId: siteId, sigurAccessPointId: apId })),
+          { ignoreDuplicates: true },
+        );
+      }
+
+      const rows = await SkudSiteAccessPoint.findAll({
+        where: { constructionSiteId: siteId },
+        order: [["createdAt", "ASC"]],
+      });
+      res.json({ success: true, data: rows });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteSiteAccessPoint(req, res, next) {
+    try {
+      const { id } = req.params;
+      const deleted = await SkudSiteAccessPoint.destroy({ where: { id } });
+      if (!deleted) throw new AppError("Запись не найдена", 404);
+      res.json({ success: true });
     } catch (error) {
       next(error);
     }

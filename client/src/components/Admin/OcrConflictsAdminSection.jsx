@@ -81,13 +81,8 @@ const groupConflictItems = (items = []) => {
 
   items.forEach((item) => {
     const employeeId = item.employee?.id || "unknown-employee";
-    const signature = [
-      item.type || "unknown",
-      employeeId,
-      buildSourcesSignature(item.sources || []),
-    ].join("::");
+    const key = employeeId;
 
-    const existing = grouped.get(signature);
     const fieldEntry = {
       id: item.id,
       type: item.type,
@@ -97,27 +92,74 @@ const groupConflictItems = (items = []) => {
       sources: item.sources || [],
     };
 
+    const existing = grouped.get(key);
     if (existing) {
       existing.fields.push(fieldEntry);
+
+      // merge sources deduplicated by fileId+documentType
+      const existingSourceKeys = new Set(
+        existing.sources.map((s) => `${s.documentType}:${s.fileId || "none"}`),
+      );
+      for (const source of item.sources || []) {
+        const sourceKey = `${source.documentType}:${source.fileId || "none"}`;
+        if (!existingSourceKeys.has(sourceKey)) {
+          existing.sources.push(source);
+          existingSourceKeys.add(sourceKey);
+        }
+      }
+
       if (dayjs(item.createdAt).isAfter(dayjs(existing.createdAt))) {
         existing.createdAt = item.createdAt;
       }
       return;
     }
 
-    grouped.set(signature, {
-      id: signature,
+    grouped.set(key, {
+      id: key,
       type: item.type,
       createdAt: item.createdAt,
       employee: item.employee,
-      sources: item.sources || [],
+      sources: [...(item.sources || [])],
       fields: [fieldEntry],
     });
   });
 
-  return [...grouped.values()].sort(
-    (left, right) => dayjs(right.createdAt).valueOf() - dayjs(left.createdAt).valueOf(),
-  );
+  // Merge fields with the same fieldName within each employee group
+  return [...grouped.values()]
+    .map((group) => {
+      const fieldsByName = new Map();
+
+      group.fields.forEach((field) => {
+        const existing = fieldsByName.get(field.fieldName);
+        if (existing) {
+          const existingSourceKeys = new Set(
+            existing.sources.map((s) => `${s.documentType}:${s.fileId || "none"}:${s.value}`),
+          );
+          for (const source of field.sources) {
+            const sourceKey = `${source.documentType}:${source.fileId || "none"}:${source.value}`;
+            if (!existingSourceKeys.has(sourceKey)) {
+              existing.sources.push(source);
+              existingSourceKeys.add(sourceKey);
+            }
+          }
+          // prefer employee_vs_ocr type (actionable) over ocr_vs_ocr (notification only)
+          if (field.type === "employee_vs_ocr") {
+            existing.type = "employee_vs_ocr";
+            existing.id = field.id;
+          }
+          if (dayjs(field.createdAt).isAfter(dayjs(existing.createdAt))) {
+            existing.createdAt = field.createdAt;
+          }
+        } else {
+          fieldsByName.set(field.fieldName, { ...field, sources: [...field.sources] });
+        }
+      });
+
+      return { ...group, fields: [...fieldsByName.values()] };
+    })
+    .sort(
+      (left, right) => dayjs(right.createdAt).valueOf() - dayjs(left.createdAt).valueOf(),
+    );
 };
 
 const OcrConflictsAdminSection = () => {

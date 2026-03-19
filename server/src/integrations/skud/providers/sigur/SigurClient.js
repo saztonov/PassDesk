@@ -329,6 +329,29 @@ export class SigurClient {
     return card;
   }
 
+  async assignAccessPointsToEmployee(externalEmpId, accessPointIds = []) {
+    const id = toNumber(externalEmpId);
+    if (!id) {
+      throw new Error("externalEmpId is required to assign access points in Sigur");
+    }
+
+    const results = [];
+    for (const apId of accessPointIds) {
+      const apIdNum = toNumber(apId);
+      if (!apIdNum) continue;
+      const result = await this.request({
+        method: "POST",
+        url: "/api/v1/bindings/employees-accesspoints",
+        data: {
+          employeeId: id,
+          accessPointId: apIdNum,
+        },
+      });
+      results.push(result);
+    }
+    return results;
+  }
+
   async unassignCard(externalEmpId, cardNumber) {
     const employeeId = toNumber(externalEmpId);
     if (!employeeId) {

@@ -10,32 +10,50 @@ const DEFAULT_SCAN_MODEL_CHAIN = [
   DEFAULT_OPENROUTER_MODEL,
 ];
 
+const NAME_CASE_INSTRUCTION =
+  "Поля surname, givenNames, middleName пиши строго на кириллице и с заглавной буквы (Titlecase), например: Иванов, Иван, Иванович. " +
+  "Если в документе ФИО написано латиницей или есть MRZ-зона — всё равно верни кириллицу, транслитерировав обратно. Не пиши заглавными буквами целиком. ";
+
 const DEFAULT_PROMPTS = {
   passport_rf:
     "Распознай паспорт РФ на фото, даже при плохом качестве, шуме, перспективных искажениях и частичных засветах. " +
+    NAME_CASE_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: surname, givenNames, middleName, birthDate, sex, nationality, " +
     "passportSeries, passportNumber, issueDate, authority, departmentCode, birthPlace, expiryDate.",
   foreign_passport:
     "Распознай иностранный паспорт на фото, включая кривую перспективу и шум. " +
+    "Если в поле имени указаны имя и отчество вместе (например 'БИЛОЛ ТИМУРОВИЧ'), раздели их: в givenNames пиши только имя (Билол), в middleName — только отчество (Тимурович). " +
+    NAME_CASE_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: surname, givenNames, middleName, birthDate, sex, nationality, " +
     "passportNumber, issueDate, authority, expiryDate, birthPlace.",
   patent:
     "Распознай патент на работу на фото (включая сложные условия съемки). " +
     "Если это оборотная сторона и виден номер бланка вида 2 буквы + 7 цифр, верни его в поле blankNumber и НЕ записывай его в patentNumber. " +
+    NAME_CASE_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: patentNumber, issueDate, expiryDate, surname, givenNames, middleName, birthDate, nationality, blankNumber.",
   kig:
-    "Распознай карту иностранного гражданина (КИГ) на фото. " +
-    "Верни ПОЛНЫЙ номер карты в поле kigNumber, не сокращай его до 7 цифр и не обрезай хвост. " +
-    "Верни строго JSON без markdown и пояснений. Поля: kigNumber, expiryDate, surname, givenNames, middleName, birthDate, nationality.",
+    "На фото лицевая сторона карты иностранного гражданина (КИГ). " +
+    "На лицевой стороне есть ТОЛЬКО номер карты (2 буквы + 7 цифр, например AB0339982). ФИО, дата рождения и срок действия на лицевой стороне НЕ указаны — не придумывай их. " +
+    "Верни ПОЛНЫЙ номер карты в поле kigNumber, не сокращай. " +
+    "Верни строго JSON без markdown и пояснений. Поля: kigNumber.",
+  kig_back:
+    "На фото оборотная сторона карты иностранного гражданина (КИГ). " +
+    "На ней есть ФИО, дата рождения, пол, гражданство, номер карты (77...) и срок действия. " +
+    "Бери ФИО из кириллической области карты (НЕ из MRZ-строки внизу с латиницей). ФИО пиши строго на кириллице. " +
+    NAME_CASE_INSTRUCTION +
+    "Верни строго JSON без markdown и пояснений. Поля: surname, givenNames, middleName, birthDate, sex, nationality, kigNumber, expiryDate.",
   inn:
     "Распознай свидетельство ИНН на фото. " +
+    NAME_CASE_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: inn, surname, givenNames, middleName, birthDate.",
   snils:
     "Распознай карточку СНИЛС на фото. " +
+    NAME_CASE_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: snils, surname, givenNames, middleName, birthDate.",
   bank_details:
     "Распознай реквизиты банковского счета на фото документа. " +
     "Если на документе указаны ФИО владельца счета, тоже обязательно верни их. " +
+    NAME_CASE_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: bankAccountNumber, bankName, bik, corrAccount, inn, surname, givenNames, middleName.",
   visa:
     "Распознай визу на фото. " +
@@ -107,6 +125,7 @@ const SUPPORTED_DOCUMENT_TYPES = new Set([
   "foreign_passport",
   "patent",
   "kig",
+  "kig_back",
   "inn",
   "snils",
   "bank_details",
@@ -587,6 +606,25 @@ const normalizeKig = (parsedJson = {}) => ({
   ),
 });
 
+const normalizeKigBack = (parsedJson = {}) => ({
+  lastName: valueFrom(parsedJson, ["surname", "lastName", "last_name"]),
+  firstName: valueFrom(parsedJson, ["givenNames", "firstName", "first_name"]),
+  middleName: valueFrom(parsedJson, ["middleName", "middle_name", "patronymic"]),
+  birthDate: normalizeDate(
+    valueFrom(parsedJson, ["birthDate", "birth_date", "dateOfBirth"]),
+  ),
+  sex: normalizeSex(valueFrom(parsedJson, ["sex", "gender"])),
+  citizenship: normalizeCitizenship(
+    valueFrom(parsedJson, ["nationality", "citizenship"]),
+  ),
+  kig: normalizeKigNumber(
+    valueFrom(parsedJson, ["kigNumber", "kig_number", "number"]),
+  ),
+  kigEndDate: normalizeDate(
+    valueFrom(parsedJson, ["expiryDate", "expiry_date", "kigExpiryDate", "validUntil"]),
+  ),
+});
+
 const normalizeInn = (parsedJson = {}) => ({
   lastName: valueFrom(parsedJson, ["surname", "lastName", "last_name"]),
   firstName: valueFrom(parsedJson, ["givenNames", "firstName", "first_name"]),
@@ -655,6 +693,7 @@ const normalizeResponseByDocumentType = (documentType, parsedJson) => {
   }
   if (documentType === "patent") return normalizePatent(parsedJson);
   if (documentType === "kig") return normalizeKig(parsedJson);
+  if (documentType === "kig_back") return normalizeKigBack(parsedJson);
   if (documentType === "inn") return normalizeInn(parsedJson);
   if (documentType === "snils") return normalizeSnils(parsedJson);
   if (documentType === "bank_details") return normalizeBankDetails(parsedJson);

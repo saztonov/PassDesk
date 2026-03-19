@@ -7,6 +7,7 @@ import {
   SkudAccessState,
   SkudPersonBinding,
   SkudSyncJob,
+  SkudSiteAccessPoint,
   Status,
   EmployeeStatusMapping,
 } from "../../models/index.js";
@@ -411,6 +412,33 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
     response,
     externalEmpId,
   };
+};
+
+export const syncEmployeeAccessPoints = async ({ employeeId, externalEmpId }) => {
+  const provider = getSkudProvider();
+
+  // Получаем объекты сотрудника
+  const mappings = await EmployeeCounterpartyMapping.findAll({
+    where: { employeeId },
+    attributes: ["construction_site_id"],
+  });
+
+  const siteIds = [...new Set(
+    mappings.map((m) => m.constructionSiteId).filter(Boolean),
+  )];
+
+  if (!siteIds.length) return [];
+
+  // Получаем точки доступа Sigur для этих объектов
+  const apRows = await SkudSiteAccessPoint.findAll({
+    where: { constructionSiteId: siteIds },
+  });
+
+  const accessPointIds = [...new Set(apRows.map((r) => r.sigurAccessPointId))];
+
+  if (!accessPointIds.length) return [];
+
+  return provider.assignAccessPointsToEmployee(externalEmpId, accessPointIds);
 };
 
 export const ensureEmployeeBindingInSkud = async ({

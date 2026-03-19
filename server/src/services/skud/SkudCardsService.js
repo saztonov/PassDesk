@@ -7,7 +7,7 @@ import {
 import { mapCardToSigur } from "../../integrations/skud/providers/sigur/SigurMapper.js";
 import { getSkudProvider } from "../../integrations/skud/SkudProviderRegistry.js";
 import { enqueueSkudCardsJob } from "../../queues/skud/queue.js";
-import { ensureEmployeeBindingInSkud } from "./SkudSyncService.js";
+import { ensureEmployeeBindingInSkud, syncEmployeeAccessPoints } from "./SkudSyncService.js";
 
 const normalizeCardNumber = (value) =>
   String(value || "")
@@ -219,6 +219,17 @@ export const processSkudCardJobById = async (syncJobId) => {
         },
         updatedAt: new Date(),
       });
+
+      // Назначаем точки доступа сотруднику на основе его объектов
+      try {
+        await syncEmployeeAccessPoints({
+          employeeId: card.employeeId,
+          externalEmpId,
+        });
+      } catch (apError) {
+        console.error("[SkudCards] Failed to sync access points:", apError?.message);
+        // Не фейлим выдачу карты из-за ошибки назначения точек доступа
+      }
 
       await syncJob.update({
         status: "success",

@@ -308,6 +308,7 @@ export const resolveOcrDocumentTypeByFile = (
     return "patent";
   }
   if (normalized === "kig") return "kig";
+  if (normalized === "kig_back") return "kig_back";
   if (normalized === "visa") return "visa";
   if (normalized === "inn_document" || normalized === "inn") return "inn";
   if (normalized === "snils_card") return "snils";

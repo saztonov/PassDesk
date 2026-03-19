@@ -208,7 +208,7 @@ router.get(
 );
 router.post(
   "/cards/assign",
-  authorize("admin"),
+  authorize("admin", "manager"),
   body("employeeId").isUUID(),
   body("cardNumber").isString().trim().notEmpty(),
   body("cardType").optional().isString().trim(),
@@ -254,6 +254,31 @@ router.post(
   body().isObject(),
   validate,
   skudController.ingestEventDirect,
+);
+
+// Site <-> Sigur access points mapping
+router.get(
+  "/site-access-points/:siteId",
+  authorize("admin"),
+  param("siteId").isUUID(),
+  validate,
+  skudController.getSiteAccessPoints,
+);
+router.put(
+  "/site-access-points/:siteId",
+  authorize("admin"),
+  param("siteId").isUUID(),
+  body("accessPointIds").isArray(),
+  body("accessPointIds.*").isInt({ min: 1 }),
+  validate,
+  skudController.setSiteAccessPoints,
+);
+router.delete(
+  "/site-access-points/entry/:id",
+  authorize("admin"),
+  param("id").isUUID(),
+  validate,
+  skudController.deleteSiteAccessPoint,
 );
 
 webhookRouter.use(webhookLimiter);

@@ -41,6 +41,9 @@ import PassesPage from "@/pages/PassesPage";
 import { employeeService } from "@/services/employeeService";
 import { readSkudBindingImportExcel } from "@/modules/skud/lib/readSkudBindingImportExcel";
 import skudService from "@/services/skudService";
+import SkudSiteAccessPointsTab from "./SkudSiteAccessPointsTab";
+import SkudPassIssuanceTab from "./SkudPassIssuanceTab";
+import { useAuthStore } from "@/store/authStore";
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -202,6 +205,8 @@ const buildEventRangeParams = (eventDateRange) =>
 
 const SkudAdminSection = () => {
   const { message } = App.useApp();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === "admin";
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [pullingEvents, setPullingEvents] = useState(false);
@@ -2062,6 +2067,11 @@ const SkudAdminSection = () => {
         }}
         items={[
           {
+            key: "issuance",
+            label: "Выдача пропуска",
+            children: <SkudPassIssuanceTab />,
+          },
+          isAdmin && {
             key: "events",
             label: "События",
             children: (
@@ -2165,7 +2175,7 @@ const SkudAdminSection = () => {
               </Space>
             ),
           },
-          {
+          isAdmin && {
             key: "employees",
             label: "Сотрудники",
             children: (
@@ -2595,7 +2605,7 @@ const SkudAdminSection = () => {
               </Space>
             ),
           },
-          {
+          isAdmin && {
             key: "cards",
             label: "Карты",
             children: (
@@ -2703,7 +2713,7 @@ const SkudAdminSection = () => {
               </Space>
             ),
           },
-          {
+          isAdmin && {
             key: "qr",
             label: "QR",
             children: (
@@ -2841,12 +2851,23 @@ const SkudAdminSection = () => {
               </Space>
             ),
           },
-          {
+          isAdmin && {
             key: "passes",
             label: "Пропуска",
             children: <PassesPage embedded />,
           },
-        ]}
+          isAdmin && {
+            key: "site-access-points",
+            label: "Объекты → Sigur",
+            children: (
+              <SkudSiteAccessPointsTab
+                providerAccessPoints={providerAccessPoints}
+                accessPointsLoading={providerAccessPointsLoading}
+                onReloadAccessPoints={loadProviderAccessPoints}
+              />
+            ),
+          },
+        ].filter(Boolean)}
       />
 
       <Drawer

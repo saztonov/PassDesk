@@ -137,6 +137,16 @@ const skudService = {
     const response = await api.post("/skud/qr/verify", payload);
     return toData(response);
   },
+
+  getSiteAccessPoints: async (siteId) => {
+    const response = await api.get(`/skud/site-access-points/${siteId}`);
+    return toData(response);
+  },
+
+  setSiteAccessPoints: async (siteId, accessPointIds) => {
+    const response = await api.put(`/skud/site-access-points/${siteId}`, { accessPointIds });
+    return toData(response);
+  },
 };
 
 export default skudService;

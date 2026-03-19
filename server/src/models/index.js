@@ -48,6 +48,7 @@ import SkudCard from "./SkudCard.js";
 import SkudAccessEvent from "./SkudAccessEvent.js";
 import SkudSyncJob from "./SkudSyncJob.js";
 import SkudQrToken from "./SkudQrToken.js";
+import SkudSiteAccessPoint from "./SkudSiteAccessPoint.js";
 
 // Define associations
 
@@ -398,6 +399,16 @@ User.hasMany(SkudQrToken, {
 SkudQrToken.belongsTo(User, {
   foreignKey: "issued_by",
   as: "issuer",
+});
+
+// ConstructionSite -> SkudSiteAccessPoint
+ConstructionSite.hasMany(SkudSiteAccessPoint, {
+  foreignKey: "construction_site_id",
+  as: "skudAccessPoints",
+});
+SkudSiteAccessPoint.belongsTo(ConstructionSite, {
+  foreignKey: "construction_site_id",
+  as: "constructionSite",
 });
 
 // User -> Pass (выдавший/отозвавший)
@@ -943,4 +954,5 @@ export {
   SkudAccessEvent,
   SkudSyncJob,
   SkudQrToken,
+  SkudSiteAccessPoint,
 };
