@@ -2187,9 +2187,19 @@ export const skudController = {
 
       const { accessEndTime, sigurDepartmentId } = req.body;
 
-      const binding = await getEmployeeBinding({ employeeId });
+      let binding = await getEmployeeBinding({ employeeId });
       if (!binding) {
-        throw new AppError("Привязка к СКУД не найдена. Сначала синхронизируйте сотрудника.", 404);
+        // Биндинга ещё нет — создаём заглушку для хранения метаданных
+        binding = await SkudPersonBinding.create({
+          employeeId,
+          externalSystem: "sigur",
+          externalEmpId: "pending",
+          source: "manual",
+          isActive: false,
+          metadata: {},
+          createdBy: req.user?.id || null,
+          updatedBy: req.user?.id || null,
+        });
       }
 
       const patch = {};
