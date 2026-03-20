@@ -348,13 +348,17 @@ const EmployeeSkudTab = ({ employee }) => {
                 <Checkbox
                   key={site.id}
                   checked={selectedSiteIds.includes(Number(site.id))}
-                  onChange={(e) =>
-                    setSelectedSiteIds((prev) =>
-                      e.target.checked
-                        ? [...prev, Number(site.id)]
-                        : prev.filter((id) => id !== Number(site.id)),
-                    )
-                  }
+                  onChange={(e) => {
+                    const numId = Number(site.id);
+                    console.log("[SKUD] checkbox change", { siteId: site.id, numId, checked: e.target.checked, selectedSiteIds });
+                    setSelectedSiteIds((prev) => {
+                      const next = e.target.checked
+                        ? [...prev, numId]
+                        : prev.filter((id) => id !== numId);
+                      console.log("[SKUD] new selectedSiteIds", next);
+                      return next;
+                    });
+                  }}
                 >
                   {site.shortName || site.name}
                 </Checkbox>
