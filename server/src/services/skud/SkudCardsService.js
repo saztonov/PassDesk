@@ -195,13 +195,20 @@ export const processSkudCardJobById = async (syncJobId) => {
     const card = payload.cardId ? await SkudCard.findByPk(payload.cardId) : null;
     const provider = getSkudProvider();
 
+    console.log(`${tag} payload.cardId=${payload.cardId} card.employeeId=${card?.employeeId} syncJob.employeeId=${syncJob.employeeId}`);
+
     if (syncJob.operation === "assign_card") {
-      if (!card?.employeeId) {
+      const effectiveEmployeeId = card?.employeeId || syncJob.employeeId;
+      if (!effectiveEmployeeId) {
         throw new Error("Card or employee binding is missing");
       }
-      console.log(`${tag} card=${card.id} cardNumber=${card.cardNumber} → ensureEmployeeBindingInSkud`);
+      // Если карта существовала раньше и employeeId не успел обновиться — патчим
+      if (card && !card.employeeId) {
+        await card.update({ employeeId: effectiveEmployeeId, updatedAt: new Date() });
+      }
+      console.log(`${tag} card=${card?.id} cardNumber=${card?.cardNumber} effectiveEmployeeId=${effectiveEmployeeId} → ensureEmployeeBindingInSkud`);
       const externalEmpId = await ensureEmployeeBindingInSkud({
-        employeeId: card.employeeId,
+        employeeId: effectiveEmployeeId,
         userId: syncJob.createdBy,
         payload: {
           source: "assign_card",
@@ -212,7 +219,7 @@ export const processSkudCardJobById = async (syncJobId) => {
       // Сбрасываем accessEndTime чтобы снять возможное ограничение периода
       // (блокировка в Sigur ставит accessEndTime = сегодня 00:00)
       try {
-        const employee = await Employee.findByPk(card.employeeId);
+        const employee = await Employee.findByPk(effectiveEmployeeId);
         if (employee) {
           await provider.createOrUpdateEmployee({
             externalEmpId,
@@ -252,7 +259,7 @@ export const processSkudCardJobById = async (syncJobId) => {
       console.log(`${tag} → syncEmployeeAccessPoints`);
       try {
         const apResult = await syncEmployeeAccessPoints({
-          employeeId: card.employeeId,
+          employeeId: effectiveEmployeeId,
           externalEmpId,
         });
         console.log(`${tag} syncEmployeeAccessPoints OK count=${Array.isArray(apResult) ? apResult.length : "?"}`);
