@@ -54,7 +54,7 @@ const EmployeeSkudTab = ({ employee }) => {
 
   const employeeId = employee?.id;
 
-  // инициализация объектов из данных сотрудника
+  // инициализация объектов из данных сотрудника (только при смене сотрудника)
   useEffect(() => {
     const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
       ? employee.employeeCounterpartyMappings
@@ -62,7 +62,8 @@ const EmployeeSkudTab = ({ employee }) => {
     const ids = [...new Set(mappings.map((m) => Number(m.constructionSiteId)).filter(Boolean))];
     setSelectedSiteIds(ids);
     setOriginalSiteIds(ids);
-  }, [employee]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employee?.id]);
 
   // загрузка всех объектов
   useEffect(() => {
