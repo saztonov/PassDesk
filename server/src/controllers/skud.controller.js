@@ -1927,7 +1927,6 @@ export const skudController = {
 
   async listCards(req, res, next) {
     try {
-      ensureSkudModuleEnabled();
       const { limit, offset } = parsePagination(req.query);
       const result = await listSkudCards({
         employeeId: req.query.employeeId,
