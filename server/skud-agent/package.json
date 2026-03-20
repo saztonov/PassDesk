@@ -2,12 +2,40 @@
   "name": "sigur-reader-eh-agent",
   "version": "1.0.0",
   "description": "Локальный WebSocket-агент для считывателя Sigur Reader EH",
-  "main": "index.js",
+  "main": "electron-main.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "electron": "electron .",
+    "rebuild": "electron-rebuild -f -w node-hid",
+    "build:win": "electron-builder --win"
   },
   "dependencies": {
     "node-hid": "^3.1.0",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.0",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.passdesk.sigur-reader-eh",
+    "productName": "Sigur Reader EH",
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": true,
+      "allowElevation": true,
+      "installerLanguages": ["ru_RU"]
+    },
+    "files": [
+      "electron-main.js",
+      "preload.js",
+      "renderer/**",
+      "node_modules/**",
+      "!node_modules/.cache"
+    ]
   }
 }

@@ -1,0 +1,48 @@
+name: Build Sigur Reader EH (Windows)
+
+on:
+  push:
+    tags:
+      - 'skud-v*'
+  workflow_dispatch:  # можно запустить вручную из GitHub UI
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/skud-agent/package-lock.json
+
+      - name: Install dependencies
+        working-directory: server/skud-agent
+        run: npm install
+
+      - name: Rebuild native modules for Electron
+        working-directory: server/skud-agent
+        run: npm run rebuild
+
+      - name: Build Windows installer
+        working-directory: server/skud-agent
+        run: npm run build:win
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: SigurReaderEH-win
+          path: server/skud-agent/dist/*.exe
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: server/skud-agent/dist/*.exe
+          name: Sigur Reader EH ${{ github.ref_name }}

@@ -1,0 +1,227 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --border: #334155;
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --green: #22c55e;
+  --red: #ef4444;
+  --accent: #3b82f6;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  height: 100vh;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 20px;
+  gap: 16px;
+}
+
+/* ── Шапка ── */
+header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+header .icon {
+  width: 28px;
+  height: 28px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+header .title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* ── Статус ── */
+.status-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  transition: border-color 0.3s;
+}
+
+.status-block.connected {
+  border-color: var(--green);
+}
+
+.status-block.disconnected {
+  border-color: var(--red);
+}
+
+.status-indicator {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+.status-block.connected .status-indicator {
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+}
+
+.status-block.disconnected .status-indicator {
+  background: var(--red);
+  box-shadow: 0 0 8px var(--red);
+}
+
+.status-text {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* ── Карточка ── */
+.card-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.card-uid {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.card-uid.flash {
+  animation: flash 0.4s ease-out;
+}
+
+@keyframes flash {
+  0%   { color: var(--green); }
+  100% { color: var(--text); }
+}
+
+.card-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.card-key {
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 80px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.card-val {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.card-raw {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ── Лог ── */
+.log-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.log-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.log-list::-webkit-scrollbar {
+  width: 4px;
+}
+.log-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.log-empty {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.log-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: slide-in 0.2s ease-out;
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.log-time {
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 58px;
+  flex-shrink: 0;
+}
+
+.log-uid {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--text);
+}

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sigur Reader EH</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+
+    <header>
+      <svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="8" cy="12" r="2" fill="currentColor"/>
+        <line x1="12" y1="10" x2="19" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="12" y1="14" x2="17" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span class="title">Sigur Reader EH</span>
+    </header>
+
+    <div class="status-block" id="statusBlock">
+      <div class="status-indicator" id="statusDot"></div>
+      <div class="status-text" id="statusText">Подключение...</div>
+    </div>
+
+    <div class="card-block" id="cardBlock">
+      <div class="card-label">Последняя карта</div>
+      <div class="card-uid" id="cardUid">—</div>
+      <div class="card-row"><span class="card-key">HEX</span><span class="card-val" id="cardHex">—</span></div>
+      <div class="card-row"><span class="card-key">DEC</span><span class="card-val" id="cardDec">—</span></div>
+      <div class="card-row"><span class="card-key">Сырые байты</span><span class="card-val card-raw" id="cardRaw">—</span></div>
+    </div>
+
+    <div class="log-block">
+      <div class="log-header">История считываний</div>
+      <div class="log-list" id="logList">
+        <div class="log-empty">Поднесите карту к считывателю</div>
+      </div>
+    </div>
+
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
