@@ -59,7 +59,7 @@ const EmployeeSkudTab = ({ employee }) => {
     const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
       ? employee.employeeCounterpartyMappings
       : [];
-    const ids = [...new Set(mappings.map((m) => Number(m.constructionSiteId)).filter(Boolean))];
+    const ids = [...new Set(mappings.map((m) => String(m.constructionSiteId)).filter(Boolean))];
     setSelectedSiteIds(ids);
     setOriginalSiteIds(ids);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -347,18 +347,14 @@ const EmployeeSkudTab = ({ employee }) => {
               {allSites.map((site) => (
                 <Checkbox
                   key={site.id}
-                  checked={selectedSiteIds.includes(Number(site.id))}
-                  onChange={(e) => {
-                    const numId = Number(site.id);
-                    console.log("[SKUD] checkbox change", { siteId: site.id, numId, checked: e.target.checked, selectedSiteIds });
-                    setSelectedSiteIds((prev) => {
-                      const next = e.target.checked
-                        ? [...prev, numId]
-                        : prev.filter((id) => id !== numId);
-                      console.log("[SKUD] new selectedSiteIds", next);
-                      return next;
-                    });
-                  }}
+                  checked={selectedSiteIds.includes(String(site.id))}
+                  onChange={(e) =>
+                    setSelectedSiteIds((prev) =>
+                      e.target.checked
+                        ? [...prev, String(site.id)]
+                        : prev.filter((id) => id !== String(site.id)),
+                    )
+                  }
                 >
                   {site.shortName || site.name}
                 </Checkbox>
