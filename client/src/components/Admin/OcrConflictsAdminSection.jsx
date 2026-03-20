@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   App,
   Button,
@@ -8,7 +9,7 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
+import { ReloadOutlined, UserOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import ocrService from "@/services/ocrService";
 import { DEFAULT_DOCUMENT_TYPES } from "@/modules/employees/lib/documentTypeUploaderUtils";
@@ -164,6 +165,7 @@ const groupConflictItems = (items = []) => {
 
 const OcrConflictsAdminSection = () => {
   const { message } = App.useApp();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [drawerRecord, setDrawerRecord] = useState(null);
   const [actionLoadingKey, setActionLoadingKey] = useState(null);
@@ -326,7 +328,17 @@ const OcrConflictsAdminSection = () => {
         width: 240,
         render: (_, record) => (
           <Space direction="vertical" size={0}>
-            <Text strong>{record.employee?.fullName || "—"}</Text>
+            {record.employee?.id ? (
+              <Button
+                type="link"
+                style={{ padding: 0, height: "auto", fontWeight: 600 }}
+                onClick={() => navigate(`/employees/edit/${record.employee.id}`)}
+              >
+                {record.employee.fullName || "—"}
+              </Button>
+            ) : (
+              <Text strong>{record.employee?.fullName || "—"}</Text>
+            )}
             <Text type="secondary">
               {record.employee?.counterpartyName || "—"}
             </Text>
@@ -429,7 +441,18 @@ const OcrConflictsAdminSection = () => {
         {drawerRecord ? (
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
             <Space direction="vertical" size={2}>
-              <Text strong>{drawerRecord.employee?.fullName || "—"}</Text>
+              <Space>
+                <Text strong>{drawerRecord.employee?.fullName || "—"}</Text>
+                {drawerRecord.employee?.id && (
+                  <Button
+                    size="small"
+                    icon={<UserOutlined />}
+                    onClick={() => navigate(`/employees/edit/${drawerRecord.employee.id}`)}
+                  >
+                    Открыть карточку
+                  </Button>
+                )}
+              </Space>
               <Text type="secondary">
                 {drawerRecord.employee?.counterpartyName || "—"}
               </Text>

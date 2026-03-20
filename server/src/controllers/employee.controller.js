@@ -660,6 +660,8 @@ export const getAllEmployees = async (req, res, next) => {
       "status_hr_edited",
       "status_hr_edited_compl",
       "status_hr_fired_off",
+      "status_draft",
+      "status_card_draft",
     ];
 
     // Фильтрация по роли пользователя
@@ -917,8 +919,8 @@ export const getAllEmployees = async (req, res, next) => {
     ];
 
     const queryOrder = [
-      ["firstName", "ASC"],
-      ["middleName", "ASC"],
+      ["firstName", "ASC NULLS FIRST"],
+      ["middleName", "ASC NULLS FIRST"],
     ];
 
     // В режиме in-memory пагинации сначала делаем scan, затем загружаем

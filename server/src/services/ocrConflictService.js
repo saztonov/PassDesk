@@ -428,6 +428,7 @@ const listStoredEmployeeOcrConflicts = async ({
         model: Employee,
         as: "employee",
         required: true,
+        where: { isDeleted: false },
         attributes: ["id", "firstName", "lastName", "middleName"],
         include: [
           {
@@ -629,6 +630,7 @@ export const listEmployeeOcrConflicts = async ({
         model: Employee,
         as: "employee",
         required: true,
+        where: { isDeleted: false },
         attributes: ["id", "firstName", "lastName", "middleName"],
         include: [
           {
