@@ -43,7 +43,7 @@ const EmployeeSkudTab = ({ employee }) => {
     setCardsLoading(true);
     try {
       const result = await skudService.getCards({ employeeId, limit: 50 });
-      const rows = result?.rows || result?.cards || (Array.isArray(result) ? result : []);
+      const rows = result?.items || result?.rows || result?.cards || (Array.isArray(result) ? result : []);
       setCards(rows);
     } catch {
       // тихо
