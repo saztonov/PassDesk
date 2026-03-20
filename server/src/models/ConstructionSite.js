@@ -3,9 +3,9 @@ import { sequelize } from '../config/database.js';
 
 const ConstructionSite = sequelize.define('ConstructionSite', {
   id: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.UUID,
     primaryKey: true,
-    autoIncrement: true
+    defaultValue: DataTypes.UUIDV4,
   },
   shortName: {
     type: DataTypes.STRING(100),
