@@ -181,7 +181,7 @@ const EmployeeSkudTab = ({ employee }) => {
       await skudService.assignCard({ employeeId, cardNumber });
       message.success("Пропуск выдан");
       newCardForm.resetFields();
-      await loadCards();
+      loadCards().catch(() => {});
     } catch (err) {
       message.error(err?.response?.data?.message || "Ошибка при выдаче пропуска");
     } finally {

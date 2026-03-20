@@ -202,7 +202,7 @@ router.post(
 
 router.get(
   "/cards",
-  authorize("admin"),
+  authorize("admin", "manager"),
   paginationValidation,
   skudController.listCards,
 );
