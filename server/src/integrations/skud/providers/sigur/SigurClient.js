@@ -342,14 +342,39 @@ export class SigurClient {
       throw new Error("Failed to create card in Sigur");
     }
 
-    await this.request({
-      method: "POST",
-      url: "/api/v1/bindings/employees-cards",
-      data: {
-        employeeId,
-        cardId,
-      },
-    });
+    try {
+      await this.request({
+        method: "POST",
+        url: "/api/v1/bindings/employees-cards",
+        data: { employeeId, cardId },
+      });
+    } catch (bindError) {
+      // 400/422 = карта уже привязана к кому-то в Sigur — отвязываем и привязываем заново
+      if (bindError?.response?.status === 400 || bindError?.response?.status === 422) {
+        console.log(`[Sigur][assignCard] ${bindError.response.status} on bind, trying to unbind first. err=${JSON.stringify(bindError?.response?.data)}`);
+        // Ищем существующий биндинг карты и удаляем его
+        const existingBindings = await this.request({
+          method: "GET",
+          url: "/api/v1/bindings/employees-cards",
+          params: { cardId, limit: 1 },
+        }).catch(() => null);
+        const existingBinding = Array.isArray(existingBindings) ? existingBindings[0] : null;
+        if (existingBinding?.id) {
+          await this.request({
+            method: "DELETE",
+            url: `/api/v1/bindings/employees-cards/${existingBinding.id}`,
+          }).catch(() => {});
+        }
+        // Повторяем привязку
+        await this.request({
+          method: "POST",
+          url: "/api/v1/bindings/employees-cards",
+          data: { employeeId, cardId },
+        });
+      } else {
+        throw bindError;
+      }
+    }
 
     return card;
   }
