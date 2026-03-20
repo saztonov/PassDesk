@@ -29,6 +29,8 @@ export const EMPLOYEE_FIELDS = [
   { key: 'passportIssuer', defaultRequired: true, defaultVisible: true },
   { key: 'passportExpiryDate', defaultRequired: false, defaultVisible: true },
   { key: 'bankAccountNumber', defaultRequired: false, defaultVisible: true },
+  { key: 'insurancePolicyNumber', defaultRequired: false, defaultVisible: true },
+  { key: 'insurancePolicyDate', defaultRequired: false, defaultVisible: true },
   
   // Патент и КИГ
   { key: 'kig', defaultRequired: true, defaultVisible: true },

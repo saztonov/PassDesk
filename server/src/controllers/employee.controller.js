@@ -85,6 +85,8 @@ const EMPLOYEE_UPDATE_ALLOWED_FIELDS = new Set([
   "email",
   "phone",
   "bankAccountNumber",
+  "insurancePolicyNumber",
+  "insurancePolicyDate",
   "notes",
 ]);
 

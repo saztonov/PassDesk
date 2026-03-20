@@ -132,6 +132,10 @@ export const useEmployeeFormInitialization = ({
             bankAccountNumber: employee.bankAccountNumber
               ? employee.bankAccountNumber.replace(/[^\d]/g, "").slice(0, 20)
               : null,
+            insurancePolicyNumber: employee.insurancePolicyNumber || null,
+            insurancePolicyDate: employee.insurancePolicyDate
+              ? dayjs(employee.insurancePolicyDate)
+              : null,
             kig: employee.kig ? formatKig(employee.kig) : null,
             patentNumber: employee.patentNumber
               ? formatPatentNumber(employee.patentNumber)

@@ -58,6 +58,10 @@ const DEFAULT_PROMPTS = {
   visa:
     "Распознай визу на фото. " +
     "Верни строго JSON без markdown и пояснений. Поля: visaNumber, issueDate, expiryDate, surname, givenNames, nationality, birthDate.",
+  insurance_policy:
+    "Распознай страховой полис на фото. " +
+    "Найди номер полиса (обычно написано 'Серия' и 'Номер' или просто длинный номер в шапке документа) и дату начала действия полиса (поле 'с' в разделе 'Срок страхования'). " +
+    "Верни строго JSON без markdown и пояснений. Поля: policyNumber, issueDate.",
 };
 
 const DEFAULT_SCAN_PROMPT =
@@ -130,6 +134,7 @@ const SUPPORTED_DOCUMENT_TYPES = new Set([
   "snils",
   "bank_details",
   "visa",
+  "insurance_policy",
 ]);
 
 const MALE_VALUES = new Set(["m", "male", "м", "муж", "мужской"]);
@@ -665,6 +670,13 @@ const normalizeBankDetails = (parsedJson = {}) => ({
   ),
 });
 
+const normalizeInsurancePolicy = (parsedJson = {}) => ({
+  insurancePolicyNumber: valueFrom(parsedJson, ["policyNumber", "policy_number", "number", "seriesNumber"]),
+  insurancePolicyDate: normalizeDate(
+    valueFrom(parsedJson, ["issueDate", "issue_date", "startDate", "validFrom"]),
+  ),
+});
+
 const normalizeVisa = (parsedJson = {}) => ({
   lastName: valueFrom(parsedJson, ["surname", "lastName", "last_name"]),
   firstName: valueFrom(parsedJson, ["givenNames", "firstName", "first_name"]),
@@ -698,6 +710,7 @@ const normalizeResponseByDocumentType = (documentType, parsedJson) => {
   if (documentType === "snils") return normalizeSnils(parsedJson);
   if (documentType === "bank_details") return normalizeBankDetails(parsedJson);
   if (documentType === "visa") return normalizeVisa(parsedJson);
+  if (documentType === "insurance_policy") return normalizeInsurancePolicy(parsedJson);
   return {};
 };
 

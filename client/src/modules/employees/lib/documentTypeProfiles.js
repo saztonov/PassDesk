@@ -23,13 +23,14 @@ const REQUIRED_PROFILE_CODES = {
 };
 
 export const DEFAULT_DOCUMENT_PROFILES = {
-  [PROFILE_CODES.EXTERNAL]: [...BASE_CONSENTS],
+  [PROFILE_CODES.EXTERNAL]: [...BASE_CONSENTS, "insurance_policy"],
   [PROFILE_CODES.DEFAULT_RU_BY]: [
     "passport",
     "bank_details",
     ...BASE_CONSENTS,
     "diploma",
     "snils_card",
+    "insurance_policy",
   ],
   [PROFILE_CODES.DEFAULT_FOREIGN]: [
     "passport",
@@ -44,6 +45,7 @@ export const DEFAULT_DOCUMENT_PROFILES = {
     "visa",
     "arrival_notice",
     "patent_payment_receipt",
+    "insurance_policy",
   ],
 };
 
@@ -64,6 +66,7 @@ const DOCUMENT_TYPE_LABELS = {
   visa: "Виза",
   arrival_notice: "Уведомление о прибытии (регистрация)",
   patent_payment_receipt: "Чек оплаты патента",
+  insurance_policy: "Страховой полис",
 };
 
 const RU_BY_CODES = new Set(["ru", "rus", "643", "by", "blr", "112", "rb"]);

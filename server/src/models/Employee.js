@@ -376,6 +376,18 @@ Employee.init(
         },
       },
     },
+    insurancePolicyNumber: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+      field: "insurance_policy_number",
+      comment: "Номер страхового полиса",
+    },
+    insurancePolicyDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      field: "insurance_policy_date",
+      comment: "Дата выдачи страхового полиса",
+    },
     bankAccountNumber: {
       type: DataTypes.STRING(20),
       allowNull: true,

@@ -1,5 +1,6 @@
 import { Divider, Row, Col, Form, Input } from "antd";
 import EmployeePatentTab from "./EmployeePatentTab";
+import MaskedDatePicker from "../../shared/ui/MaskedDatePicker";
 import {
   formatBankAccountNumber,
   formatInn,
@@ -85,6 +86,36 @@ const EmployeeDocumentsTab = ({
                 placeholder="40702810900000000000"
                 {...noAutoFillProps}
               />
+            </Form.Item>
+          </Col>
+        )}
+
+        {!getFieldProps("insurancePolicyNumber").hidden && (
+          <Col xs={24} sm={12} md={6} lg={6}>
+            <Form.Item
+              name="insurancePolicyNumber"
+              label="Номер страхового полиса"
+              required={getFieldProps("insurancePolicyNumber").required}
+              rules={getFieldProps("insurancePolicyNumber").rules}
+            >
+              <Input
+                maxLength={64}
+                placeholder="25285324 065197"
+                {...noAutoFillProps}
+              />
+            </Form.Item>
+          </Col>
+        )}
+
+        {!getFieldProps("insurancePolicyDate").hidden && (
+          <Col xs={24} sm={12} md={6} lg={6}>
+            <Form.Item
+              name="insurancePolicyDate"
+              label="Дата выдачи полиса"
+              required={getFieldProps("insurancePolicyDate").required}
+              rules={getFieldProps("insurancePolicyDate").rules}
+            >
+              <MaskedDatePicker format={dateFormat} />
             </Form.Item>
           </Col>
         )}

@@ -313,6 +313,7 @@ export const resolveOcrDocumentTypeByFile = (
   if (normalized === "inn_document" || normalized === "inn") return "inn";
   if (normalized === "snils_card") return "snils";
   if (normalized === "bank_details") return "bank_details";
+  if (normalized === "insurance_policy") return "insurance_policy";
 
   return null;
 };
@@ -400,6 +401,16 @@ export const buildFormPatchFromOcr = ({
 
   const bankAccountNumber = toDigits(normalized.bankAccountNumber, 20);
   if (bankAccountNumber) patch.bankAccountNumber = bankAccountNumber;
+
+  if (normalizeString(normalized.insurancePolicyNumber)) {
+    patch.insurancePolicyNumber = normalizeString(normalized.insurancePolicyNumber);
+  }
+
+  const insurancePolicyDate = toDateOutputValue(
+    normalized.insurancePolicyDate,
+    dateOutputMode,
+  );
+  if (insurancePolicyDate) patch.insurancePolicyDate = insurancePolicyDate;
 
   return patch;
 };

@@ -11,6 +11,7 @@ const DATE_FIELDS = new Set([
   "patentIssueDate",
   "kigEndDate",
   "passportExpiryDate",
+  "insurancePolicyDate",
 ]);
 
 const UUID_FIELDS = new Set(["positionId", "citizenshipId"]);
