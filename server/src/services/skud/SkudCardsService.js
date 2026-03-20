@@ -4,7 +4,7 @@ import {
   SkudPersonBinding,
   SkudSyncJob,
 } from "../../models/index.js";
-import { mapCardToSigur } from "../../integrations/skud/providers/sigur/SigurMapper.js";
+import { mapCardToSigur, mapEmployeeToSigur } from "../../integrations/skud/providers/sigur/SigurMapper.js";
 import { getSkudProvider } from "../../integrations/skud/SkudProviderRegistry.js";
 import { enqueueSkudCardsJob } from "../../queues/skud/queue.js";
 import { ensureEmployeeBindingInSkud, syncEmployeeAccessPoints } from "./SkudSyncService.js";
@@ -201,6 +201,24 @@ export const processSkudCardJobById = async (syncJobId) => {
           source: "assign_card",
         },
       });
+
+      // Сбрасываем accessEndTime чтобы снять возможное ограничение периода
+      // (блокировка в Sigur ставит accessEndTime = сегодня 00:00)
+      try {
+        const employee = await Employee.findByPk(card.employeeId);
+        if (employee) {
+          await provider.createOrUpdateEmployee({
+            externalEmpId,
+            employeePayload: mapEmployeeToSigur({
+              employee,
+              externalEmpId,
+              accessEndTime: null,
+            }),
+          });
+        }
+      } catch (periodError) {
+        console.error("[SkudCards] Failed to reset accessEndTime:", periodError?.message);
+      }
 
       const response = await provider.assignCard(
         externalEmpId,
