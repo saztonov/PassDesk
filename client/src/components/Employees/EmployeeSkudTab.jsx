@@ -539,44 +539,35 @@ const EmployeeSkudTab = ({ employee }) => {
 
       <Divider style={{ margin: "4px 0" }} />
 
-      {/* Подразделение (внутреннее) */}
-      <div>
-        <Text strong style={{ display: "block", marginBottom: 6 }}>
-          Подразделение
-        </Text>
-        <Space>
-          <Select
-            style={{ minWidth: 280 }}
-            placeholder="Выберите подразделение"
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            value={selectedInternalDeptId}
-            onChange={setSelectedInternalDeptId}
-            options={internalDepts.map((d) => ({ value: d.id, label: d.name }))}
-          />
-          <Button
-            type="primary"
-            ghost
-            icon={<SaveOutlined />}
-            loading={savingInternalDept}
-            onClick={handleSaveInternalDept}
-          >
-            Сохранить
-          </Button>
-        </Space>
-      </div>
-
-      {/* Подразделение Sigur */}
-      <div>
-        <Text strong style={{ display: "block", marginBottom: 6 }}>
-          Папка в СКУД (Sigur)
-        </Text>
-        <Spin spinning={sigurDeptsLoading}>
-          <Space>
+      {/* Подразделение / Папка в СКУД / Срок действия — одна строка */}
+      <Space align="end" wrap size={16}>
+        <div>
+          <Text strong style={{ display: "block", marginBottom: 4 }}>Подразделение</Text>
+          <Space.Compact>
             <Select
-              style={{ minWidth: 280 }}
-              placeholder="Выберите папку в Sigur"
+              style={{ width: 200 }}
+              placeholder="Выберите подразделение"
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              value={selectedInternalDeptId}
+              onChange={setSelectedInternalDeptId}
+              options={internalDepts.map((d) => ({ value: d.id, label: d.name }))}
+            />
+            <Button
+              icon={<SaveOutlined />}
+              loading={savingInternalDept}
+              onClick={handleSaveInternalDept}
+            />
+          </Space.Compact>
+        </div>
+
+        <div>
+          <Text strong style={{ display: "block", marginBottom: 4 }}>Папка в СКУД (Sigur)</Text>
+          <Space.Compact>
+            <Select
+              style={{ width: 200 }}
+              placeholder="Выберите папку"
               allowClear
               showSearch
               optionFilterProp="label"
@@ -586,47 +577,29 @@ const EmployeeSkudTab = ({ employee }) => {
               options={sigurDepts.map((d) => ({ value: d.id, label: d.name }))}
             />
             <Button
-              type="primary"
-              ghost
               icon={<SaveOutlined />}
               loading={savingDept}
               onClick={handleSaveDept}
-            >
-              Сохранить
-            </Button>
-          </Space>
-          {sigurDepts.length === 0 && !sigurDeptsLoading && (
-            <Text type="secondary" style={{ display: "block", marginTop: 4, fontSize: 11 }}>
-              Подразделения Sigur не загружены
-            </Text>
-          )}
-        </Spin>
-      </div>
+            />
+          </Space.Compact>
+        </div>
 
-      {/* Срок действия */}
-      <div>
-        <Text strong style={{ display: "block", marginBottom: 6 }}>
-          Действителен до
-        </Text>
-        <Space>
-          <DatePicker
-            value={accessEndTime}
-            onChange={setAccessEndTime}
-            format="DD.MM.YYYY"
-            placeholder="Не ограничен"
-            allowClear
-          />
-          <Button
-            type="primary"
-            ghost
-            icon={<SaveOutlined />}
-            loading={savingAccessEnd}
-            onClick={handleSaveAccessEnd}
-          >
-            Сохранить
-          </Button>
-        </Space>
-      </div>
+        <div>
+          <Text strong style={{ display: "block", marginBottom: 4 }}>Действителен до</Text>
+          <Space.Compact>
+            <DatePicker
+              value={accessEndTime}
+              onChange={setAccessEndTime}
+              format="DD.MM.YYYY"
+              placeholder="Не ограничен"
+              allowClear
+            />
+              loading={savingAccessEnd}
+              onClick={handleSaveAccessEnd}
+            />
+          </Space.Compact>
+        </div>
+      </Space>
 
       <Divider style={{ margin: "4px 0" }} />
 
