@@ -6,6 +6,9 @@ on:
       - 'skud-v*'
   workflow_dispatch:  # можно запустить вручную из GitHub UI
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
