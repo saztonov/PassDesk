@@ -457,6 +457,8 @@ const getEmployeeFormConfig = async (employee) => {
     if (configDefaultStr) {
       try {
         formConfigDefault = JSON.parse(configDefaultStr);
+        const requiredInDefault = Object.entries(formConfigDefault).filter(([,v]) => v.required).map(([k]) => k);
+        console.log("[formConfig] default required fields:", requiredInDefault.join(", "));
       } catch (e) {
         console.warn(
           "Failed to parse employee_form_config_default, using DEFAULT_FORM_CONFIG",
