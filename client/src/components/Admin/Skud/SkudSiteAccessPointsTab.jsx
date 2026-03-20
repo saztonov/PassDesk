@@ -69,14 +69,19 @@ const SkudSiteAccessPointsTab = ({ providerAccessPoints = [], accessPointsLoadin
       onReloadAccessPoints();
     }
     setEditSite(site);
-    setSelectedIds(mappings[site.id] || []);
+    setSelectedIds((mappings[site.id] || []).map(Number));
     setApSearch("");
   };
 
   const handleToggle = (apId, checked) => {
-    setSelectedIds((prev) =>
-      checked ? [...prev, apId] : prev.filter((id) => id !== apId),
-    );
+    const normalizedApId = Number(apId);
+    setSelectedIds((prev) => {
+      const normalizedPrev = prev.map(Number);
+      if (checked) {
+        return normalizedPrev.includes(normalizedApId) ? normalizedPrev : [...normalizedPrev, normalizedApId];
+      }
+      return normalizedPrev.filter((id) => id !== normalizedApId);
+    });
   };
 
   const handleSave = async () => {
@@ -192,7 +197,7 @@ const SkudSiteAccessPointsTab = ({ providerAccessPoints = [], accessPointsLoadin
               }).map((ap) => (
                 <Checkbox
                   key={ap.id}
-                  checked={selectedIds.includes(ap.id) || selectedIds.includes(Number(ap.id))}
+                  checked={selectedIds.includes(Number(ap.id))}
                   onChange={(e) => handleToggle(ap.id, e.target.checked)}
                 >
                   {ap.label || ap.name}
