@@ -253,11 +253,10 @@ const ConstructionSitesPage = () => {
           <Form.Item
             name="fullName"
             label="Полное название"
-            rules={[{ required: true }]}
           >
             <Input />
           </Form.Item>
-          <Form.Item name="address" label="Адрес" rules={[{ required: true }]}>
+          <Form.Item name="address" label="Адрес">
             <TextArea rows={3} />
           </Form.Item>
         </Form>
