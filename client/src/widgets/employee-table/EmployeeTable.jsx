@@ -134,6 +134,7 @@ export const EmployeeTable = ({
   onConstructionSitesEdit, // Новый prop для редактирования объектов
   resetTrigger, // Триггер для сброса фильтров
   hiddenColumnKeys = EMPTY_HIDDEN_COLUMN_KEYS,
+  onSortChange,
 }) => {
   const {
     filters,
@@ -188,7 +189,13 @@ export const EmployeeTable = ({
   }, [resetTrigger, clearFilters]);
 
   // Обработчик изменения таблицы (фильтры, сортировка, пагинация)
-  const handleTableChange = (pagination, nextFilters, _sorter, extra) => {
+  const handleTableChange = (pagination, nextFilters, sorter, extra) => {
+    // Серверная сортировка
+    if (extra?.action === "sort" && onSortChange) {
+      const sortField = sorter?.column?.key || sorter?.field || null;
+      const sortOrder = sorter?.order === "descend" ? "DESC" : sorter?.order === "ascend" ? "ASC" : null;
+      onSortChange(sortField, sortOrder);
+    }
     const rawFilters = nextFilters || {};
     const normalizedFilters = Object.entries(rawFilters).reduce(
       (acc, [key, value]) => {

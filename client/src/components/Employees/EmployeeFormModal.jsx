@@ -190,6 +190,7 @@ const EmployeeFormModal = ({
     handleSaveDraft,
     ensureEmployeeId,
     scheduleAutoSaveDraft,
+    discardIfAutoCreated,
   } = useEmployeeFormSaveHandlers({
     form,
     visible,
@@ -230,9 +231,10 @@ const EmployeeFormModal = ({
   });
 
   // Обработчик закрытия модального окна
-  const handleModalCancel = () => {
+  const handleModalCancel = useCallback(async () => {
+    await discardIfAutoCreated();
     onCancel();
-  };
+  }, [discardIfAutoCreated, onCancel]);
 
   const tabsItems = useEmployeeFormModalTabs({
     employee,

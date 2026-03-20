@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { employeeApi } from "@/entities/employee/api/employeeApi";
 
 export const useEmployeeFormSaveHandlers = ({
   form,
@@ -23,12 +24,16 @@ export const useEmployeeFormSaveHandlers = ({
   const autoSavingRef = useRef(false);
   const lastAutoSavedHashRef = useRef(null);
   const draftEmployeeIdRef = useRef(employee?.id || null);
+  const isAutoCreatedRef = useRef(false);
+  const isExplicitlySavedRef = useRef(false);
 
   useEffect(() => {
     if (!visible) {
       draftEmployeeIdRef.current = null;
       lastAutoSavedHashRef.current = null;
       autoSavingRef.current = false;
+      isAutoCreatedRef.current = false;
+      isExplicitlySavedRef.current = false;
       return;
     }
     draftEmployeeIdRef.current = employee?.id || null;
@@ -73,7 +78,11 @@ export const useEmployeeFormSaveHandlers = ({
         }
         const savedEmployee = await onSuccess(formattedValues);
         if (savedEmployee?.id) {
+          const isNewEmployee = !employee?.id && !draftEmployeeIdRef.current;
           draftEmployeeIdRef.current = savedEmployee.id;
+          if (silent && isNewEmployee) {
+            isAutoCreatedRef.current = true;
+          }
         }
 
         if (!employee && !preserveForm) {
@@ -100,6 +109,7 @@ export const useEmployeeFormSaveHandlers = ({
   );
 
   const handleSaveDraft = useCallback(async () => {
+    isExplicitlySavedRef.current = true;
     return saveDraft({ silent: false, preserveForm: false });
   }, [saveDraft]);
 
@@ -173,6 +183,7 @@ export const useEmployeeFormSaveHandlers = ({
   }, []);
 
   const handleSave = useCallback(async () => {
+    isExplicitlySavedRef.current = true;
     try {
       setLoading(true);
       await form.validateFields();
@@ -224,11 +235,27 @@ export const useEmployeeFormSaveHandlers = ({
     shouldStayOpenAfterSave,
   ]);
 
+  const discardIfAutoCreated = useCallback(async () => {
+    if (!isAutoCreatedRef.current || isExplicitlySavedRef.current) {
+      return;
+    }
+    const idToDiscard = draftEmployeeIdRef.current;
+    if (!idToDiscard) {
+      return;
+    }
+    try {
+      await employeeApi.discardDraft(idToDiscard);
+    } catch (error) {
+      console.error("Failed to discard auto-created draft employee:", error);
+    }
+  }, []);
+
   return {
     isFormResetRef,
     handleSave,
     handleSaveDraft,
     ensureEmployeeId,
     scheduleAutoSaveDraft,
+    discardIfAutoCreated,
   };
 };

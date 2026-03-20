@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { App } from "antd";
+import React from "react";
 import { employeeApi } from "../api/employeeApi";
 import { useEmployeesStore } from "@/store/employeesStore";
 
@@ -100,7 +101,7 @@ export const useEmployees = (
  * Хук для операций с сотрудником (CRUD)
  */
 export const useEmployeeActions = (onSuccess) => {
-  const { message } = App.useApp();
+  const { message, notification } = App.useApp();
   const [loading, setLoading] = useState(false);
 
   const createEmployee = async (values) => {
@@ -171,6 +172,22 @@ export const useEmployeeActions = (onSuccess) => {
           : `Заполните обязательные поля: ${fields}`;
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
+        const conflicting = error.response.data?.conflictingEmployee;
+        if (conflicting) {
+          const fullName = [conflicting.lastName, conflicting.firstName, conflicting.middleName]
+            .filter(Boolean)
+            .join(" ");
+          notification.error({
+            message: "Конфликт данных",
+            description: React.createElement("span", null,
+              errorMessage + ". Сотрудник: ",
+              React.createElement("a", { href: `/employees/edit/${conflicting.id}`, target: "_blank", rel: "noopener noreferrer" }, fullName),
+              ` (ID: ${conflicting.id})`
+            ),
+            duration: 8,
+          });
+          throw error;
+        }
       }
 
       message.error(errorMessage);
@@ -245,6 +262,22 @@ export const useEmployeeActions = (onSuccess) => {
           : `Заполните обязательные поля: ${fields}`;
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
+        const conflicting = error.response.data?.conflictingEmployee;
+        if (conflicting) {
+          const fullName = [conflicting.lastName, conflicting.firstName, conflicting.middleName]
+            .filter(Boolean)
+            .join(" ");
+          notification.error({
+            message: "Конфликт данных",
+            description: React.createElement("span", null,
+              errorMessage + ". Сотрудник: ",
+              React.createElement("a", { href: `/employees/edit/${conflicting.id}`, target: "_blank", rel: "noopener noreferrer" }, fullName),
+              ` (ID: ${conflicting.id})`
+            ),
+            duration: 8,
+          });
+          throw error;
+        }
       }
 
       message.error(errorMessage);

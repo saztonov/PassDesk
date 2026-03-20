@@ -85,6 +85,7 @@ const useEmployeesPageViewModels = ({
   setIsRequestModalOpen,
   refetchEmployees,
   setIsExportModalOpen,
+  handleSortChange,
 }) => {
   const availableColumns = useMemo(
     () =>
@@ -190,6 +191,7 @@ const useEmployeesPageViewModels = ({
       onPaginationChange: handlePaginationChange,
       onFiltersChange: setTableFilters,
       onConstructionSitesEdit: handleConstructionSitesEdit,
+      onSortChange: handleSortChange,
     }),
     [
       handleView,
@@ -201,6 +203,7 @@ const useEmployeesPageViewModels = ({
       handlePaginationChange,
       setTableFilters,
       handleConstructionSitesEdit,
+      handleSortChange,
     ],
   );
 

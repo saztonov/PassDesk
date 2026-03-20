@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { App, Grid } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useEmployees } from "@/entities/employee";
@@ -47,6 +47,15 @@ const EmployeesPage = () => {
     handleToggleColumn,
     handleResetColumns,
   } = useEmployeesPageStorage();
+
+  const [sortBy, setSortBy] = useState(null);
+  const [sortOrder, setSortOrder] = useState(null);
+
+  const handleSortChange = useCallback((field, order) => {
+    setSortBy(field || null);
+    setSortOrder(order || null);
+    setCurrentPage(1);
+  }, [setCurrentPage]);
 
   const { counterpartyMap, hasSubcontractors } = useCounterpartyMap({
     user,
@@ -171,12 +180,17 @@ const EmployeesPage = () => {
     filters.limit = pageSize;
     filters.activeOnly = activeOnlyRequest;
 
+    if (sortBy) filters.sortBy = sortBy;
+    if (sortOrder) filters.sortOrder = sortOrder;
+
     return filters;
   }, [
     counterpartyIdsForFilter,
     currentPage,
     debouncedSearchText,
     pageSize,
+    sortBy,
+    sortOrder,
     statusFilter,
     tableFilters.citizenship,
     tableFilters.constructionSite,
@@ -298,6 +312,26 @@ const EmployeesPage = () => {
     openRequestModal,
   });
 
+  // После создания нового сотрудника ищем его по имени,
+  // чтобы он сразу появился на экране независимо от страницы и фильтров
+  const handleFormSuccessWithFilterReset = useCallback(
+    async (values) => {
+      const isNewEmployee = !editingEmployee;
+      const result = await handleFormSuccess(values);
+      if (isNewEmployee && result) {
+        const lastName = result.lastName || result.data?.lastName || "";
+        const firstName = result.firstName || result.data?.firstName || "";
+        const searchName = (lastName || firstName).trim();
+        if (searchName) {
+          setSearchText(searchName);
+          setCurrentPage(1);
+        }
+      }
+      return result;
+    },
+    [editingEmployee, handleFormSuccess, setSearchText, setCurrentPage],
+  );
+
   const {
     toolbarView,
     toolbarFilters,
@@ -361,7 +395,7 @@ const EmployeesPage = () => {
     isSecurityModalOpen,
     setIsModalOpen,
     setEditingEmployee,
-    handleFormSuccess,
+    handleFormSuccess: handleFormSuccessWithFilterReset,
     handleCheckInn,
     setIsViewModalOpen,
     setViewingEmployee,
@@ -373,6 +407,7 @@ const EmployeesPage = () => {
     setIsRequestModalOpen,
     refetchEmployees,
     setIsExportModalOpen,
+    handleSortChange,
   });
 
   return (

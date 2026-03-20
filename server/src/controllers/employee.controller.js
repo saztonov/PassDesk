@@ -489,6 +489,8 @@ export const getAllEmployees = async (req, res, next) => {
       activeOnly = "false",
       dateFrom,
       dateTo,
+      sortBy,
+      sortOrder,
       offset: queryOffset,
       counterpartyId,
       constructionSiteId,
@@ -918,10 +920,14 @@ export const getAllEmployees = async (req, res, next) => {
       },
     ];
 
-    const queryOrder = [
-      ["firstName", "ASC NULLS FIRST"],
-      ["middleName", "ASC NULLS FIRST"],
-    ];
+    const allowedSortFields = { createdAt: "createdAt", updatedAt: "updatedAt", firstName: "firstName" };
+    const resolvedSortField = allowedSortFields[sortBy] || "createdAt";
+    const resolvedSortOrder = sortOrder === "ASC" ? "ASC" : (sortOrder === "DESC" ? "DESC" : "DESC");
+
+    const queryOrder =
+      resolvedSortField === "firstName"
+        ? [["firstName", `${resolvedSortOrder} NULLS LAST`], ["middleName", `${resolvedSortOrder} NULLS LAST`]]
+        : [[resolvedSortField, `${resolvedSortOrder} NULLS LAST`]];
 
     // В режиме in-memory пагинации сначала делаем scan, затем загружаем
     // полные данные только для текущей страницы.
@@ -1629,6 +1635,7 @@ export const createEmployee = async (req, res, next) => {
     // Обработка ошибки уникальности
     if (error.name === "SequelizeUniqueConstraintError") {
       const field = error.errors[0]?.path;
+      const conflictingValue = error.errors[0]?.value;
       let fieldName = field;
 
       // Переводим названия полей на русский
@@ -1641,8 +1648,38 @@ export const createEmployee = async (req, res, next) => {
         passport_number_hash: "Номер паспорта",
       };
 
+      // Маппинг поля БД → поле модели для поиска конфликтующего сотрудника
+      const fieldToModelAttr = {
+        inn: "inn",
+        snils: "snils",
+        kig_hash: "kigHash",
+        passport_number_hash: "passportNumberHash",
+      };
+
       if (fieldNames[field]) {
         fieldName = fieldNames[field];
+      }
+
+      // Ищем сотрудника с конфликтующим значением
+      let conflictingEmployee = null;
+      const modelAttr = fieldToModelAttr[field];
+      if (modelAttr && conflictingValue) {
+        try {
+          const found = await Employee.findOne({
+            where: { [modelAttr]: conflictingValue },
+            attributes: ["id", "firstName", "lastName", "middleName"],
+          });
+          if (found) {
+            conflictingEmployee = {
+              id: found.id,
+              firstName: found.firstName,
+              lastName: found.lastName,
+              middleName: found.middleName,
+            };
+          }
+        } catch (lookupError) {
+          console.error("Failed to lookup conflicting employee:", lookupError);
+        }
       }
 
       return res.status(400).json({
@@ -1654,6 +1691,7 @@ export const createEmployee = async (req, res, next) => {
             message: `${fieldName} должен быть уникальным`,
           },
         ],
+        conflictingEmployee,
       });
     }
 
@@ -2149,6 +2187,7 @@ export const updateEmployee = async (req, res, next) => {
     // Обработка ошибки уникальности
     if (error.name === "SequelizeUniqueConstraintError") {
       const field = error.errors[0]?.path;
+      const conflictingValue = error.errors[0]?.value;
       let fieldName = field;
 
       // Переводим названия полей на русский
@@ -2161,8 +2200,38 @@ export const updateEmployee = async (req, res, next) => {
         passport_number_hash: "Номер паспорта",
       };
 
+      // Маппинг поля БД → поле модели для поиска конфликтующего сотрудника
+      const fieldToModelAttr = {
+        inn: "inn",
+        snils: "snils",
+        kig_hash: "kigHash",
+        passport_number_hash: "passportNumberHash",
+      };
+
       if (fieldNames[field]) {
         fieldName = fieldNames[field];
+      }
+
+      // Ищем сотрудника с конфликтующим значением
+      let conflictingEmployee = null;
+      const modelAttr = fieldToModelAttr[field];
+      if (modelAttr && conflictingValue) {
+        try {
+          const found = await Employee.findOne({
+            where: { [modelAttr]: conflictingValue },
+            attributes: ["id", "firstName", "lastName", "middleName"],
+          });
+          if (found) {
+            conflictingEmployee = {
+              id: found.id,
+              firstName: found.firstName,
+              lastName: found.lastName,
+              middleName: found.middleName,
+            };
+          }
+        } catch (lookupError) {
+          console.error("Failed to lookup conflicting employee:", lookupError);
+        }
       }
 
       return res.status(400).json({
@@ -2174,6 +2243,7 @@ export const updateEmployee = async (req, res, next) => {
             message: `${fieldName} должен быть уникальным`,
           },
         ],
+        conflictingEmployee,
       });
     }
 
