@@ -22,6 +22,10 @@ import {
   SaveOutlined,
   SwapOutlined,
   WifiOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ClockCircleOutlined,
+  LoadingOutlined,
 } from "@ant-design/icons";
 import skudService from "@/services/skudService";
 import { employeeApi } from "@/entities/employee";
@@ -50,6 +54,10 @@ const EmployeeSkudTab = ({ employee }) => {
   const [readerArmed, setReaderArmed] = useState(false);
   const [readerConnected, setReaderConnected] = useState(false);
   const wsRef = useRef(null);
+
+  // sync jobs
+  const [syncJobs, setSyncJobs] = useState([]);
+  const [syncJobsLoading, setSyncJobsLoading] = useState(false);
 
   // объекты
   const [allSites, setAllSites] = useState([]);
@@ -99,9 +107,24 @@ const EmployeeSkudTab = ({ employee }) => {
     }
   }, [employeeId]);
 
+  const loadSyncJobs = useCallback(async () => {
+    if (!employeeId) return;
+    setSyncJobsLoading(true);
+    try {
+      const result = await skudService.getSyncJobs({ employeeId, limit: 10 });
+      const rows = result?.items || result?.rows || result?.syncJobs || (Array.isArray(result) ? result : []);
+      setSyncJobs(rows);
+    } catch {
+      // тихо
+    } finally {
+      setSyncJobsLoading(false);
+    }
+  }, [employeeId]);
+
   useEffect(() => {
     loadCards();
-  }, [loadCards]);
+    loadSyncJobs();
+  }, [loadCards, loadSyncJobs]);
 
   // закрываем WS при размонтировании
   useEffect(() => {
@@ -182,6 +205,7 @@ const EmployeeSkudTab = ({ employee }) => {
       message.success("Пропуск выдан");
       newCardForm.resetFields();
       loadCards().catch(() => {});
+      setTimeout(() => loadSyncJobs().catch(() => {}), 800);
     } catch (err) {
       message.error(err?.response?.data?.message || "Ошибка при выдаче пропуска");
     } finally {
@@ -202,6 +226,7 @@ const EmployeeSkudTab = ({ employee }) => {
           await skudService.blockCard(card.id);
           message.success("Карта заблокирована");
           await loadCards();
+          loadSyncJobs().catch(() => {});
         } catch (err) {
           message.error(err?.response?.data?.message || "Ошибка блокировки");
         } finally {
@@ -224,6 +249,7 @@ const EmployeeSkudTab = ({ employee }) => {
           await skudService.unbindCard(card.id);
           message.success("Карта отвязана");
           await loadCards();
+          loadSyncJobs().catch(() => {});
         } catch (err) {
           message.error(err?.response?.data?.message || "Ошибка при отвязке");
         } finally {
@@ -251,6 +277,7 @@ const EmployeeSkudTab = ({ employee }) => {
       replaceCardForm.resetFields([`replaceCard_${oldCard.id}`]);
       setReplacingCardId(null);
       await loadCards();
+      loadSyncJobs().catch(() => {});
     } catch (err) {
       message.error(err?.response?.data?.message || "Ошибка при замене карты");
     } finally {
@@ -499,6 +526,93 @@ const EmployeeSkudTab = ({ employee }) => {
             Объекты будут сохранены вместе с выдачей пропуска
           </Text>
         )}
+      </div>
+
+      <Divider style={{ margin: "4px 0" }} />
+
+      {/* Синхронизация */}
+      <div>
+        <Space style={{ marginBottom: 6 }} align="center">
+          <Text strong>Синхронизация с СКУД</Text>
+          <Button
+            size="small"
+            type="text"
+            icon={<SyncOutlined />}
+            onClick={loadSyncJobs}
+            loading={syncJobsLoading}
+          />
+        </Space>
+        <Spin spinning={syncJobsLoading}>
+          {syncJobs.length === 0 && !syncJobsLoading ? (
+            <Text type="secondary">Нет задач синхронизации</Text>
+          ) : (
+            <Table
+              dataSource={syncJobs}
+              rowKey="id"
+              size="small"
+              pagination={false}
+              columns={[
+                {
+                  title: "Операция",
+                  dataIndex: "operation",
+                  key: "operation",
+                  render: (val) => {
+                    const labels = {
+                      assign_card: "Выдача карты",
+                      block_card: "Блокировка карты",
+                      unbind_card: "Отвязка карты",
+                      sync_employee: "Синхронизация",
+                      block_employee: "Блокировка",
+                      unblock_employee: "Разблокировка",
+                    };
+                    return labels[val] || val;
+                  },
+                },
+                {
+                  title: "Статус",
+                  dataIndex: "status",
+                  key: "status",
+                  width: 130,
+                  render: (val) => {
+                    const map = {
+                      success: { color: "success", icon: <CheckCircleOutlined />, text: "Выполнено" },
+                      failed: { color: "error", icon: <CloseCircleOutlined />, text: "Ошибка" },
+                      pending: { color: "default", icon: <ClockCircleOutlined />, text: "Ожидание" },
+                      processing: { color: "processing", icon: <LoadingOutlined />, text: "Выполняется" },
+                    };
+                    const s = map[val] || { color: "default", icon: null, text: val };
+                    return (
+                      <Tag color={s.color} icon={s.icon}>
+                        {s.text}
+                      </Tag>
+                    );
+                  },
+                },
+                {
+                  title: "Время",
+                  dataIndex: "createdAt",
+                  key: "createdAt",
+                  width: 130,
+                  render: (val) =>
+                    val
+                      ? new Date(val).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                      : "—",
+                },
+                {
+                  title: "Ошибка",
+                  dataIndex: "errorMessage",
+                  key: "errorMessage",
+                  render: (val) =>
+                    val ? (
+                      <Text type="danger" style={{ fontSize: 11 }}>
+                        {val}
+                      </Text>
+                    ) : null,
+                },
+              ]}
+            />
+          )}
+        </Spin>
       </div>
 
     </Space>

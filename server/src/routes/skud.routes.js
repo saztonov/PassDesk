@@ -117,7 +117,7 @@ router.post(
 );
 router.get(
   "/sync-jobs",
-  authorize("admin"),
+  authorize("admin", "manager"),
   paginationValidation,
   skudController.syncJobs,
 );
