@@ -3,12 +3,15 @@ import {
   Alert,
   App,
   Button,
+  Checkbox,
+  Divider,
   Form,
   Input,
   Space,
   Spin,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import {
@@ -16,8 +19,12 @@ import {
   LockOutlined,
   DisconnectOutlined,
   SyncOutlined,
+  SaveOutlined,
+  SwapOutlined,
 } from "@ant-design/icons";
 import skudService from "@/services/skudService";
+import { employeeApi } from "@/entities/employee";
+import { constructionSiteService } from "@/services/constructionSiteService";
 
 const { Text } = Typography;
 
@@ -29,14 +36,47 @@ const CARD_STATUS_LABEL = {
 
 const EmployeeSkudTab = ({ employee }) => {
   const { message, modal } = App.useApp();
-  const [form] = Form.useForm();
+  const [newCardForm] = Form.useForm();
+  const [replaceCardForm] = Form.useForm();
 
   const [cards, setCards] = useState([]);
   const [cardsLoading, setCardsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [replacingCardId, setReplacingCardId] = useState(null);
+
+  // объекты
+  const [allSites, setAllSites] = useState([]);
+  const [sitesLoading, setSitesLoading] = useState(false);
+  const [selectedSiteIds, setSelectedSiteIds] = useState([]);
+  const [originalSiteIds, setOriginalSiteIds] = useState([]);
+  const [savingSites, setSavingSites] = useState(false);
 
   const employeeId = employee?.id;
+
+  // инициализация объектов из данных сотрудника
+  useEffect(() => {
+    const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+      ? employee.employeeCounterpartyMappings
+      : [];
+    const ids = [...new Set(mappings.map((m) => m.constructionSiteId).filter(Boolean))];
+    setSelectedSiteIds(ids);
+    setOriginalSiteIds(ids);
+  }, [employee]);
+
+  // загрузка всех объектов
+  useEffect(() => {
+    if (!employeeId) return;
+    setSitesLoading(true);
+    constructionSiteService
+      .getAll()
+      .then((res) => {
+        const list = res?.data?.data?.constructionSites || res?.data?.data || [];
+        setAllSites(list);
+      })
+      .catch(() => {})
+      .finally(() => setSitesLoading(false));
+  }, [employeeId]);
 
   const loadCards = useCallback(async () => {
     if (!employeeId) return;
@@ -56,10 +96,27 @@ const EmployeeSkudTab = ({ employee }) => {
     loadCards();
   }, [loadCards]);
 
+  const sitesChanged =
+    selectedSiteIds.length !== originalSiteIds.length ||
+    selectedSiteIds.some((id) => !originalSiteIds.includes(id));
+
+  const handleSaveSites = async () => {
+    setSavingSites(true);
+    try {
+      await employeeApi.updateConstructionSites(employeeId, selectedSiteIds);
+      setOriginalSiteIds(selectedSiteIds);
+      message.success("Объекты сохранены");
+    } catch {
+      message.error("Не удалось сохранить объекты");
+    } finally {
+      setSavingSites(false);
+    }
+  };
+
   const handleAssign = async () => {
     let values;
     try {
-      values = await form.validateFields();
+      values = await newCardForm.validateFields();
     } catch {
       return;
     }
@@ -68,19 +125,22 @@ const EmployeeSkudTab = ({ employee }) => {
 
     setSubmitting(true);
     try {
+      if (sitesChanged) {
+        await employeeApi.updateConstructionSites(employeeId, selectedSiteIds);
+        setOriginalSiteIds(selectedSiteIds);
+      }
       await skudService.assignCard({ employeeId, cardNumber });
       message.success("Пропуск выдан");
-      form.resetFields();
+      newCardForm.resetFields();
       await loadCards();
     } catch (err) {
-      const errMsg = err?.response?.data?.message || "Ошибка при выдаче пропуска";
-      message.error(errMsg);
+      message.error(err?.response?.data?.message || "Ошибка при выдаче пропуска");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleBlock = async (card) => {
+  const handleBlock = (card) => {
     modal.confirm({
       title: "Заблокировать карту?",
       content: `Карта ${card.cardNumber} будет заблокирована в СКУД`,
@@ -102,7 +162,7 @@ const EmployeeSkudTab = ({ employee }) => {
     });
   };
 
-  const handleUnbind = async (card) => {
+  const handleUnbind = (card) => {
     modal.confirm({
       title: "Отвязать карту?",
       content: `Карта ${card.cardNumber} будет отвязана от сотрудника`,
@@ -122,6 +182,31 @@ const EmployeeSkudTab = ({ employee }) => {
         }
       },
     });
+  };
+
+  const handleReplace = async (oldCard) => {
+    let values;
+    try {
+      values = await replaceCardForm.validateFields();
+    } catch {
+      return;
+    }
+    const newCardNumber = values[`replaceCard_${oldCard.id}`]?.trim();
+    if (!newCardNumber) return;
+
+    setActionLoadingId(oldCard.id);
+    try {
+      await skudService.blockCard(oldCard.id);
+      await skudService.assignCard({ employeeId, cardNumber: newCardNumber });
+      message.success("Старая карта заблокирована, новая выдана");
+      replaceCardForm.resetFields([`replaceCard_${oldCard.id}`]);
+      setReplacingCardId(null);
+      await loadCards();
+    } catch (err) {
+      message.error(err?.response?.data?.message || "Ошибка при замене карты");
+    } finally {
+      setActionLoadingId(null);
+    }
   };
 
   if (!employeeId) {
@@ -151,7 +236,7 @@ const EmployeeSkudTab = ({ employee }) => {
       title: "Статус",
       dataIndex: "status",
       key: "status",
-      width: 140,
+      width: 130,
       render: (val) => {
         const s = CARD_STATUS_LABEL[val] || { text: val, color: "default" };
         return <Tag color={s.color}>{s.text}</Tag>;
@@ -161,36 +246,83 @@ const EmployeeSkudTab = ({ employee }) => {
       title: "Выдана",
       dataIndex: "createdAt",
       key: "createdAt",
-      width: 110,
-      render: (val) =>
-        val ? new Date(val).toLocaleDateString("ru-RU") : "—",
+      width: 100,
+      render: (val) => val ? new Date(val).toLocaleDateString("ru-RU") : "—",
     },
     {
-      title: "",
+      title: "Действия",
       key: "actions",
-      width: 140,
+      width: 220,
       render: (_, card) => {
         const isLoading = actionLoadingId === card.id;
+        const isReplacing = replacingCardId === card.id;
+
         return (
-          <Space size={4}>
-            {card.status === "active" && (
-              <Button
-                size="small"
-                danger
-                icon={<LockOutlined />}
-                loading={isLoading}
-                onClick={() => handleBlock(card)}
-                title="Заблокировать"
-              />
-            )}
-            {card.status !== "unbound" && (
-              <Button
-                size="small"
-                icon={<DisconnectOutlined />}
-                loading={isLoading}
-                onClick={() => handleUnbind(card)}
-                title="Отвязать"
-              />
+          <Space direction="vertical" size={4} style={{ width: "100%" }}>
+            <Space size={4}>
+              {card.status === "active" && (
+                <>
+                  <Tooltip title="Заблокировать">
+                    <Button
+                      size="small"
+                      danger
+                      icon={<LockOutlined />}
+                      loading={isLoading && !isReplacing}
+                      onClick={() => handleBlock(card)}
+                    />
+                  </Tooltip>
+                  <Tooltip title="Заблокировать и выдать новую">
+                    <Button
+                      size="small"
+                      icon={<SwapOutlined />}
+                      loading={isLoading && isReplacing}
+                      onClick={() =>
+                        setReplacingCardId(isReplacing ? null : card.id)
+                      }
+                    >
+                      Заменить
+                    </Button>
+                  </Tooltip>
+                </>
+              )}
+              {card.status !== "unbound" && (
+                <Tooltip title="Отвязать">
+                  <Button
+                    size="small"
+                    icon={<DisconnectOutlined />}
+                    loading={isLoading}
+                    onClick={() => handleUnbind(card)}
+                  />
+                </Tooltip>
+              )}
+            </Space>
+
+            {/* Инлайн-форма замены карты */}
+            {isReplacing && (
+              <Form form={replaceCardForm} layout="inline" style={{ marginTop: 4 }}>
+                <Form.Item
+                  name={`replaceCard_${card.id}`}
+                  rules={[{ required: true, message: "Введите номер" }]}
+                  style={{ marginBottom: 0, flex: 1 }}
+                >
+                  <Input
+                    size="small"
+                    prefix={<CreditCardOutlined />}
+                    placeholder="Номер новой карты"
+                    autoFocus
+                  />
+                </Form.Item>
+                <Form.Item style={{ marginBottom: 0 }}>
+                  <Button
+                    size="small"
+                    type="primary"
+                    loading={isLoading}
+                    onClick={() => handleReplace(card)}
+                  >
+                    Выдать
+                  </Button>
+                </Form.Item>
+              </Form>
             )}
           </Space>
         );
@@ -200,56 +332,116 @@ const EmployeeSkudTab = ({ employee }) => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      {/* Выдать новый пропуск */}
-      <Form form={form} layout="inline" onFinish={handleAssign}>
-        <Form.Item
-          name="cardNumber"
-          rules={[{ required: true, message: "Введите номер карты" }]}
-          style={{ flex: 1, marginBottom: 0 }}
-        >
-          <Input
-            prefix={<CreditCardOutlined />}
-            placeholder="Номер карты (приложите к считывателю или введите)"
-            allowClear
-          />
-        </Form.Item>
-        <Form.Item style={{ marginBottom: 0 }}>
+
+      {/* Объекты доступа */}
+      <div>
+        <Text strong style={{ display: "block", marginBottom: 6 }}>
+          Объекты доступа
+        </Text>
+        <Spin spinning={sitesLoading}>
+          {allSites.length === 0 && !sitesLoading ? (
+            <Text type="secondary">Нет объектов</Text>
+          ) : (
+            <Space wrap style={{ maxHeight: 160, overflowY: "auto", display: "flex" }}>
+              {allSites.map((site) => (
+                <Checkbox
+                  key={site.id}
+                  checked={selectedSiteIds.includes(site.id)}
+                  onChange={(e) =>
+                    setSelectedSiteIds((prev) =>
+                      e.target.checked
+                        ? [...prev, site.id]
+                        : prev.filter((id) => id !== site.id),
+                    )
+                  }
+                >
+                  {site.shortName || site.name}
+                </Checkbox>
+              ))}
+            </Space>
+          )}
+        </Spin>
+        {sitesChanged && (
           <Button
+            size="small"
             type="primary"
-            htmlType="submit"
-            loading={submitting}
-            icon={<CreditCardOutlined />}
+            ghost
+            icon={<SaveOutlined />}
+            loading={savingSites}
+            onClick={handleSaveSites}
+            style={{ marginTop: 8 }}
           >
-            Выдать пропуск
+            Сохранить объекты
           </Button>
-        </Form.Item>
-      </Form>
+        )}
+      </div>
+
+      <Divider style={{ margin: "4px 0" }} />
 
       {/* Список карт */}
-      <Spin spinning={cardsLoading}>
-        {cards.length === 0 && !cardsLoading ? (
-          <Text type="secondary">Карты не назначены</Text>
-        ) : (
-          <Table
-            dataSource={cards}
-            columns={columns}
-            rowKey="id"
+      <div>
+        <Space style={{ marginBottom: 6 }} align="center">
+          <Text strong>Карты</Text>
+          <Button
             size="small"
-            pagination={false}
-            locale={{ emptyText: "Карты не назначены" }}
+            type="text"
+            icon={<SyncOutlined />}
+            onClick={loadCards}
+            loading={cardsLoading}
           />
-        )}
-      </Spin>
+        </Space>
+        <Spin spinning={cardsLoading}>
+          {cards.length === 0 && !cardsLoading ? (
+            <Text type="secondary">Карты не назначены</Text>
+          ) : (
+            <Table
+              dataSource={cards}
+              columns={columns}
+              rowKey="id"
+              size="small"
+              pagination={false}
+            />
+          )}
+        </Spin>
+      </div>
 
-      <Button
-        size="small"
-        icon={<SyncOutlined />}
-        onClick={loadCards}
-        loading={cardsLoading}
-        type="text"
-      >
-        Обновить
-      </Button>
+      <Divider style={{ margin: "4px 0" }} />
+
+      {/* Выдать новый пропуск */}
+      <div>
+        <Text strong style={{ display: "block", marginBottom: 6 }}>
+          Выдать новый пропуск
+        </Text>
+        <Form form={newCardForm} layout="inline" onFinish={handleAssign}>
+          <Form.Item
+            name="cardNumber"
+            rules={[{ required: true, message: "Введите номер карты" }]}
+            style={{ flex: 1, marginBottom: 0 }}
+          >
+            <Input
+              prefix={<CreditCardOutlined />}
+              placeholder="Приложите карту к считывателю или введите вручную"
+              allowClear
+            />
+          </Form.Item>
+          <Form.Item style={{ marginBottom: 0 }}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={submitting}
+              icon={<CreditCardOutlined />}
+            >
+              Выдать
+            </Button>
+          </Form.Item>
+        </Form>
+        {sitesChanged && (
+          <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: "block" }}>
+            Объекты будут сохранены вместе с выдачей пропуска
+          </Text>
+        )}
+      </div>
+
     </Space>
   );
 };
