@@ -568,7 +568,7 @@ export const useEmployeeColumns = ({
             const groupsToCheck = [group, ...alternativeGroups];
             const mapping = statusMappings.find((m) => {
               const mappingGroup = m.statusGroup || m.status_group;
-              return groupsToCheck.includes(mappingGroup);
+              return groupsToCheck.includes(mappingGroup) && m.isActive !== false;
             });
             if (!mapping) return null;
             // Статус может быть в status или Status
@@ -637,7 +637,7 @@ export const useEmployeeColumns = ({
             const groupsToCheck = [group, ...alternativeGroups];
             const mapping = statusMappings.find((m) => {
               const mappingGroup = m.statusGroup || m.status_group;
-              return groupsToCheck.includes(mappingGroup);
+              return groupsToCheck.includes(mappingGroup) && m.isActive !== false;
             });
             if (!mapping) return null;
             const statusObj = mapping.status || mapping.Status;

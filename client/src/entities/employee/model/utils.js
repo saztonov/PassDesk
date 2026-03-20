@@ -78,7 +78,7 @@ export const getStatusPriority = (record) => {
     const groupsToCheck = [group, ...alternativeGroups];
     const mapping = record.statusMappings?.find((m) => {
       const mappingGroup = m.statusGroup || m.status_group;
-      return groupsToCheck.includes(mappingGroup);
+      return groupsToCheck.includes(mappingGroup) && m.isActive !== false;
     });
     return mapping?.status?.name;
   };
