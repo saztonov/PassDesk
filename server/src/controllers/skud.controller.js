@@ -2175,6 +2175,39 @@ export const skudController = {
     }
   },
 
+  async updateBindingMeta(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const { employeeId } = req.params;
+      const employee = await fetchEmployeeForAccess(employeeId);
+      if (!employee || employee.isDeleted) {
+        throw new AppError("Сотрудник не найден", 404);
+      }
+      await checkEmployeeAccess(req.user, employee, "write");
+
+      const { accessEndTime, sigurDepartmentId } = req.body;
+
+      const binding = await getEmployeeBinding({ employeeId });
+      if (!binding) {
+        throw new AppError("Привязка к СКУД не найдена. Сначала синхронизируйте сотрудника.", 404);
+      }
+
+      const patch = {};
+      if (accessEndTime !== undefined) patch.accessEndTime = accessEndTime || null;
+      if (sigurDepartmentId !== undefined) patch.sigurDepartmentId = sigurDepartmentId || null;
+
+      await binding.update({
+        metadata: { ...(binding.metadata || {}), ...patch },
+        updatedBy: req.user?.id || null,
+        updatedAt: new Date(),
+      });
+
+      res.json({ success: true, data: binding });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   // --- Site Access Points mapping ---
 
   async getSiteAccessPoints(req, res, next) {

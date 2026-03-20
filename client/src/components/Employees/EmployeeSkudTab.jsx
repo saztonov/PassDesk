@@ -4,6 +4,7 @@ import {
   App,
   Button,
   Checkbox,
+  DatePicker,
   Divider,
   Form,
   Input,
@@ -28,9 +29,11 @@ import {
   ClockCircleOutlined,
   LoadingOutlined,
 } from "@ant-design/icons";
+import dayjs from "dayjs";
 import skudService from "@/services/skudService";
 import { employeeApi } from "@/entities/employee";
 import { constructionSiteService } from "@/services/constructionSiteService";
+import { departmentService } from "@/services/departmentService";
 
 const { Text } = Typography;
 
@@ -66,6 +69,15 @@ const EmployeeSkudTab = ({ employee }) => {
   const [selectedDeptId, setSelectedDeptId] = useState(null);
   const [savingDept, setSavingDept] = useState(false);
 
+  // внутреннее подразделение (HR)
+  const [internalDepts, setInternalDepts] = useState([]);
+  const [selectedInternalDeptId, setSelectedInternalDeptId] = useState(null);
+  const [savingInternalDept, setSavingInternalDept] = useState(false);
+
+  // срок действия
+  const [accessEndTime, setAccessEndTime] = useState(null);
+  const [savingAccessEnd, setSavingAccessEnd] = useState(false);
+
   // объекты
   const [allSites, setAllSites] = useState([]);
   const [sitesLoading, setSitesLoading] = useState(false);
@@ -75,7 +87,7 @@ const EmployeeSkudTab = ({ employee }) => {
 
   const employeeId = employee?.id;
 
-  // инициализация объектов из данных сотрудника (только при смене сотрудника)
+  // инициализация из данных сотрудника (только при смене сотрудника)
   useEffect(() => {
     const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
       ? employee.employeeCounterpartyMappings
@@ -83,6 +95,10 @@ const EmployeeSkudTab = ({ employee }) => {
     const ids = [...new Set(mappings.map((m) => String(m.constructionSiteId)).filter(Boolean))];
     setSelectedSiteIds(ids);
     setOriginalSiteIds(ids);
+
+    // внутреннее подразделение
+    const deptId = mappings[0]?.departmentId || null;
+    setSelectedInternalDeptId(deptId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employee?.id]);
 
@@ -133,7 +149,7 @@ const EmployeeSkudTab = ({ employee }) => {
     loadSyncJobs();
   }, [loadCards, loadSyncJobs]);
 
-  // загружаем подразделения Sigur и текущий binding
+  // загружаем подразделения Sigur, внутренние подразделения и текущий binding
   useEffect(() => {
     if (!employeeId) return;
 
@@ -141,11 +157,19 @@ const EmployeeSkudTab = ({ employee }) => {
     Promise.all([
       skudService.getProviderDepartments().catch(() => null),
       skudService.getEmployeeBinding(employeeId).catch(() => null),
-    ]).then(([deptsResult, bindingResult]) => {
+      departmentService.getAll().catch(() => null),
+    ]).then(([deptsResult, bindingResult, internalDeptsResult]) => {
       const depts = deptsResult?.departments || deptsResult?.items || (Array.isArray(deptsResult) ? deptsResult : []);
       setSigurDepts(depts);
+
       const storedId = bindingResult?.metadata?.sigurDepartmentId || null;
       setSelectedDeptId(storedId ? Number(storedId) : null);
+
+      const storedEnd = bindingResult?.metadata?.accessEndTime || null;
+      setAccessEndTime(storedEnd ? dayjs(storedEnd) : null);
+
+      const deptList = internalDeptsResult?.data?.data || internalDeptsResult?.data || [];
+      setInternalDepts(Array.isArray(deptList) ? deptList : []);
     }).finally(() => setSigurDeptsLoading(false));
   }, [employeeId]);
 
@@ -211,12 +235,38 @@ const EmployeeSkudTab = ({ employee }) => {
   const handleSaveDept = async () => {
     setSavingDept(true);
     try {
-      await skudService.setBindingDepartment(employeeId, selectedDeptId || null);
-      message.success("Подразделение сохранено");
+      await skudService.updateBindingMeta(employeeId, { sigurDepartmentId: selectedDeptId || null });
+      message.success("Подразделение СКУД сохранено");
     } catch (err) {
       message.error(err?.response?.data?.message || "Не удалось сохранить подразделение");
     } finally {
       setSavingDept(false);
+    }
+  };
+
+  const handleSaveInternalDept = async () => {
+    setSavingInternalDept(true);
+    try {
+      await employeeApi.updateDepartment(employeeId, selectedInternalDeptId);
+      message.success("Подразделение обновлено");
+    } catch (err) {
+      message.error(err?.response?.data?.message || "Не удалось обновить подразделение");
+    } finally {
+      setSavingInternalDept(false);
+    }
+  };
+
+  const handleSaveAccessEnd = async () => {
+    setSavingAccessEnd(true);
+    try {
+      await skudService.updateBindingMeta(employeeId, {
+        accessEndTime: accessEndTime ? accessEndTime.toISOString() : null,
+      });
+      message.success("Срок действия сохранён");
+    } catch (err) {
+      message.error(err?.response?.data?.message || "Не удалось сохранить срок действия");
+    } finally {
+      setSavingAccessEnd(false);
     }
   };
 
@@ -489,26 +539,51 @@ const EmployeeSkudTab = ({ employee }) => {
 
       <Divider style={{ margin: "4px 0" }} />
 
+      {/* Подразделение (внутреннее) */}
+      <div>
+        <Text strong style={{ display: "block", marginBottom: 6 }}>
+          Подразделение
+        </Text>
+        <Space>
+          <Select
+            style={{ minWidth: 280 }}
+            placeholder="Выберите подразделение"
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            value={selectedInternalDeptId}
+            onChange={setSelectedInternalDeptId}
+            options={internalDepts.map((d) => ({ value: d.id, label: d.name }))}
+          />
+          <Button
+            type="primary"
+            ghost
+            icon={<SaveOutlined />}
+            loading={savingInternalDept}
+            onClick={handleSaveInternalDept}
+          >
+            Сохранить
+          </Button>
+        </Space>
+      </div>
+
       {/* Подразделение Sigur */}
       <div>
         <Text strong style={{ display: "block", marginBottom: 6 }}>
-          Подразделение в СКУД
+          Папка в СКУД (Sigur)
         </Text>
         <Spin spinning={sigurDeptsLoading}>
           <Space>
             <Select
               style={{ minWidth: 280 }}
-              placeholder="Выберите подразделение"
+              placeholder="Выберите папку в Sigur"
               allowClear
               showSearch
               optionFilterProp="label"
               value={selectedDeptId}
               onChange={setSelectedDeptId}
               loading={sigurDeptsLoading}
-              options={sigurDepts.map((d) => ({
-                value: d.id,
-                label: d.name,
-              }))}
+              options={sigurDepts.map((d) => ({ value: d.id, label: d.name }))}
             />
             <Button
               type="primary"
@@ -522,10 +597,35 @@ const EmployeeSkudTab = ({ employee }) => {
           </Space>
           {sigurDepts.length === 0 && !sigurDeptsLoading && (
             <Text type="secondary" style={{ display: "block", marginTop: 4, fontSize: 11 }}>
-              Подразделения не загружены (нет привязки к Sigur)
+              Подразделения Sigur не загружены
             </Text>
           )}
         </Spin>
+      </div>
+
+      {/* Срок действия */}
+      <div>
+        <Text strong style={{ display: "block", marginBottom: 6 }}>
+          Действителен до
+        </Text>
+        <Space>
+          <DatePicker
+            value={accessEndTime}
+            onChange={setAccessEndTime}
+            format="DD.MM.YYYY"
+            placeholder="Не ограничен"
+            allowClear
+          />
+          <Button
+            type="primary"
+            ghost
+            icon={<SaveOutlined />}
+            loading={savingAccessEnd}
+            onClick={handleSaveAccessEnd}
+          >
+            Сохранить
+          </Button>
+        </Space>
       </div>
 
       <Divider style={{ margin: "4px 0" }} />

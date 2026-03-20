@@ -143,6 +143,11 @@ const skudService = {
     return toData(response);
   },
 
+  updateBindingMeta: async (employeeId, meta) => {
+    const response = await api.patch(`/skud/bindings/employee/${employeeId}/meta`, meta);
+    return toData(response);
+  },
+
   getSiteAccessPoints: async (siteId) => {
     const response = await api.get(`/skud/site-access-points/${siteId}`);
     return toData(response);

@@ -31,6 +31,8 @@ export const mapEmployeeToSigur = ({
       ? accessEndTime
       : (employee?.accessEndTime || undefined);
 
+  const positionName = trim(employee?.position?.name) || undefined;
+
   return {
     ...(externalEmpId ? { id: Number.parseInt(String(externalEmpId), 10) || undefined } : {}),
     name,
@@ -40,6 +42,7 @@ export const mapEmployeeToSigur = ({
     accessEndTime: resolvedAccessEnd,
     verificationPin: trim(employee?.verificationPin) || undefined,
     tabId: trim(employee?.inn) || undefined,
+    ...(positionName ? { position: positionName } : {}),
   };
 };
 

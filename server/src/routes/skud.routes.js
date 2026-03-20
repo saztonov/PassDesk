@@ -157,6 +157,15 @@ router.put(
   validate,
   skudController.setBindingDepartment,
 );
+router.patch(
+  "/bindings/employee/:employeeId/meta",
+  authorize("admin", "manager"),
+  employeeIdParamValidation,
+  body("accessEndTime").optional({ nullable: true }).isISO8601(),
+  body("sigurDepartmentId").optional({ nullable: true }).isInt({ min: 1 }),
+  validate,
+  skudController.updateBindingMeta,
+);
 router.get(
   "/bindings/audit",
   authorize("admin"),

@@ -4,6 +4,7 @@ import {
   Counterparty,
   Department,
   ConstructionSite,
+  Position,
   SkudAccessState,
   SkudPersonBinding,
   SkudSyncJob,
@@ -29,6 +30,12 @@ const SAFE_OPERATION_SET = new Set([
 const getEmployeeWithSkudContext = async (employeeId) => {
   return Employee.findByPk(employeeId, {
     include: [
+      {
+        model: Position,
+        as: "position",
+        attributes: ["id", "name"],
+        required: false,
+      },
       {
         model: EmployeeCounterpartyMapping,
         as: "employeeCounterpartyMappings",
@@ -385,13 +392,19 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
     });
   })();
 
+  // accessEndTime: из payload (если передан вручную), иначе из метаданных биндинга
+  const resolvedAccessEndTime =
+    payload.accessEndTime !== undefined
+      ? payload.accessEndTime
+      : (existingBinding?.metadata?.accessEndTime || null);
+
   const employeePayload = mapEmployeeToSigur({
     employee,
     externalEmpId: existingBinding?.externalEmpId || null,
     counterpartyName,
     departmentId,
     accessStartTime: payload.accessStartTime || null,
-    accessEndTime: payload.accessEndTime || null,
+    accessEndTime: resolvedAccessEndTime,
   });
 
   const response = await provider.createOrUpdateEmployee({
