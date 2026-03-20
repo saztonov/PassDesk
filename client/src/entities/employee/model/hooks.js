@@ -221,10 +221,10 @@ export const useEmployeeActions = (onSuccess) => {
       // Сбрасываем кэш сотрудников при обновлении
       useEmployeesStore.getState().invalidate();
 
-      // API уже возвращает response.data, которая имеет структуру:
+      // employeeApi.update возвращает response.data (тело ответа):
       // {success: true, message: "...", data: {id, firstName, ...}}
-      // Поэтому нужно взять response.data (это данные сотрудника)
-      const updatedEmployee = response.data;
+      // Сам сотрудник лежит в .data
+      const updatedEmployee = response.data || response;
       onSuccess?.(updatedEmployee);
       return updatedEmployee;
     } catch (error) {
