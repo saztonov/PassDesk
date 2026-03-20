@@ -7,6 +7,47 @@ const toNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const buildEmployeeCardBindingPayload = ({
+  employeeId,
+  cardId,
+  format,
+  startDate,
+  expirationDate,
+}) => {
+  const binding = {
+    employeeId: toNumber(employeeId),
+    cardId: toNumber(cardId),
+  };
+
+  if (format) {
+    binding.format = String(format).trim();
+  }
+  if (startDate !== undefined) {
+    binding.startDate = startDate;
+  }
+  if (expirationDate !== undefined) {
+    binding.expirationDate = expirationDate;
+  }
+
+  return [binding];
+};
+
+const buildEmployeeAccessPointBindingPayload = ({ employeeId, accessPointIds = [] }) => {
+  const normalizedEmployeeId = toNumber(employeeId);
+  const normalizedAccessPointIds = accessPointIds
+    .map((value) => toNumber(value))
+    .filter(Boolean);
+
+  if (!normalizedEmployeeId || !normalizedAccessPointIds.length) {
+    return [];
+  }
+
+  return [{
+    employeeIds: [normalizedEmployeeId],
+    accessPointIds: normalizedAccessPointIds,
+  }];
+};
+
 export class SigurClient {
   constructor({
     baseUrl,
@@ -342,11 +383,17 @@ export class SigurClient {
       throw new Error("Failed to create card in Sigur");
     }
 
+    const employeeCardBindingPayload = buildEmployeeCardBindingPayload({
+      employeeId,
+      cardId,
+      format: card?.format || cardPayload?.format,
+    });
+
     try {
       await this.request({
         method: "POST",
         url: "/api/v1/bindings/employees-cards",
-        data: { employeeId, cardId },
+        data: employeeCardBindingPayload,
       });
     } catch (bindError) {
       if (bindError?.response?.status === 400 || bindError?.response?.status === 422) {
@@ -376,16 +423,26 @@ export class SigurClient {
             params: { cardId, limit: 1 },
           }).catch(() => null);
           const oldBinding = Array.isArray(employeeCards) ? employeeCards[0] : null;
-          if (oldBinding?.id) {
-            console.log(`[Sigur][assignCard] deleting old binding id=${oldBinding.id}`);
+          const deletePayload = oldBinding
+            ? buildEmployeeCardBindingPayload({
+              employeeId: oldBinding.employeeId,
+              cardId: oldBinding.cardId,
+              format: oldBinding.format || card?.format || cardPayload?.format,
+              startDate: oldBinding.startDate,
+              expirationDate: oldBinding.expirationDate,
+            })
+            : [];
+          if (deletePayload.length > 0) {
+            console.log(`[Sigur][assignCard] deleting old binding payload=${JSON.stringify(deletePayload)}`);
             await this.request({
-              method: "DELETE",
-              url: `/api/v1/bindings/employees-cards/${oldBinding.id}`,
+              method: "POST",
+              url: "/api/v1/bindings/employees-cards/delete",
+              data: deletePayload,
             }).catch(() => {});
             await this.request({
               method: "POST",
               url: "/api/v1/bindings/employees-cards",
-              data: { employeeId, cardId },
+              data: employeeCardBindingPayload,
             });
           } else {
             throw bindError;
@@ -414,16 +471,24 @@ export class SigurClient {
     const id = toNumber(externalEmpId);
     if (!id) return;
     const bindings = await this.getEmployeeAccessPointBindings(id);
-    for (const binding of bindings) {
-      const bindingId = toNumber(binding?.id);
-      if (!bindingId) continue;
-      try {
-        await this.request({
-          method: "DELETE",
-          url: `/api/v1/bindings/employees-accesspoints/${bindingId}`,
-        });
-      } catch (_e) { /* игнорируем ошибки удаления отдельных биндингов */ }
+    const accessPointIds = [...new Set(
+      bindings.map((binding) => toNumber(binding?.accessPointId)).filter(Boolean),
+    )];
+    const deletePayload = buildEmployeeAccessPointBindingPayload({
+      employeeId: id,
+      accessPointIds,
+    });
+    if (!deletePayload.length) {
+      return;
     }
+
+    try {
+      await this.request({
+        method: "POST",
+        url: "/api/v1/bindings/employees-accesspoints/delete",
+        data: deletePayload,
+      });
+    } catch (_e) { /* игнорируем ошибки очистки биндингов */ }
   }
 
   async assignAccessPointsToEmployee(externalEmpId, accessPointIds = []) {
@@ -435,21 +500,20 @@ export class SigurClient {
     // Сначала очищаем существующие биндинги (включая дефолтное "Все")
     await this.clearEmployeeAccessPoints(id);
 
-    const results = [];
-    for (const apId of accessPointIds) {
-      const apIdNum = toNumber(apId);
-      if (!apIdNum) continue;
-      const result = await this.request({
-        method: "POST",
-        url: "/api/v1/bindings/employees-accesspoints",
-        data: {
-          employeeId: id,
-          accessPointId: apIdNum,
-        },
-      });
-      results.push(result);
+    const bindingPayload = buildEmployeeAccessPointBindingPayload({
+      employeeId: id,
+      accessPointIds,
+    });
+    if (!bindingPayload.length) {
+      return [];
     }
-    return results;
+
+    const result = await this.request({
+      method: "POST",
+      url: "/api/v1/bindings/employees-accesspoints",
+      data: bindingPayload,
+    });
+    return Array.isArray(result) ? result : [];
   }
 
   async unassignCard(externalEmpId, cardNumber) {
@@ -476,10 +540,11 @@ export class SigurClient {
     return this.request({
       method: "POST",
       url: "/api/v1/bindings/employees-cards/delete",
-      data: {
+      data: buildEmployeeCardBindingPayload({
         employeeId,
         cardId,
-      },
+        format: card?.format,
+      }),
     });
   }
 }
