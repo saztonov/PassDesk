@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   App,
@@ -21,6 +21,7 @@ import {
   SyncOutlined,
   SaveOutlined,
   SwapOutlined,
+  WifiOutlined,
 } from "@ant-design/icons";
 import skudService from "@/services/skudService";
 import { employeeApi } from "@/entities/employee";
@@ -44,6 +45,11 @@ const EmployeeSkudTab = ({ employee }) => {
   const [submitting, setSubmitting] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [replacingCardId, setReplacingCardId] = useState(null);
+
+  // считыватель карт
+  const [readerArmed, setReaderArmed] = useState(false);
+  const [readerConnected, setReaderConnected] = useState(false);
+  const wsRef = useRef(null);
 
   // объекты
   const [allSites, setAllSites] = useState([]);
@@ -96,6 +102,48 @@ const EmployeeSkudTab = ({ employee }) => {
   useEffect(() => {
     loadCards();
   }, [loadCards]);
+
+  // закрываем WS при размонтировании
+  useEffect(() => {
+    return () => {
+      wsRef.current?.close();
+      wsRef.current = null;
+    };
+  }, []);
+
+  const handleDisarmReader = useCallback(() => {
+    setReaderArmed(false);
+    setReaderConnected(false);
+    wsRef.current?.close();
+    wsRef.current = null;
+  }, []);
+
+  const handleArmReader = useCallback(() => {
+    if (readerArmed) {
+      handleDisarmReader();
+      return;
+    }
+    setReaderArmed(true);
+    try {
+      const ws = new WebSocket("ws://localhost:8765");
+      wsRef.current = ws;
+      ws.onopen = () => setReaderConnected(true);
+      ws.onclose = () => { setReaderConnected(false); wsRef.current = null; };
+      ws.onerror = () => {
+        message.warning("Агент считывателя недоступен. Запустите start.bat из папки server/skud-agent на этом ПК.", 6);
+        setReaderConnected(false);
+      };
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type !== "card") return;
+          const uid = data.sigurCard || data.hexUid;
+          if (!uid) return;
+          newCardForm.setFieldValue("cardNumber", uid);
+        } catch (_e) { /* игнорируем */ }
+      };
+    } catch (_e) { /* браузер не поддерживает WS */ }
+  }, [readerArmed, handleDisarmReader, message, newCardForm]);
 
   const sitesChanged =
     selectedSiteIds.length !== originalSiteIds.length ||
@@ -424,6 +472,16 @@ const EmployeeSkudTab = ({ employee }) => {
               placeholder="Приложите карту к считывателю или введите вручную"
               allowClear
             />
+          </Form.Item>
+          <Form.Item style={{ marginBottom: 0 }}>
+            <Button
+              icon={<WifiOutlined />}
+              danger={readerArmed}
+              onClick={handleArmReader}
+              title={readerArmed ? (readerConnected ? "Считыватель активен" : "Ожидание (ввод вручную)") : "Ожидать карту от считывателя"}
+            >
+              {readerArmed ? (readerConnected ? "Считыватель активен" : "Ожидание...") : "Ожидать карту"}
+            </Button>
           </Form.Item>
           <Form.Item style={{ marginBottom: 0 }}>
             <Button
