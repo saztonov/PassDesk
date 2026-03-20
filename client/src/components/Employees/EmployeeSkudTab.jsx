@@ -7,6 +7,7 @@ import {
   Divider,
   Form,
   Input,
+  Select,
   Space,
   Spin,
   Table,
@@ -58,6 +59,12 @@ const EmployeeSkudTab = ({ employee }) => {
   // sync jobs
   const [syncJobs, setSyncJobs] = useState([]);
   const [syncJobsLoading, setSyncJobsLoading] = useState(false);
+
+  // подразделение Sigur
+  const [sigurDepts, setSigurDepts] = useState([]);
+  const [sigurDeptsLoading, setSigurDeptsLoading] = useState(false);
+  const [selectedDeptId, setSelectedDeptId] = useState(null);
+  const [savingDept, setSavingDept] = useState(false);
 
   // объекты
   const [allSites, setAllSites] = useState([]);
@@ -126,6 +133,22 @@ const EmployeeSkudTab = ({ employee }) => {
     loadSyncJobs();
   }, [loadCards, loadSyncJobs]);
 
+  // загружаем подразделения Sigur и текущий binding
+  useEffect(() => {
+    if (!employeeId) return;
+
+    setSigurDeptsLoading(true);
+    Promise.all([
+      skudService.getProviderDepartments().catch(() => null),
+      skudService.getEmployeeBinding(employeeId).catch(() => null),
+    ]).then(([deptsResult, bindingResult]) => {
+      const depts = deptsResult?.departments || deptsResult?.items || (Array.isArray(deptsResult) ? deptsResult : []);
+      setSigurDepts(depts);
+      const storedId = bindingResult?.metadata?.sigurDepartmentId || null;
+      setSelectedDeptId(storedId ? Number(storedId) : null);
+    }).finally(() => setSigurDeptsLoading(false));
+  }, [employeeId]);
+
   // закрываем WS при размонтировании
   useEffect(() => {
     return () => {
@@ -182,6 +205,18 @@ const EmployeeSkudTab = ({ employee }) => {
       message.error("Не удалось сохранить объекты");
     } finally {
       setSavingSites(false);
+    }
+  };
+
+  const handleSaveDept = async () => {
+    setSavingDept(true);
+    try {
+      await skudService.setBindingDepartment(employeeId, selectedDeptId || null);
+      message.success("Подразделение сохранено");
+    } catch (err) {
+      message.error(err?.response?.data?.message || "Не удалось сохранить подразделение");
+    } finally {
+      setSavingDept(false);
     }
   };
 
@@ -450,6 +485,47 @@ const EmployeeSkudTab = ({ employee }) => {
             Сохранить объекты
           </Button>
         )}
+      </div>
+
+      <Divider style={{ margin: "4px 0" }} />
+
+      {/* Подразделение Sigur */}
+      <div>
+        <Text strong style={{ display: "block", marginBottom: 6 }}>
+          Подразделение в СКУД
+        </Text>
+        <Spin spinning={sigurDeptsLoading}>
+          <Space>
+            <Select
+              style={{ minWidth: 280 }}
+              placeholder="Выберите подразделение"
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              value={selectedDeptId}
+              onChange={setSelectedDeptId}
+              loading={sigurDeptsLoading}
+              options={sigurDepts.map((d) => ({
+                value: d.id,
+                label: d.name,
+              }))}
+            />
+            <Button
+              type="primary"
+              ghost
+              icon={<SaveOutlined />}
+              loading={savingDept}
+              onClick={handleSaveDept}
+            >
+              Сохранить
+            </Button>
+          </Space>
+          {sigurDepts.length === 0 && !sigurDeptsLoading && (
+            <Text type="secondary" style={{ display: "block", marginTop: 4, fontSize: 11 }}>
+              Подразделения не загружены (нет привязки к Sigur)
+            </Text>
+          )}
+        </Spin>
       </div>
 
       <Divider style={{ margin: "4px 0" }} />

@@ -145,9 +145,17 @@ router.post(
 );
 router.get(
   "/bindings/employee/:employeeId",
-  authorize("admin"),
+  authorize("admin", "manager"),
   employeeIdParamValidation,
   skudController.getEmployeeBinding,
+);
+router.put(
+  "/bindings/employee/:employeeId/department",
+  authorize("admin"),
+  employeeIdParamValidation,
+  body("sigurDepartmentId").optional({ nullable: true }).isInt({ min: 1 }),
+  validate,
+  skudController.setBindingDepartment,
 );
 router.get(
   "/bindings/audit",

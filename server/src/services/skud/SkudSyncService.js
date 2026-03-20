@@ -370,12 +370,20 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
 
   const counterpartyName =
     employee?.employeeCounterpartyMappings?.[0]?.counterparty?.name || "";
-  const departmentPath = getEmployeeSigurDepartmentPath({ employee, payload });
-  const departmentId = await resolveSigurDepartmentId({
-    provider,
-    pathSegments: departmentPath,
-    description: counterpartyName,
-  });
+
+  // Если вручную задано подразделение Sigur — используем его напрямую
+  const manualDepartmentId = existingBinding?.metadata?.sigurDepartmentId
+    ? Number.parseInt(String(existingBinding.metadata.sigurDepartmentId), 10) || null
+    : null;
+
+  const departmentId = manualDepartmentId || await (async () => {
+    const departmentPath = getEmployeeSigurDepartmentPath({ employee, payload });
+    return resolveSigurDepartmentId({
+      provider,
+      pathSegments: departmentPath,
+      description: counterpartyName,
+    });
+  })();
 
   const employeePayload = mapEmployeeToSigur({
     employee,

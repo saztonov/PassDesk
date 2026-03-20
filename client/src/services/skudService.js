@@ -138,6 +138,11 @@ const skudService = {
     return toData(response);
   },
 
+  setBindingDepartment: async (employeeId, sigurDepartmentId) => {
+    const response = await api.put(`/skud/bindings/employee/${employeeId}/department`, { sigurDepartmentId });
+    return toData(response);
+  },
+
   getSiteAccessPoints: async (siteId) => {
     const response = await api.get(`/skud/site-access-points/${siteId}`);
     return toData(response);
