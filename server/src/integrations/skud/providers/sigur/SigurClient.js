@@ -306,11 +306,31 @@ export class SigurClient {
       throw new Error("externalEmpId is required to assign card in Sigur");
     }
 
-    const card = await this.request({
-      method: "POST",
-      url: "/api/v1/cards",
-      data: cardPayload,
-    });
+    let card;
+    try {
+      card = await this.request({
+        method: "POST",
+        url: "/api/v1/cards",
+        data: cardPayload,
+      });
+    } catch (createError) {
+      // 422 = карта с таким номером уже существует в Sigur — ищем её
+      if (createError?.response?.status === 422) {
+        const cardValue = cardPayload.value || cardPayload.name;
+        const existing = await this.request({
+          method: "GET",
+          url: "/api/v1/cards",
+          params: { value: cardValue, limit: 1 },
+        });
+        const found = Array.isArray(existing) ? existing[0] : null;
+        if (!found?.id) {
+          throw new Error(`Card already exists in Sigur but could not be found by value="${cardValue}"`);
+        }
+        card = found;
+      } else {
+        throw createError;
+      }
+    }
 
     const cardId = toNumber(card?.id);
     if (!cardId) {
