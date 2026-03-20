@@ -349,28 +349,48 @@ export class SigurClient {
         data: { employeeId, cardId },
       });
     } catch (bindError) {
-      // 400/422 = карта уже привязана к кому-то в Sigur — отвязываем и привязываем заново
       if (bindError?.response?.status === 400 || bindError?.response?.status === 422) {
-        console.log(`[Sigur][assignCard] ${bindError.response.status} on bind, trying to unbind first. err=${JSON.stringify(bindError?.response?.data)}`);
-        // Ищем существующий биндинг карты и удаляем его
-        const existingBindings = await this.request({
+        console.log(`[Sigur][assignCard] ${bindError.response.status} on bind. err=${JSON.stringify(bindError?.response?.data)}`);
+        // Проверяем — может карта уже привязана к этому сотруднику (тогда это успех)
+        const empCards = await this.request({
           method: "GET",
-          url: "/api/v1/bindings/employees-cards",
-          params: { cardId, limit: 1 },
+          url: "/api/v1/cards",
+          params: { employeeId, limit: 200 },
         }).catch(() => null);
-        const existingBinding = Array.isArray(existingBindings) ? existingBindings[0] : null;
-        if (existingBinding?.id) {
-          await this.request({
-            method: "DELETE",
-            url: `/api/v1/bindings/employees-cards/${existingBinding.id}`,
-          }).catch(() => {});
+        const alreadyBound = Array.isArray(empCards)
+          ? empCards.some((c) => toNumber(c?.id) === cardId)
+          : false;
+        if (alreadyBound) {
+          console.log(`[Sigur][assignCard] card ${cardId} already bound to emp ${employeeId}, treating as success`);
+        } else {
+          // Карта привязана к другому сотруднику — ищем биндинг по cardId через карточку
+          const cardInfo = await this.request({
+            method: "GET",
+            url: `/api/v1/cards/${cardId}`,
+          }).catch(() => null);
+          console.log(`[Sigur][assignCard] cardInfo=${JSON.stringify(cardInfo)}`);
+          // Пробуем переназначить через DELETE старого биндинга
+          const employeeCards = await this.request({
+            method: "GET",
+            url: "/api/v1/bindings/employees-cards",
+            params: { cardId, limit: 1 },
+          }).catch(() => null);
+          const oldBinding = Array.isArray(employeeCards) ? employeeCards[0] : null;
+          if (oldBinding?.id) {
+            console.log(`[Sigur][assignCard] deleting old binding id=${oldBinding.id}`);
+            await this.request({
+              method: "DELETE",
+              url: `/api/v1/bindings/employees-cards/${oldBinding.id}`,
+            }).catch(() => {});
+            await this.request({
+              method: "POST",
+              url: "/api/v1/bindings/employees-cards",
+              data: { employeeId, cardId },
+            });
+          } else {
+            throw bindError;
+          }
         }
-        // Повторяем привязку
-        await this.request({
-          method: "POST",
-          url: "/api/v1/bindings/employees-cards",
-          data: { employeeId, cardId },
-        });
       } else {
         throw bindError;
       }

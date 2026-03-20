@@ -78,7 +78,6 @@ const getEmployeeWithSkudContext = async (employeeId) => {
         required: false,
         where: {
           externalSystem: "sigur",
-          isActive: true,
         },
       },
     ],
@@ -371,9 +370,9 @@ const resolveSigurDepartmentId = async ({ provider, pathSegments = [], descripti
 
 const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
   const provider = getSkudProvider();
-  const existingBinding = Array.isArray(employee?.skudBindings)
-    ? employee.skudBindings[0]
-    : null;
+  const allBindings = Array.isArray(employee?.skudBindings) ? employee.skudBindings : [];
+  // Активный биндинг — для externalEmpId; любой биндинг — для метаданных
+  const existingBinding = allBindings.find((b) => b.isActive) || allBindings[0] || null;
 
   const counterpartyName =
     employee?.employeeCounterpartyMappings?.[0]?.counterparty?.name || "";
@@ -486,9 +485,8 @@ export const ensureEmployeeBindingInSkud = async ({
     throw new Error("Employee is not found for SKUD binding");
   }
 
-  const existingBinding = Array.isArray(targetEmployee?.skudBindings)
-    ? targetEmployee.skudBindings[0]
-    : null;
+  const allBindings = Array.isArray(targetEmployee?.skudBindings) ? targetEmployee.skudBindings : [];
+  const existingBinding = allBindings.find((b) => b.isActive && b.externalEmpId) || null;
 
   if (existingBinding?.externalEmpId) {
     return existingBinding.externalEmpId;

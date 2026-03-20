@@ -42,7 +42,7 @@ export const mapEmployeeToSigur = ({
     accessEndTime: resolvedAccessEnd,
     verificationPin: trim(employee?.verificationPin) || undefined,
     tabId: trim(employee?.inn) || undefined,
-    ...(positionName ? { position: positionName } : {}),
+    ...(positionName ? { positionName } : {}),
   };
 };
 
