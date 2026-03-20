@@ -14,22 +14,28 @@ const NAME_CASE_INSTRUCTION =
   "Поля surname, givenNames, middleName пиши строго на кириллице и с заглавной буквы (Titlecase), например: Иванов, Иван, Иванович. " +
   "Если в документе ФИО написано латиницей или есть MRZ-зона — всё равно верни кириллицу, транслитерировав обратно. Не пиши заглавными буквами целиком. ";
 
+const DATE_FORMAT_INSTRUCTION =
+  "Все поля с датами (birthDate, issueDate, expiryDate и др.) возвращай строго в формате YYYY-MM-DD (только дата, без времени, без часов, минут и секунд). Пример: 2022-06-15.";
+
 const DEFAULT_PROMPTS = {
   passport_rf:
     "Распознай паспорт РФ на фото, даже при плохом качестве, шуме, перспективных искажениях и частичных засветах. " +
     NAME_CASE_INSTRUCTION +
+    DATE_FORMAT_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: surname, givenNames, middleName, birthDate, sex, nationality, " +
     "passportSeries, passportNumber, issueDate, authority, departmentCode, birthPlace, expiryDate.",
   foreign_passport:
     "Распознай иностранный паспорт на фото, включая кривую перспективу и шум. " +
     "Если в поле имени указаны имя и отчество вместе (например 'БИЛОЛ ТИМУРОВИЧ'), раздели их: в givenNames пиши только имя (Билол), в middleName — только отчество (Тимурович). " +
     NAME_CASE_INSTRUCTION +
+    DATE_FORMAT_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: surname, givenNames, middleName, birthDate, sex, nationality, " +
     "passportNumber, issueDate, authority, expiryDate, birthPlace.",
   patent:
     "Распознай патент на работу на фото (включая сложные условия съемки). " +
     "Если это оборотная сторона и виден номер бланка вида 2 буквы + 7 цифр, верни его в поле blankNumber и НЕ записывай его в patentNumber. " +
     NAME_CASE_INSTRUCTION +
+    DATE_FORMAT_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: patentNumber, issueDate, expiryDate, surname, givenNames, middleName, birthDate, nationality, blankNumber.",
   kig:
     "На фото лицевая сторона карты иностранного гражданина (КИГ). " +
@@ -41,14 +47,17 @@ const DEFAULT_PROMPTS = {
     "На ней есть ФИО, дата рождения, пол, гражданство, номер карты (77...) и срок действия. " +
     "Бери ФИО из кириллической области карты (НЕ из MRZ-строки внизу с латиницей). ФИО пиши строго на кириллице. " +
     NAME_CASE_INSTRUCTION +
+    DATE_FORMAT_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: surname, givenNames, middleName, birthDate, sex, nationality, kigNumber, expiryDate.",
   inn:
     "Распознай свидетельство ИНН на фото. " +
     NAME_CASE_INSTRUCTION +
+    DATE_FORMAT_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: inn, surname, givenNames, middleName, birthDate.",
   snils:
     "Распознай карточку СНИЛС на фото. " +
     NAME_CASE_INSTRUCTION +
+    DATE_FORMAT_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: snils, surname, givenNames, middleName, birthDate.",
   bank_details:
     "Распознай реквизиты банковского счета на фото документа. " +
@@ -57,10 +66,12 @@ const DEFAULT_PROMPTS = {
     "Верни строго JSON без markdown и пояснений. Поля: bankAccountNumber, bankName, bik, corrAccount, inn, surname, givenNames, middleName.",
   visa:
     "Распознай визу на фото. " +
+    DATE_FORMAT_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: visaNumber, issueDate, expiryDate, surname, givenNames, nationality, birthDate.",
   insurance_policy:
     "Распознай страховой полис на фото. " +
     "Найди номер полиса (обычно написано 'Серия' и 'Номер' или просто длинный номер в шапке документа) и дату начала действия полиса (поле 'с' в разделе 'Срок страхования'). " +
+    DATE_FORMAT_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: policyNumber, issueDate.",
 };
 

@@ -5,6 +5,7 @@ import EmployeeBasicInfoTab from "./EmployeeBasicInfoTab.jsx";
 import EmployeeDocumentsTab from "./EmployeeDocumentsTab.jsx";
 import EmployeeCounterpartyTab from "./EmployeeCounterpartyTab.jsx";
 import EmployeeFilesTab from "./EmployeeFilesTab.jsx";
+import EmployeeSkudTab from "./EmployeeSkudTab.jsx";
 
 const { Text } = Typography;
 
@@ -129,6 +130,12 @@ export const useEmployeeFormModalTabs = ({
           documentProfilesConfig={documentProfilesConfig}
         />
       ),
+    });
+
+    items.push({
+      key: "5",
+      label: "СКУД",
+      children: <EmployeeSkudTab employee={employee} />,
     });
 
     return items;

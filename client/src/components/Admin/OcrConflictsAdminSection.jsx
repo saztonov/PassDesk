@@ -31,7 +31,11 @@ const toResponseData = (response) => response?.data || response || {};
 
 const formatValue = (value) => {
   const normalized = String(value || "").trim();
-  return normalized || "—";
+  if (!normalized) return "—";
+  // YYYY-MM-DD → DD.MM.YYYY
+  const iso = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(T.*)?$/);
+  if (iso) return `${iso[3]}.${iso[2]}.${iso[1]}`;
+  return normalized;
 };
 
 const formatDateTime = (value) =>
@@ -364,11 +368,13 @@ const OcrConflictsAdminSection = () => {
         width: 280,
         render: (_, record) => (
           <Space wrap size={[6, 6]}>
-            {(record.sources || []).map((source) => (
-              <Tag key={`${record.id}-${source.fileId || source.documentType}`}>
-                {getDocumentLabel(source.documentType)}
-              </Tag>
-            ))}
+            {(record.sources || [])
+              .filter((source) => source.documentType !== "employee_card")
+              .map((source) => (
+                <Tag key={`${record.id}-${source.fileId || source.documentType}`}>
+                  {getDocumentLabel(source.documentType)}
+                </Tag>
+              ))}
           </Space>
         ),
       },

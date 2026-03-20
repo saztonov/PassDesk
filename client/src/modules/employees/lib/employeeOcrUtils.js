@@ -507,8 +507,8 @@ export const buildOcrApplyPlan = ({ currentValues = {}, ocrPatch = {} }) => {
       conflicts[fieldName] = {
         fieldName,
         fieldLabel: OCR_FIELD_LABELS[fieldName] || fieldName,
-        currentValue,
-        ocrValue,
+        currentValue: currentNormalized || String(currentValue ?? ""),
+        ocrValue: ocrNormalized || String(ocrValue ?? ""),
       };
     }
   });
