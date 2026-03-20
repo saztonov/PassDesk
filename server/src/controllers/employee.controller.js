@@ -27,6 +27,7 @@ import { AppError } from "../middleware/errorHandler.js";
 import EmployeeStatusService from "../services/employeeStatusService.js";
 import {
   isEmployeeCardComplete,
+  getMissingRequiredFields,
   DEFAULT_FORM_CONFIG,
 } from "../utils/employeeFieldsConfig.js";
 import {
@@ -412,6 +413,10 @@ const calculateStatusCard = (
   debug = false,
 ) => {
   const isComplete = isEmployeeCardComplete(employee, formConfig, debug);
+  if (!isComplete) {
+    const missing = getMissingRequiredFields(employee, formConfig);
+    console.log(`[statusCard] DRAFT employee=${employee.lastName} ${employee.firstName} missing=[${missing.join(', ')}]`);
+  }
   return isComplete ? "completed" : "draft";
 };
 
