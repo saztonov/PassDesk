@@ -375,7 +375,7 @@ const EmployeeSkudTab = ({ employee }) => {
 
             {/* Инлайн-форма замены карты */}
             {isReplacing && (
-              <Form form={replaceCardForm} layout="inline" style={{ marginTop: 4 }}>
+              <Form form={replaceCardForm} layout="inline" style={{ marginTop: 4 }} onSubmitCapture={(e) => e.preventDefault()}>
                 <Form.Item
                   name={`replaceCard_${card.id}`}
                   rules={[{ required: true, message: "Введите номер" }]}
@@ -488,7 +488,7 @@ const EmployeeSkudTab = ({ employee }) => {
         <Text strong style={{ display: "block", marginBottom: 6 }}>
           Выдать новый пропуск
         </Text>
-        <Form form={newCardForm} layout="inline" onFinish={handleAssign}>
+        <Form form={newCardForm} layout="inline" onFinish={handleAssign} onSubmitCapture={(e) => e.preventDefault()}>
           <Form.Item
             name="cardNumber"
             rules={[{ required: true, message: "Введите номер карты" }]}
@@ -513,9 +513,9 @@ const EmployeeSkudTab = ({ employee }) => {
           <Form.Item style={{ marginBottom: 0 }}>
             <Button
               type="primary"
-              htmlType="submit"
               loading={submitting}
               icon={<CreditCardOutlined />}
+              onClick={handleAssign}
             >
               Выдать
             </Button>
