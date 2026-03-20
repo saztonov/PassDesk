@@ -415,6 +415,7 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
 };
 
 export const syncEmployeeAccessPoints = async ({ employeeId, externalEmpId }) => {
+  const tag = `[SkudSync][accessPoints][emp=${employeeId}][ext=${externalEmpId}]`;
   const provider = getSkudProvider();
 
   // Получаем объекты сотрудника
@@ -427,7 +428,11 @@ export const syncEmployeeAccessPoints = async ({ employeeId, externalEmpId }) =>
     mappings.map((m) => m.constructionSiteId).filter(Boolean),
   )];
 
-  if (!siteIds.length) return [];
+  console.log(`${tag} siteIds=${JSON.stringify(siteIds)}`);
+  if (!siteIds.length) {
+    console.log(`${tag} no sites assigned, skip`);
+    return [];
+  }
 
   // Получаем точки доступа Sigur для этих объектов
   const apRows = await SkudSiteAccessPoint.findAll({
@@ -436,9 +441,15 @@ export const syncEmployeeAccessPoints = async ({ employeeId, externalEmpId }) =>
 
   const accessPointIds = [...new Set(apRows.map((r) => r.sigurAccessPointId))];
 
-  if (!accessPointIds.length) return [];
+  console.log(`${tag} accessPointIds=${JSON.stringify(accessPointIds)}`);
+  if (!accessPointIds.length) {
+    console.log(`${tag} no access points mapped for these sites, skip`);
+    return [];
+  }
 
-  return provider.assignAccessPointsToEmployee(externalEmpId, accessPointIds);
+  const result = await provider.assignAccessPointsToEmployee(externalEmpId, accessPointIds);
+  console.log(`${tag} assignAccessPoints OK`);
+  return result;
 };
 
 export const ensureEmployeeBindingInSkud = async ({

@@ -48,6 +48,7 @@ const createCardsJob = async ({ employeeId, operation, payload, userId }) => {
 };
 
 export const assignSkudCard = async ({ employeeId, cardNumber, cardType = "rfid", notes = "", userId = null }) => {
+  console.log(`[SkudCards][assignCard] employeeId=${employeeId} cardNumber=${cardNumber}`);
   await ensureEmployeeExists(employeeId);
 
   const normalized = normalizeCardNumber(cardNumber);
@@ -98,6 +99,7 @@ export const assignSkudCard = async ({ employeeId, cardNumber, cardType = "rfid"
     },
   });
 
+  console.log(`[SkudCards][assignCard] card saved id=${card.id} syncJob=${syncJob.id} status=pending`);
   return { card, syncJob };
 };
 
@@ -179,6 +181,9 @@ export const processSkudCardJobById = async (syncJobId) => {
   const syncJob = await SkudSyncJob.findByPk(syncJobId);
   if (!syncJob) return null;
 
+  const tag = `[SkudCards][job=${syncJobId}][op=${syncJob.operation}][emp=${syncJob.employeeId}]`;
+  console.log(`${tag} START attempt=${(syncJob.attempts || 0) + 1}`);
+
   await syncJob.update({
     status: "processing",
     attempts: (syncJob.attempts || 0) + 1,
@@ -194,6 +199,7 @@ export const processSkudCardJobById = async (syncJobId) => {
       if (!card?.employeeId) {
         throw new Error("Card or employee binding is missing");
       }
+      console.log(`${tag} card=${card.id} cardNumber=${card.cardNumber} → ensureEmployeeBindingInSkud`);
       const externalEmpId = await ensureEmployeeBindingInSkud({
         employeeId: card.employeeId,
         userId: syncJob.createdBy,
@@ -201,6 +207,7 @@ export const processSkudCardJobById = async (syncJobId) => {
           source: "assign_card",
         },
       });
+      console.log(`${tag} externalEmpId=${externalEmpId} → reset accessEndTime`);
 
       // Сбрасываем accessEndTime чтобы снять возможное ограничение периода
       // (блокировка в Sigur ставит accessEndTime = сегодня 00:00)
@@ -215,11 +222,13 @@ export const processSkudCardJobById = async (syncJobId) => {
               accessEndTime: null,
             }),
           });
+          console.log(`${tag} accessEndTime reset OK`);
         }
       } catch (periodError) {
-        console.error("[SkudCards] Failed to reset accessEndTime:", periodError?.message);
+        console.error(`${tag} Failed to reset accessEndTime:`, periodError?.message);
       }
 
+      console.log(`${tag} → assignCard in Sigur cardNumber=${card.cardNumber}`);
       const response = await provider.assignCard(
         externalEmpId,
         mapCardToSigur({
@@ -227,6 +236,7 @@ export const processSkudCardJobById = async (syncJobId) => {
           cardType: card.cardType,
         }),
       );
+      console.log(`${tag} assignCard OK externalCardId=${response?.id}`);
 
       await card.update({
         externalCardId: response?.id ? String(response.id) : card.externalCardId,
@@ -239,13 +249,15 @@ export const processSkudCardJobById = async (syncJobId) => {
       });
 
       // Назначаем точки доступа сотруднику на основе его объектов
+      console.log(`${tag} → syncEmployeeAccessPoints`);
       try {
-        await syncEmployeeAccessPoints({
+        const apResult = await syncEmployeeAccessPoints({
           employeeId: card.employeeId,
           externalEmpId,
         });
+        console.log(`${tag} syncEmployeeAccessPoints OK count=${Array.isArray(apResult) ? apResult.length : "?"}`);
       } catch (apError) {
-        console.error("[SkudCards] Failed to sync access points:", apError?.message);
+        console.error(`${tag} Failed to sync access points:`, apError?.message);
         // Не фейлим выдачу карты из-за ошибки назначения точек доступа
       }
 
@@ -257,14 +269,19 @@ export const processSkudCardJobById = async (syncJobId) => {
         updatedAt: new Date(),
       });
 
+      console.log(`${tag} DONE success`);
       return syncJob;
     }
 
     if (syncJob.operation === "unbind_card") {
+      console.log(`${tag} unbind cardNumber=${payload.cardNumber}`);
       if (payload.cardNumber && syncJob.employeeId) {
         const binding = await getEmployeeBinding(syncJob.employeeId);
         if (binding?.externalEmpId) {
           await provider.unassignCard(binding.externalEmpId, payload.cardNumber);
+          console.log(`${tag} unassignCard OK externalEmpId=${binding.externalEmpId}`);
+        } else {
+          console.log(`${tag} no active Sigur binding, skip unassign`);
         }
       }
 
@@ -276,14 +293,19 @@ export const processSkudCardJobById = async (syncJobId) => {
         updatedAt: new Date(),
       });
 
+      console.log(`${tag} DONE success`);
       return syncJob;
     }
 
     if (syncJob.operation === "block_card") {
+      console.log(`${tag} block cardNumber=${payload.cardNumber}`);
       if (payload.cardNumber && syncJob.employeeId) {
         const binding = await getEmployeeBinding(syncJob.employeeId);
         if (binding?.externalEmpId) {
           await provider.unassignCard(binding.externalEmpId, payload.cardNumber);
+          console.log(`${tag} unassignCard(block) OK externalEmpId=${binding.externalEmpId}`);
+        } else {
+          console.log(`${tag} no active Sigur binding, skip block`);
         }
       }
 
@@ -295,11 +317,13 @@ export const processSkudCardJobById = async (syncJobId) => {
         updatedAt: new Date(),
       });
 
+      console.log(`${tag} DONE success`);
       return syncJob;
     }
 
     throw new Error(`Unsupported cards operation: ${syncJob.operation}`);
   } catch (error) {
+    console.error(`${tag} FAILED:`, error?.message);
     await syncJob.update({
       status: "failed",
       errorMessage: String(error?.message || error),
