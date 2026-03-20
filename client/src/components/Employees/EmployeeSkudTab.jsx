@@ -594,6 +594,8 @@ const EmployeeSkudTab = ({ employee }) => {
               placeholder="Не ограничен"
               allowClear
             />
+            <Button
+              icon={<SaveOutlined />}
               loading={savingAccessEnd}
               onClick={handleSaveAccessEnd}
             />
