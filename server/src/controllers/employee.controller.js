@@ -1875,6 +1875,21 @@ export const updateEmployee = async (req, res, next) => {
         formConfig,
       );
 
+      // Синхронизируем статусы в БД даже если данные не менялись
+      // (например, карточка могла стать completed, но статус в БД остался draft)
+      try {
+        const statusMap = await getImportStatuses();
+        await updateEmployeeStatusesByCompleteness(
+          employeeDataWithoutChanges,
+          formConfig,
+          statusMap,
+          req.user.id,
+          { forceDraft: false },
+        );
+      } catch (statusErr) {
+        console.warn("[updateEmployee] Failed to sync statuses on no-change save:", statusErr?.message);
+      }
+
       return res.json({
         success: true,
         message: "Изменений не обнаружено",
