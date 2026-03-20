@@ -226,14 +226,14 @@ router.post(
 );
 router.post(
   "/cards/block",
-  authorize("admin"),
+  authorize("admin", "manager"),
   body("cardId").isUUID(),
   validate,
   skudController.blockCard,
 );
 router.post(
   "/cards/unbind",
-  authorize("admin"),
+  authorize("admin", "manager"),
   body("cardId").isUUID(),
   validate,
   skudController.unbindCard,

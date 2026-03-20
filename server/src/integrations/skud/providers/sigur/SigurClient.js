@@ -306,6 +306,8 @@ export class SigurClient {
       throw new Error("externalEmpId is required to assign card in Sigur");
     }
 
+    console.log(`[Sigur][assignCard] empId=${employeeId} payload=${JSON.stringify(cardPayload)}`);
+
     let card;
     try {
       card = await this.request({
@@ -313,9 +315,11 @@ export class SigurClient {
         url: "/api/v1/cards",
         data: cardPayload,
       });
+      console.log(`[Sigur][assignCard] card created id=${card?.id} value=${card?.value} format=${card?.format}`);
     } catch (createError) {
       // 422 = карта с таким номером уже существует в Sigur — ищем её
       if (createError?.response?.status === 422) {
+        console.log(`[Sigur][assignCard] 422 on create, searching by value="${cardPayload.value}" err=${JSON.stringify(createError?.response?.data)}`);
         const cardValue = cardPayload.value || cardPayload.name;
         const existing = await this.request({
           method: "GET",
@@ -323,6 +327,7 @@ export class SigurClient {
           params: { value: cardValue, limit: 1 },
         });
         const found = Array.isArray(existing) ? existing[0] : null;
+        console.log(`[Sigur][assignCard] found existing card=${JSON.stringify(found)}`);
         if (!found?.id) {
           throw new Error(`Card already exists in Sigur but could not be found by value="${cardValue}"`);
         }
@@ -349,11 +354,41 @@ export class SigurClient {
     return card;
   }
 
+  async getEmployeeAccessPointBindings(externalEmpId) {
+    const id = toNumber(externalEmpId);
+    if (!id) return [];
+    const result = await this.request({
+      method: "GET",
+      url: "/api/v1/bindings/employees-accesspoints",
+      params: { employeeId: id, limit: 500 },
+    });
+    return Array.isArray(result) ? result : (result?.items || result?.data || []);
+  }
+
+  async clearEmployeeAccessPoints(externalEmpId) {
+    const id = toNumber(externalEmpId);
+    if (!id) return;
+    const bindings = await this.getEmployeeAccessPointBindings(id);
+    for (const binding of bindings) {
+      const bindingId = toNumber(binding?.id);
+      if (!bindingId) continue;
+      try {
+        await this.request({
+          method: "DELETE",
+          url: `/api/v1/bindings/employees-accesspoints/${bindingId}`,
+        });
+      } catch (_e) { /* игнорируем ошибки удаления отдельных биндингов */ }
+    }
+  }
+
   async assignAccessPointsToEmployee(externalEmpId, accessPointIds = []) {
     const id = toNumber(externalEmpId);
     if (!id) {
       throw new Error("externalEmpId is required to assign access points in Sigur");
     }
+
+    // Сначала очищаем существующие биндинги (включая дефолтное "Все")
+    await this.clearEmployeeAccessPoints(id);
 
     const results = [];
     for (const apId of accessPointIds) {

@@ -46,5 +46,5 @@ export const mapEmployeeToSigur = ({
 export const mapCardToSigur = ({ cardNumber, cardType = "rfid" }) => ({
   name: trim(cardNumber),
   value: trim(cardNumber),
-  format: cardType === "rfid" ? "W58DEC" : "W58DEC",
+  format: "UID",
 });
