@@ -59,7 +59,7 @@ const EmployeeSkudTab = ({ employee }) => {
     const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
       ? employee.employeeCounterpartyMappings
       : [];
-    const ids = [...new Set(mappings.map((m) => m.constructionSiteId).filter(Boolean))];
+    const ids = [...new Set(mappings.map((m) => Number(m.constructionSiteId)).filter(Boolean))];
     setSelectedSiteIds(ids);
     setOriginalSiteIds(ids);
   }, [employee]);
@@ -346,12 +346,12 @@ const EmployeeSkudTab = ({ employee }) => {
               {allSites.map((site) => (
                 <Checkbox
                   key={site.id}
-                  checked={selectedSiteIds.includes(site.id)}
+                  checked={selectedSiteIds.includes(Number(site.id))}
                   onChange={(e) =>
                     setSelectedSiteIds((prev) =>
                       e.target.checked
-                        ? [...prev, site.id]
-                        : prev.filter((id) => id !== site.id),
+                        ? [...prev, Number(site.id)]
+                        : prev.filter((id) => id !== Number(site.id)),
                     )
                   }
                 >
