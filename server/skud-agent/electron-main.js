@@ -66,6 +66,9 @@ function parseUid(bytes) {
   const start = payload.findIndex((b) => b !== 0);
   if (start === -1) return null;
 
+  const w26Bytes = payload.slice(start, start + 3);
+  while (w26Bytes.length < 3) w26Bytes.push(0);
+
   const uid = payload.slice(start, start + 4);
   while (uid.length < 4) uid.push(0);
 
@@ -73,8 +76,9 @@ function parseUid(bytes) {
   const decBe = String(((uid[0] << 24) | (uid[1] << 16) | (uid[2] << 8) | uid[3]) >>> 0);
   const decLe = String((uid[0] | (uid[1] << 8) | (uid[2] << 16) | (uid[3] << 24)) >>> 0);
   const sigurCard = bytes.map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase().padEnd(16, '0');
+  const w26 = `${w26Bytes[0]},${(w26Bytes[1] << 8) | w26Bytes[2]}`;
 
-  return { rawHex, hexUid, decBe, decLe, sigurCard };
+  return { rawHex, hexUid, decBe, decLe, sigurCard, w26 };
 }
 
 function connectDevice() {

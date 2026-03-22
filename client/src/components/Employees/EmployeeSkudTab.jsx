@@ -44,6 +44,16 @@ const CARD_STATUS_LABEL = {
   unbound: { text: "Не привязана", color: "default" },
 };
 
+const READER_UID_FORMAT_OPTIONS = [
+  { value: "w26", label: "W26" },
+  { value: "sigurCard", label: "Sigur" },
+  { value: "decBe", label: "Decimal (BE)" },
+  { value: "decLe", label: "Decimal (LE)" },
+  { value: "hexUid", label: "HEX" },
+];
+
+const READER_UID_FORMAT_STORAGE_KEY = "employee_skud_reader_uid_format";
+
 const EmployeeSkudTab = ({ employee }) => {
   const { message, modal } = App.useApp();
   const [newCardForm] = Form.useForm();
@@ -59,6 +69,12 @@ const EmployeeSkudTab = ({ employee }) => {
   // считыватель карт
   const [readerArmed, setReaderArmed] = useState(false);
   const [readerConnected, setReaderConnected] = useState(false);
+  const [readerUidFormat, setReaderUidFormat] = useState(() => {
+    if (typeof window === "undefined") {
+      return "w26";
+    }
+    return window.localStorage.getItem(READER_UID_FORMAT_STORAGE_KEY) || "w26";
+  });
   const wsRef = useRef(null);
 
   // sync jobs
@@ -183,6 +199,13 @@ const EmployeeSkudTab = ({ employee }) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(READER_UID_FORMAT_STORAGE_KEY, readerUidFormat);
+  }, [readerUidFormat]);
+
   const handleDisarmReader = useCallback(() => {
     setReaderArmed(false);
     setReaderConnected(false);
@@ -209,13 +232,13 @@ const EmployeeSkudTab = ({ employee }) => {
         try {
           const data = JSON.parse(event.data);
           if (data.type !== "card") return;
-          const uid = data.sigurCard || data.hexUid;
+          const uid = data[readerUidFormat] || data.hexUid;
           if (!uid) return;
           newCardForm.setFieldValue("cardNumber", uid);
         } catch (_e) { /* игнорируем */ }
       };
     } catch (_e) { /* браузер не поддерживает WS */ }
-  }, [readerArmed, handleDisarmReader, message, newCardForm]);
+  }, [readerArmed, handleDisarmReader, message, newCardForm, readerUidFormat]);
 
   const sitesChanged =
     selectedSiteIds.length !== originalSiteIds.length ||
@@ -743,6 +766,15 @@ const EmployeeSkudTab = ({ employee }) => {
               prefix={<CreditCardOutlined />}
               placeholder="Приложите карту к считывателю или введите вручную"
               allowClear
+            />
+          </Form.Item>
+          <Form.Item style={{ marginBottom: 0 }}>
+            <Select
+              value={readerUidFormat}
+              onChange={setReaderUidFormat}
+              options={READER_UID_FORMAT_OPTIONS}
+              style={{ width: 150 }}
+              title="Формат данных от считывателя"
             />
           </Form.Item>
           <Form.Item style={{ marginBottom: 0 }}>

@@ -52,6 +52,8 @@ const getUniqueSortedIds = (values = []) => [...new Set(
   values.map((value) => toNumber(value)).filter(Boolean),
 )].sort((left, right) => left - right);
 
+const normalizeComparableText = (value) => String(value || "").trim().toUpperCase();
+
 export class SigurClient {
   constructor({
     baseUrl,
@@ -435,9 +437,15 @@ export class SigurClient {
         const existing = await this.request({
           method: "GET",
           url: "/api/v1/cards",
-          params: { value: cardValue, limit: 1 },
+          params: { value: cardValue, limit: 100 },
         });
-        const found = Array.isArray(existing) ? existing[0] : null;
+        const existingCards = Array.isArray(existing) ? existing : [];
+        const requestedValue = normalizeComparableText(cardValue);
+        const requestedFormat = normalizeComparableText(cardPayload?.format);
+        const found = existingCards.find((item) => (
+          normalizeComparableText(item?.value || item?.name) === requestedValue
+          && (!requestedFormat || normalizeComparableText(item?.format) === requestedFormat)
+        )) || existingCards[0] || null;
         console.log(`[Sigur][assignCard] found existing card=${JSON.stringify(found)}`);
         if (!found?.id) {
           throw new Error(`Card already exists in Sigur but could not be found by value="${cardValue}"`);

@@ -1,4 +1,5 @@
 const trim = (value) => String(value || "").trim();
+const W26_CARD_RE = /^\d+\s*,\s*\d+$/;
 
 const buildFullName = (employee) =>
   [trim(employee?.lastName), trim(employee?.firstName), trim(employee?.middleName)]
@@ -51,8 +52,13 @@ export const mapEmployeeToSigur = ({
   };
 };
 
-export const mapCardToSigur = ({ cardNumber, cardType = "rfid" }) => ({
-  name: trim(cardNumber),
-  value: trim(cardNumber),
-  format: "UID",
-});
+export const mapCardToSigur = ({ cardNumber, cardType = "rfid" }) => {
+  const normalizedCardNumber = trim(cardNumber).replace(/\s+/g, "");
+  const format = W26_CARD_RE.test(normalizedCardNumber) ? "W26" : "UID";
+
+  return {
+    name: normalizedCardNumber,
+    value: normalizedCardNumber,
+    format,
+  };
+};

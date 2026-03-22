@@ -61,6 +61,9 @@ function parseUid(bytes) {
   if (start === -1) return null;
 
   // Берём 4 значимых байта — стандартный размер UID EM-Marine / Wiegand
+  const w26Bytes = payload.slice(start, start + 3);
+  while (w26Bytes.length < 3) w26Bytes.push(0);
+
   const uid = payload.slice(start, start + 4);
   while (uid.length < 4) uid.push(0);
 
@@ -74,8 +77,9 @@ function parseUid(bytes) {
 
   // Формат Sigur: raw HID байты в hex, дополненные нулями до 16 символов (8 байт)
   const sigurCard = bytes.map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase().padEnd(16, '0');
+  const w26 = `${w26Bytes[0]},${(w26Bytes[1] << 8) | w26Bytes[2]}`;
 
-  return { rawHex, hexUid, decBe, decLe, sigurCard };
+  return { rawHex, hexUid, decBe, decLe, sigurCard, w26 };
 }
 
 // Подключение к устройству с автоповтором при отключении
@@ -104,7 +108,8 @@ function connectDevice() {
 
       lastCardTime = now;
       console.log(`🃏 Карта считана:`);
-      console.log(`   Sigur  : ${uid.sigurCard}  ← используется в PassDesk`);
+      console.log(`   W26    : ${uid.w26}  ← используется в PassDesk`);
+      console.log(`   Sigur  : ${uid.sigurCard}`);
       console.log(`   HEX    : ${uid.hexUid}`);
       console.log(`   DEC_BE : ${uid.decBe}`);
       console.log(`   DEC_LE : ${uid.decLe}`);

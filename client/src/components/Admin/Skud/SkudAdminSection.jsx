@@ -287,7 +287,7 @@ const SkudAdminSection = () => {
   const wsRef = useRef(null);
   const handleAssignCardRef = useRef(null);
   const [wsConnected, setWsConnected] = useState(false);
-  const [uidFormat, setUidFormat] = useState("sigurCard");
+  const [uidFormat, setUidFormat] = useState("w26");
   const [state, setState] = useState({
     health: null,
     stats: null,
@@ -2665,7 +2665,8 @@ const SkudAdminSection = () => {
                         onChange={setUidFormat}
                         title="Формат UID карты"
                         options={[
-                          { value: "sigurCard", label: "Sigur (рекомендован)" },
+                          { value: "w26", label: "W26 (рекомендован)" },
+                          { value: "sigurCard", label: "Sigur" },
                           { value: "decBe", label: "Decimal (BE)" },
                           { value: "decLe", label: "Decimal (LE)" },
                           { value: "hexUid", label: "HEX" },

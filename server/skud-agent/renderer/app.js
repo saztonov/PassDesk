@@ -3,6 +3,7 @@
 const statusBlock = document.getElementById('statusBlock');
 const statusText  = document.getElementById('statusText');
 const cardUid     = document.getElementById('cardUid');
+const cardSigur   = document.getElementById('cardSigur');
 const cardHex     = document.getElementById('cardHex');
 const cardDec     = document.getElementById('cardDec');
 const cardRaw     = document.getElementById('cardRaw');
@@ -30,11 +31,12 @@ function showCard(data) {
   if (empty) empty.remove();
 
   // Обновляем большую карточку
-  cardUid.textContent = data.sigurCard;
+  cardUid.textContent = data.w26 || data.sigurCard;
   cardUid.classList.remove('flash');
   void cardUid.offsetWidth; // reflow для перезапуска анимации
   cardUid.classList.add('flash');
 
+  cardSigur.textContent = data.sigurCard;
   cardHex.textContent = data.hexUid;
   cardDec.textContent = data.decBe;
   cardRaw.textContent = data.rawHex;
@@ -44,7 +46,7 @@ function showCard(data) {
   item.className = 'log-item';
   item.innerHTML = `
     <span class="log-time">${timeNow()}</span>
-    <span class="log-uid">${data.sigurCard}</span>
+    <span class="log-uid">${data.w26 || data.sigurCard}</span>
   `;
   logList.insertBefore(item, logList.firstChild);
 
