@@ -452,11 +452,11 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
     });
   })();
 
-  // accessEndTime: из payload (если передан вручную), иначе из метаданных биндинга
+  // Ограничение срока доступа сотрудника в Sigur задаём только явно.
   const resolvedAccessEndTime =
     payload.accessEndTime !== undefined
       ? payload.accessEndTime
-      : (existingBinding?.metadata?.accessEndTime || null);
+      : null;
 
   const resolvedPositionName = String(employee?.position?.name || "").trim() || null;
   const resolvedPositionId = resolvedPositionName

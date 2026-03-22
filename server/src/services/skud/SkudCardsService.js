@@ -15,6 +15,16 @@ const normalizeCardNumber = (value) =>
     .toUpperCase()
     .replace(/\s+/g, "");
 
+const formatSigurDateTime = (value) => {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const pad = (part) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
 const normalizeComparableText = (value) =>
   String(value || "")
     .trim()
@@ -402,43 +412,37 @@ export const processSkudCardJobById = async (syncJobId) => {
         },
         forceSync: true,
       });
-      console.log(`${tag} externalEmpId=${externalEmpId} → reset accessEndTime`);
-
-      // Сбрасываем accessEndTime чтобы снять возможное ограничение периода
-      // (блокировка в Sigur ставит accessEndTime = сегодня 00:00)
-      try {
-        const employee = await Employee.findByPk(effectiveEmployeeId);
-        if (employee) {
-          await provider.createOrUpdateEmployee({
-            externalEmpId,
-            employeePayload: mapEmployeeToSigur({
-              employee,
-              externalEmpId,
-              accessEndTime: null,
-            }),
-          });
-          console.log(`${tag} accessEndTime reset OK`);
-        }
-      } catch (periodError) {
-        console.error(`${tag} Failed to reset accessEndTime:`, periodError?.message);
-      }
+      const binding = await getEmployeeBinding(effectiveEmployeeId);
+      const bindingExpirationDate = formatSigurDateTime(
+        binding?.metadata?.cardExpirationDate || null,
+      );
+      const bindingStartDate = bindingExpirationDate
+        ? formatSigurDateTime(new Date(new Date().setHours(0, 0, 0, 0)))
+        : null;
 
       console.log(`${tag} → assignCard in Sigur cardNumber=${card.cardNumber}`);
       const response = await provider.assignCard(
         externalEmpId,
-        mapCardToSigur({
+        {
+          ...mapCardToSigur({
           cardNumber: card.cardNumber,
           cardType: card.cardType,
-        }),
+          }),
+          bindingStartDate,
+          bindingExpirationDate,
+        },
       );
       console.log(`${tag} assignCard OK externalCardId=${response?.id}`);
 
       await card.update({
         externalCardId: response?.id ? String(response.id) : card.externalCardId,
         status: "active",
+        issuedAt: bindingStartDate ? new Date(bindingStartDate.replace(" ", "T")) : card.issuedAt,
         metadata: {
           ...(card.metadata || {}),
           lastProviderResponse: response,
+          bindingStartDate,
+          bindingExpirationDate,
         },
         updatedAt: new Date(),
       });

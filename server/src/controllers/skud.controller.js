@@ -2264,7 +2264,7 @@ export const skudController = {
       }
       await checkEmployeeAccess(req.user, employee, "write");
 
-      const { accessEndTime, sigurDepartmentId } = req.body;
+      const { accessEndTime, cardExpirationDate, sigurDepartmentId } = req.body;
 
       let binding = await getEmployeeBinding({ employeeId });
       if (!binding) {
@@ -2283,6 +2283,7 @@ export const skudController = {
 
       const patch = {};
       if (accessEndTime !== undefined) patch.accessEndTime = accessEndTime || null;
+      if (cardExpirationDate !== undefined) patch.cardExpirationDate = cardExpirationDate || null;
       if (sigurDepartmentId !== undefined) patch.sigurDepartmentId = sigurDepartmentId || null;
 
       await binding.update({

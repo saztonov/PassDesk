@@ -465,6 +465,8 @@ export class SigurClient {
       employeeId,
       cardId,
       format: card?.format || cardPayload?.format,
+      startDate: cardPayload?.bindingStartDate,
+      expirationDate: cardPayload?.bindingExpirationDate,
     });
 
     try {

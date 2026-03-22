@@ -92,9 +92,9 @@ const EmployeeSkudTab = ({ employee }) => {
   const [selectedInternalDeptId, setSelectedInternalDeptId] = useState(null);
   const [savingInternalDept, setSavingInternalDept] = useState(false);
 
-  // срок действия
-  const [accessEndTime, setAccessEndTime] = useState(null);
-  const [savingAccessEnd, setSavingAccessEnd] = useState(false);
+  // срок действия карты
+  const [cardExpirationDate, setCardExpirationDate] = useState(null);
+  const [savingCardExpirationDate, setSavingCardExpirationDate] = useState(false);
 
   // объекты
   const [allSites, setAllSites] = useState([]);
@@ -183,8 +183,11 @@ const EmployeeSkudTab = ({ employee }) => {
       const storedId = bindingResult?.metadata?.sigurDepartmentId || null;
       setSelectedDeptId(storedId ? Number(storedId) : null);
 
-      const storedEnd = bindingResult?.metadata?.accessEndTime || null;
-      setAccessEndTime(storedEnd ? dayjs(storedEnd) : null);
+      const storedCardExpirationDate =
+        bindingResult?.metadata?.cardExpirationDate
+        || bindingResult?.metadata?.accessEndTime
+        || null;
+      setCardExpirationDate(storedCardExpirationDate ? dayjs(storedCardExpirationDate) : null);
 
       const deptList = internalDeptsResult?.data?.data || internalDeptsResult?.data || [];
       setInternalDepts(Array.isArray(deptList) ? deptList : []);
@@ -281,17 +284,17 @@ const EmployeeSkudTab = ({ employee }) => {
     }
   };
 
-  const handleSaveAccessEnd = async () => {
-    setSavingAccessEnd(true);
+  const handleSaveCardExpirationDate = async () => {
+    setSavingCardExpirationDate(true);
     try {
       await skudService.updateBindingMeta(employeeId, {
-        accessEndTime: accessEndTime ? accessEndTime.toISOString() : null,
+        cardExpirationDate: cardExpirationDate ? cardExpirationDate.format("YYYY-MM-DD 00:00:00") : null,
       });
-      message.success("Срок действия сохранён");
+      message.success("Срок действия карты сохранён");
     } catch (err) {
-      message.error(err?.response?.data?.message || "Не удалось сохранить срок действия");
+      message.error(err?.response?.data?.message || "Не удалось сохранить срок действия карты");
     } finally {
-      setSavingAccessEnd(false);
+      setSavingCardExpirationDate(false);
     }
   };
 
@@ -313,7 +316,7 @@ const EmployeeSkudTab = ({ employee }) => {
       }
       await skudService.updateBindingMeta(employeeId, {
         sigurDepartmentId: selectedDeptId || null,
-        accessEndTime: accessEndTime ? accessEndTime.toISOString() : null,
+        cardExpirationDate: cardExpirationDate ? cardExpirationDate.format("YYYY-MM-DD 00:00:00") : null,
       });
       await skudService.assignCard({ employeeId, cardNumber });
       message.success("Пропуск выдан");
@@ -685,19 +688,19 @@ const EmployeeSkudTab = ({ employee }) => {
         </div>
 
         <div>
-          <Text strong style={{ display: "block", marginBottom: 4 }}>Действителен до</Text>
+          <Text strong style={{ display: "block", marginBottom: 4 }}>Срок действия карты</Text>
           <Space.Compact>
             <DatePicker
-              value={accessEndTime}
-              onChange={setAccessEndTime}
+              value={cardExpirationDate}
+              onChange={setCardExpirationDate}
               format="DD.MM.YYYY"
               placeholder="Не ограничен"
               allowClear
             />
             <Button
               icon={<SaveOutlined />}
-              loading={savingAccessEnd}
-              onClick={handleSaveAccessEnd}
+              loading={savingCardExpirationDate}
+              onClick={handleSaveCardExpirationDate}
             />
           </Space.Compact>
         </div>
