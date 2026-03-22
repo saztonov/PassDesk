@@ -48,6 +48,10 @@ const buildEmployeeAccessPointBindingPayload = ({ employeeId, accessPointIds = [
   }];
 };
 
+const getUniqueSortedIds = (values = []) => [...new Set(
+  values.map((value) => toNumber(value)).filter(Boolean),
+)].sort((left, right) => left - right);
+
 export class SigurClient {
   constructor({
     baseUrl,
@@ -57,6 +61,7 @@ export class SigurClient {
     insecureTls = false,
   }) {
     this.baseUrl = String(baseUrl || "").replace(/\/+$/, "");
+    this.timeoutMs = timeoutMs;
     this.httpsAgent = insecureTls
       ? new https.Agent({ rejectUnauthorized: false })
       : undefined;
@@ -149,6 +154,28 @@ export class SigurClient {
     });
   }
 
+  async getPositions({ limit = 100, offset = 0, filters = {} } = {}) {
+    return this.request({
+      method: "GET",
+      url: "/api/v1/positions",
+      params: {
+        limit,
+        offset,
+        ...filters,
+      },
+    });
+  }
+
+  async createPosition({ name }) {
+    return this.request({
+      method: "POST",
+      url: "/api/v1/positions",
+      data: {
+        name: String(name || "").trim(),
+      },
+    });
+  }
+
   async getAccessPoints({ limit = 100, offset = 0, filters = {} } = {}) {
     return this.request({
       method: "GET",
@@ -178,6 +205,49 @@ export class SigurClient {
       method: "GET",
       url: "/api/v1/accesspoints/hierarchy",
     });
+  }
+
+  async getCards({ limit = 50, offset = 0, filters = {} } = {}) {
+    return this.request({
+      method: "GET",
+      url: "/api/v1/cards",
+      params: {
+        limit,
+        offset,
+        ...filters,
+      },
+    });
+  }
+
+  async getCardById(cardId) {
+    const id = toNumber(cardId);
+    if (!id) {
+      throw new Error("cardId is required to fetch card in Sigur");
+    }
+
+    return this.request({
+      method: "GET",
+      url: `/api/v1/cards/${id}`,
+    });
+  }
+
+  async getEmployeeCardBindings(externalEmpId, { limit = 100, offset = 0 } = {}) {
+    const employeeId = toNumber(externalEmpId);
+    if (!employeeId) {
+      return [];
+    }
+
+    const result = await this.request({
+      method: "GET",
+      url: "/api/v1/bindings/employees-cards",
+      params: {
+        employeeId,
+        limit,
+        offset,
+      },
+    });
+
+    return Array.isArray(result) ? result : (result?.items || result?.data || []);
   }
 
   async createDepartment({ name, parentId = 0, description = "" }) {
@@ -463,6 +533,7 @@ export class SigurClient {
       method: "GET",
       url: "/api/v1/bindings/employees-accesspoints",
       params: { employeeId: id, limit: 500 },
+      timeout: Math.max(this.timeoutMs, 60000),
     });
     return Array.isArray(result) ? result : (result?.items || result?.data || []);
   }
@@ -471,24 +542,34 @@ export class SigurClient {
     const id = toNumber(externalEmpId);
     if (!id) return;
     const bindings = await this.getEmployeeAccessPointBindings(id);
-    const accessPointIds = [...new Set(
-      bindings.map((binding) => toNumber(binding?.accessPointId)).filter(Boolean),
-    )];
+    const accessPointIds = getUniqueSortedIds(
+      bindings.map((binding) => binding?.accessPointId),
+    );
+    if (!accessPointIds.length) {
+      return [];
+    }
+    await this.deleteEmployeeAccessPoints(id, accessPointIds);
+    return accessPointIds;
+  }
+
+  async deleteEmployeeAccessPoints(externalEmpId, accessPointIds = []) {
+    const id = toNumber(externalEmpId);
+    const normalizedAccessPointIds = getUniqueSortedIds(accessPointIds);
     const deletePayload = buildEmployeeAccessPointBindingPayload({
       employeeId: id,
-      accessPointIds,
+      accessPointIds: normalizedAccessPointIds,
     });
     if (!deletePayload.length) {
-      return;
+      return [];
     }
 
-    try {
-      await this.request({
-        method: "POST",
-        url: "/api/v1/bindings/employees-accesspoints/delete",
-        data: deletePayload,
-      });
-    } catch (_e) { /* игнорируем ошибки очистки биндингов */ }
+    await this.request({
+      method: "POST",
+      url: "/api/v1/bindings/employees-accesspoints/delete",
+      data: deletePayload,
+      timeout: Math.max(this.timeoutMs, 60000),
+    });
+    return normalizedAccessPointIds;
   }
 
   async assignAccessPointsToEmployee(externalEmpId, accessPointIds = []) {
@@ -497,21 +578,39 @@ export class SigurClient {
       throw new Error("externalEmpId is required to assign access points in Sigur");
     }
 
-    // Сначала очищаем существующие биндинги (включая дефолтное "Все")
-    await this.clearEmployeeAccessPoints(id);
+    const desiredAccessPointIds = getUniqueSortedIds(accessPointIds);
+    const currentBindings = await this.getEmployeeAccessPointBindings(id);
+    const currentAccessPointIds = getUniqueSortedIds(
+      currentBindings.map((binding) => binding?.accessPointId),
+    );
+
+    const accessPointIdsToDelete = currentAccessPointIds.filter(
+      (accessPointId) => !desiredAccessPointIds.includes(accessPointId),
+    );
+    const accessPointIdsToAssign = desiredAccessPointIds.filter(
+      (accessPointId) => !currentAccessPointIds.includes(accessPointId),
+    );
+
+    if (accessPointIdsToDelete.length) {
+      await this.deleteEmployeeAccessPoints(id, accessPointIdsToDelete);
+    }
+
+    if (!accessPointIdsToAssign.length) {
+      return desiredAccessPointIds.map((accessPointId) => ({
+        employeeId: id,
+        accessPointId,
+      }));
+    }
 
     const bindingPayload = buildEmployeeAccessPointBindingPayload({
       employeeId: id,
-      accessPointIds,
+      accessPointIds: accessPointIdsToAssign,
     });
-    if (!bindingPayload.length) {
-      return [];
-    }
-
     const result = await this.request({
       method: "POST",
       url: "/api/v1/bindings/employees-accesspoints",
       data: bindingPayload,
+      timeout: Math.max(this.timeoutMs, 60000),
     });
     return Array.isArray(result) ? result : [];
   }
@@ -536,6 +635,29 @@ export class SigurClient {
     if (!cardId) {
       return null;
     }
+
+    return this.request({
+      method: "POST",
+      url: "/api/v1/bindings/employees-cards/delete",
+      data: buildEmployeeCardBindingPayload({
+        employeeId,
+        cardId,
+        format: card?.format,
+      }),
+    });
+  }
+
+  async unassignCardByExternalCardId(externalEmpId, externalCardId) {
+    const employeeId = toNumber(externalEmpId);
+    const cardId = toNumber(externalCardId);
+    if (!employeeId) {
+      throw new Error("externalEmpId is required to unassign card in Sigur");
+    }
+    if (!cardId) {
+      throw new Error("externalCardId is required to unassign card in Sigur");
+    }
+
+    const card = await this.getCardById(cardId);
 
     return this.request({
       method: "POST",

@@ -247,6 +247,28 @@ router.post(
   validate,
   skudController.unbindCard,
 );
+router.post(
+  "/cards/live/unbind",
+  authorize("admin", "manager"),
+  body("employeeId").isUUID(),
+  body("externalCardId").isString().trim().notEmpty(),
+  validate,
+  skudController.unbindLiveCard,
+);
+router.post(
+  "/cards/live/block-employee",
+  authorize("admin", "manager"),
+  body("employeeId").isUUID(),
+  validate,
+  skudController.blockLiveEmployee,
+);
+router.post(
+  "/cards/live/unblock-employee",
+  authorize("admin", "manager"),
+  body("employeeId").isUUID(),
+  validate,
+  skudController.unblockLiveEmployee,
+);
 
 router.post(
   "/qr/issue",

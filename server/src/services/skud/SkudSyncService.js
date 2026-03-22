@@ -214,6 +214,13 @@ const getEmployeeDepartmentName = (employee) => {
   );
 };
 
+const normalizeComparableName = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/\s+/g, " ");
+
 const normalizeSigurPathSegments = (input) => {
   if (Array.isArray(input)) {
     return input
@@ -308,6 +315,27 @@ const getAllSigurDepartments = async (provider) => {
   return items;
 };
 
+const getAllSigurPositions = async (provider) => {
+  const limit = 500;
+  const items = [];
+  let offset = 0;
+
+  while (true) {
+    const response = await provider.getPositions({ limit, offset });
+    const page = getProviderItems(response);
+    if (!page.length) {
+      break;
+    }
+    items.push(...page);
+    if (page.length < limit) {
+      break;
+    }
+    offset += page.length;
+  }
+
+  return items;
+};
+
 const resolveSigurDepartmentId = async ({ provider, pathSegments = [], description = "" }) => {
   const segments = normalizeSigurPathSegments(pathSegments);
   if (!segments.length) {
@@ -368,6 +396,39 @@ const resolveSigurDepartmentId = async ({ provider, pathSegments = [], descripti
   return resolvedId;
 };
 
+const resolveSigurPositionId = async ({ provider, positionName }) => {
+  const normalizedName = normalizeComparableName(positionName);
+  if (!normalizedName) {
+    return null;
+  }
+
+  let positions = await getAllSigurPositions(provider);
+  const existing = positions.find(
+    (item) => normalizeComparableName(item?.name) === normalizedName,
+  );
+  if (existing?.id !== undefined && existing?.id !== null) {
+    return Number.parseInt(String(existing.id), 10) || null;
+  }
+
+  try {
+    const created = await provider.createPosition({ name: positionName });
+    const createdId = created?.id ?? created?.positionId ?? created?.data?.id ?? null;
+    if (createdId !== undefined && createdId !== null) {
+      return Number.parseInt(String(createdId), 10) || null;
+    }
+  } catch (_error) {
+    // Повторно читаем справочник, если должность успели создать параллельно.
+  }
+
+  positions = await getAllSigurPositions(provider);
+  const duplicate = positions.find(
+    (item) => normalizeComparableName(item?.name) === normalizedName,
+  );
+  return duplicate?.id !== undefined && duplicate?.id !== null
+    ? Number.parseInt(String(duplicate.id), 10) || null
+    : null;
+};
+
 const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
   const provider = getSkudProvider();
   const allBindings = Array.isArray(employee?.skudBindings) ? employee.skudBindings : [];
@@ -397,11 +458,21 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
       ? payload.accessEndTime
       : (existingBinding?.metadata?.accessEndTime || null);
 
+  const resolvedPositionName = String(employee?.position?.name || "").trim() || null;
+  const resolvedPositionId = resolvedPositionName
+    ? await resolveSigurPositionId({
+      provider,
+      positionName: resolvedPositionName,
+    })
+    : null;
+
   const employeePayload = mapEmployeeToSigur({
     employee,
     externalEmpId: existingBinding?.externalEmpId || null,
     counterpartyName,
     departmentId,
+    positionId: resolvedPositionId,
+    positionName: resolvedPositionName,
     accessStartTime: payload.accessStartTime || null,
     accessEndTime: resolvedAccessEndTime,
   });
@@ -416,6 +487,17 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
     sigurResponse: response,
     userId,
   });
+
+  if (externalEmpId) {
+    try {
+      await syncEmployeeAccessPoints({
+        employeeId: employee.id,
+        externalEmpId,
+      });
+    } catch (error) {
+      console.error(`[SkudSync][sync_employee][emp=${employee.id}] failed to sync access points:`, error?.message || error);
+    }
+  }
 
   await upsertAccessState({
     employeeId: employee.id,
@@ -441,7 +523,7 @@ export const syncEmployeeAccessPoints = async ({ employeeId, externalEmpId }) =>
   // Получаем объекты сотрудника
   const mappings = await EmployeeCounterpartyMapping.findAll({
     where: { employeeId },
-    attributes: ["construction_site_id"],
+    attributes: ["constructionSiteId"],
   });
 
   const siteIds = [...new Set(
@@ -477,6 +559,7 @@ export const ensureEmployeeBindingInSkud = async ({
   employeeId = null,
   userId,
   payload = {},
+  forceSync = false,
 }) => {
   const targetEmployee =
     employee || (employeeId ? await getEmployeeWithSkudContext(employeeId) : null);
@@ -488,7 +571,7 @@ export const ensureEmployeeBindingInSkud = async ({
   const allBindings = Array.isArray(targetEmployee?.skudBindings) ? targetEmployee.skudBindings : [];
   const existingBinding = allBindings.find((b) => b.isActive && b.externalEmpId) || null;
 
-  if (existingBinding?.externalEmpId) {
+  if (existingBinding?.externalEmpId && !forceSync) {
     return existingBinding.externalEmpId;
   }
 

@@ -19,6 +19,7 @@ import {
 import {
   CreditCardOutlined,
   LockOutlined,
+  UnlockOutlined,
   DisconnectOutlined,
   SyncOutlined,
   SaveOutlined,
@@ -53,6 +54,7 @@ const EmployeeSkudTab = ({ employee }) => {
   const [submitting, setSubmitting] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [replacingCardId, setReplacingCardId] = useState(null);
+  const [liveEmployeeAction, setLiveEmployeeAction] = useState(null);
 
   // считыватель карт
   const [readerArmed, setReaderArmed] = useState(false);
@@ -286,6 +288,10 @@ const EmployeeSkudTab = ({ employee }) => {
         await employeeApi.updateConstructionSites(employeeId, selectedSiteIds);
         setOriginalSiteIds(selectedSiteIds);
       }
+      await skudService.updateBindingMeta(employeeId, {
+        sigurDepartmentId: selectedDeptId || null,
+        accessEndTime: accessEndTime ? accessEndTime.toISOString() : null,
+      });
       await skudService.assignCard({ employeeId, cardNumber });
       message.success("Пропуск выдан");
       newCardForm.resetFields();
@@ -331,7 +337,14 @@ const EmployeeSkudTab = ({ employee }) => {
       onOk: async () => {
         setActionLoadingId(card.id);
         try {
-          await skudService.unbindCard(card.id);
+          if (card.isProviderLive) {
+            await skudService.unbindLiveCard({
+              employeeId,
+              externalCardId: card.externalCardId,
+            });
+          } else {
+            await skudService.unbindCard(card.id);
+          }
           message.success("Карта отвязана");
           await loadCards();
           loadSyncJobs().catch(() => {});
@@ -339,6 +352,51 @@ const EmployeeSkudTab = ({ employee }) => {
           message.error(err?.response?.data?.message || "Ошибка при отвязке");
         } finally {
           setActionLoadingId(null);
+        }
+      },
+    });
+  };
+
+  const handleLiveEmployeeBlock = () => {
+    modal.confirm({
+      title: "Заблокировать сотрудника в СКУД?",
+      content: "Сотрудник будет заблокирован напрямую в Sigur.",
+      okText: "Заблокировать",
+      okType: "danger",
+      cancelText: "Отмена",
+      onOk: async () => {
+        setLiveEmployeeAction("block");
+        try {
+          await skudService.blockLiveEmployee(employeeId);
+          message.success("Сотрудник заблокирован в СКУД");
+          await loadCards();
+          loadSyncJobs().catch(() => {});
+        } catch (err) {
+          message.error(err?.response?.data?.message || "Ошибка блокировки в СКУД");
+        } finally {
+          setLiveEmployeeAction(null);
+        }
+      },
+    });
+  };
+
+  const handleLiveEmployeeUnblock = () => {
+    modal.confirm({
+      title: "Разблокировать сотрудника в СКУД?",
+      content: "Сотрудник будет разблокирован напрямую в Sigur.",
+      okText: "Разблокировать",
+      cancelText: "Отмена",
+      onOk: async () => {
+        setLiveEmployeeAction("unblock");
+        try {
+          await skudService.unblockLiveEmployee(employeeId);
+          message.success("Сотрудник разблокирован в СКУД");
+          await loadCards();
+          loadSyncJobs().catch(() => {});
+        } catch (err) {
+          message.error(err?.response?.data?.message || "Ошибка разблокировки в СКУД");
+        } finally {
+          setLiveEmployeeAction(null);
         }
       },
     });
@@ -386,10 +444,13 @@ const EmployeeSkudTab = ({ employee }) => {
       title: "Номер карты",
       dataIndex: "cardNumber",
       key: "cardNumber",
-      render: (val) => (
+      render: (val, record) => (
         <Space>
           <CreditCardOutlined />
           <Text code>{val}</Text>
+          {record?.isProviderLive && (
+            <Tag color="blue">Sigur</Tag>
+          )}
         </Space>
       ),
     },
@@ -417,11 +478,17 @@ const EmployeeSkudTab = ({ employee }) => {
       render: (_, card) => {
         const isLoading = actionLoadingId === card.id;
         const isReplacing = replacingCardId === card.id;
+        const canManage = card?.canManage !== false;
 
         return (
           <Space direction="vertical" size={4} style={{ width: "100%" }}>
+            {!canManage && (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Live из Sigur
+              </Text>
+            )}
             <Space size={4}>
-              {card.status === "active" && (
+              {canManage && card.status === "active" && (
                 <>
                   <Tooltip title="Заблокировать">
                     <Button
@@ -446,8 +513,18 @@ const EmployeeSkudTab = ({ employee }) => {
                   </Tooltip>
                 </>
               )}
-              {card.status !== "unbound" && (
+              {canManage && card.status !== "unbound" && (
                 <Tooltip title="Отвязать">
+                  <Button
+                    size="small"
+                    icon={<DisconnectOutlined />}
+                    loading={isLoading}
+                    onClick={() => handleUnbind(card)}
+                  />
+                </Tooltip>
+              )}
+              {!canManage && card.status !== "unbound" && (
+                <Tooltip title="Отвязать в Sigur">
                   <Button
                     size="small"
                     icon={<DisconnectOutlined />}
@@ -616,6 +693,23 @@ const EmployeeSkudTab = ({ employee }) => {
             onClick={loadCards}
             loading={cardsLoading}
           />
+          <Button
+            size="small"
+            danger
+            icon={<LockOutlined />}
+            onClick={handleLiveEmployeeBlock}
+            loading={liveEmployeeAction === "block"}
+          >
+            Заблокировать в СКУД
+          </Button>
+          <Button
+            size="small"
+            icon={<UnlockOutlined />}
+            onClick={handleLiveEmployeeUnblock}
+            loading={liveEmployeeAction === "unblock"}
+          >
+            Разблокировать
+          </Button>
         </Space>
         <Spin spinning={cardsLoading}>
           {cards.length === 0 && !cardsLoading ? (

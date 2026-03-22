@@ -14,6 +14,8 @@ export const mapEmployeeToSigur = ({
   externalEmpId = null,
   counterpartyName = "",
   departmentId = null,
+  positionId = null,
+  positionName = undefined,
   accessStartTime = undefined,
   accessEndTime = undefined,
 }) => {
@@ -31,18 +33,21 @@ export const mapEmployeeToSigur = ({
       ? accessEndTime
       : (employee?.accessEndTime || undefined);
 
-  const positionName = trim(employee?.position?.name) || undefined;
+  const resolvedPositionName =
+    positionName !== undefined ? trim(positionName) || undefined : trim(employee?.position?.name) || undefined;
+  const resolvedPositionId = Number.parseInt(String(positionId), 10) || undefined;
 
   return {
     ...(externalEmpId ? { id: Number.parseInt(String(externalEmpId), 10) || undefined } : {}),
     name,
     description: trim(counterpartyName) || trim(employee?.notes) || "",
     ...(departmentId ? { departmentId: Number.parseInt(String(departmentId), 10) || undefined } : {}),
+    ...(resolvedPositionId ? { positionId: resolvedPositionId } : {}),
     accessStartTime: resolvedAccessStart,
     accessEndTime: resolvedAccessEnd,
     verificationPin: trim(employee?.verificationPin) || undefined,
     tabId: trim(employee?.inn) || undefined,
-    ...(positionName ? { positionName } : {}),
+    ...(resolvedPositionName ? { positionName: resolvedPositionName } : {}),
   };
 };
 

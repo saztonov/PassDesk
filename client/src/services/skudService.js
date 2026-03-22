@@ -128,6 +128,21 @@ const skudService = {
     return toData(response);
   },
 
+  unbindLiveCard: async ({ employeeId, externalCardId }) => {
+    const response = await api.post("/skud/cards/live/unbind", { employeeId, externalCardId });
+    return toData(response);
+  },
+
+  blockLiveEmployee: async (employeeId) => {
+    const response = await api.post("/skud/cards/live/block-employee", { employeeId });
+    return toData(response);
+  },
+
+  unblockLiveEmployee: async (employeeId) => {
+    const response = await api.post("/skud/cards/live/unblock-employee", { employeeId });
+    return toData(response);
+  },
+
   issueQr: async (payload) => {
     const response = await api.post("/skud/qr/issue", payload);
     return toData(response);

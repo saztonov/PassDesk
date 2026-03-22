@@ -31,8 +31,11 @@ import { enqueueSkudSyncForEmployee } from "../services/skud/SkudSyncService.js"
 import {
   assignSkudCard,
   blockSkudCard,
+  blockLiveSkudEmployee,
   listSkudCards,
+  unblockLiveSkudEmployee,
   unbindSkudCard,
+  unbindLiveSkudCard,
 } from "../services/skud/SkudCardsService.js";
 import {
   issueSkudQrToken,
@@ -2012,6 +2015,82 @@ export const skudController = {
       });
 
       res.status(202).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async unbindLiveCard(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const { employeeId, externalCardId } = req.body || {};
+      if (!employeeId || !externalCardId) {
+        throw new AppError("employeeId и externalCardId обязательны", 400);
+      }
+
+      const employee = await fetchEmployeeForAccess(employeeId);
+      if (!employee || employee.isDeleted) {
+        throw new AppError("Сотрудник не найден", 404);
+      }
+      await checkEmployeeAccess(req.user, employee, "write");
+
+      const result = await unbindLiveSkudCard({
+        employeeId,
+        externalCardId,
+        userId: req.user.id,
+      });
+
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async blockLiveEmployee(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const { employeeId } = req.body || {};
+      if (!employeeId) {
+        throw new AppError("employeeId обязателен", 400);
+      }
+
+      const employee = await fetchEmployeeForAccess(employeeId);
+      if (!employee || employee.isDeleted) {
+        throw new AppError("Сотрудник не найден", 404);
+      }
+      await checkEmployeeAccess(req.user, employee, "write");
+
+      const result = await blockLiveSkudEmployee({
+        employeeId,
+        userId: req.user.id,
+      });
+
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async unblockLiveEmployee(req, res, next) {
+    try {
+      ensureSkudModuleEnabled();
+      const { employeeId } = req.body || {};
+      if (!employeeId) {
+        throw new AppError("employeeId обязателен", 400);
+      }
+
+      const employee = await fetchEmployeeForAccess(employeeId);
+      if (!employee || employee.isDeleted) {
+        throw new AppError("Сотрудник не найден", 404);
+      }
+      await checkEmployeeAccess(req.user, employee, "write");
+
+      const result = await unblockLiveSkudEmployee({
+        employeeId,
+        userId: req.user.id,
+      });
+
+      res.json({ success: true, data: result });
     } catch (error) {
       next(error);
     }
