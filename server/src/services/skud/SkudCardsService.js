@@ -39,6 +39,40 @@ const getProviderItems = (response) =>
       ? response.items
       : [];
 
+const mergeEmployeeCards = ({ localRows = [], liveRows = [], limit = 50 }) => {
+  const localByExternalCardId = new Set(
+    localRows
+      .map((row) => String(row?.externalCardId || "").trim())
+      .filter(Boolean),
+  );
+  const localByCardNumber = new Set(
+    localRows
+      .map((row) => normalizeCardNumber(row?.cardNumber))
+      .filter(Boolean),
+  );
+
+  const merged = [...localRows];
+  for (const liveRow of liveRows) {
+    const externalCardId = String(liveRow?.externalCardId || "").trim();
+    const normalizedCardNumber = normalizeCardNumber(liveRow?.cardNumber);
+    if (
+      (externalCardId && localByExternalCardId.has(externalCardId))
+      || (normalizedCardNumber && localByCardNumber.has(normalizedCardNumber))
+    ) {
+      continue;
+    }
+    merged.push(liveRow);
+  }
+
+  return merged
+    .sort((left, right) => {
+      const leftTime = new Date(left?.updatedAt || left?.createdAt || left?.issuedAt || 0).getTime() || 0;
+      const rightTime = new Date(right?.updatedAt || right?.createdAt || right?.issuedAt || 0).getTime() || 0;
+      return rightTime - leftTime;
+    })
+    .slice(0, limit);
+};
+
 const buildEmployeeFullName = (employee) =>
   [employee?.lastName, employee?.firstName, employee?.middleName]
     .map((value) => String(value || "").trim())
@@ -64,6 +98,40 @@ const getEmployeeBinding = async (employeeId) => {
   });
 };
 
+async function syncResolvedBinding({ employeeId, externalEmpId, userId = null }) {
+  const normalizedExternalEmpId = String(externalEmpId || "").trim();
+  if (!employeeId || !normalizedExternalEmpId) {
+    return null;
+  }
+
+  const existing = await SkudPersonBinding.findOne({
+    where: {
+      employeeId,
+      externalSystem: "sigur",
+    },
+  });
+
+  if (existing) {
+    return existing.update({
+      externalEmpId: normalizedExternalEmpId,
+      isActive: true,
+      updatedBy: userId,
+      updatedAt: new Date(),
+    });
+  }
+
+  return SkudPersonBinding.create({
+    employeeId,
+    externalSystem: "sigur",
+    externalEmpId: normalizedExternalEmpId,
+    source: "live_resolve",
+    isActive: true,
+    metadata: {},
+    createdBy: userId,
+    updatedBy: userId,
+  });
+}
+
 const resolveLiveExternalEmployeeId = async (employeeId) => {
   const binding = await getEmployeeBinding(employeeId);
   const boundExternalEmpId = String(binding?.externalEmpId || "").trim();
@@ -72,7 +140,15 @@ const resolveLiveExternalEmployeeId = async (employeeId) => {
   }
 
   const employee = await Employee.findByPk(employeeId, {
-    attributes: ["id", "firstName", "lastName", "middleName", "inn"],
+    attributes: [
+      "id",
+      "firstName",
+      "lastName",
+      "lastNameEnc",
+      "lastNameKeyVersion",
+      "middleName",
+      "inn",
+    ],
   });
   if (!employee || employee.isDeleted) {
     return null;
@@ -91,6 +167,10 @@ const resolveLiveExternalEmployeeId = async (employeeId) => {
       (item) => String(item?.tabId || "").replace(/\D/g, "") === normalizedInn,
     );
     if (exactTabMatch?.id !== undefined && exactTabMatch?.id !== null) {
+      await syncResolvedBinding({
+        employeeId,
+        externalEmpId: exactTabMatch.id,
+      });
       return String(exactTabMatch.id);
     }
   }
@@ -112,11 +192,11 @@ const resolveLiveExternalEmployeeId = async (employeeId) => {
   );
 
   if (exactNameMatches.length === 1 && exactNameMatches[0]?.id !== undefined && exactNameMatches[0]?.id !== null) {
+    await syncResolvedBinding({
+      employeeId,
+      externalEmpId: exactNameMatches[0].id,
+    });
     return String(exactNameMatches[0].id);
-  }
-
-  if (byName.length === 1 && byName[0]?.id !== undefined && byName[0]?.id !== null) {
-    return String(byName[0].id);
   }
 
   return null;
@@ -133,9 +213,9 @@ const loadLiveProviderCards = async ({ employeeId, externalEmpId, limit = 50, st
     bindings.map(async (binding) => {
       const card = await provider.getCardById(binding.cardId);
       const rawCardNumber = String(
-        card?.value
+        card?.formattedValue
         || card?.name
-        || card?.formattedValue
+        || card?.value
         || "",
       ).trim();
 
@@ -168,40 +248,6 @@ const loadLiveProviderCards = async ({ employeeId, externalEmpId, limit = 50, st
   return liveRows.filter((card) => (
     !status || status === "all" || card.status === status
   ));
-};
-
-const syncResolvedBinding = async ({ employeeId, externalEmpId, userId = null }) => {
-  const normalizedExternalEmpId = String(externalEmpId || "").trim();
-  if (!employeeId || !normalizedExternalEmpId) {
-    return null;
-  }
-
-  const existing = await SkudPersonBinding.findOne({
-    where: {
-      employeeId,
-      externalSystem: "sigur",
-    },
-  });
-
-  if (existing) {
-    return existing.update({
-      externalEmpId: normalizedExternalEmpId,
-      isActive: true,
-      updatedBy: userId,
-      updatedAt: new Date(),
-    });
-  }
-
-  return SkudPersonBinding.create({
-    employeeId,
-    externalSystem: "sigur",
-    externalEmpId: normalizedExternalEmpId,
-    source: "live_resolve",
-    isActive: true,
-    metadata: {},
-    createdBy: userId,
-    updatedBy: userId,
-  });
 };
 
 const createCardsJob = async ({ employeeId, operation, payload, userId }) => {
@@ -347,7 +393,7 @@ export const listSkudCards = async ({ employeeId = null, status = null, limit = 
     offset,
   });
 
-  if (!employeeId || localResult.count > 0 || offset > 0) {
+  if (!employeeId || offset > 0) {
     return localResult;
   }
 
@@ -365,8 +411,16 @@ export const listSkudCards = async ({ employeeId = null, status = null, limit = 
     });
 
     return {
-      count: rows.length,
-      rows,
+      count: mergeEmployeeCards({
+        localRows: localResult.rows,
+        liveRows: rows,
+        limit,
+      }).length,
+      rows: mergeEmployeeCards({
+        localRows: localResult.rows,
+        liveRows: rows,
+        limit,
+      }),
     };
   } catch (error) {
     console.error(`[SkudCards][list] live fallback failed for employeeId=${employeeId}:`, error?.message || error);

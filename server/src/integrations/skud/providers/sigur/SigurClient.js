@@ -53,6 +53,77 @@ const getUniqueSortedIds = (values = []) => [...new Set(
 )].sort((left, right) => left - right);
 
 const normalizeComparableText = (value) => String(value || "").trim().toUpperCase();
+const W26_FORMATTED_RE = /^\d+\s*,\s*\d+$/;
+
+const parseW26FormattedValue = (value) => {
+  const match = String(value || "").trim().match(/^(\d+)\s*,\s*(\d+)$/);
+  if (!match) {
+    return null;
+  }
+
+  const facilityCode = Number.parseInt(match[1], 10);
+  const cardNumber = Number.parseInt(match[2], 10);
+  if (
+    !Number.isInteger(facilityCode)
+    || !Number.isInteger(cardNumber)
+    || facilityCode < 0
+    || facilityCode > 255
+    || cardNumber < 0
+    || cardNumber > 65535
+  ) {
+    return null;
+  }
+
+  return {
+    facilityCode,
+    cardNumber,
+    formatted: `${facilityCode},${cardNumber}`,
+    formattedPadded: `${String(facilityCode).padStart(3, "0")},${String(cardNumber).padStart(5, "0")}`,
+    rawValue: facilityCode.toString(16).padStart(2, "0").toUpperCase()
+      + cardNumber.toString(16).padStart(4, "0").toUpperCase(),
+  };
+};
+
+const buildCardLookupCandidates = ({ value, name, format } = {}) => {
+  const candidates = new Set();
+  const add = (candidate) => {
+    const normalized = normalizeComparableText(candidate);
+    if (normalized) {
+      candidates.add(normalized);
+    }
+  };
+
+  add(value);
+  add(name);
+
+  if (normalizeComparableText(format) === "W26") {
+    [value, name].forEach((candidate) => {
+      const parsed = parseW26FormattedValue(candidate);
+      if (parsed) {
+        add(parsed.formatted);
+        add(parsed.formattedPadded);
+        add(parsed.rawValue);
+      }
+    });
+  }
+
+  return [...candidates];
+};
+
+const matchesCardLookupCandidates = (card, candidates = [], format) => {
+  const requestedFormat = normalizeComparableText(format);
+  if (requestedFormat && normalizeComparableText(card?.format) !== requestedFormat) {
+    return false;
+  }
+
+  const values = [
+    card?.value,
+    card?.name,
+    card?.formattedValue,
+  ].map((item) => normalizeComparableText(item)).filter(Boolean);
+
+  return candidates.some((candidate) => values.includes(candidate));
+};
 
 export class SigurClient {
   constructor({
@@ -421,34 +492,46 @@ export class SigurClient {
 
     console.log(`[Sigur][assignCard] empId=${employeeId} payload=${JSON.stringify(cardPayload)}`);
 
+    const {
+      bindingStartDate,
+      bindingExpirationDate,
+      ...createCardPayload
+    } = cardPayload || {};
+
     let card;
     try {
       card = await this.request({
         method: "POST",
         url: "/api/v1/cards",
-        data: cardPayload,
+        data: createCardPayload,
       });
       console.log(`[Sigur][assignCard] card created id=${card?.id} value=${card?.value} format=${card?.format}`);
     } catch (createError) {
       // 422 = карта с таким номером уже существует в Sigur — ищем её
       if (createError?.response?.status === 422) {
-        console.log(`[Sigur][assignCard] 422 on create, searching by value="${cardPayload.value}" err=${JSON.stringify(createError?.response?.data)}`);
-        const cardValue = cardPayload.value || cardPayload.name;
-        const existing = await this.request({
-          method: "GET",
-          url: "/api/v1/cards",
-          params: { value: cardValue, limit: 100 },
-        });
-        const existingCards = Array.isArray(existing) ? existing : [];
-        const requestedValue = normalizeComparableText(cardValue);
-        const requestedFormat = normalizeComparableText(cardPayload?.format);
+        console.log(`[Sigur][assignCard] 422 on create, searching by value="${createCardPayload.value}" err=${JSON.stringify(createError?.response?.data)}`);
+        const lookupCandidates = buildCardLookupCandidates(createCardPayload);
+        const existingCards = [];
+
+        for (const candidate of lookupCandidates) {
+          const existing = await this.request({
+            method: "GET",
+            url: "/api/v1/cards",
+            params: { value: candidate, limit: 100 },
+          }).catch(() => []);
+
+          if (Array.isArray(existing) && existing.length) {
+            existingCards.push(...existing);
+          }
+        }
+
         const found = existingCards.find((item) => (
-          normalizeComparableText(item?.value || item?.name) === requestedValue
-          && (!requestedFormat || normalizeComparableText(item?.format) === requestedFormat)
+          matchesCardLookupCandidates(item, lookupCandidates, createCardPayload?.format)
         )) || existingCards[0] || null;
         console.log(`[Sigur][assignCard] found existing card=${JSON.stringify(found)}`);
         if (!found?.id) {
-          throw new Error(`Card already exists in Sigur but could not be found by value="${cardValue}"`);
+          const displayValue = createCardPayload?.name || createCardPayload?.value;
+          throw new Error(`Card already exists in Sigur but could not be found by value="${displayValue}"`);
         }
         card = found;
       } else {
@@ -464,9 +547,9 @@ export class SigurClient {
     const employeeCardBindingPayload = buildEmployeeCardBindingPayload({
       employeeId,
       cardId,
-      format: card?.format || cardPayload?.format,
-      startDate: cardPayload?.bindingStartDate,
-      expirationDate: cardPayload?.bindingExpirationDate,
+      format: card?.format || createCardPayload?.format,
+      startDate: bindingStartDate,
+      expirationDate: bindingExpirationDate,
     });
 
     try {
@@ -630,17 +713,32 @@ export class SigurClient {
     if (!employeeId) {
       throw new Error("externalEmpId is required to unassign card in Sigur");
     }
-
-    const cards = await this.request({
-      method: "GET",
-      url: "/api/v1/cards",
-      params: {
-        value: cardNumber,
-        limit: 1,
-      },
+    const lookupCandidates = buildCardLookupCandidates({
+      value: cardNumber,
+      name: cardNumber,
+      format: W26_FORMATTED_RE.test(String(cardNumber || "").trim()) ? "W26" : undefined,
     });
+    let card = null;
 
-    const card = Array.isArray(cards) ? cards[0] : null;
+    for (const candidate of lookupCandidates) {
+      const cards = await this.request({
+        method: "GET",
+        url: "/api/v1/cards",
+        params: {
+          value: candidate,
+          limit: 20,
+        },
+      }).catch(() => []);
+
+      const found = Array.isArray(cards)
+        ? cards.find((item) => matchesCardLookupCandidates(item, lookupCandidates))
+        : null;
+      if (found?.id) {
+        card = found;
+        break;
+      }
+    }
+
     const cardId = toNumber(card?.id);
     if (!cardId) {
       return null;

@@ -273,9 +273,11 @@ const matchesEmployeeStatusFilter = (employee, requestedStatuses = []) => {
 
   const getStatusByGroup = (group, alternativeGroups = []) => {
     const groupsToCheck = [group, ...alternativeGroups];
-    const mapping = statusMappings.find((item) =>
-      groupsToCheck.includes(item.statusGroup || item.status_group),
-    );
+    const mapping = statusMappings.find((item) => {
+      const mappingGroup = item.statusGroup || item.status_group;
+
+      return groupsToCheck.includes(mappingGroup) && item.isActive !== false;
+    });
 
     return mapping?.status?.name || mapping?.Status?.name || null;
   };
@@ -285,42 +287,113 @@ const matchesEmployeeStatusFilter = (employee, requestedStatuses = []) => {
   const cardStatus = getStatusByGroup("status_card", ["card draft"]);
   const mainStatus = getStatusByGroup("status", ["draft"]);
 
+  const isBlocked =
+    secureStatus === "status_secure_block" ||
+    secureStatus === "status_secure_block_compl";
+  const isFired =
+    activeStatus === "status_active_fired" ||
+    activeStatus === "status_active_fired_compl";
+  const isInactive = activeStatus === "status_active_inactive";
+  const isDraft =
+    cardStatus === "status_card_draft" || mainStatus === "status_draft";
+  const isActive =
+    !isBlocked &&
+    !isFired &&
+    !isInactive &&
+    !isDraft &&
+    (mainStatus === "status_new" ||
+      mainStatus === "status_tb_passed" ||
+      mainStatus === "status_processed");
+
   return requestedStatuses.some((value) => {
     if (value === "blocked") {
-      return (
-        secureStatus === "status_secure_block" ||
-        secureStatus === "status_secure_block_compl"
-      );
+      return isBlocked;
     }
 
     if (value === "fired") {
-      return (
-        activeStatus === "status_active_fired" ||
-        activeStatus === "status_active_fired_compl"
-      );
+      return isFired;
     }
 
     if (value === "inactive") {
-      return activeStatus === "status_active_inactive";
+      return isInactive;
     }
 
     if (value === "draft") {
-      return (
-        cardStatus === "status_card_draft" ||
-        mainStatus === "status_draft"
-      );
+      return isDraft;
     }
 
     if (value === "active") {
-      return (
-        mainStatus === "status_new" ||
-        mainStatus === "status_tb_passed" ||
-        mainStatus === "status_processed"
-      );
+      return isActive;
     }
 
     return false;
   });
+};
+
+const buildActiveStatusExistsSql = (statusNames, statusGroups) => {
+  const namesSql = statusNames.map((value) => `'${value}'`).join(", ");
+  const groupsSql = statusGroups.map((value) => `'${value}'`).join(", ");
+
+  return `EXISTS (
+    SELECT 1
+    FROM employees_statuses_mapping esm
+    JOIN statuses s ON s.id = esm.status_id
+    WHERE esm.employee_id = "Employee"."id"
+      AND esm.is_active = true
+      AND esm.status_group IN (${groupsSql})
+      AND s.name IN (${namesSql})
+  )`;
+};
+
+const buildEmployeeStatusSqlPredicate = (requestedStatuses = []) => {
+  if (!requestedStatuses.length) {
+    return null;
+  }
+
+  const blockedSql = buildActiveStatusExistsSql(
+    ["status_secure_block", "status_secure_block_compl"],
+    ["status_secure"],
+  );
+  const firedSql = buildActiveStatusExistsSql(
+    ["status_active_fired", "status_active_fired_compl"],
+    ["status_active"],
+  );
+  const inactiveSql = buildActiveStatusExistsSql(
+    ["status_active_inactive"],
+    ["status_active"],
+  );
+  const draftSql = `(
+    ${buildActiveStatusExistsSql(["status_card_draft"], ["status_card", "card draft"])}
+    OR
+    ${buildActiveStatusExistsSql(["status_draft"], ["status", "draft"])}
+  )`;
+  const activeSql = `(
+    ${buildActiveStatusExistsSql(
+      ["status_new", "status_tb_passed", "status_processed"],
+      ["status"],
+    )}
+    AND NOT ${blockedSql}
+    AND NOT ${firedSql}
+    AND NOT ${inactiveSql}
+    AND NOT ${draftSql}
+  )`;
+
+  const predicates = requestedStatuses
+    .map((value) => {
+      if (value === "blocked") return blockedSql;
+      if (value === "fired") return firedSql;
+      if (value === "inactive") return inactiveSql;
+      if (value === "draft") return draftSql;
+      if (value === "active") return activeSql;
+      return null;
+    })
+    .filter(Boolean);
+
+  if (!predicates.length) {
+    return null;
+  }
+
+  return `(${predicates.join(" OR ")})`;
 };
 
 const buildEmployeeDuplicateChecks = (employeeLike = {}) => {
@@ -536,9 +609,11 @@ export const getAllEmployees = async (req, res, next) => {
     const requestedStatusCardFilters = normalizeQueryArray(req.query.statusCard)
       .map((value) => String(value || "").trim().toLowerCase())
       .filter((value) => value === "completed" || value === "draft");
-    const requiresPostFiltering =
-      requestedStatusFilters.length > 0 ||
-      requestedStatusCardFilters.length > 0;
+    const sqlStatusPredicate = buildEmployeeStatusSqlPredicate(
+      requestedStatusFilters,
+    );
+    const canUseSqlStatusFiltering = Boolean(sqlStatusPredicate);
+    const requiresPostFiltering = requestedStatusCardFilters.length > 0;
     const searchAndConditions = [];
 
     if (hasSearchQuery) {
@@ -631,6 +706,10 @@ export const getAllEmployees = async (req, res, next) => {
           { [Op.or]: searchTypeConditions },
         ];
       }
+    }
+
+    if (canUseSqlStatusFiltering) {
+      where[Op.and] = [...(where[Op.and] || []), sequelize.literal(sqlStatusPredicate)];
     }
 
     // В режиме full encryption поиск по фамилии и ФИО делаем после чтения записей,
@@ -1135,6 +1214,7 @@ export const getAllEmployees = async (req, res, next) => {
     if (shouldUseInMemoryPagination) {
       const postFilteredEmployees = filteredRows.filter((employee) => {
         if (
+          !canUseSqlStatusFiltering &&
           requestedStatusFilters.length > 0 &&
           !matchesEmployeeStatusFilter(employee, requestedStatusFilters)
         ) {

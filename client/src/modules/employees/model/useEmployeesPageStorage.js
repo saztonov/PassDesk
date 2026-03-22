@@ -5,13 +5,7 @@ const TABLE_COLUMNS_STORAGE_KEY = "employee_table_columns";
 const EMPLOYEES_PAGE_STATE_STORAGE_KEY = "employees_page_state";
 
 const getInitialFilters = () => {
-  try {
-    const saved = localStorage.getItem(TABLE_FILTERS_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : {};
-  } catch (error) {
-    console.warn("Ошибка при загрузке фильтров таблицы:", error);
-    return {};
-  }
+  return {};
 };
 
 const getInitialHiddenColumns = () => {
@@ -32,12 +26,9 @@ const getInitialPageState = () => {
     }
     const parsed = JSON.parse(saved);
     return {
-      searchText: parsed.searchText || "",
-      statusFilter: parsed.statusFilter || null,
-      currentPage:
-        Number.isInteger(parsed.currentPage) && parsed.currentPage > 0
-          ? parsed.currentPage
-          : 1,
+      searchText: "",
+      statusFilter: null,
+      currentPage: 1,
       pageSize:
         Number.isInteger(parsed.pageSize) && parsed.pageSize > 0
           ? parsed.pageSize
@@ -77,6 +68,24 @@ export const useEmployeesPageStorage = () => {
   const [hiddenColumns, setHiddenColumns] = useState(getInitialHiddenColumns);
 
   useEffect(() => {
+    setSearchText("");
+    setStatusFilter(null);
+    setCurrentPage(1);
+    setTableFilters({});
+    localStorage.removeItem(TABLE_FILTERS_STORAGE_KEY);
+    localStorage.setItem(
+      EMPLOYEES_PAGE_STATE_STORAGE_KEY,
+      JSON.stringify({
+        searchText: "",
+        statusFilter: null,
+        currentPage: 1,
+        pageSize: initialPageState.pageSize,
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem(
       EMPLOYEES_PAGE_STATE_STORAGE_KEY,
       JSON.stringify({ searchText, statusFilter, currentPage, pageSize }),
@@ -100,6 +109,16 @@ export const useEmployeesPageStorage = () => {
     setStatusFilter(null);
     setTableFilters({});
     setCurrentPage(1);
+    localStorage.removeItem(TABLE_FILTERS_STORAGE_KEY);
+    localStorage.setItem(
+      EMPLOYEES_PAGE_STATE_STORAGE_KEY,
+      JSON.stringify({
+        searchText: "",
+        statusFilter: null,
+        currentPage: 1,
+        pageSize,
+      }),
+    );
     setResetTrigger((prev) => prev + 1);
   };
 

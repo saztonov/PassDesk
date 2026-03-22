@@ -215,19 +215,7 @@ export const EmployeeTable = ({
       {},
     );
 
-    const hasAnyFilterValue = Object.values(normalizedFilters).some((value) => {
-      if (Array.isArray(value)) {
-        return value.length > 0;
-      }
-      return value !== null && value !== undefined;
-    });
-
-    // На pagination/sort AntD иногда присылает пустой объект фильтров.
-    // Не затираем сохраненные фильтры, если пользователь явно не менял фильтрацию.
-    const shouldApplyFilterUpdate =
-      extra?.action === "filter" ||
-      hasAnyFilterValue ||
-      Object.keys(filters).length === 0;
+    const shouldApplyFilterUpdate = extra?.action === "filter";
 
     if (shouldApplyFilterUpdate) {
       handleLocalFiltersChange(normalizedFilters);

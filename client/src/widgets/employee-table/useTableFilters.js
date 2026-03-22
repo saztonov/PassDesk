@@ -1,18 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const STORAGE_KEY = "employee_table_filters";
 
 const getInitialFilters = () => {
-  try {
-    const savedFilters = localStorage.getItem(STORAGE_KEY);
-    if (!savedFilters) {
-      return {};
-    }
-    return JSON.parse(savedFilters);
-  } catch (error) {
-    console.warn("Ошибка при загрузке фильтров таблицы:", error);
-    return {};
-  }
+  return {};
 };
 
 /**
@@ -22,6 +13,11 @@ const getInitialFilters = () => {
  */
 export const useTableFilters = () => {
   const [filters, setFilters] = useState(getInitialFilters);
+
+  useEffect(() => {
+    setFilters({});
+    localStorage.removeItem(STORAGE_KEY);
+  }, []);
 
   // Сохранение фильтров при изменении
   const handleFiltersChange = (newFilters) => {

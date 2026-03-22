@@ -54,6 +54,35 @@ const READER_UID_FORMAT_OPTIONS = [
 
 const READER_UID_FORMAT_STORAGE_KEY = "employee_skud_reader_uid_format";
 
+const resolveCardExpirationFromCards = (rows = []) => {
+  const candidates = Array.isArray(rows) ? rows : [];
+  const sorted = [...candidates].sort((left, right) => {
+    const leftPriority = left?.status === "active" ? 0 : 1;
+    const rightPriority = right?.status === "active" ? 0 : 1;
+    return leftPriority - rightPriority;
+  });
+
+  for (const row of sorted) {
+    const metadata = row?.metadata || {};
+    const providerBinding = metadata.providerBinding || {};
+    const candidate =
+      providerBinding.expirationDate
+      || metadata.bindingExpirationDate
+      || null;
+
+    if (!candidate) {
+      continue;
+    }
+
+    const parsed = dayjs(candidate);
+    if (parsed.isValid()) {
+      return parsed;
+    }
+  }
+
+  return null;
+};
+
 const EmployeeSkudTab = ({ employee }) => {
   const { message, modal } = App.useApp();
   const [newCardForm] = Form.useForm();
@@ -176,23 +205,43 @@ const EmployeeSkudTab = ({ employee }) => {
       skudService.getProviderDepartments().catch(() => null),
       skudService.getEmployeeBinding(employeeId).catch(() => null),
       departmentService.getAll().catch(() => null),
-    ]).then(([deptsResult, bindingResult, internalDeptsResult]) => {
+    ]).then(async ([deptsResult, bindingResult, internalDeptsResult]) => {
       const depts = deptsResult?.departments || deptsResult?.items || (Array.isArray(deptsResult) ? deptsResult : []);
       setSigurDepts(depts);
 
       const storedId = bindingResult?.metadata?.sigurDepartmentId || null;
-      setSelectedDeptId(storedId ? Number(storedId) : null);
-
       const storedCardExpirationDate =
         bindingResult?.metadata?.cardExpirationDate
         || bindingResult?.metadata?.accessEndTime
         || null;
-      setCardExpirationDate(storedCardExpirationDate ? dayjs(storedCardExpirationDate) : null);
 
       const deptList = internalDeptsResult?.data?.data || internalDeptsResult?.data || [];
       setInternalDepts(Array.isArray(deptList) ? deptList : []);
+
+      const externalEmpId = String(bindingResult?.externalEmpId || "").trim();
+      const providerEmployee = externalEmpId && externalEmpId !== "pending"
+        ? await skudService.getProviderEmployee(externalEmpId).catch(() => null)
+        : null;
+
+      const providerDepartmentId = providerEmployee?.departmentId || null;
+      setSelectedDeptId(Number(storedId || providerDepartmentId || 0) || null);
+      setCardExpirationDate(storedCardExpirationDate ? dayjs(storedCardExpirationDate) : null);
     }).finally(() => setSigurDeptsLoading(false));
   }, [employeeId]);
+
+  useEffect(() => {
+    const resolvedFromCards = resolveCardExpirationFromCards(cards);
+    if (!resolvedFromCards) {
+      return;
+    }
+
+    setCardExpirationDate((current) => {
+      if (current?.isValid() && current.isSame(resolvedFromCards, "day")) {
+        return current;
+      }
+      return resolvedFromCards;
+    });
+  }, [cards]);
 
   // закрываем WS при размонтировании
   useEffect(() => {

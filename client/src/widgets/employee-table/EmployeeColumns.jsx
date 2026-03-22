@@ -90,11 +90,6 @@ export const useEmployeeColumns = ({
           <div style={{ color: filtered ? "#1890ff" : undefined }}>☰</div>
         ),
         filteredValue: filters.fullName || [],
-        onFilter: (value, record) => {
-          const fullName =
-            `${record.lastName} ${record.firstName} ${record.middleName || ""}`.trim();
-          return fullName === value;
-        },
       },
       {
         title: "Должность",
@@ -131,10 +126,6 @@ export const useEmployeeColumns = ({
           <div style={{ color: filtered ? "#1890ff" : undefined }}>☰</div>
         ),
         filteredValue: filters.position || [],
-        onFilter: (value, record) => {
-          const positionName = record.position?.name || "";
-          return positionName === value;
-        },
       },
       // Столбец "Подразделение" видно ТОЛЬКО для пользователей контрагента по умолчанию
       ...(showDepartmentColumn
@@ -205,10 +196,6 @@ export const useEmployeeColumns = ({
                   .toLowerCase()
                   .includes(String(input || "").toLowerCase()),
               filteredValue: filters.department || [],
-              onFilter: (value, record) => {
-                const mappings = record.employeeCounterpartyMappings || [];
-                return mappings.some((m) => m.department?.name === value);
-              },
             },
           ]
         : []),
@@ -263,10 +250,6 @@ export const useEmployeeColumns = ({
                 </div>
               ),
               filteredValue: filters.counterparty || [],
-              onFilter: (value, record) => {
-                const mappings = record.employeeCounterpartyMappings || [];
-                return mappings.some((m) => m.counterparty?.name === value);
-              },
             },
           ]
         : []),
@@ -373,14 +356,6 @@ export const useEmployeeColumns = ({
             value: site,
           })) || [],
         filteredValue: filters.constructionSite || [],
-        onFilter: (value, record) => {
-          const mappings = record.employeeCounterpartyMappings || [];
-          return mappings.some((m) => {
-            const siteName =
-              m.constructionSite?.shortName || m.constructionSite?.name;
-            return siteName === value;
-          });
-        },
       },
       {
         title: "Гражданство",
@@ -399,7 +374,6 @@ export const useEmployeeColumns = ({
           value: cit,
         })),
         filteredValue: filters.citizenship || [],
-        onFilter: (value, record) => record.citizenship?.name === value,
       },
       {
         title: "Заполнен",
@@ -435,7 +409,6 @@ export const useEmployeeColumns = ({
           { text: "Не заполнен", value: "draft" },
         ],
         filteredValue: filters.statusCard || [],
-        onFilter: (value, record) => record.statusCard === value,
       },
       {
         title: "Дата создания",
@@ -457,21 +430,6 @@ export const useEmployeeColumns = ({
           <div style={{ color: filtered ? "#1890ff" : undefined }}>☰</div>
         ),
         filteredValue: filters.createdAt || [],
-        onFilter: (value, record) => {
-          if (!record.createdAt) return false;
-          const recordDate = new Date(record.createdAt)
-            .toISOString()
-            .split("T")[0];
-
-          // Если выбран диапазон
-          if (Array.isArray(value)) {
-            const [fromDate, toDate] = value;
-            return recordDate >= fromDate && recordDate <= toDate;
-          }
-
-          // Обратная совместимость для одиночного значения
-          return recordDate === value;
-        },
       },
       {
         title: "Файлы",
@@ -630,58 +588,6 @@ export const useEmployeeColumns = ({
           { text: "Действующий", value: "active" },
         ],
         filteredValue: filters.status || [],
-        onFilter: (value, record) => {
-          const statusMappings = record.statusMappings || [];
-          // Функция с поддержкой альтернативных групп (для совместимости со старыми данными)
-          const getStatusByGroup = (group, alternativeGroups = []) => {
-            const groupsToCheck = [group, ...alternativeGroups];
-            const mapping = statusMappings.find((m) => {
-              const mappingGroup = m.statusGroup || m.status_group;
-              return groupsToCheck.includes(mappingGroup) && m.isActive !== false;
-            });
-            if (!mapping) return null;
-            const statusObj = mapping.status || mapping.Status;
-            return statusObj?.name;
-          };
-
-          const secureStatus = getStatusByGroup("status_secure");
-          const activeStatus = getStatusByGroup("status_active");
-          const cardStatus = getStatusByGroup("status_card", ["card draft"]);
-          const mainStatus = getStatusByGroup("status", ["draft"]);
-
-          if (value === "blocked") {
-            return (
-              secureStatus === "status_secure_block" ||
-              secureStatus === "status_secure_block_compl"
-            );
-          }
-          if (value === "fired") {
-            return (
-              activeStatus === "status_active_fired" ||
-              activeStatus === "status_active_fired_compl"
-            );
-          }
-          if (value === "inactive") {
-            return activeStatus === "status_active_inactive";
-          }
-          if (value === "draft") {
-            // Черновик может быть в группе status_card или status
-            return (
-              cardStatus === "status_card_draft" ||
-              mainStatus === "status_draft"
-            );
-          }
-          if (value === "active") {
-            // Действующий = status_new или status_tb_passed или status_processed
-            return (
-              mainStatus === "status_new" ||
-              mainStatus === "status_tb_passed" ||
-              mainStatus === "status_processed"
-            );
-          }
-
-          return false;
-        },
       },
       {
         title: "Действия",
