@@ -16,8 +16,8 @@ const SecurityModal = ({ visible, onCancel, onSuccess }) => {
     setSearchText,
     selectedCounterparty,
     setSelectedCounterparty,
-    statusFilters,
-    setStatusFilters,
+    statusFilter,
+    setStatusFilter,
     handleBlock,
     handleUnblock,
     tablePagination,
@@ -76,17 +76,16 @@ const SecurityModal = ({ visible, onCancel, onSuccess }) => {
         />
 
         <Select
-          mode="multiple"
           placeholder="Фильтр по статусу"
           allowClear
-          style={{ width: 300 }}
-          value={statusFilters}
-          onChange={setStatusFilters}
+          style={{ width: 200 }}
+          value={statusFilter}
+          onChange={setStatusFilter}
         >
+          <Option value="blocked">Заблокирован</Option>
+          <Option value="not_blocked">Не заблокирован</Option>
           <Option value="tb_passed">Прошел ТБ</Option>
           <Option value="tb_not_passed">Не прошел ТБ</Option>
-          <Option value="not_blocked">Не заблокирован</Option>
-          <Option value="blocked">Заблокирован</Option>
         </Select>
       </Space>
 

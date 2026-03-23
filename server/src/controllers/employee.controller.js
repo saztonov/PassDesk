@@ -433,6 +433,15 @@ const buildEmployeeStatusSqlPredicate = (requestedStatuses = []) => {
     AND NOT ${draftSql}
   )`;
 
+  const tbPassedSql = buildActiveStatusExistsSql(
+    ["status_tb_passed", "status_processed"],
+    ["status"],
+  );
+  const tbNotPassedSql = buildActiveStatusExistsSql(
+    ["status_new"],
+    ["status"],
+  );
+
   const predicates = requestedStatuses
     .map((value) => {
       if (value === "blocked") return blockedSql;
@@ -442,6 +451,8 @@ const buildEmployeeStatusSqlPredicate = (requestedStatuses = []) => {
       if (value === "fired_off") return firedOffSql;
       if (value === "draft") return draftSql;
       if (value === "active") return activeSql;
+      if (value === "tb_passed") return tbPassedSql;
+      if (value === "tb_not_passed") return tbNotPassedSql;
       return null;
     })
     .filter(Boolean);
