@@ -116,7 +116,7 @@ const ExcelExportModal = ({
       );
 
       message.success(`Файл успешно выгружен: ${fileName}`);
-      onSuccess?.();
+      onSuccess?.(employeesToExport.map((emp) => emp.id));
       onCancel();
     } catch (error) {
       console.error("Export error:", error);

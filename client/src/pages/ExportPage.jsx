@@ -32,6 +32,7 @@ const ExportPage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isExcelExportModalOpen, setIsExcelExportModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [uploadOverrides, setUploadOverrides] = useState({});
   const [pagination, setPagination] = useState(() =>
     parseStoredJson(PAGINATION_STORAGE_KEY, { current: 1, pageSize: 20 }),
   );
@@ -75,6 +76,7 @@ const ExportPage = () => {
     loading,
     totalCount,
     refetch,
+    invalidateCache,
   } = useEmployees(false, {
     ...filterParams,
     page: currentPage,
@@ -122,9 +124,12 @@ const ExportPage = () => {
   };
 
   // Обработчик обновления флага is_upload
-  const handleStatusUploadUpdate = (_employeeId, _updatedMappings) => {
-    // Обновляем employees напрямую, без setEmployees (используем что вернул useEmployees)
-    // Просто перезагружаем данные с сервера
+  const handleStatusUploadUpdate = (employeeId, updatedMappings) => {
+    setUploadOverrides((prev) => ({
+      ...prev,
+      [employeeId]: updatedMappings,
+    }));
+    invalidateCache();
     refetch();
   };
 
@@ -139,12 +144,48 @@ const ExportPage = () => {
   };
 
   // Обработчик успешной выгрузки
-  const handleExcelExportSuccess = () => {
+  const handleExcelExportSuccess = (updatedEmployeeIds = []) => {
+    if (updatedEmployeeIds.length > 0) {
+      setUploadOverrides((prev) => {
+        const next = { ...prev };
+
+        employees.forEach((employee) => {
+          if (!updatedEmployeeIds.includes(employee.id)) {
+            return;
+          }
+
+          next[employee.id] = (employee.statusMappings || []).map((mapping) => ({
+            ...mapping,
+            isUpload: true,
+          }));
+        });
+
+        return next;
+      });
+    }
+
+    invalidateCache();
     refetch();
   };
 
+  const employeesWithOverrides = useMemo(
+    () =>
+      employees.map((employee) => {
+        const overrideMappings = uploadOverrides[employee.id];
+        if (!overrideMappings) {
+          return employee;
+        }
+
+        return {
+          ...employee,
+          statusMappings: overrideMappings,
+        };
+      }),
+    [employees, uploadOverrides],
+  );
+
   const filteredEmployees = useMemo(() => {
-    let filtered = [...employees];
+    let filtered = [...employeesWithOverrides];
 
     // Применяем фильтры из таблицы (position, department, counterparty, citizenship, isUpload, status)
     if (tableFilters.position && tableFilters.position.length > 0) {
@@ -243,7 +284,7 @@ const ExportPage = () => {
     }
 
     return filtered;
-  }, [employees, tableFilters]);
+  }, [employeesWithOverrides, tableFilters]);
 
   // Получение количества файлов
   const getFilesCount = (employee) => {
@@ -434,7 +475,9 @@ const ExportPage = () => {
         </div>
       ),
       filters: [
-        ...new Set(employees.map((e) => e.citizenship?.name).filter(Boolean)),
+        ...new Set(
+          employeesWithOverrides.map((e) => e.citizenship?.name).filter(Boolean),
+        ),
       ].map((name) => ({
         text: name,
         value: name,
@@ -608,9 +651,9 @@ const ExportPage = () => {
 
       {/* Модальное окно выгрузки в Excel */}
       <ExcelExportModal
-        visible={isExcelExportModalOpen}
-        employees={filteredEmployees}
-        onCancel={handleCloseExcelExportModal}
+          visible={isExcelExportModalOpen}
+          employees={filteredEmployees}
+          onCancel={handleCloseExcelExportModal}
         onSuccess={handleExcelExportSuccess}
       />
     </div>
