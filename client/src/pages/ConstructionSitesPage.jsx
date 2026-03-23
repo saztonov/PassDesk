@@ -252,11 +252,11 @@ const ConstructionSitesPage = () => {
           </Form.Item>
           <Form.Item
             name="fullName"
-            label="Полное название"
+            label="Полное название (необязательно)"
           >
             <Input />
           </Form.Item>
-          <Form.Item name="address" label="Адрес">
+          <Form.Item name="address" label="Адрес (необязательно)">
             <TextArea rows={3} />
           </Form.Item>
         </Form>

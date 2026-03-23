@@ -23,6 +23,9 @@ const parseStoredJson = (key, fallbackValue) => {
   }
 };
 
+const normalizeFilterArray = (value) =>
+  Array.isArray(value) ? value.filter(Boolean) : [];
+
 /**
  * Страница выгрузки сотрудников для администрирования
  * Отображает таблицу со всеми данными сотрудников с фильтрацией по дате
@@ -46,6 +49,21 @@ const ExportPage = () => {
   const [filterParams, setFilterParams] = useState(() => {
     return parseStoredJson(FILTER_STORAGE_KEY, {});
   });
+
+  const employeeQueryParams = useMemo(
+    () => ({
+      ...filterParams,
+      page: currentPage,
+      limit: pageSize,
+      positionNames: normalizeFilterArray(tableFilters.position),
+      departmentNames: normalizeFilterArray(tableFilters.department),
+      counterpartyNames: normalizeFilterArray(tableFilters.counterparty),
+      citizenshipNames: normalizeFilterArray(tableFilters.citizenship),
+      uploadStates: normalizeFilterArray(tableFilters.isUpload),
+      statuses: normalizeFilterArray(tableFilters.status),
+    }),
+    [currentPage, pageSize, filterParams, tableFilters],
+  );
 
   // Сохраняем фильтр при изменении
   useEffect(() => {
@@ -77,11 +95,7 @@ const ExportPage = () => {
     totalCount,
     refetch,
     invalidateCache,
-  } = useEmployees(false, {
-    ...filterParams,
-    page: currentPage,
-    limit: pageSize,
-  });
+  } = useEmployees(false, employeeQueryParams);
 
   // Инициализируем действия с сотрудниками
   const { updateEmployee } = useEmployeeActions(() => {
@@ -183,108 +197,6 @@ const ExportPage = () => {
       }),
     [employees, uploadOverrides],
   );
-
-  const filteredEmployees = useMemo(() => {
-    let filtered = [...employeesWithOverrides];
-
-    // Применяем фильтры из таблицы (position, department, counterparty, citizenship, isUpload, status)
-    if (tableFilters.position && tableFilters.position.length > 0) {
-      filtered = filtered.filter((emp) =>
-        tableFilters.position.includes(emp.position?.name),
-      );
-    }
-
-    if (tableFilters.department && tableFilters.department.length > 0) {
-      filtered = filtered.filter((emp) => {
-        const mappings = emp.employeeCounterpartyMappings || [];
-        return mappings.some((m) =>
-          tableFilters.department.includes(m.department?.name),
-        );
-      });
-    }
-
-    if (tableFilters.counterparty && tableFilters.counterparty.length > 0) {
-      filtered = filtered.filter((emp) => {
-        const mappings = emp.employeeCounterpartyMappings || [];
-        return mappings.some((m) =>
-          tableFilters.counterparty.includes(m.counterparty?.name),
-        );
-      });
-    }
-
-    if (tableFilters.citizenship && tableFilters.citizenship.length > 0) {
-      filtered = filtered.filter((emp) =>
-        tableFilters.citizenship.includes(emp.citizenship?.name),
-      );
-    }
-
-    if (tableFilters.isUpload && tableFilters.isUpload.length > 0) {
-      filtered = filtered.filter((emp) => {
-        const statusMappings = emp.statusMappings || [];
-        if (statusMappings.length === 0) return false;
-        const allUploaded = statusMappings.every((sm) => sm.isUpload);
-
-        if (tableFilters.isUpload.includes("uploaded")) {
-          return allUploaded;
-        }
-        if (tableFilters.isUpload.includes("not_uploaded")) {
-          return !allUploaded;
-        }
-        return true;
-      });
-    }
-
-    if (tableFilters.status && tableFilters.status.length > 0) {
-      filtered = filtered.filter((emp) => {
-        const statusMappings = emp.statusMappings || [];
-
-        // Фильтруем только активные статусы
-        const activeStatusMappings = statusMappings.filter((m) => m.isActive);
-
-        const getStatusByGroup = (group) => {
-          const mapping = activeStatusMappings.find((m) => {
-            const mappingGroup = m.statusGroup || m.status_group;
-            return mappingGroup === group;
-          });
-          if (!mapping) return null;
-          const statusObj = mapping.status || mapping.Status;
-          return statusObj?.name;
-        };
-
-        const activeStatus = getStatusByGroup("status_active");
-        const hrStatus = getStatusByGroup("status_hr");
-        const mainStatus = getStatusByGroup("status");
-
-        return tableFilters.status.some((value) => {
-          if (value === "fired") {
-            return (
-              activeStatus === "status_active_fired" ||
-              activeStatus === "status_active_fired_compl"
-            );
-          }
-          if (value === "fired_off") {
-            return hrStatus === "status_hr_fired_off";
-          }
-          if (value === "edited") {
-            return hrStatus === "status_hr_edited";
-          }
-          if (value === "active") {
-            // Действующий = текущий active-статус или legacy main-статусы
-            return (
-              activeStatus === "status_active_employed" ||
-              mainStatus === "status_new" ||
-              mainStatus === "status_tb_passed" ||
-              mainStatus === "status_processed"
-            );
-          }
-
-          return false;
-        });
-      });
-    }
-
-    return filtered;
-  }, [employeesWithOverrides, tableFilters]);
 
   // Получение количества файлов
   const getFilesCount = (employee) => {
@@ -570,10 +482,6 @@ const ExportPage = () => {
     },
   ];
 
-  const hasClientTableFilters = Object.values(tableFilters || {}).some(
-    (value) => Array.isArray(value) && value.length > 0,
-  );
-
   return (
     <div style={{ padding: "16px" }}>
       <style>{`
@@ -596,21 +504,26 @@ const ExportPage = () => {
       <Table
         className="export-table"
         columns={columns}
-        dataSource={filteredEmployees}
+        dataSource={employeesWithOverrides}
         rowKey="id"
         loading={loading}
         size="small"
-        onChange={(pag, filters) => {
-          setTableFilters(filters);
+        onChange={(pag, filters, _sorter, extra) => {
+          if (extra?.action === "filter") {
+            setTableFilters(filters);
+          }
           setPagination((prev) => ({
-            current: pag?.current || prev.current || 1,
+            current:
+              extra?.action === "filter"
+                ? 1
+                : pag?.current || prev.current || 1,
             pageSize: pag?.pageSize || prev.pageSize || 20,
           }));
         }}
         pagination={{
           current: pagination.current,
           pageSize: pagination.pageSize,
-          total: hasClientTableFilters ? filteredEmployees.length : totalCount,
+          total: totalCount,
           showSizeChanger: true,
           showTotal: (total) => `Всего: ${total}`,
           pageSizeOptions: ["10", "20", "50", "100"],
@@ -652,7 +565,7 @@ const ExportPage = () => {
       {/* Модальное окно выгрузки в Excel */}
       <ExcelExportModal
           visible={isExcelExportModalOpen}
-          employees={filteredEmployees}
+          employees={employeesWithOverrides}
           onCancel={handleCloseExcelExportModal}
         onSuccess={handleExcelExportSuccess}
       />

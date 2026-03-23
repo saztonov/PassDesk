@@ -8,7 +8,16 @@ const sanitizeConstructionSitePayload = (payload = {}) => {
   const sanitized = {};
   for (const field of SITE_MUTABLE_FIELDS) {
     if (payload[field] !== undefined) {
-      sanitized[field] = payload[field];
+      const value = typeof payload[field] === "string"
+        ? payload[field].trim()
+        : payload[field];
+
+      if (field === "shortName") {
+        sanitized[field] = value;
+        continue;
+      }
+
+      sanitized[field] = value === "" ? null : value;
     }
   }
   return sanitized;
@@ -98,10 +107,10 @@ export const getConstructionSiteById = async (req, res, next) => {
 export const createConstructionSite = async (req, res, next) => {
   try {
     const payload = sanitizeConstructionSitePayload(req.body);
-    if (Object.keys(payload).length === 0) {
+    if (!payload.shortName) {
       return res.status(400).json({
         success: false,
-        message: "Не переданы данные объекта строительства",
+        message: "Краткое название объекта обязательно",
       });
     }
 
@@ -153,6 +162,13 @@ export const updateConstructionSite = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: "Нет полей для обновления",
+      });
+    }
+
+    if ("shortName" in payload && !payload.shortName) {
+      return res.status(400).json({
+        success: false,
+        message: "Краткое название объекта обязательно",
       });
     }
 

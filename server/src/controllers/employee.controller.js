@@ -296,6 +296,8 @@ const matchesEmployeeStatusFilter = (employee, requestedStatuses = []) => {
   const isInactive = activeStatus === "status_active_inactive";
   const isDraft =
     cardStatus === "status_card_draft" || mainStatus === "status_draft";
+  const isEdited = hrStatus === "status_hr_edited";
+  const isFiredOff = hrStatus === "status_hr_fired_off";
   const isActive =
     !isBlocked &&
     !isFired &&
@@ -316,6 +318,14 @@ const matchesEmployeeStatusFilter = (employee, requestedStatuses = []) => {
 
     if (value === "inactive") {
       return isInactive;
+    }
+
+    if (value === "edited") {
+      return isEdited;
+    }
+
+    if (value === "fired_off") {
+      return isFiredOff;
     }
 
     if (value === "draft") {
@@ -362,6 +372,14 @@ const buildEmployeeStatusSqlPredicate = (requestedStatuses = []) => {
     ["status_active_inactive"],
     ["status_active"],
   );
+  const editedSql = buildActiveStatusExistsSql(
+    ["status_hr_edited"],
+    ["status_hr"],
+  );
+  const firedOffSql = buildActiveStatusExistsSql(
+    ["status_hr_fired_off"],
+    ["status_hr"],
+  );
   const draftSql = `(
     ${buildActiveStatusExistsSql(["status_card_draft"], ["status_card", "card draft"])}
     OR
@@ -383,8 +401,55 @@ const buildEmployeeStatusSqlPredicate = (requestedStatuses = []) => {
       if (value === "blocked") return blockedSql;
       if (value === "fired") return firedSql;
       if (value === "inactive") return inactiveSql;
+      if (value === "edited") return editedSql;
+      if (value === "fired_off") return firedOffSql;
       if (value === "draft") return draftSql;
       if (value === "active") return activeSql;
+      return null;
+    })
+    .filter(Boolean);
+
+  if (!predicates.length) {
+    return null;
+  }
+
+  return `(${predicates.join(" OR ")})`;
+};
+
+const buildEmployeeUploadSqlPredicate = (requestedUploadFilters = []) => {
+  if (!requestedUploadFilters.length) {
+    return null;
+  }
+
+  const hasActiveStatusesSql = `EXISTS (
+    SELECT 1
+    FROM employees_statuses_mapping esm
+    WHERE esm.employee_id = "Employee"."id"
+      AND esm.is_active = true
+  )`;
+
+  const hasNotUploadedActiveStatusSql = `EXISTS (
+    SELECT 1
+    FROM employees_statuses_mapping esm
+    WHERE esm.employee_id = "Employee"."id"
+      AND esm.is_active = true
+      AND COALESCE(esm.is_upload, false) = false
+  )`;
+
+  const uploadedSql = `(
+    ${hasActiveStatusesSql}
+    AND NOT ${hasNotUploadedActiveStatusSql}
+  )`;
+
+  const notUploadedSql = `(
+    ${hasActiveStatusesSql}
+    AND ${hasNotUploadedActiveStatusSql}
+  )`;
+
+  const predicates = requestedUploadFilters
+    .map((value) => {
+      if (value === "uploaded") return uploadedSql;
+      if (value === "not_uploaded") return notUploadedSql;
       return null;
     })
     .filter(Boolean);
@@ -606,11 +671,20 @@ export const getAllEmployees = async (req, res, next) => {
     const requestedCounterpartyIds = normalizeQueryArray(
       req.query.counterpartyIds,
     );
+    const requestedCounterpartyNames = normalizeQueryArray(
+      req.query.counterpartyNames,
+    );
+    const requestedUploadFilters = normalizeQueryArray(req.query.uploadStates)
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter((value) => value === "uploaded" || value === "not_uploaded");
     const requestedStatusCardFilters = normalizeQueryArray(req.query.statusCard)
       .map((value) => String(value || "").trim().toLowerCase())
       .filter((value) => value === "completed" || value === "draft");
     const sqlStatusPredicate = buildEmployeeStatusSqlPredicate(
       requestedStatusFilters,
+    );
+    const sqlUploadPredicate = buildEmployeeUploadSqlPredicate(
+      requestedUploadFilters,
     );
     const canUseSqlStatusFiltering = Boolean(sqlStatusPredicate);
     const requiresPostFiltering = requestedStatusCardFilters.length > 0;
@@ -710,6 +784,10 @@ export const getAllEmployees = async (req, res, next) => {
 
     if (canUseSqlStatusFiltering) {
       where[Op.and] = [...(where[Op.and] || []), sequelize.literal(sqlStatusPredicate)];
+    }
+
+    if (sqlUploadPredicate) {
+      where[Op.and] = [...(where[Op.and] || []), sequelize.literal(sqlUploadPredicate)];
     }
 
     // В режиме full encryption поиск по фамилии и ФИО делаем после чтения записей,
@@ -864,6 +942,21 @@ export const getAllEmployees = async (req, res, next) => {
     if (effectiveCounterpartyIds.length > 0) {
       const mappingWhere = ensureMappingWhere();
       mappingWhere.counterpartyId = effectiveCounterpartyIds;
+    }
+
+    const counterpartyInclude = mappingInclude.include.find(
+      (include) => include.as === "counterparty",
+    );
+
+    if (requestedCounterpartyNames.length > 0 && counterpartyInclude) {
+      hasJoinBasedFilters = true;
+      counterpartyInclude.where = {
+        name: {
+          [Op.in]: requestedCounterpartyNames,
+        },
+      };
+      counterpartyInclude.required = true;
+      mappingInclude.required = true;
     }
 
     if (requestedDepartmentNames.length > 0 && departmentInclude) {
@@ -1138,6 +1231,33 @@ export const getAllEmployees = async (req, res, next) => {
         });
 
         return hasMatchingStatus;
+      });
+    }
+
+    if (requestedUploadFilters.length > 0 && !sqlUploadPredicate) {
+      filteredRows = filteredRows.filter((employee) => {
+        const statusMappings = (employee.statusMappings || []).filter(
+          (mapping) => mapping.isActive !== false,
+        );
+
+        if (statusMappings.length === 0) {
+          return false;
+        }
+
+        const allUploaded = statusMappings.every((mapping) => mapping.isUpload);
+        const notUploaded = !allUploaded;
+
+        return requestedUploadFilters.some((value) => {
+          if (value === "uploaded") {
+            return allUploaded;
+          }
+
+          if (value === "not_uploaded") {
+            return notUploaded;
+          }
+
+          return false;
+        });
       });
     }
 

@@ -19,22 +19,12 @@ const ConstructionSite = sequelize.define('ConstructionSite', {
   },
   fullName: {
     type: DataTypes.STRING(500),
-    allowNull: false,
+    allowNull: true,
     field: 'full_name',
-    validate: {
-      notEmpty: {
-        msg: 'Полное название не может быть пустым'
-      }
-    }
   },
   address: {
     type: DataTypes.TEXT,
-    allowNull: false,
-    validate: {
-      notEmpty: {
-        msg: 'Адрес не может быть пустым'
-      }
-    }
+    allowNull: true,
   },
   createdBy: {
     type: DataTypes.INTEGER,
@@ -75,4 +65,3 @@ const ConstructionSite = sequelize.define('ConstructionSite', {
 });
 
 export default ConstructionSite;
-

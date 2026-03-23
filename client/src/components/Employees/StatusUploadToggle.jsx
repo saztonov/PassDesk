@@ -9,9 +9,14 @@ import { employeeApi } from '@/entities/employee';
 const StatusUploadToggle = ({ employeeId, statusMappings, onUpdate }) => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
+  const activeStatusMappings = (statusMappings || []).filter(
+    (statusMapping) => statusMapping?.isActive,
+  );
 
   // Определяем состояние: если все активные статусы имеют is_upload=true - зеленая, иначе оранжевая
-  const allUploaded = statusMappings?.length > 0 && statusMappings.every(sm => sm.isUpload);
+  const allUploaded =
+    activeStatusMappings.length > 0 &&
+    activeStatusMappings.every((statusMapping) => statusMapping.isUpload);
 
   const handleToggle = async (e) => {
     e.stopPropagation();
@@ -29,10 +34,16 @@ const StatusUploadToggle = ({ employeeId, statusMappings, onUpdate }) => {
         );
         
         // Обновляем все статусы
-        const updatedMappings = statusMappings?.map(sm => ({
-          ...sm,
-          isUpload: !allUploaded
-        })) || [];
+        const updatedMappings = (statusMappings || []).map((statusMapping) => {
+          if (!statusMapping?.isActive) {
+            return statusMapping;
+          }
+
+          return {
+            ...statusMapping,
+            isUpload: !allUploaded,
+          };
+        });
         
         onUpdate?.(updatedMappings);
       }
@@ -48,7 +59,7 @@ const StatusUploadToggle = ({ employeeId, statusMappings, onUpdate }) => {
     return <Spin size="small" />;
   }
 
-  if (!statusMappings || statusMappings.length === 0) {
+  if (activeStatusMappings.length === 0) {
     return '-';
   }
 
