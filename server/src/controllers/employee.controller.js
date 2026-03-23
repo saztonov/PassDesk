@@ -380,7 +380,7 @@ const buildActiveStatusExistsSql = (statusNames, statusGroups) => {
     FROM employees_statuses_mapping esm
     JOIN statuses s ON s.id = esm.status_id
     WHERE esm.employee_id = "Employee"."id"
-      AND esm.is_active = true
+      AND esm.is_active IS NOT FALSE
       AND esm.status_group IN (${groupsSql})
       AND s.name IN (${namesSql})
   )`;
@@ -412,9 +412,14 @@ const buildEmployeeStatusSqlPredicate = (requestedStatuses = []) => {
     ["status_hr"],
   );
   const draftSql = `(
-    ${buildActiveStatusExistsSql(["status_card_draft"], ["status_card", "card draft"])}
-    OR
-    ${buildActiveStatusExistsSql(["status_draft"], ["status", "draft"])}
+    (
+      ${buildActiveStatusExistsSql(["status_card_draft"], ["status_card", "card draft"])}
+      OR
+      ${buildActiveStatusExistsSql(["status_draft"], ["status", "draft"])}
+    )
+    AND NOT ${firedSql}
+    AND NOT ${blockedSql}
+    AND NOT ${inactiveSql}
   )`;
   const activeSql = `(
     ${buildActiveStatusExistsSql(
