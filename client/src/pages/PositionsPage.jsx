@@ -17,9 +17,9 @@ import {
   UploadOutlined,
 } from "@ant-design/icons";
 import positionService from "../services/positionService";
-import settingsService from "../services/settingsService";
 import { useAuthStore } from "../store/authStore";
 import * as XLSX from "xlsx";
+import { canManageAdministrativeData } from "@/shared/lib/accessControl";
 
 const PAGE_SIZE = 50;
 
@@ -194,7 +194,6 @@ const PositionsPage = () => {
     totalCount: 0,
     currentPage: 1,
     searchText: "",
-    defaultCounterpartyId: null,
     modal: {
       visible: false,
       editingPosition: null,
@@ -207,12 +206,11 @@ const PositionsPage = () => {
     totalCount,
     currentPage,
     searchText,
-    defaultCounterpartyId,
     modal,
   } = state;
 
   const canEditAndDelete =
-    user?.role === "admin" || user?.counterpartyId === defaultCounterpartyId;
+    canManageAdministrativeData(user?.role);
 
   const fetchPositions = useCallback(
     async (page = 1, search = "") => {
@@ -240,22 +238,9 @@ const PositionsPage = () => {
     [message],
   );
 
-  const fetchDefaultCounterparty = useCallback(async () => {
-    try {
-      const response = await settingsService.getPublicSettings();
-      setState((prev) => ({
-        ...prev,
-        defaultCounterpartyId: response.data?.data?.defaultCounterpartyId,
-      }));
-    } catch (error) {
-      console.error("Error loading default counterparty:", error);
-    }
-  }, []);
-
   useEffect(() => {
     fetchPositions();
-    fetchDefaultCounterparty();
-  }, [fetchPositions, fetchDefaultCounterparty]);
+  }, [fetchPositions]);
 
   const handleSearch = (value) => {
     setState((prev) => ({ ...prev, searchText: value }));
@@ -270,13 +255,13 @@ const PositionsPage = () => {
     form.resetFields();
   };
 
-  const handleEdit = (position) => {
+  const handleEdit = useCallback((position) => {
     setState((prev) => ({
       ...prev,
       modal: { visible: true, editingPosition: position },
     }));
     form.setFieldsValue({ name: position.name });
-  };
+  }, [form]);
 
   const handleCloseModal = () => {
     setState((prev) => ({
@@ -310,7 +295,7 @@ const PositionsPage = () => {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = useCallback(async (id) => {
     try {
       setState((prev) => ({ ...prev, loading: true }));
       await positionService.delete(id);
@@ -322,7 +307,7 @@ const PositionsPage = () => {
     } finally {
       setState((prev) => ({ ...prev, loading: false }));
     }
-  };
+  }, [currentPage, fetchPositions, message, searchText]);
 
   const handleImportExcel = (file) => {
     const reader = new FileReader();
@@ -369,7 +354,7 @@ const PositionsPage = () => {
         onEdit: handleEdit,
         onDelete: handleDelete,
       }),
-    [canEditAndDelete, currentPage],
+    [canEditAndDelete, currentPage, handleDelete, handleEdit],
   );
 
   return (

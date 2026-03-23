@@ -16,11 +16,15 @@ import {
   CloseCircleOutlined,
   EditOutlined,
 } from "@ant-design/icons";
+import { canManageUsers } from "@/shared/lib/accessControl";
 
 const { Text } = Typography;
 
 const getUserFullName = (user) =>
   [user?.lastName, user?.firstName].filter(Boolean).join(" ").trim() || "-";
+
+const canManageTargetUser = (currentRole, currentUserId, targetUserId) =>
+  canManageUsers(currentRole) && targetUserId !== currentUserId;
 
 /**
  * Мобильный список пользователей (карточки)
@@ -177,7 +181,7 @@ const MobileUsersList = ({
               }}
             >
               {/* Переключатель Активен/Неактивен */}
-              {currentUser?.role === "admin" && user.id !== currentUser?.id && (
+              {canManageTargetUser(currentUser?.role, currentUser?.id, user.id) && (
                 <Switch
                   checked={user.isActive}
                   onChange={() => onStatusToggle(user.id)}
@@ -187,8 +191,7 @@ const MobileUsersList = ({
                 />
               )}
               {/* Для остальных - только просмотр статуса */}
-              {(currentUser?.role !== "admin" ||
-                user.id === currentUser?.id) && (
+              {!canManageTargetUser(currentUser?.role, currentUser?.id, user.id) && (
                 <Tag
                   icon={
                     user.isActive ? (
@@ -347,7 +350,7 @@ const UserDrawer = ({
         </div>
 
         {/* Кнопка редактирования */}
-        {currentUser?.role === "admin" && (
+        {canManageUsers(currentUser?.role) && (
           <div
             style={{ position: "absolute", bottom: 16, left: 16, right: 16 }}
           >

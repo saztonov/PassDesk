@@ -53,6 +53,9 @@ const READER_UID_FORMAT_OPTIONS = [
 ];
 
 const READER_UID_FORMAT_STORAGE_KEY = "employee_skud_reader_uid_format";
+const SKUD_AUTO_REFRESH_INTERVAL_MS = 2000;
+const SKUD_AUTO_REFRESH_DURATION_MS = 30000;
+const SKUD_AUTO_REFRESH_MIN_TICKS = 3;
 
 const resolveCardExpirationFromCards = (rows = []) => {
   const candidates = Array.isArray(rows) ? rows : [];
@@ -105,6 +108,10 @@ const EmployeeSkudTab = ({ employee }) => {
     return window.localStorage.getItem(READER_UID_FORMAT_STORAGE_KEY) || "w26";
   });
   const wsRef = useRef(null);
+  const autoRefreshTimeoutRef = useRef(null);
+  const autoRefreshStopAtRef = useRef(0);
+  const autoRefreshRemainingTicksRef = useRef(0);
+  const autoRefreshInFlightRef = useRef(false);
 
   // sync jobs
   const [syncJobs, setSyncJobs] = useState([]);
@@ -170,8 +177,10 @@ const EmployeeSkudTab = ({ employee }) => {
       const result = await skudService.getCards({ employeeId, limit: 50 });
       const rows = result?.items || result?.rows || result?.cards || (Array.isArray(result) ? result : []);
       setCards(rows);
+      return rows;
     } catch {
       // тихо
+      return [];
     } finally {
       setCardsLoading(false);
     }
@@ -184,17 +193,99 @@ const EmployeeSkudTab = ({ employee }) => {
       const result = await skudService.getSyncJobs({ employeeId, limit: 10 });
       const rows = result?.items || result?.rows || result?.syncJobs || (Array.isArray(result) ? result : []);
       setSyncJobs(rows);
+      return rows;
     } catch {
       // тихо
+      return [];
     } finally {
       setSyncJobsLoading(false);
     }
   }, [employeeId]);
 
+  const stopAutoRefresh = useCallback(() => {
+    if (typeof window !== "undefined" && autoRefreshTimeoutRef.current) {
+      window.clearTimeout(autoRefreshTimeoutRef.current);
+    }
+    autoRefreshTimeoutRef.current = null;
+    autoRefreshStopAtRef.current = 0;
+    autoRefreshRemainingTicksRef.current = 0;
+    autoRefreshInFlightRef.current = false;
+  }, []);
+
+  const refreshSkudState = useCallback(async () => {
+    const [cardsRows, syncJobRows] = await Promise.all([
+      loadCards(),
+      loadSyncJobs(),
+    ]);
+
+    return {
+      cardsRows,
+      syncJobRows,
+    };
+  }, [loadCards, loadSyncJobs]);
+
+  const scheduleAutoRefresh = useCallback(
+    ({ durationMs = SKUD_AUTO_REFRESH_DURATION_MS, minTicks = SKUD_AUTO_REFRESH_MIN_TICKS } = {}) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      stopAutoRefresh();
+      autoRefreshStopAtRef.current = Date.now() + durationMs;
+      autoRefreshRemainingTicksRef.current = minTicks;
+
+      const tick = async () => {
+        if (Date.now() >= autoRefreshStopAtRef.current) {
+          stopAutoRefresh();
+          return;
+        }
+
+        if (autoRefreshInFlightRef.current) {
+          autoRefreshTimeoutRef.current = window.setTimeout(tick, SKUD_AUTO_REFRESH_INTERVAL_MS);
+          return;
+        }
+
+        autoRefreshInFlightRef.current = true;
+
+        try {
+          const { syncJobRows } = await refreshSkudState();
+          autoRefreshRemainingTicksRef.current = Math.max(
+            0,
+            autoRefreshRemainingTicksRef.current - 1,
+          );
+
+          const hasActiveJobs = Array.isArray(syncJobRows)
+            && syncJobRows.some((job) => ["pending", "processing"].includes(job?.status));
+
+          if (
+            Date.now() >= autoRefreshStopAtRef.current
+            || (!hasActiveJobs && autoRefreshRemainingTicksRef.current === 0)
+          ) {
+            stopAutoRefresh();
+            return;
+          }
+        } finally {
+          autoRefreshInFlightRef.current = false;
+        }
+
+        autoRefreshTimeoutRef.current = window.setTimeout(tick, SKUD_AUTO_REFRESH_INTERVAL_MS);
+      };
+
+      tick();
+    },
+    [refreshSkudState, stopAutoRefresh],
+  );
+
   useEffect(() => {
     loadCards();
     loadSyncJobs();
   }, [loadCards, loadSyncJobs]);
+
+  useEffect(() => stopAutoRefresh, [stopAutoRefresh]);
+
+  useEffect(() => {
+    stopAutoRefresh();
+  }, [employeeId, stopAutoRefresh]);
 
   // загружаем подразделения Sigur, внутренние подразделения и текущий binding
   useEffect(() => {
@@ -379,10 +470,9 @@ const EmployeeSkudTab = ({ employee }) => {
         cardExpirationDate: cardExpirationDate ? cardExpirationDate.format("YYYY-MM-DD 00:00:00") : null,
       });
       await skudService.assignCard({ employeeId, cardNumber });
-      message.success("Пропуск выдан");
+      message.success("Заявка на выдачу пропуска отправлена. Дождитесь синхронизации с СКУД");
       newCardForm.resetFields();
-      loadCards().catch(() => {});
-      setTimeout(() => loadSyncJobs().catch(() => {}), 800);
+      scheduleAutoRefresh();
     } catch (err) {
       message.error(err?.response?.data?.message || "Ошибка при выдаче пропуска");
     } finally {
@@ -402,8 +492,7 @@ const EmployeeSkudTab = ({ employee }) => {
         try {
           await skudService.blockCard(card.id);
           message.success("Карта заблокирована");
-          await loadCards();
-          loadSyncJobs().catch(() => {});
+          scheduleAutoRefresh();
         } catch (err) {
           message.error(err?.response?.data?.message || "Ошибка блокировки");
         } finally {
@@ -432,8 +521,7 @@ const EmployeeSkudTab = ({ employee }) => {
             await skudService.unbindCard(card.id);
           }
           message.success("Карта отвязана");
-          await loadCards();
-          loadSyncJobs().catch(() => {});
+          scheduleAutoRefresh();
         } catch (err) {
           message.error(err?.response?.data?.message || "Ошибка при отвязке");
         } finally {
@@ -455,8 +543,7 @@ const EmployeeSkudTab = ({ employee }) => {
         try {
           await skudService.blockLiveEmployee(employeeId);
           message.success("Сотрудник заблокирован в СКУД");
-          await loadCards();
-          loadSyncJobs().catch(() => {});
+          await refreshSkudState();
         } catch (err) {
           message.error(err?.response?.data?.message || "Ошибка блокировки в СКУД");
         } finally {
@@ -477,8 +564,7 @@ const EmployeeSkudTab = ({ employee }) => {
         try {
           await skudService.unblockLiveEmployee(employeeId);
           message.success("Сотрудник разблокирован в СКУД");
-          await loadCards();
-          loadSyncJobs().catch(() => {});
+          await refreshSkudState();
         } catch (err) {
           message.error(err?.response?.data?.message || "Ошибка разблокировки в СКУД");
         } finally {
@@ -502,11 +588,10 @@ const EmployeeSkudTab = ({ employee }) => {
     try {
       await skudService.blockCard(oldCard.id);
       await skudService.assignCard({ employeeId, cardNumber: newCardNumber });
-      message.success("Старая карта заблокирована, новая выдана");
+      message.success("Старая карта заблокирована, новая поставлена в очередь на выдачу");
       replaceCardForm.resetFields([`replaceCard_${oldCard.id}`]);
       setReplacingCardId(null);
-      await loadCards();
-      loadSyncJobs().catch(() => {});
+      scheduleAutoRefresh();
     } catch (err) {
       message.error(err?.response?.data?.message || "Ошибка при замене карты");
     } finally {

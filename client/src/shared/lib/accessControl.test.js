@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   canAccessOt,
   canAccessSkud,
+  canManageAdministrativeData,
+  canManageCounterparties,
   canManageEmployeeStatuses,
+  canManageUsers,
 } from "./accessControl";
 
 describe("accessControl", () => {
@@ -10,6 +13,40 @@ describe("accessControl", () => {
     expect(canManageEmployeeStatuses("admin")).toBe(true);
     expect(canManageEmployeeStatuses("manager")).toBe(true);
     expect(canManageEmployeeStatuses("user")).toBe(false);
+  });
+
+  it("allows admin and manager to manage administrative data", () => {
+    expect(canManageAdministrativeData("admin")).toBe(true);
+    expect(canManageAdministrativeData("manager")).toBe(true);
+    expect(canManageAdministrativeData("user")).toBe(false);
+  });
+
+  it("allows admin and manager to manage users", () => {
+    expect(canManageUsers("admin")).toBe(true);
+    expect(canManageUsers("manager")).toBe(true);
+    expect(canManageUsers("user")).toBe(false);
+  });
+
+  it("allows manager and eligible user to manage counterparties", () => {
+    expect(
+      canManageCounterparties({
+        role: "manager",
+      }),
+    ).toBe(true);
+    expect(
+      canManageCounterparties({
+        role: "user",
+        counterpartyId: "user-counterparty",
+        defaultCounterpartyId: "default-counterparty",
+      }),
+    ).toBe(true);
+    expect(
+      canManageCounterparties({
+        role: "user",
+        counterpartyId: "default-counterparty",
+        defaultCounterpartyId: "default-counterparty",
+      }),
+    ).toBe(false);
   });
 
   it("allows SKUD access only for admin", () => {

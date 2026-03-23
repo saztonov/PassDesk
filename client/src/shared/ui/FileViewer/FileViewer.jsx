@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Modal, Spin, Button, Space, message, Row, Col } from "antd";
 import {
   ZoomInOutlined,
@@ -24,11 +24,18 @@ export const FileViewer = ({
   const [zoom, setZoom] = useState(100);
   const [rotation, setRotation] = useState(0);
   const [loading, setLoading] = useState(true);
-  const containerRef = useRef(null);
 
   // Определяем тип файла
   const isImage = mimeType?.startsWith("image/");
   const isPdf = mimeType?.includes("pdf");
+
+  useEffect(() => {
+    if (visible) {
+      setLoading(true);
+      setZoom(100);
+      setRotation(0);
+    }
+  }, [fileUrl, mimeType, visible]);
 
   // Обработчик увеличения
   const handleZoomIn = () => {
@@ -131,7 +138,6 @@ export const FileViewer = ({
     <div className={styles.imageContainer}>
       <div
         className={styles.imageWrapper}
-        ref={containerRef}
         style={{
           transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
           transition: "transform 0.2s ease-in-out",
@@ -140,7 +146,7 @@ export const FileViewer = ({
         <img
           src={fileUrl}
           alt={fileName}
-          style={{ maxWidth: "100%", height: "auto" }}
+          className={styles.image}
           onLoad={() => setLoading(false)}
           onError={() => {
             setLoading(false);
@@ -160,9 +166,9 @@ export const FileViewer = ({
         width="100%"
         height="100%"
         onLoad={() => setLoading(false)}
+        className={styles.pdfObject}
         style={{
           transform: `scale(${zoom / 100})`,
-          transformOrigin: "top left",
           transition: "transform 0.2s ease-in-out",
         }}
       >

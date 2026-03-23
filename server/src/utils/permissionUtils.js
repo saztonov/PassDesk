@@ -23,16 +23,13 @@ export const checkEmployeeAccess = async (
 ) => {
   // Админ имеет доступ ко всему
   if (user.role === "admin") return true;
+  if (user.role === "manager") return true;
 
   const defaultCounterpartyId = await Setting.getSetting(
     "default_counterparty_id",
   );
 
   if (user.counterpartyId === defaultCounterpartyId) {
-    if (user.role === "manager") {
-      return true;
-    }
-
     // Пользователи дефолтного контрагента (бюро пропусков)
     // Для обычных пользователей чтение/запись только по персональной привязке.
     const userEmployeeLink = await UserEmployeeMapping.findOne({
@@ -125,6 +122,9 @@ export const getAccessibleEmployeeIds = async (
   if (user.role === "admin") {
     return { allowedIds: uniqueIds, deniedIds: [] };
   }
+  if (user.role === "manager") {
+    return { allowedIds: uniqueIds, deniedIds: [] };
+  }
 
   const defaultCounterpartyId = await Setting.getSetting(
     "default_counterparty_id",
@@ -132,20 +132,16 @@ export const getAccessibleEmployeeIds = async (
   let allowedIds = [];
 
   if (user.counterpartyId === defaultCounterpartyId) {
-    if (user.role === "manager") {
-      allowedIds = uniqueIds;
-    } else {
-      const mappings = await UserEmployeeMapping.findAll({
-        where: {
-          userId: user.id,
-          employeeId: { [Op.in]: uniqueIds },
-          counterpartyId: null,
-        },
-        attributes: ["employeeId"],
-        transaction,
-      });
-      allowedIds = mappings.map((m) => m.employeeId);
-    }
+    const mappings = await UserEmployeeMapping.findAll({
+      where: {
+        userId: user.id,
+        employeeId: { [Op.in]: uniqueIds },
+        counterpartyId: null,
+      },
+      attributes: ["employeeId"],
+      transaction,
+    });
+    allowedIds = mappings.map((m) => m.employeeId);
   } else {
     const subcontractors = await CounterpartySubcounterpartyMapping.findAll({
       where: { parentCounterpartyId: user.counterpartyId },

@@ -16,6 +16,28 @@ import MobileUsersList from "@/components/Admin/MobileUsersList";
  * Мобильная страница управления пользователями
  * Адаптирована для мобильных устройств
  */
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_MIN_MESSAGE = `Пароль должен содержать минимум ${PASSWORD_MIN_LENGTH} символов`;
+
+const applyServerValidationErrors = (targetForm, error) => {
+  const responseErrors = error?.response?.data?.errors;
+
+  if (!Array.isArray(responseErrors) || responseErrors.length === 0) {
+    return false;
+  }
+
+  targetForm.setFields(
+    responseErrors
+      .filter((item) => item?.field)
+      .map((item) => ({
+        name: item.field,
+        errors: item?.message ? [item.message] : [],
+      })),
+  );
+
+  return true;
+};
+
 const MobileUsersPage = () => {
   const { message } = App.useApp();
   const [users, setUsers] = useState([]);
@@ -157,6 +179,10 @@ const MobileUsersPage = () => {
       if (error.errorFields) {
         return;
       }
+      if (applyServerValidationErrors(form, error)) {
+        message.error(error?.response?.data?.errors?.[0]?.message || "Проверьте введенные данные");
+        return;
+      }
       message.error(
         error.response?.data?.message || "Ошибка сохранения пользователя",
       );
@@ -175,6 +201,10 @@ const MobileUsersPage = () => {
       passwordForm.resetFields();
     } catch (error) {
       if (error.errorFields) {
+        return;
+      }
+      if (applyServerValidationErrors(passwordForm, error)) {
+        message.error(error?.response?.data?.errors?.[0]?.message || "Проверьте введенные данные");
         return;
       }
       message.error(
@@ -335,8 +365,8 @@ const MobileUsersPage = () => {
               rules={[
                 { required: true, message: "Введите пароль" },
                 {
-                  min: 6,
-                  message: "Пароль должен содержать минимум 6 символов",
+                  min: PASSWORD_MIN_LENGTH,
+                  message: PASSWORD_MIN_MESSAGE,
                 },
               ]}
             >
@@ -418,7 +448,7 @@ const MobileUsersPage = () => {
             label="Новый пароль"
             rules={[
               { required: true, message: "Введите новый пароль" },
-              { min: 6, message: "Пароль должен содержать минимум 6 символов" },
+              { min: PASSWORD_MIN_LENGTH, message: PASSWORD_MIN_MESSAGE },
             ]}
           >
             <Input.Password prefix={<LockOutlined />} placeholder="••••••••" />

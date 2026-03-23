@@ -29,6 +29,10 @@ import settingsService from "../services/settingsService";
 import { CounterpartyObjectsModal } from "./CounterpartiesPage/CounterpartyObjectsModal";
 import { useAuthStore } from "../store/authStore";
 import { Link } from "react-router-dom";
+import {
+  canManageAdministrativeData,
+  canManageCounterparties,
+} from "@/shared/lib/accessControl";
 
 const { Title } = Typography;
 
@@ -79,10 +83,11 @@ const CounterpartiesPage = () => {
 
   // Проверка: может ли user редактировать контрагентов
   const canEditCounterparties =
-    user?.role === "admin" ||
-    (user?.role === "user" &&
-      user?.counterpartyId &&
-      user?.counterpartyId !== defaultCounterpartyId);
+    canManageCounterparties({
+      role: user?.role,
+      counterpartyId: user?.counterpartyId,
+      defaultCounterpartyId,
+    });
 
   // Debounce для фильтров (500мс)
   useEffect(() => {
@@ -149,7 +154,7 @@ const CounterpartiesPage = () => {
     // Для user (не default) устанавливаем все кроме type
     const formValues = { ...record };
     if (
-      user?.role === "admin" &&
+      canManageAdministrativeData(user?.role) &&
       record.typeMapping?.types &&
       record.typeMapping.types.length > 0
     ) {
@@ -234,8 +239,11 @@ const CounterpartiesPage = () => {
   const handleOpenObjectsModal = (counterpartyId) => {
     // admin и user (не default) могут назначать объекты
     if (
-      user?.role !== "admin" &&
-      !(user?.role === "user" && user?.counterpartyId !== defaultCounterpartyId)
+      !canManageCounterparties({
+        role: user?.role,
+        counterpartyId: user?.counterpartyId,
+        defaultCounterpartyId,
+      })
     ) {
       message.error("У вас нет прав для редактирования объектов");
       return;
@@ -354,7 +362,7 @@ const CounterpartiesPage = () => {
         const objects = record.constructionSites || [];
         // Проверяем права на редактирование объектов
         const canEditObjects =
-          user?.role === "admin" ||
+          canManageAdministrativeData(user?.role) ||
           (user?.role === "user" &&
             user?.counterpartyId !== defaultCounterpartyId &&
             record.parentCounterparty?.id === user?.counterpartyId);
@@ -433,7 +441,7 @@ const CounterpartiesPage = () => {
                 size="small"
               />
             </Tooltip>
-            {user?.role === "admin" && (
+            {canManageAdministrativeData(user?.role) && (
               <>
                 <Button
                   icon={<EditOutlined />}
@@ -651,7 +659,7 @@ const CounterpartiesPage = () => {
                   <Input maxLength={15} />
                 </Form.Item>
               </Col>
-              {user?.role === "admin" && (
+              {canManageAdministrativeData(user?.role) && (
                 <Col span={12}>
                   <Form.Item
                     name="type"

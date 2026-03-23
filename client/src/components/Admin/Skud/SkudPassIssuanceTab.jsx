@@ -20,7 +20,7 @@ import { employeeService } from "@/services/employeeService";
 import { employeeApi } from "@/entities/employee";
 import { constructionSiteService } from "@/services/constructionSiteService";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 const buildName = (e) =>
   [e?.lastName, e?.firstName, e?.middleName].filter(Boolean).join(" ") ||
@@ -161,7 +161,7 @@ const SkudPassIssuanceTab = () => {
 
       setLastResult({ type: "success", cardNumber });
       form.resetFields(["cardNumber"]);
-      message.success("Пропуск выдан");
+      message.success("Заявка на выдачу пропуска отправлена. Дождитесь синхронизации с СКУД");
     } catch (err) {
       const errMsg = err?.response?.data?.message || err?.message || "Ошибка при выдаче пропуска";
       setLastResult({ type: "error", message: errMsg });
@@ -285,7 +285,7 @@ const SkudPassIssuanceTab = () => {
               type={lastResult.type}
               message={
                 lastResult.type === "success"
-                  ? `Пропуск выдан. Карта: ${lastResult.cardNumber}`
+                  ? `Заявка на выдачу пропуска отправлена. Карта: ${lastResult.cardNumber}`
                   : lastResult.message
               }
               showIcon

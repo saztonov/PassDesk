@@ -30,6 +30,7 @@ import {
 import { userService } from "@/services/userService";
 import { counterpartyService } from "@/services/counterpartyService";
 import { useAuthStore } from "@/store/authStore";
+import { canManageUsers } from "@/shared/lib/accessControl";
 
 const { Title } = Typography;
 
@@ -47,6 +48,31 @@ const compareNullableText = (left, right) =>
 
 const getUserFullName = (user) =>
   [user?.lastName, user?.firstName].filter(Boolean).join(" ").trim() || "-";
+
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_MIN_MESSAGE = `Пароль должен содержать минимум ${PASSWORD_MIN_LENGTH} символов`;
+
+const applyServerValidationErrors = (targetForm, error) => {
+  const responseErrors = error?.response?.data?.errors;
+
+  if (!Array.isArray(responseErrors) || responseErrors.length === 0) {
+    return false;
+  }
+
+  targetForm.setFields(
+    responseErrors
+      .filter((item) => item?.field)
+      .map((item) => ({
+        name: item.field,
+        errors: item?.message ? [item.message] : [],
+      })),
+  );
+
+  return true;
+};
+
+const canManageTargetUser = (currentRole, currentUserId, targetUserId) =>
+  canManageUsers(currentRole) && targetUserId !== currentUserId;
 
 const UsersPage = () => {
   const { message } = App.useApp();
@@ -186,7 +212,7 @@ const UsersPage = () => {
       key: "isActive",
       render: (isActive, record) => {
         // Для администраторов - Switch, для остальных - Tag
-        if (currentUser?.role === "admin" && record.id !== currentUser?.id) {
+        if (canManageTargetUser(currentUser?.role, currentUser?.id, record.id)) {
           return (
             <Switch
               checked={isActive}
@@ -250,7 +276,7 @@ const UsersPage = () => {
               icon={<LockOutlined />}
               onClick={() => handleChangePassword(record)}
               disabled={
-                currentUser?.role !== "admin" && record.id !== currentUser?.id
+                !canManageUsers(currentUser?.role) && record.id !== currentUser?.id
               }
             />
           </Tooltip>
@@ -263,7 +289,7 @@ const UsersPage = () => {
               okType="danger"
               cancelText="Отмена"
               disabled={
-                record.id === currentUser?.id || currentUser?.role !== "admin"
+                !canManageTargetUser(currentUser?.role, currentUser?.id, record.id)
               }
             >
               <Button
@@ -271,7 +297,7 @@ const UsersPage = () => {
                 danger
                 icon={<DeleteOutlined />}
                 disabled={
-                  record.id === currentUser?.id || currentUser?.role !== "admin"
+                  !canManageTargetUser(currentUser?.role, currentUser?.id, record.id)
                 }
               />
             </Popconfirm>
@@ -346,6 +372,10 @@ const UsersPage = () => {
         // Validation error
         return;
       }
+      if (applyServerValidationErrors(form, error)) {
+        message.error(error?.response?.data?.errors?.[0]?.message || "Проверьте введенные данные");
+        return;
+      }
       message.error(
         error.response?.data?.message || "Ошибка сохранения пользователя",
       );
@@ -363,6 +393,10 @@ const UsersPage = () => {
       passwordForm.resetFields();
     } catch (error) {
       if (error.errorFields) {
+        return;
+      }
+      if (applyServerValidationErrors(passwordForm, error)) {
+        message.error(error?.response?.data?.errors?.[0]?.message || "Проверьте введенные данные");
         return;
       }
       message.error(
@@ -557,8 +591,8 @@ const UsersPage = () => {
               rules={[
                 { required: true, message: "Введите пароль" },
                 {
-                  min: 6,
-                  message: "Пароль должен содержать минимум 6 символов",
+                  min: PASSWORD_MIN_LENGTH,
+                  message: PASSWORD_MIN_MESSAGE,
                 },
               ]}
             >
@@ -642,7 +676,7 @@ const UsersPage = () => {
             label="Новый пароль"
             rules={[
               { required: true, message: "Введите новый пароль" },
-              { min: 6, message: "Пароль должен содержать минимум 6 символов" },
+              { min: PASSWORD_MIN_LENGTH, message: PASSWORD_MIN_MESSAGE },
             ]}
           >
             <Input.Password prefix={<LockOutlined />} placeholder="••••••••" />
