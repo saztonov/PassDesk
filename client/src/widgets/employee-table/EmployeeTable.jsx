@@ -128,6 +128,7 @@ export const EmployeeTable = ({
   canMarkForDeletion,
   onMarkForDeletion,
   uniqueFilters,
+  filterOptions,
   onFiltersChange,
   defaultCounterpartyId,
   userCounterpartyId,
@@ -155,6 +156,7 @@ export const EmployeeTable = ({
     canMarkForDeletion,
     onMarkForDeletion,
     uniqueFilters,
+    filterOptions,
     filters, // Передаем фильтры в хук колонок
     defaultCounterpartyId,
     userCounterpartyId,

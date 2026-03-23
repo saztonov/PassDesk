@@ -11,6 +11,7 @@ import {
   QrcodeOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/store/authStore";
+import { canAccessOt } from "@/shared/lib/accessControl";
 import { useTranslation } from "react-i18next";
 import settingsService from "@/services/settingsService";
 
@@ -62,14 +63,14 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
     });
   }
 
-  const showOtMenu =
-    isOtEngineer ||
-    isOtAdmin ||
-    user?.role === "admin" ||
-    user?.role === "manager" ||
-    (user?.role === "user" &&
-      (!defaultCounterpartyId ||
-        String(user?.counterpartyId) !== String(defaultCounterpartyId)));
+  const showOtMenu = canAccessOt({
+    role: user?.role,
+    isDefaultCounterpartyUser:
+      Boolean(defaultCounterpartyId) &&
+      String(user?.counterpartyId) === String(defaultCounterpartyId),
+    isOtEngineer,
+    isOtAdmin,
+  });
 
   if (showOtMenu) {
     topMenuItems.push({

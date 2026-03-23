@@ -2,6 +2,7 @@ import { Drawer, Form, Collapse, Button, Space } from "antd";
 import { CloseOutlined, EditOutlined } from "@ant-design/icons";
 import { useEffect, useMemo, useState } from "react";
 import { useEmployeeForm } from "./useEmployeeForm";
+import { canManageEmployeeStatuses } from "@/shared/lib/accessControl";
 import {
   buildEmployeeViewDrawerFormData,
   buildEmployeeViewDrawerItems,
@@ -30,7 +31,7 @@ const EmployeeViewDrawer = ({ visible, employee, onClose, onEdit }) => {
     }
   }, [employee, form]);
 
-  const canViewStatuses = user?.role === "admin";
+  const canViewStatuses = canManageEmployeeStatuses(user?.role);
 
   const collapseItems = useMemo(
     () =>

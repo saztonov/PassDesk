@@ -79,5 +79,10 @@ export default defineConfig(({ mode }) => {
     worker: {
       format: "iife",
     },
+    test: {
+      environment: "jsdom",
+      setupFiles: "./src/test/setup.js",
+      css: true,
+    },
   };
 });

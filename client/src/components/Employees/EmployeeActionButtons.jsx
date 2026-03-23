@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Popconfirm, Space } from "antd";
 import { employeeStatusService } from "../../services/employeeStatusService";
 import { invalidateCache } from "../../utils/requestCache";
+import { canManageEmployeeStatuses } from "@/shared/lib/accessControl";
 
 const EmployeeActionButtons = ({
   employee,
@@ -21,7 +22,7 @@ const EmployeeActionButtons = ({
   const isInactive =
     employee.statusMappings?.find((m) => m.statusGroup === "status_active")
       ?.status?.name === "status_active_inactive";
-  const canManageStatuses = userRole === "admin";
+  const canManageStatuses = canManageEmployeeStatuses(userRole);
 
   const handleFire = async () => {
     try {

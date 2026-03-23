@@ -14,6 +14,7 @@ import { useEmployeesActions } from "@/modules/employees/model/useEmployeesActio
 import { useCounterpartyMap } from "@/modules/employees/model/useCounterpartyMap";
 import { useEmployeesPageStorage } from "@/modules/employees/model/useEmployeesPageStorage";
 import { useFilteredEmployees } from "@/modules/employees/model/useFilteredEmployees";
+import { useEmployeeTableFilterOptions } from "@/modules/employees/model/useEmployeeTableFilterOptions";
 import { useEmployeesModals } from "@/modules/employees/model/useEmployeesModals";
 import { useEmployeesPermissions } from "@/modules/employees/model/useEmployeesPermissions";
 import useEmployeesPageViewModels from "@/modules/employees/model/useEmployeesPageViewModels";
@@ -57,7 +58,7 @@ const EmployeesPage = () => {
     setCurrentPage(1);
   }, [setCurrentPage]);
 
-  const { counterpartyMap, hasSubcontractors } = useCounterpartyMap({
+  const { counterpartyOptions, hasSubcontractors } = useCounterpartyMap({
     user,
     defaultCounterpartyId,
   });
@@ -98,18 +99,12 @@ const EmployeesPage = () => {
   usePageTitle(t("employees.title"), isMobile);
 
   const counterpartyIdsForFilter = useMemo(() => {
-    if (!tableFilters.counterparty || tableFilters.counterparty.length === 0) {
-      return [];
-    }
+    return Array.isArray(tableFilters.counterparty)
+      ? tableFilters.counterparty.filter(Boolean)
+      : [];
+  }, [tableFilters.counterparty]);
 
-    return tableFilters.counterparty
-      .map((counterpartyName) => counterpartyMap[counterpartyName])
-      .filter(Boolean);
-  }, [tableFilters.counterparty, counterpartyMap]);
-
-  const isCounterpartyFilterReady =
-    !tableFilters.counterparty?.length ||
-    Object.keys(counterpartyMap).length > 0;
+  const isCounterpartyFilterReady = true;
 
   const [debouncedSearchText, setDebouncedSearchText] = useState(searchText);
   const filtersInitializedRef = useRef(false);
@@ -272,6 +267,12 @@ const EmployeesPage = () => {
     counterpartyFilter: tableFilters.counterparty,
     skipSearchFiltering: true,
   });
+  const filterOptions = useEmployeeTableFilterOptions({
+    user,
+    defaultCounterpartyId,
+    counterpartyOptions,
+    uniqueFilters,
+  });
 
   const {
     handleCheckInn,
@@ -305,26 +306,6 @@ const EmployeesPage = () => {
     openSitesModal,
     openRequestModal,
   });
-
-  // После создания нового сотрудника ищем его по имени,
-  // чтобы он сразу появился на экране независимо от страницы и фильтров
-  const handleFormSuccessWithFilterReset = useCallback(
-    async (values) => {
-      const isNewEmployee = !editingEmployee;
-      const result = await handleFormSuccess(values);
-      if (isNewEmployee && result) {
-        const lastName = result.lastName || result.data?.lastName || "";
-        const firstName = result.firstName || result.data?.firstName || "";
-        const searchName = (lastName || firstName).trim();
-        if (searchName) {
-          setSearchText(searchName);
-          setCurrentPage(1);
-        }
-      }
-      return result;
-    },
-    [editingEmployee, handleFormSuccess, setSearchText, setCurrentPage],
-  );
 
   const {
     toolbarView,
@@ -360,6 +341,7 @@ const EmployeesPage = () => {
     pageSize,
     departments,
     uniqueFilters,
+    filterOptions,
     defaultCounterpartyId,
     user,
     resetTrigger,
@@ -389,7 +371,7 @@ const EmployeesPage = () => {
     isSecurityModalOpen,
     setIsModalOpen,
     setEditingEmployee,
-    handleFormSuccess: handleFormSuccessWithFilterReset,
+    handleFormSuccess,
     handleCheckInn,
     setIsViewModalOpen,
     setViewingEmployee,

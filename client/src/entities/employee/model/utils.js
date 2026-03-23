@@ -5,18 +5,18 @@
 /**
  * Получить уникальные значения для фильтров таблицы
  * @param {Array} employees - массив сотрудников
- * @param {Array} selectedCounterparties - выбранные контрагенты для фильтрации ФИО
+ * @param {Array} selectedCounterpartyIds - выбранные id контрагентов для фильтрации ФИО
  */
 export const getUniqueFilterValues = (
   employees,
-  selectedCounterparties = [],
+  selectedCounterpartyIds = [],
 ) => {
   // Фильтруем сотрудников по выбранным контрагентам если они выбраны
   let filteredForFullNames = employees;
-  if (selectedCounterparties && selectedCounterparties.length > 0) {
+  if (selectedCounterpartyIds && selectedCounterpartyIds.length > 0) {
     filteredForFullNames = employees.filter((emp) =>
       emp.employeeCounterpartyMappings?.some((m) =>
-        selectedCounterparties.includes(m.counterparty?.name),
+        selectedCounterpartyIds.includes(m.counterparty?.id),
       ),
     );
   }

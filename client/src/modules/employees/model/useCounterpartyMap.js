@@ -3,6 +3,7 @@ import { counterpartyService } from "@/services/counterpartyService";
 
 export const useCounterpartyMap = ({ user, defaultCounterpartyId }) => {
   const [counterpartyMap, setCounterpartyMap] = useState({});
+  const [counterpartyOptions, setCounterpartyOptions] = useState([]);
   const [hasSubcontractors, setHasSubcontractors] = useState(false);
 
   useEffect(() => {
@@ -29,6 +30,14 @@ export const useCounterpartyMap = ({ user, defaultCounterpartyId }) => {
           }
         });
         setCounterpartyMap(nextMap);
+        setCounterpartyOptions(
+          counterparties
+            .filter((counterparty) => counterparty?.id && counterparty?.name)
+            .map((counterparty) => ({
+              value: counterparty.id,
+              label: counterparty.name,
+            })),
+        );
 
         if (
           user?.counterpartyId &&
@@ -50,6 +59,7 @@ export const useCounterpartyMap = ({ user, defaultCounterpartyId }) => {
 
   return {
     counterpartyMap,
+    counterpartyOptions,
     hasSubcontractors,
   };
 };

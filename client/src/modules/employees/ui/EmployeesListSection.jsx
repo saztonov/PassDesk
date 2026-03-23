@@ -52,6 +52,7 @@ const EmployeesListSection = memo(({ isMobile, model, actions }) => {
         canMarkForDeletion={model.canMarkForDeletion}
         onMarkForDeletion={actions.onMarkForDeletion}
         uniqueFilters={model.uniqueFilters}
+        filterOptions={model.filterOptions}
         onFiltersChange={actions.onFiltersChange}
         defaultCounterpartyId={model.defaultCounterpartyId}
         userCounterpartyId={model.userCounterpartyId}

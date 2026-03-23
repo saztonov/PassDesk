@@ -14,6 +14,7 @@ import {
 } from "@ant-design/icons";
 import { useAuthStore } from "@/store/authStore";
 import settingsService from "@/services/settingsService";
+import { canAccessOt } from "@/shared/lib/accessControl";
 import { useTranslation } from "react-i18next";
 
 const { Sider } = Layout;
@@ -65,11 +66,12 @@ const Sidebar = () => {
     defaultCounterpartyId &&
     String(user.counterpartyId) === String(defaultCounterpartyId);
 
-  const showOtMenu =
-    isOtEngineer ||
-    isOtAdmin ||
-    user?.role === "admin" ||
-    (user?.role === "user" && !isDefaultCounterpartyUser);
+  const showOtMenu = canAccessOt({
+    role: user?.role,
+    isDefaultCounterpartyUser,
+    isOtEngineer,
+    isOtAdmin,
+  });
 
   // Меню для обычных пользователей (role: user)
   const userMenuItems = [
@@ -125,7 +127,9 @@ const Sidebar = () => {
       label: t("menu.skud"),
     },
   ];
-  const managerMenuItems = adminMenuItems.filter((item) => item.key !== "/skud");
+  const managerMenuItems = adminMenuItems.filter(
+    (item) => item.key !== "/skud" && item.key !== "/ot",
+  );
 
   const engineerMenuItems = [
     {

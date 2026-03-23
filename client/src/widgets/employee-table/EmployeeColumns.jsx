@@ -86,7 +86,8 @@ export const useEmployeeColumns = ({
   canDeleteEmployee,
   canMarkForDeletion,
   onMarkForDeletion,
-  uniqueFilters,
+  uniqueFilters: _uniqueFilters,
+  filterOptions,
   filters = {}, // Состояние фильтров из localStorage
   defaultCounterpartyId,
   userCounterpartyId,
@@ -135,7 +136,7 @@ export const useEmployeeColumns = ({
           <FullNameFilterDropdown
             key={`full-name-filter-${resetTrigger}`}
             {...props}
-            uniqueFilterFullNames={uniqueFilters.fullNames}
+            uniqueFilterFullNames={filterOptions.fullNames}
             resetTrigger={resetTrigger}
             selectedCounterparties={filters.counterparty}
           />
@@ -172,7 +173,7 @@ export const useEmployeeColumns = ({
           <PositionFilterDropdown
             key={`position-filter-${resetTrigger}`}
             {...props}
-            uniqueFilterPositions={uniqueFilters.positions}
+            uniqueFilterPositions={filterOptions.positions}
             resetTrigger={resetTrigger}
           />
         ),
@@ -296,7 +297,7 @@ export const useEmployeeColumns = ({
                 <CounterpartyFilterDropdown
                   key={`counterparty-filter-${resetTrigger}`}
                   {...props}
-                  uniqueFilterCounterparties={uniqueFilters.counterparties}
+                  uniqueFilterCounterparties={filterOptions.counterparties}
                   resetTrigger={resetTrigger}
                 />
               ),
@@ -414,7 +415,7 @@ export const useEmployeeColumns = ({
           return aSite.localeCompare(bSite);
         },
         filters:
-          uniqueFilters.constructionSites?.map((site) => ({
+          filterOptions.constructionSites?.map((site) => ({
             text: site,
             value: site,
           })) || [],
@@ -432,7 +433,7 @@ export const useEmployeeColumns = ({
           const bCit = b.citizenship?.name || "";
           return aCit.localeCompare(bCit);
         },
-        filters: uniqueFilters.citizenships.map((cit) => ({
+        filters: filterOptions.citizenships.map((cit) => ({
           text: cit,
           value: cit,
         })),
@@ -712,7 +713,7 @@ export const useEmployeeColumns = ({
     onViewFiles,
     onDepartmentChange,
     canDeleteEmployee,
-    uniqueFilters,
+    filterOptions,
     filters,
     showDepartmentColumn,
     showCounterpartyColumn,

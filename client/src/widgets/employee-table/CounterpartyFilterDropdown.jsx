@@ -15,8 +15,8 @@ export const CounterpartyFilterDropdown = ({
 }) => {
   const [searchText, setSearchText] = useState("");
 
-  const filteredCounterparties = uniqueFilterCounterparties.filter((name) =>
-    name.toLowerCase().includes(searchText.toLowerCase()),
+  const filteredCounterparties = uniqueFilterCounterparties.filter((option) =>
+    option.label.toLowerCase().includes(searchText.toLowerCase()),
   );
 
   const handleReset = () => {
@@ -37,19 +37,21 @@ export const CounterpartyFilterDropdown = ({
       <div
         style={{ maxHeight: "200px", overflow: "auto", marginBottom: "8px" }}
       >
-        {filteredCounterparties.map((name) => (
-          <div key={name} style={{ marginBottom: "4px" }}>
+        {filteredCounterparties.map((option) => (
+          <div key={option.value} style={{ marginBottom: "4px" }}>
             <Checkbox
-              checked={selectedKeys.includes(name)}
+              checked={selectedKeys.includes(option.value)}
               onChange={(e) => {
                 if (e.target.checked) {
-                  setSelectedKeys([...selectedKeys, name]);
+                  setSelectedKeys([...selectedKeys, option.value]);
                 } else {
-                  setSelectedKeys(selectedKeys.filter((v) => v !== name));
+                  setSelectedKeys(
+                    selectedKeys.filter((value) => value !== option.value),
+                  );
                 }
               }}
             >
-              {name}
+              {option.label}
             </Checkbox>
           </div>
         ))}

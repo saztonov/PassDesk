@@ -231,7 +231,7 @@ function App() {
             <Route
               path="skud"
               element={
-                <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                <ProtectedRoute allowedRoles={["admin"]}>
                   <SkudPage />
                 </ProtectedRoute>
               }
@@ -242,7 +242,6 @@ function App() {
                 <ProtectedRoute
                   allowedRoles={[
                     "admin",
-                    "manager",
                     "user",
                     "ot_engineer",
                     "ot_admin",

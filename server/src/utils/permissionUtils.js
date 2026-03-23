@@ -29,41 +29,12 @@ export const checkEmployeeAccess = async (
   );
 
   if (user.counterpartyId === defaultCounterpartyId) {
-    // Пользователи дефолтного контрагента (бюро пропусков)
-
-    // Для менеджера default-контрагента разрешаем чтение сотрудников этого контрагента.
-    // Для обычных пользователей чтение/запись только по персональной привязке.
-    if (operation === "read" && user.role === "manager") {
-      // Проверяем, что сотрудник действительно относится к default контрагенту
-      let belongsToDefaultCounterparty = false;
-
-      if (employee.employeeCounterpartyMappings) {
-        belongsToDefaultCounterparty =
-          employee.employeeCounterpartyMappings.some(
-            (mapping) => mapping.counterpartyId === defaultCounterpartyId,
-          );
-      } else {
-        // Если маппинги не загружены, проверяем через БД
-        const mapping = await EmployeeCounterpartyMapping.findOne({
-          where: {
-            employeeId: employee.id,
-            counterpartyId: defaultCounterpartyId,
-          },
-        });
-        belongsToDefaultCounterparty = !!mapping;
-      }
-
-      if (!belongsToDefaultCounterparty) {
-        throw new AppError(
-          "Недостаточно прав. Сотрудник не принадлежит вашей организации.",
-          403,
-        );
-      }
-
-      return true; // Разрешаем чтение
+    if (user.role === "manager") {
+      return true;
     }
 
-    // Для остальных случаев (включая read/write для user) требуется персональная привязка.
+    // Пользователи дефолтного контрагента (бюро пропусков)
+    // Для обычных пользователей чтение/запись только по персональной привязке.
     const userEmployeeLink = await UserEmployeeMapping.findOne({
       where: {
         userId: user.id,
@@ -161,16 +132,8 @@ export const getAccessibleEmployeeIds = async (
   let allowedIds = [];
 
   if (user.counterpartyId === defaultCounterpartyId) {
-    if (operation === "read" && user.role === "manager") {
-      const mappings = await EmployeeCounterpartyMapping.findAll({
-        where: {
-          employeeId: { [Op.in]: uniqueIds },
-          counterpartyId: defaultCounterpartyId,
-        },
-        attributes: ["employeeId"],
-        transaction,
-      });
-      allowedIds = mappings.map((m) => m.employeeId);
+    if (user.role === "manager") {
+      allowedIds = uniqueIds;
     } else {
       const mappings = await UserEmployeeMapping.findAll({
         where: {

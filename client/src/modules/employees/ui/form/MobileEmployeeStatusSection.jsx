@@ -1,4 +1,5 @@
 import { Button, Popconfirm, Space, Typography } from "antd";
+import { canManageEmployeeStatuses } from "@/shared/lib/accessControl";
 
 const { Title } = Typography;
 
@@ -13,7 +14,7 @@ export const buildMobileEmployeeStatusSection = ({
   onDeactivate,
   onActivate,
 }) => {
-  if (!employee?.id || user?.role !== "admin") {
+  if (!employee?.id || !canManageEmployeeStatuses(user?.role)) {
     return null;
   }
 

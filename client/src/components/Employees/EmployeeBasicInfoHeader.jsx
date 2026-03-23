@@ -1,5 +1,6 @@
 import { Col, Row } from "antd";
 import EmployeeActionButtons from "./EmployeeActionButtons.jsx";
+import { canManageEmployeeStatuses } from "@/shared/lib/accessControl";
 
 const EmployeeBasicInfoHeader = ({
   employee,
@@ -16,7 +17,7 @@ const EmployeeBasicInfoHeader = ({
   const isDefaultCounterpartyUser =
     user?.counterpartyId === defaultCounterpartyId;
   const isAdmin = user?.role === "admin";
-  const canManageStatuses = isAdmin;
+  const canManageStatuses = canManageEmployeeStatuses(user?.role);
   const canTransfer = isDefaultCounterpartyUser && (isAdmin || employee.isContractor);
 
   if (!canManageStatuses && !canTransfer) {

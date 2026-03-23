@@ -45,6 +45,10 @@ import {
 import { enqueueSkudSyncForEmployee } from "../services/skud/SkudSyncService.js";
 import { isSkudEnabled } from "../services/skud/skudConfig.js";
 import { issueSkudQrTokenForEmployeeActivePass } from "../services/skud/SkudQrService.js";
+import {
+  requiresEmployeeInMemorySort,
+  sortEmployeesInMemory,
+} from "../utils/employeeSorting.js";
 
 // Опции для загрузки сотрудника с маппингами (для проверки прав)
 const employeeAccessInclude = [
@@ -1088,13 +1092,16 @@ export const getAllEmployees = async (req, res, next) => {
       }
     }
 
+    const requiresInMemorySort = requiresEmployeeInMemorySort(sortBy);
+
     // Для JOIN-фильтров (подразделение/контрагент/объект/должность/гражданство)
     // применяем in-memory пагинацию по уникальным сотрудникам, иначе LIMIT на SQL JOIN
     // может "обрезать" выдачу и дать меньше строк, чем pageSize.
     const shouldUseInMemoryPagination =
-      requiresPostFiltering || hasJoinBasedFilters;
+      requiresPostFiltering || hasJoinBasedFilters || requiresInMemorySort;
     const canUseLightIdScan =
       shouldUseInMemoryPagination &&
+      !requiresInMemorySort &&
       !hasSearchQuery &&
       requestedStatusFilters.length === 0 &&
       requestedStatusCardFilters.length === 0 &&
@@ -1126,13 +1133,32 @@ export const getAllEmployees = async (req, res, next) => {
       },
     ];
 
-    const allowedSortFields = { createdAt: "createdAt", updatedAt: "updatedAt", firstName: "firstName" };
+    const allowedSortFields = {
+      createdAt: "createdAt",
+      updatedAt: "updatedAt",
+      fullName: "fullName",
+    };
     const resolvedSortField = allowedSortFields[sortBy] || "createdAt";
-    const resolvedSortOrder = sortOrder === "ASC" ? "ASC" : (sortOrder === "DESC" ? "DESC" : "DESC");
+    const resolvedSortOrder =
+      sortOrder === "ASC" ? "ASC" : sortOrder === "DESC" ? "DESC" : "DESC";
+    const filesCountAttribute = [
+      sequelize.literal(`(
+        SELECT COUNT(*)::int
+        FROM files
+        WHERE files.entity_type = 'employee'
+          AND files.entity_id = "Employee"."id"
+          AND files.is_deleted = false
+      )`),
+      "filesCount",
+    ];
 
     const queryOrder =
-      resolvedSortField === "firstName"
-        ? [["firstName", `${resolvedSortOrder} NULLS LAST`], ["middleName", `${resolvedSortOrder} NULLS LAST`]]
+      resolvedSortField === "fullName"
+        ? [
+            ["lastName", `${resolvedSortOrder} NULLS LAST`],
+            ["firstName", `${resolvedSortOrder} NULLS LAST`],
+            ["middleName", `${resolvedSortOrder} NULLS LAST`],
+          ]
         : [[resolvedSortField, `${resolvedSortOrder} NULLS LAST`]];
 
     // В режиме in-memory пагинации сначала делаем scan, затем загружаем
@@ -1167,23 +1193,10 @@ export const getAllEmployees = async (req, res, next) => {
         offset: shouldUseInMemoryPagination ? undefined : parseInt(offset),
         order: queryOrder,
         include: shouldUseInMemoryPagination ? employeeInclude : rowsInclude,
-        // filesCount нужен только в финальной выдаче страницы
-        attributes: shouldUseInMemoryPagination
-          ? undefined
-          : {
-              include: [
-                [
-                  sequelize.literal(`(
-                    SELECT COUNT(*)::int
-                    FROM files
-                    WHERE files.entity_type = 'employee'
-                      AND files.entity_id = "Employee"."id"
-                      AND files.is_deleted = false
-                  )`),
-                  "filesCount",
-                ],
-              ],
-            },
+        // filesCount нужен и для клиентской сортировки по количеству файлов
+        attributes: {
+          include: [filesCountAttribute],
+        },
         // При in-memory пагинации subQuery не нужен.
         subQuery: !shouldUseInMemoryPagination,
         raw: false,
@@ -1377,9 +1390,15 @@ export const getAllEmployees = async (req, res, next) => {
 
         return true;
       });
+      const sortedEmployees = sortEmployeesInMemory({
+        employees: postFilteredEmployees,
+        sortBy,
+        sortOrder: resolvedSortOrder,
+        resolveStatusCard,
+      });
 
-      finalTotalCount = postFilteredEmployees.length;
-      const pageSlice = postFilteredEmployees.slice(
+      finalTotalCount = sortedEmployees.length;
+      const pageSlice = sortedEmployees.slice(
         parseInt(offset),
         parseInt(offset) + parseInt(limit),
       );
@@ -1397,18 +1416,7 @@ export const getAllEmployees = async (req, res, next) => {
           order: queryOrder,
           include: rowsInclude,
           attributes: {
-            include: [
-              [
-                sequelize.literal(`(
-                  SELECT COUNT(*)::int
-                  FROM files
-                  WHERE files.entity_type = 'employee'
-                    AND files.entity_id = "Employee"."id"
-                    AND files.is_deleted = false
-                )`),
-                "filesCount",
-              ],
-            ],
+            include: [filesCountAttribute],
           },
           subQuery: false,
           raw: false,
@@ -2680,7 +2688,7 @@ export const updateEmployeeDepartment = async (req, res, next) => {
         {
           where: {
             employeeId: id,
-            counterpartyId: req.user.counterpartyId,
+            counterpartyId: targetCounterpartyId,
           },
         },
       );
