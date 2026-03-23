@@ -183,11 +183,9 @@ services:
       VITE_DEV_HTTPS: "false"
       VITE_ALLOWED_HOSTS: pd.devdenis.ru,localhost,127.0.0.1
       VITE_PROXY_TARGET: http://server:5000
-      VITE_USE_POLLING: "true"
-      VITE_POLLING_INTERVAL: "150"
-      CHOKIDAR_USEPOLLING: "true"
-      CHOKIDAR_INTERVAL: "150"
-      WATCHPACK_POLLING: "true"
+      VITE_USE_POLLING: "false"
+      CHOKIDAR_USEPOLLING: "false"
+      WATCHPACK_POLLING: "false"
     ports:
       - "5173:5173"
     command: >
