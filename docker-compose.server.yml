@@ -1,4 +1,20 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: passdesk_postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:?Set_DB_NAME_in_.env}
+      POSTGRES_USER: ${DB_USER:?Set_DB_USER_in_.env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set_DB_PASSWORD_in_.env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   redis:
     image: redis:7-alpine
     container_name: passdesk_redis
@@ -158,6 +174,8 @@ services:
     volumes:
       - ${HOST_CERT_PATH:-./cert/root.crt}:/app/cert/root.crt:ro
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
@@ -196,4 +214,5 @@ services:
       retries: 10
 
 volumes:
+  postgres_data:
   redis_data:
