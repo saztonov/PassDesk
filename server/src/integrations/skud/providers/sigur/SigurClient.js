@@ -22,10 +22,10 @@ const buildEmployeeCardBindingPayload = ({
   if (format) {
     binding.format = String(format).trim();
   }
-  if (startDate !== undefined) {
+  if (startDate != null) {
     binding.startDate = startDate;
   }
-  if (expirationDate !== undefined) {
+  if (expirationDate != null) {
     binding.expirationDate = expirationDate;
   }
 

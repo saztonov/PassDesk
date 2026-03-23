@@ -267,18 +267,18 @@ router.post(
 ); // Валидация для создания черновика/карточки
 router.get(
   "/deleted",
-  authorize("admin"),
+  authorize("admin", "manager"),
   employeeController.getDeletedEmployees,
 );
 router.get(
   "/marked-for-deletion",
-  authorize("admin"),
+  authorize("admin", "manager"),
   employeeController.getMarkedForDeletionEmployees,
 );
 router.post(
   "/:id/restore",
   idParamValidation,
-  authorize("admin"),
+  authorize("admin", "manager"),
   employeeController.restoreEmployee,
 );
 router.post(
@@ -290,7 +290,7 @@ router.post(
 router.delete(
   "/:id/permanent",
   idParamValidation,
-  authorize("admin"),
+  authorize("admin", "manager"),
   employeeController.permanentlyDeleteEmployee,
 );
 router.post(

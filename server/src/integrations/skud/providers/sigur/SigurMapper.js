@@ -77,13 +77,11 @@ export const mapEmployeeToSigur = ({
   return {
     ...(externalEmpId ? { id: Number.parseInt(String(externalEmpId), 10) || undefined } : {}),
     name,
-    description: trim(counterpartyName) || trim(employee?.notes) || "",
     ...(departmentId ? { departmentId: Number.parseInt(String(departmentId), 10) || undefined } : {}),
     ...(resolvedPositionId ? { positionId: resolvedPositionId } : {}),
     accessStartTime: resolvedAccessStart,
     accessEndTime: resolvedAccessEnd,
     verificationPin: trim(employee?.verificationPin) || undefined,
-    tabId: trim(employee?.inn) || undefined,
     ...(resolvedPositionName ? { positionName: resolvedPositionName } : {}),
   };
 };

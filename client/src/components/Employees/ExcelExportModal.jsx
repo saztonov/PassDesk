@@ -1,5 +1,5 @@
 import { useCallback, useState, useMemo } from "react";
-import { Modal, Table, Button, Space, App, Empty } from "antd";
+import { Modal, Table, Button, Space, App, Empty, Segmented } from "antd";
 import { FileExcelOutlined } from "@ant-design/icons";
 import { employeeApi } from "@/entities/employee";
 import dayjs from "dayjs";
@@ -20,16 +20,32 @@ const ExcelExportModal = ({
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
-  const filteredEmployees = useMemo(() => employees, [employees]);
+  const [showMode, setShowMode] = useState("not_uploaded");
+
+  const filteredEmployees = useMemo(() => {
+    if (showMode === "all") return employees;
+    return employees.filter((emp) => {
+      const activeMappings = (emp.statusMappings || []).filter((m) => m.isActive);
+      if (activeMappings.length === 0) return true;
+      return activeMappings.some((m) => !m.isUpload);
+    });
+  }, [employees, showMode]);
 
   const handleOpenChange = useCallback(
     (open) => {
-      const nextSelectedEmployeeIds = open
-        ? filteredEmployees.map((emp) => emp.id)
-        : [];
-      setSelectedEmployeeIds(nextSelectedEmployeeIds);
+      if (open) {
+        setShowMode("not_uploaded");
+        const notUploaded = employees.filter((emp) => {
+          const activeMappings = (emp.statusMappings || []).filter((m) => m.isActive);
+          if (activeMappings.length === 0) return true;
+          return activeMappings.some((m) => !m.isUpload);
+        });
+        setSelectedEmployeeIds(notUploaded.map((emp) => emp.id));
+      } else {
+        setSelectedEmployeeIds([]);
+      }
     },
-    [filteredEmployees],
+    [employees],
   );
 
   // Обработка экспорта в Excel
@@ -212,9 +228,18 @@ const ExcelExportModal = ({
             В текущем списке найдено:{" "}
             <strong>{filteredEmployees.length}</strong>
           </div>
-          <div style={{ marginBottom: "12px", color: "#8c8c8c", fontSize: "13px" }}>
-            Попап показывает и выгружает тот же набор сотрудников, который виден на странице сейчас.
-          </div>
+          <Segmented
+            value={showMode}
+            onChange={(val) => {
+              setShowMode(val);
+              setSelectedEmployeeIds([]);
+            }}
+            options={[
+              { label: "Не выгруженные", value: "not_uploaded" },
+              { label: "Все", value: "all" },
+            ]}
+            style={{ marginBottom: "12px" }}
+          />
           <Table
             rowSelection={rowSelection}
             columns={columns}

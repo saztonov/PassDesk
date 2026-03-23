@@ -140,13 +140,25 @@ const EmployeeSkudTab = ({ employee }) => {
   const [savingSites, setSavingSites] = useState(false);
 
   const employeeId = employee?.id;
+  const [freshEmployee, setFreshEmployee] = useState(null);
+  const effectiveEmployee = freshEmployee || employee;
+
+  // если employeeCounterpartyMappings не загружены — рефетч (новый сотрудник)
+  useEffect(() => {
+    setFreshEmployee(null);
+    if (!employee?.id) return;
+    if (Array.isArray(employee?.employeeCounterpartyMappings)) return;
+    employeeApi.getById(employee.id)
+      .then((res) => setFreshEmployee(res?.data || res || null))
+      .catch(() => {});
+  }, [employee?.id]);
 
   // инициализация из данных сотрудника (только при смене сотрудника)
   useEffect(() => {
-    const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
-      ? employee.employeeCounterpartyMappings.filter((m) => !m?.dismissedAt)
+    const mappings = Array.isArray(effectiveEmployee?.employeeCounterpartyMappings)
+      ? effectiveEmployee.employeeCounterpartyMappings.filter((m) => !m?.dismissedAt)
       : [];
-    const ids = [...new Set(mappings.map((m) => String(m.constructionSiteId)).filter(Boolean))];
+    const ids = [...new Set(mappings.filter((m) => m.constructionSiteId != null).map((m) => String(m.constructionSiteId)))];
     setSelectedSiteIds(ids);
     setOriginalSiteIds(ids);
 
@@ -154,7 +166,7 @@ const EmployeeSkudTab = ({ employee }) => {
     const deptId = mappings[0]?.departmentId || null;
     setSelectedInternalDeptId(deptId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employee?.id]);
+  }, [effectiveEmployee?.id, effectiveEmployee?.employeeCounterpartyMappings]);
 
   // загрузка всех объектов
   useEffect(() => {

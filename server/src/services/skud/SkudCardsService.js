@@ -16,7 +16,8 @@ const normalizeCardNumber = (value) =>
     .replace(/\s+/g, "");
 
 const formatSigurDateTime = (value) => {
-  const date = value ? new Date(value) : new Date();
+  if (!value) return null;
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return null;
   }
