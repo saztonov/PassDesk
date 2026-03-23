@@ -4,7 +4,7 @@ export const canManageEmployeeStatuses = (role) =>
 export const canManageAdministrativeData = (role) =>
   role === "admin" || role === "manager";
 
-export const canManageUsers = (role) => canManageAdministrativeData(role);
+export const canManageUsers = (role) => role === "admin";
 
 export const canManageCounterparties = ({
   role,

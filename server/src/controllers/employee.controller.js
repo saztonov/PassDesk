@@ -43,6 +43,7 @@ import {
   hashForSearch,
 } from "../services/encryptionService.js";
 import { enqueueSkudSyncForEmployee } from "../services/skud/SkudSyncService.js";
+import { deleteEmployeeFromSkud } from "../services/skud/SkudCardsService.js";
 import { isSkudEnabled } from "../services/skud/skudConfig.js";
 import { issueSkudQrTokenForEmployeeActivePass } from "../services/skud/SkudQrService.js";
 import {
@@ -2874,6 +2875,14 @@ export const permanentlyDeleteEmployee = async (req, res, next) => {
           400,
         ),
       );
+    }
+
+    if (isSkudEnabled()) {
+      try {
+        await deleteEmployeeFromSkud({ employeeId: id });
+      } catch (err) {
+        console.error(`[permanentlyDelete] Failed to delete employee ${id} from SKUD:`, err?.message);
+      }
     }
 
     await employee.destroy();

@@ -7,6 +7,7 @@ import {
   Pass,
   SkudCard,
   SkudPersonBinding,
+  SkudAccessState,
   SkudAccessEvent,
   SkudSiteAccessPoint,
 } from "../models/index.js";
@@ -2216,7 +2217,12 @@ export const skudController = {
         employeeId,
       });
 
-      res.json({ success: true, data: binding });
+      const accessState = await SkudAccessState.findOne({
+        where: { employeeId, externalSystem: "sigur" },
+        attributes: ["status", "source", "updatedAt"],
+      });
+
+      res.json({ success: true, data: { ...binding?.toJSON?.() ?? binding, accessState: accessState ?? null } });
     } catch (error) {
       next(error);
     }

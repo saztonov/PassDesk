@@ -1,5 +1,6 @@
 import {
   Employee,
+  SkudAccessState,
   SkudCard,
   SkudPersonBinding,
   SkudSyncJob,
@@ -354,15 +355,16 @@ export const unbindSkudCard = async ({ cardId, userId = null }) => {
     throw new Error("Card not found");
   }
 
+  const originalEmployeeId = card.employeeId;
+
   await card.update({
     status: "unbound",
-    employeeId: null,
     updatedBy: userId,
     updatedAt: new Date(),
   });
 
   const syncJob = await createCardsJob({
-    employeeId: card.employeeId,
+    employeeId: originalEmployeeId,
     operation: "unbind_card",
     userId,
     payload: {
@@ -623,6 +625,14 @@ export const unbindLiveSkudCard = async ({ employeeId, externalCardId, userId = 
   return { ok: true, externalEmpId: String(externalEmpId), externalCardId: String(externalCardId) };
 };
 
+async function upsertSkudAccessState({ employeeId, status, source, changedBy = null }) {
+  const existing = await SkudAccessState.findOne({ where: { employeeId, externalSystem: "sigur" } });
+  if (existing) {
+    return existing.update({ status, source, changedBy, updatedAt: new Date() });
+  }
+  return SkudAccessState.create({ employeeId, externalSystem: "sigur", status, source, changedBy });
+}
+
 export const blockLiveSkudEmployee = async ({ employeeId, userId = null }) => {
   if (!employeeId) {
     throw new Error("employeeId is required");
@@ -636,6 +646,7 @@ export const blockLiveSkudEmployee = async ({ employeeId, userId = null }) => {
   const provider = getSkudProvider();
   const response = await provider.blockEmployee(externalEmpId);
   await syncResolvedBinding({ employeeId, externalEmpId, userId });
+  await upsertSkudAccessState({ employeeId, status: "blocked", source: "live_block", changedBy: userId });
 
   return {
     ok: true,
@@ -657,10 +668,36 @@ export const unblockLiveSkudEmployee = async ({ employeeId, userId = null }) => 
   const provider = getSkudProvider();
   const response = await provider.unblockEmployee(externalEmpId);
   await syncResolvedBinding({ employeeId, externalEmpId, userId });
+  await upsertSkudAccessState({ employeeId, status: "allowed", source: "live_unblock", changedBy: userId });
 
   return {
     ok: true,
     externalEmpId: String(externalEmpId),
     response,
   };
+};
+
+export const deleteEmployeeFromSkud = async ({ employeeId }) => {
+  if (!employeeId) return { ok: false, reason: "no_employee_id" };
+
+  const binding = await SkudPersonBinding.findOne({
+    where: { employeeId, externalSystem: "sigur" },
+  });
+
+  const externalEmpId = String(binding?.externalEmpId || "").trim();
+  if (!externalEmpId || externalEmpId === "pending") {
+    return { ok: false, reason: "no_binding" };
+  }
+
+  const provider = getSkudProvider();
+  try {
+    await provider.deleteEmployee(externalEmpId);
+  } catch (err) {
+    // 404/422 = уже удалён из Sigur
+    if (![404, 422].includes(err?.response?.status)) {
+      throw err;
+    }
+  }
+
+  return { ok: true, externalEmpId };
 };

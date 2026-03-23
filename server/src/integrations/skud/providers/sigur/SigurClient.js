@@ -458,6 +458,18 @@ export class SigurClient {
     });
   }
 
+  async deleteEmployee(externalEmpId) {
+    const id = toNumber(externalEmpId);
+    if (!id) {
+      throw new Error("externalEmpId is required to delete employee in Sigur");
+    }
+
+    return this.request({
+      method: "DELETE",
+      url: `/api/v1/employees/${id}`,
+    });
+  }
+
   async blockEmployee(externalEmpId) {
     const id = toNumber(externalEmpId);
     if (!id) {

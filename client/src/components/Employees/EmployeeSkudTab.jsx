@@ -97,6 +97,7 @@ const EmployeeSkudTab = ({ employee }) => {
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [replacingCardId, setReplacingCardId] = useState(null);
   const [liveEmployeeAction, setLiveEmployeeAction] = useState(null);
+  const [isBlockedInSkud, setIsBlockedInSkud] = useState(null); // null = unknown
 
   // считыватель карт
   const [readerArmed, setReaderArmed] = useState(false);
@@ -182,9 +183,9 @@ const EmployeeSkudTab = ({ employee }) => {
       .finally(() => setSitesLoading(false));
   }, [employeeId]);
 
-  const loadCards = useCallback(async () => {
+  const loadCards = useCallback(async ({ silent = false } = {}) => {
     if (!employeeId) return;
-    setCardsLoading(true);
+    if (!silent) setCardsLoading(true);
     try {
       const result = await skudService.getCards({ employeeId, limit: 50 });
       const rows = result?.items || result?.rows || result?.cards || (Array.isArray(result) ? result : []);
@@ -194,7 +195,7 @@ const EmployeeSkudTab = ({ employee }) => {
       // тихо
       return [];
     } finally {
-      setCardsLoading(false);
+      if (!silent) setCardsLoading(false);
     }
   }, [employeeId]);
 
@@ -224,9 +225,9 @@ const EmployeeSkudTab = ({ employee }) => {
     autoRefreshInFlightRef.current = false;
   }, []);
 
-  const refreshSkudState = useCallback(async () => {
+  const refreshSkudState = useCallback(async ({ silent = true } = {}) => {
     const [cardsRows, syncJobRows] = await Promise.all([
-      loadCards(),
+      loadCards({ silent }),
       loadSyncJobs(),
     ]);
 
@@ -327,7 +328,7 @@ const EmployeeSkudTab = ({ employee }) => {
         || bindingResult?.metadata?.accessEndTime
         || null;
 
-      const deptList = internalDeptsResult?.data?.data || internalDeptsResult?.data || [];
+      const deptList = internalDeptsResult?.data?.data?.departments || internalDeptsResult?.data?.departments || [];
       setInternalDepts(Array.isArray(deptList) ? deptList : []);
 
       const externalEmpId = String(bindingResult?.externalEmpId || "").trim();
@@ -335,8 +336,14 @@ const EmployeeSkudTab = ({ employee }) => {
         ? await skudService.getProviderEmployee(externalEmpId).catch(() => null)
         : null;
 
+      // isBlocked берём напрямую из Sigur — это всегда актуально
+      if (providerEmployee != null) {
+        setIsBlockedInSkud(providerEmployee.isBlocked === true);
+      }
+
       const providerDepartmentId = providerEmployee?.departmentId || null;
-      setSelectedDeptId(Number(storedId || providerDepartmentId || 0) || null);
+      const resolvedDeptId = storedId || providerDepartmentId || null;
+      setSelectedDeptId(resolvedDeptId != null ? String(resolvedDeptId) : null);
       setCardExpirationDate(storedCardExpirationDate ? dayjs(storedCardExpirationDate) : null);
     }).finally(() => setSigurDeptsLoading(false));
   }, [employeeId, message]);
@@ -554,6 +561,7 @@ const EmployeeSkudTab = ({ employee }) => {
         setLiveEmployeeAction("block");
         try {
           await skudService.blockLiveEmployee(employeeId);
+          setIsBlockedInSkud(true);
           message.success("Сотрудник заблокирован в СКУД");
           await refreshSkudState();
         } catch (err) {
@@ -575,6 +583,7 @@ const EmployeeSkudTab = ({ employee }) => {
         setLiveEmployeeAction("unblock");
         try {
           await skudService.unblockLiveEmployee(employeeId);
+          setIsBlockedInSkud(false);
           message.success("Сотрудник разблокирован в СКУД");
           await refreshSkudState();
         } catch (err) {
@@ -642,7 +651,15 @@ const EmployeeSkudTab = ({ employee }) => {
       dataIndex: "status",
       key: "status",
       width: 130,
-      render: (val) => {
+      render: (val, card) => {
+        const hasPendingJob = syncJobs.some(
+          (job) =>
+            ["pending", "processing"].includes(job?.status) &&
+            job?.payload?.cardId === card.id,
+        );
+        if (hasPendingJob) {
+          return <Tag color="processing" icon={<SyncOutlined spin />}>Синхронизация</Tag>;
+        }
         const s = CARD_STATUS_LABEL[val] || { text: val, color: "default" };
         return <Tag color={s.color}>{s.text}</Tag>;
       },
@@ -834,7 +851,7 @@ const EmployeeSkudTab = ({ employee }) => {
               value={selectedDeptId}
               onChange={setSelectedDeptId}
               loading={sigurDeptsLoading}
-              options={sigurDepts.map((d) => ({ value: d.id, label: d.name }))}
+              options={sigurDepts.map((d) => ({ value: String(d.id), label: d.name }))}
             />
             <Button
               icon={<SaveOutlined />}
@@ -876,36 +893,47 @@ const EmployeeSkudTab = ({ employee }) => {
             onClick={loadCards}
             loading={cardsLoading}
           />
-          <Button
-            size="small"
-            danger
-            icon={<LockOutlined />}
-            onClick={handleLiveEmployeeBlock}
-            loading={liveEmployeeAction === "block"}
-          >
-            Заблокировать в СКУД
-          </Button>
-          <Button
-            size="small"
-            icon={<UnlockOutlined />}
-            onClick={handleLiveEmployeeUnblock}
-            loading={liveEmployeeAction === "unblock"}
-          >
-            Разблокировать
-          </Button>
+          {isBlockedInSkud === true && (
+            <Tag color="red" icon={<LockOutlined />}>Заблокирован в СКУД</Tag>
+          )}
+          {isBlockedInSkud === false && (
+            <Tag color="green" icon={<UnlockOutlined />}>Разрешён в СКУД</Tag>
+          )}
+          {isBlockedInSkud === true ? (
+            <Button
+              size="small"
+              icon={<UnlockOutlined />}
+              onClick={handleLiveEmployeeUnblock}
+              loading={liveEmployeeAction === "unblock"}
+            >
+              Разблокировать
+            </Button>
+          ) : (
+            <Button
+              size="small"
+              danger
+              icon={<LockOutlined />}
+              onClick={handleLiveEmployeeBlock}
+              loading={liveEmployeeAction === "block"}
+            >
+              Заблокировать в СКУД
+            </Button>
+          )}
         </Space>
         <Spin spinning={cardsLoading}>
-          {cards.length === 0 && !cardsLoading ? (
-            <Text type="secondary">Карты не назначены</Text>
-          ) : (
-            <Table
-              dataSource={cards}
-              columns={columns}
-              rowKey="id"
-              size="small"
-              pagination={false}
-            />
-          )}
+          <div style={{ minHeight: 40 }}>
+            {cards.filter((c) => c.status !== "unbound").length === 0 && !cardsLoading ? (
+              <Text type="secondary">Карты не назначены</Text>
+            ) : (
+              <Table
+                dataSource={cards.filter((c) => c.status !== "unbound")}
+                columns={columns}
+                rowKey="id"
+                size="small"
+                pagination={false}
+              />
+            )}
+          </div>
         </Spin>
       </div>
 

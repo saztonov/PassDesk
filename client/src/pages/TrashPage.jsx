@@ -12,6 +12,7 @@ import {
 } from "antd";
 import { employeeService } from "@/services/employeeService";
 import { userService } from "@/services/userService";
+import { useAuthStore } from "@/store/authStore";
 import dayjs from "dayjs";
 
 const formatFullName = (record) =>
@@ -182,6 +183,8 @@ const TrashListTab = ({
 
 const TrashPage = () => {
   const { message } = App.useApp();
+  const { user } = useAuthStore();
+  const isManager = user?.role === "manager";
   const [activeTab, setActiveTab] = useState("employees");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
   const [selectedUserIds, setSelectedUserIds] = useState([]);
@@ -280,8 +283,8 @@ const TrashPage = () => {
   }, [fetchEmployees]);
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    if (!isManager) fetchUsers();
+  }, [fetchUsers, isManager]);
 
   const restoreEmployee = async (employee) => {
     try {
@@ -522,7 +525,7 @@ const TrashPage = () => {
           className="trash-page-tabs"
           activeKey={activeTab}
           onChange={setActiveTab}
-          items={tabs}
+          items={tabs.filter((t) => !isManager || t.key !== "users")}
         />
       </div>
       <style>

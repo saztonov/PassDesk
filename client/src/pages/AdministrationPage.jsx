@@ -46,7 +46,7 @@ const AdministrationPage = () => {
     "settings",
   ];
   const managerDesktopTabKeys = adminDesktopTabKeys.filter(
-    (key) => key !== "document-samples" && key !== "settings",
+    (key) => key !== "document-samples" && key !== "settings" && key !== "users",
   );
   const validDesktopTabKeys = isManager
     ? managerDesktopTabKeys
@@ -55,7 +55,8 @@ const AdministrationPage = () => {
   const [activeTab, setActiveTab] = useState(() => {
     // Загружаем сохраненную вкладку из localStorage
     const savedTab = localStorage.getItem("administrationActiveTab");
-    return validDesktopTabKeys.includes(savedTab) ? savedTab : "users";
+    const defaultTab = isManager ? "counterparties" : "users";
+    return validDesktopTabKeys.includes(savedTab) ? savedTab : defaultTab;
   });
   const screens = useBreakpoint();
   const isMobile = !screens.md;
@@ -155,11 +156,11 @@ const AdministrationPage = () => {
             value={activeTab}
             onChange={setActiveTab}
             options={[
-              {
+              ...(!isManager ? [{
                 label: "Пользователи",
                 value: "users",
                 icon: <TeamOutlined />,
-              },
+              }] : []),
               {
                 label: "Контрагенты",
                 value: "counterparties",
@@ -252,7 +253,7 @@ const AdministrationPage = () => {
           className="administration-tabs"
           activeKey={activeTab}
           onChange={setActiveTab}
-          items={desktopItems}
+          items={desktopItems.filter((item) => !isManager || item.key !== "users")}
           size="large"
           style={{
             display: "flex",

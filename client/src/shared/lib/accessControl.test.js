@@ -21,9 +21,9 @@ describe("accessControl", () => {
     expect(canManageAdministrativeData("user")).toBe(false);
   });
 
-  it("allows admin and manager to manage users", () => {
+  it("allows only admin to manage users", () => {
     expect(canManageUsers("admin")).toBe(true);
-    expect(canManageUsers("manager")).toBe(true);
+    expect(canManageUsers("manager")).toBe(false);
     expect(canManageUsers("user")).toBe(false);
   });
 
