@@ -16,6 +16,60 @@ import { CounterpartyFilterDropdown } from "./CounterpartyFilterDropdown";
 import { CreatedAtFilterDropdown } from "./CreatedAtFilterDropdown";
 import { DocumentExpiryStatus } from "./DocumentExpiryStatus";
 
+const getEmployeeMappings = (record) =>
+  Array.isArray(record?.employeeCounterpartyMappings)
+    ? record.employeeCounterpartyMappings
+    : [];
+
+const isDismissedMapping = (mapping) => Boolean(mapping?.dismissedAt);
+
+const getActiveEmployeeMappings = (record) =>
+  getEmployeeMappings(record).filter((mapping) => !isDismissedMapping(mapping));
+
+const getDismissedEmployeeMappings = (record) =>
+  getEmployeeMappings(record).filter((mapping) => isDismissedMapping(mapping));
+
+const getUniqueMappingValues = (mappings, selector) => [
+  ...new Set(mappings.map(selector).filter(Boolean)),
+];
+
+const renderMappingState = ({
+  activeValues = [],
+  dismissedValues = [],
+  emptyText = "-",
+}) => {
+  if (!activeValues.length && !dismissedValues.length) {
+    return emptyText;
+  }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "2px",
+        whiteSpace: "normal",
+        wordBreak: "keep-all",
+        overflowWrap: "break-word",
+        lineHeight: "1.4",
+      }}
+    >
+      {activeValues.length > 0 && (
+        <div>
+          <span style={{ color: "#8c8c8c" }}>Работает:</span>{" "}
+          <span>{activeValues.join(", ")}</span>
+        </div>
+      )}
+      {dismissedValues.length > 0 && (
+        <div>
+          <span style={{ color: "#d46b08" }}>Уволен из:</span>{" "}
+          <span>{dismissedValues.join(", ")}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 /**
  * Создание конфигурации колонок для таблицы сотрудников
  * Мемоизировано для предотвращения лишних ререндеров
@@ -136,8 +190,9 @@ export const useEmployeeColumns = ({
               width: 180,
               ellipsis: false,
               render: (_, record) => {
-                const mappings = record.employeeCounterpartyMappings || [];
-                const currentMapping = mappings[0];
+                const activeMappings = getActiveEmployeeMappings(record);
+                const dismissedMappings = getDismissedEmployeeMappings(record);
+                const currentMapping = activeMappings[0] || dismissedMappings[0];
                 const currentDepartmentId = currentMapping?.departmentId;
                 const currentDepartmentName = currentMapping?.department?.name;
 
@@ -182,9 +237,13 @@ export const useEmployeeColumns = ({
               },
               sorter: (a, b) => {
                 const aDept =
-                  a.employeeCounterpartyMappings?.[0]?.department?.name || "";
+                  getActiveEmployeeMappings(a)[0]?.department?.name ||
+                  getDismissedEmployeeMappings(a)[0]?.department?.name ||
+                  "";
                 const bDept =
-                  b.employeeCounterpartyMappings?.[0]?.department?.name || "";
+                  getActiveEmployeeMappings(b)[0]?.department?.name ||
+                  getDismissedEmployeeMappings(b)[0]?.department?.name ||
+                  "";
                 return aDept.localeCompare(bDept);
               },
               filters: departmentFilterOptions.map((dept) => ({
@@ -208,32 +267,29 @@ export const useEmployeeColumns = ({
               width: 168,
               ellipsis: false,
               render: (_, record) => {
-                const mappings = record.employeeCounterpartyMappings || [];
-                if (mappings.length === 0) return "-";
-                const counterparties = [
-                  ...new Set(
-                    mappings.map((m) => m.counterparty?.name).filter(Boolean),
-                  ),
-                ];
-                const text = counterparties.join(", ") || "-";
-                return (
-                  <div
-                    style={{
-                      whiteSpace: "normal",
-                      wordBreak: "keep-all",
-                      overflowWrap: "break-word",
-                      lineHeight: "1.4",
-                    }}
-                  >
-                    {text}
-                  </div>
+                const activeCounterparties = getUniqueMappingValues(
+                  getActiveEmployeeMappings(record),
+                  (mapping) => mapping.counterparty?.name,
                 );
+                const dismissedCounterparties = getUniqueMappingValues(
+                  getDismissedEmployeeMappings(record),
+                  (mapping) => mapping.counterparty?.name,
+                );
+
+                return renderMappingState({
+                  activeValues: activeCounterparties,
+                  dismissedValues: dismissedCounterparties,
+                });
               },
               sorter: (a, b) => {
                 const aCounterparty =
-                  a.employeeCounterpartyMappings?.[0]?.counterparty?.name || "";
+                  getActiveEmployeeMappings(a)[0]?.counterparty?.name ||
+                  getDismissedEmployeeMappings(a)[0]?.counterparty?.name ||
+                  "";
                 const bCounterparty =
-                  b.employeeCounterpartyMappings?.[0]?.counterparty?.name || "";
+                  getActiveEmployeeMappings(b)[0]?.counterparty?.name ||
+                  getDismissedEmployeeMappings(b)[0]?.counterparty?.name ||
+                  "";
                 return aCounterparty.localeCompare(bCounterparty);
               },
               filterDropdown: (props) => (
@@ -258,10 +314,14 @@ export const useEmployeeColumns = ({
         key: "constructionSite",
         width: 150,
         render: (_, record) => {
-          const mappings = record.employeeCounterpartyMappings || [];
-          const siteMappings = mappings.filter((m) => m.constructionSite);
+          const activeSiteMappings = getActiveEmployeeMappings(record).filter(
+            (mapping) => mapping.constructionSite,
+          );
+          const dismissedSiteMappings = getDismissedEmployeeMappings(record).filter(
+            (mapping) => mapping.constructionSite,
+          );
 
-          if (siteMappings.length === 0) {
+          if (activeSiteMappings.length === 0 && dismissedSiteMappings.length === 0) {
             return (
               <Button
                 type="text"
@@ -313,39 +373,42 @@ export const useEmployeeColumns = ({
                 e.currentTarget.style.backgroundColor = "transparent";
               }}
             >
-              {siteMappings.map((mapping) => {
-                const siteKey = [
-                  record.id,
-                  mapping.id,
-                  mapping.counterpartyId,
-                  mapping.constructionSiteId,
-                  mapping.constructionSite?.id,
-                  mapping.constructionSite?.name,
-                ]
-                  .filter(Boolean)
-                  .join("-");
-
-                return (
-                  <div key={siteKey}>
-                    {mapping.constructionSite?.shortName ||
-                      mapping.constructionSite?.name}
-                  </div>
-                );
+              {renderMappingState({
+                activeValues: getUniqueMappingValues(
+                  activeSiteMappings,
+                  (mapping) =>
+                    mapping.constructionSite?.shortName ||
+                    mapping.constructionSite?.name,
+                ),
+                dismissedValues: getUniqueMappingValues(
+                  dismissedSiteMappings,
+                  (mapping) =>
+                    mapping.constructionSite?.shortName ||
+                    mapping.constructionSite?.name,
+                ),
               })}
             </div>
           );
         },
         sorter: (a, b) => {
           const aSite =
-            a.employeeCounterpartyMappings?.find((m) => m.constructionSite)
+            getActiveEmployeeMappings(a).find((mapping) => mapping.constructionSite)
               ?.constructionSite?.shortName ||
-            a.employeeCounterpartyMappings?.find((m) => m.constructionSite)
+            getActiveEmployeeMappings(a).find((mapping) => mapping.constructionSite)
+              ?.constructionSite?.name ||
+            getDismissedEmployeeMappings(a).find((mapping) => mapping.constructionSite)
+              ?.constructionSite?.shortName ||
+            getDismissedEmployeeMappings(a).find((mapping) => mapping.constructionSite)
               ?.constructionSite?.name ||
             "";
           const bSite =
-            b.employeeCounterpartyMappings?.find((m) => m.constructionSite)
+            getActiveEmployeeMappings(b).find((mapping) => mapping.constructionSite)
               ?.constructionSite?.shortName ||
-            b.employeeCounterpartyMappings?.find((m) => m.constructionSite)
+            getActiveEmployeeMappings(b).find((mapping) => mapping.constructionSite)
+              ?.constructionSite?.name ||
+            getDismissedEmployeeMappings(b).find((mapping) => mapping.constructionSite)
+              ?.constructionSite?.shortName ||
+            getDismissedEmployeeMappings(b).find((mapping) => mapping.constructionSite)
               ?.constructionSite?.name ||
             "";
           return aSite.localeCompare(bSite);

@@ -3304,6 +3304,7 @@ export const fireEmployee = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
+    const now = new Date();
 
     const employee = await Employee.findByPk(id, {
       include: employeeAccessInclude,
@@ -3322,6 +3323,22 @@ export const fireEmployee = async (req, res, next) => {
     console.log(
       `=== FIRING EMPLOYEE: ${employee.firstName} ${employee.lastName} ===`,
     );
+
+    const dismissedMappingsWhere = { employeeId: id, dismissedAt: null };
+    const userCounterpartyId = req.user?.counterpartyId || null;
+    const defaultCounterpartyId = await Setting.getSetting("default_counterparty_id");
+    const hasScopedCounterparty =
+      userCounterpartyId && String(userCounterpartyId) !== String(defaultCounterpartyId);
+
+    if (hasScopedCounterparty) {
+      dismissedMappingsWhere.counterpartyId = userCounterpartyId;
+    }
+
+    await EmployeeCounterpartyMapping.update(
+      { dismissedAt: now },
+      { where: dismissedMappingsWhere },
+    );
+    console.log("✓ Employee counterparty mappings marked as dismissed");
 
     // 1. Деактивируем все статусы группы status_hr и очищаем is_upload
     await EmployeeStatusMapping.update(
@@ -3360,6 +3377,13 @@ export const fireEmployee = async (req, res, next) => {
     if (isSkudEnabled()) {
       await enqueueSkudSyncForEmployee({
         employeeId: id,
+        operation: "sync_employee",
+        userId,
+        source: "fire_employee",
+        priority: "high",
+      });
+      await enqueueSkudSyncForEmployee({
+        employeeId: id,
         operation: "block_employee",
         userId,
         source: "fire_employee",
@@ -3391,6 +3415,8 @@ export const reinstateEmployee = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
+    const userCounterpartyId = req.user?.counterpartyId || null;
+    const defaultCounterpartyId = await Setting.getSetting("default_counterparty_id");
 
     const employee = await Employee.findByPk(id, {
       include: employeeAccessInclude,
@@ -3409,6 +3435,20 @@ export const reinstateEmployee = async (req, res, next) => {
     console.log(
       `=== REINSTATING EMPLOYEE: ${employee.firstName} ${employee.lastName} ===`,
     );
+
+    const reinstateMappingsWhere = { employeeId: id };
+    if (
+      userCounterpartyId &&
+      String(userCounterpartyId) !== String(defaultCounterpartyId)
+    ) {
+      reinstateMappingsWhere.counterpartyId = userCounterpartyId;
+    }
+
+    await EmployeeCounterpartyMapping.update(
+      { dismissedAt: null },
+      { where: reinstateMappingsWhere },
+    );
+    console.log("✓ Employee counterparty mappings reinstated");
 
     // 1. Получить статус status_hr_fired_off
     const firedOffStatus = await Status.findOne({

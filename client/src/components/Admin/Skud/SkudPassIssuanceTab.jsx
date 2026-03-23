@@ -104,7 +104,7 @@ const SkudPassIssuanceTab = () => {
 
         // текущие объекты сотрудника
         const mappings = Array.isArray(emp?.employeeCounterpartyMappings)
-          ? emp.employeeCounterpartyMappings
+          ? emp.employeeCounterpartyMappings.filter((m) => !m?.dismissedAt)
           : [];
         const siteIds = [...new Set(mappings.map((m) => m.constructionSiteId).filter(Boolean))];
         setSelectedSiteIds(siteIds);
@@ -139,6 +139,7 @@ const SkudPassIssuanceTab = () => {
       const originalIds = Array.isArray(employeeData?.employeeCounterpartyMappings)
         ? [...new Set(
             employeeData.employeeCounterpartyMappings
+              .filter((m) => !m?.dismissedAt)
               .map((m) => m.constructionSiteId)
               .filter(Boolean),
           )]

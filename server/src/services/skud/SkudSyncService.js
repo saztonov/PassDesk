@@ -204,10 +204,18 @@ const resolveOrCreateBindingExternalId = async ({ employee, sigurResponse, userI
   return externalEmpId;
 };
 
-const getEmployeeDepartmentName = (employee) => {
-  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+const getEmployeeMappings = (employee) =>
+  Array.isArray(employee?.employeeCounterpartyMappings)
     ? employee.employeeCounterpartyMappings
     : [];
+
+const isActiveCounterpartyMapping = (mapping) => !mapping?.dismissedAt;
+
+const getActiveEmployeeMappings = (employee) =>
+  getEmployeeMappings(employee).filter((mapping) => isActiveCounterpartyMapping(mapping));
+
+const getEmployeeDepartmentName = (employee) => {
+  const mappings = getActiveEmployeeMappings(employee);
   return (
     mappings.find((item) => item?.department?.name)?.department?.name
       || null
@@ -240,9 +248,7 @@ const normalizeSigurPathSegments = (input) => {
 };
 
 const getEmployeeSiteName = (employee) => {
-  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
-    ? employee.employeeCounterpartyMappings
-    : [];
+  const mappings = getActiveEmployeeMappings(employee);
   const site = mappings.find((item) => item?.constructionSite)?.constructionSite;
   return (
     String(site?.shortName || "").trim()
@@ -252,9 +258,7 @@ const getEmployeeSiteName = (employee) => {
 };
 
 const isContractorEmployee = (employee) => {
-  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
-    ? employee.employeeCounterpartyMappings
-    : [];
+  const mappings = getActiveEmployeeMappings(employee);
   const counterpartyType = mappings[0]?.counterparty?.type || "";
   return counterpartyType === "contractor" || counterpartyType === "general_contractor";
 };
@@ -435,8 +439,9 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
   // Активный биндинг — для externalEmpId; любой биндинг — для метаданных
   const existingBinding = allBindings.find((b) => b.isActive) || allBindings[0] || null;
 
+  const activeMappings = getActiveEmployeeMappings(employee);
   const counterpartyName =
-    employee?.employeeCounterpartyMappings?.[0]?.counterparty?.name || "";
+    activeMappings[0]?.counterparty?.name || "";
 
   // Если вручную задано подразделение Sigur — используем его напрямую
   const manualDepartmentId = existingBinding?.metadata?.sigurDepartmentId
@@ -522,8 +527,8 @@ export const syncEmployeeAccessPoints = async ({ employeeId, externalEmpId }) =>
 
   // Получаем объекты сотрудника
   const mappings = await EmployeeCounterpartyMapping.findAll({
-    where: { employeeId },
-    attributes: ["constructionSiteId"],
+    where: { employeeId, dismissedAt: null },
+    attributes: ["constructionSiteId", "dismissedAt"],
   });
 
   const siteIds = [...new Set(
@@ -532,7 +537,8 @@ export const syncEmployeeAccessPoints = async ({ employeeId, externalEmpId }) =>
 
   console.log(`${tag} siteIds=${JSON.stringify(siteIds)}`);
   if (!siteIds.length) {
-    console.log(`${tag} no sites assigned, skip`);
+    await provider.clearEmployeeAccessPoints(externalEmpId);
+    console.log(`${tag} no active sites assigned, access points cleared`);
     return [];
   }
 

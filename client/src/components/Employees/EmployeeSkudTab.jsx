@@ -137,7 +137,7 @@ const EmployeeSkudTab = ({ employee }) => {
   // инициализация из данных сотрудника (только при смене сотрудника)
   useEffect(() => {
     const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
-      ? employee.employeeCounterpartyMappings
+      ? employee.employeeCounterpartyMappings.filter((m) => !m?.dismissedAt)
       : [];
     const ids = [...new Set(mappings.map((m) => String(m.constructionSiteId)).filter(Boolean))];
     setSelectedSiteIds(ids);
