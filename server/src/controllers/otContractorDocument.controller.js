@@ -323,6 +323,13 @@ export const uploadOtContractorDocument = async (req, res, next) => {
         throw new AppError("Документ не найден", 404);
       }
     } else {
+      if (!isStaff) {
+        throw new AppError(
+          "Подрядчик не может создавать новые документы из категории",
+          403,
+        );
+      }
+
       if (!categoryId || !normalizedDocumentName) {
         throw new AppError(
           "Для создания документа нужны categoryId и documentName",

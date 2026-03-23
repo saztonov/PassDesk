@@ -69,6 +69,13 @@ const useOtContractorDocumentActions = ({
 
   const handleUploadClick = (doc) => {
     if (doc?.type === "category") {
+      if (!isStaffMode) {
+        message.error(
+          "Подрядчик не может создавать новые документы из категории",
+        );
+        return;
+      }
+
       let nextDocumentName = "";
 
       Modal.confirm({

@@ -281,7 +281,7 @@ const ContractorDocumentsTable = ({
               <Tag bordered={false} className="ot-tag-soft">
                 Категория
               </Tag>
-              {(isContractorUser || isStaff) && (
+              {isStaff && (
                 <Button
                   size="small"
                   icon={<UploadOutlined />}
