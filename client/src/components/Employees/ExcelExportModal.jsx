@@ -8,9 +8,8 @@ import * as XLSX from "xlsx";
 const EMPTY_EMPLOYEES = [];
 
 /**
- * Модальное окно для выгрузки сотрудников в Excel
- * Фильтрует сотрудников по статусам и is_upload флагу
- * После выгрузки обновляет is_upload = true для всех активных статусов
+ * Модальное окно для выгрузки сотрудников в Excel.
+ * Показывает ровно тот же список сотрудников, который виден на странице.
  */
 const ExcelExportModal = ({
   visible,
@@ -21,35 +20,7 @@ const ExcelExportModal = ({
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
-
-  // Фильтруем сотрудников для выгрузки.
-  // Условие: есть хотя бы один релевантный активный статус с is_upload = false
-  // (поддерживаем текущие и legacy-коды).
-  const filteredEmployees = useMemo(() => {
-    const statusNamesToCheck = [
-      "status_active_employed",
-      "status_hr_edited",
-      "status_new",
-      "status_tb_passed",
-      "status_processed",
-    ];
-
-    return employees.filter((emp) => {
-      const statusMappings = emp.statusMappings || [];
-
-      // Ищем хотя бы один активный статус из нужного списка с is_upload = false
-      const hasValidStatus = statusMappings.some((mapping) => {
-        const statusName = mapping.status?.name;
-        const isUpload = mapping.isUpload;
-        const isActive = mapping.isActive;
-
-        return isActive && statusNamesToCheck.includes(statusName) && !isUpload;
-      });
-
-      return hasValidStatus;
-    });
-  }, [employees]);
+  const filteredEmployees = useMemo(() => employees, [employees]);
 
   const handleOpenChange = useCallback(
     (open) => {
@@ -238,8 +209,11 @@ const ExcelExportModal = ({
           <div
             style={{ marginBottom: "12px", color: "#666", fontSize: "14px" }}
           >
-            Всего сотрудников доступно:{" "}
+            В текущем списке найдено:{" "}
             <strong>{filteredEmployees.length}</strong>
+          </div>
+          <div style={{ marginBottom: "12px", color: "#8c8c8c", fontSize: "13px" }}>
+            Попап показывает и выгружает тот же набор сотрудников, который виден на странице сейчас.
           </div>
           <Table
             rowSelection={rowSelection}
@@ -248,22 +222,8 @@ const ExcelExportModal = ({
             rowKey="id"
             loading={loading}
             size="small"
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: filteredEmployees.length,
-              showSizeChanger: true,
-              pageSizeOptions: ["10", "20", "50", "100"],
-              showTotal: (total, range) =>
-                `${range[0]}-${range[1]} из ${total}`,
-              onChange: (page, pageSize) => {
-                setPagination({ current: page, pageSize });
-              },
-              onShowSizeChange: (current, pageSize) => {
-                setPagination({ current: 1, pageSize });
-              },
-            }}
-            scroll={{ x: 1000 }}
+            pagination={false}
+            scroll={{ x: 1000, y: 520 }}
           />
         </div>
       )}
