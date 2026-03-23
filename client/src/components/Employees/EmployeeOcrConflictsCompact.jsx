@@ -17,6 +17,7 @@ const EmployeeOcrConflictsCompact = ({ employee }) => {
   const { message } = App.useApp();
   const [conflicts, setConflicts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
 
   const employeeId = employee?.id;
@@ -32,10 +33,12 @@ const EmployeeOcrConflictsCompact = ({ employee }) => {
       // тихо
     } finally {
       setLoading(false);
+      setHasLoaded(true);
     }
   }, [employeeId]);
 
   useEffect(() => {
+    setHasLoaded(false);
     loadConflicts();
   }, [loadConflicts]);
 
@@ -65,7 +68,7 @@ const EmployeeOcrConflictsCompact = ({ employee }) => {
     }
   };
 
-  if (!employeeId || (conflicts.length === 0 && !loading)) return null;
+  if (!employeeId || !hasLoaded || conflicts.length === 0) return null;
 
   const columns = [
     {

@@ -144,17 +144,18 @@ export const useEmployeeFormSaveHandlers = ({
         return;
       }
 
-      const values = form.getFieldsValue(["inn", "lastName"]);
+      const values = form.getFieldsValue(["inn", "lastName", "firstName"]);
       const rawInn = values?.inn ? values.inn.replace(/[^\d]/g, "") : "";
       const hasValidInn = rawInn.length === 10 || rawInn.length === 12;
       const normalizedLastName = values?.lastName?.trim() || "";
-      const hasMinFields = hasValidInn || normalizedLastName.length > 0;
+      const normalizedFirstName = values?.firstName?.trim() || "";
+      const hasMinFields = normalizedLastName.length >= 2 && normalizedFirstName.length >= 2;
 
       if (!hasMinFields) {
         return;
       }
 
-      const hash = `${rawInn}|${normalizedLastName}`;
+      const hash = `${rawInn}|${normalizedLastName}|${normalizedFirstName}`;
       if (lastAutoSavedHashRef.current === hash) {
         return;
       }
