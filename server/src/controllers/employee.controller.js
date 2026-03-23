@@ -2722,7 +2722,7 @@ export const deleteEmployee = async (req, res, next) => {
       });
     }
 
-    if (req.user.role !== "admin") {
+    if (req.user.role !== "admin" && req.user.role !== "manager") {
       return next(new AppError("Недостаточно прав", 403));
     }
 

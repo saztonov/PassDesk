@@ -45,14 +45,9 @@ const AdministrationPage = () => {
     "ocr-conflicts",
     "settings",
   ];
-  const managerDesktopTabKeys = [
-    "users",
-    "counterparties",
-    "citizenships",
-    "export",
-    "trash",
-    "ocr-conflicts",
-  ];
+  const managerDesktopTabKeys = adminDesktopTabKeys.filter(
+    (key) => key !== "document-samples" && key !== "settings",
+  );
   const validDesktopTabKeys = isManager
     ? managerDesktopTabKeys
     : adminDesktopTabKeys;

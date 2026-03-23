@@ -2266,13 +2266,18 @@ export const skudController = {
 
       const { accessEndTime, cardExpirationDate, sigurDepartmentId } = req.body;
 
-      let binding = await getEmployeeBinding({ employeeId });
+      let binding = await SkudPersonBinding.findOne({
+        where: {
+          employeeId,
+          externalSystem: "sigur",
+        },
+      });
       if (!binding) {
         // Биндинга ещё нет — создаём заглушку для хранения метаданных
         binding = await SkudPersonBinding.create({
           employeeId,
           externalSystem: "sigur",
-          externalEmpId: "pending",
+          externalEmpId: `pending:${employeeId}`,
           source: "manual",
           isActive: false,
           metadata: {},
