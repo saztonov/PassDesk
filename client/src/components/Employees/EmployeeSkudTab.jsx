@@ -202,10 +202,19 @@ const EmployeeSkudTab = ({ employee }) => {
 
     setSigurDeptsLoading(true);
     Promise.all([
-      skudService.getProviderDepartments().catch(() => null),
+      skudService.getProviderDepartments().catch((error) => ({
+        __error: error,
+      })),
       skudService.getEmployeeBinding(employeeId).catch(() => null),
       departmentService.getAll().catch(() => null),
     ]).then(async ([deptsResult, bindingResult, internalDeptsResult]) => {
+      if (deptsResult?.__error) {
+        message.warning(
+          deptsResult.__error?.response?.data?.message ||
+            "Не удалось загрузить папки СКУД",
+        );
+      }
+
       const depts = deptsResult?.departments || deptsResult?.items || (Array.isArray(deptsResult) ? deptsResult : []);
       setSigurDepts(depts);
 
@@ -227,7 +236,7 @@ const EmployeeSkudTab = ({ employee }) => {
       setSelectedDeptId(Number(storedId || providerDepartmentId || 0) || null);
       setCardExpirationDate(storedCardExpirationDate ? dayjs(storedCardExpirationDate) : null);
     }).finally(() => setSigurDeptsLoading(false));
-  }, [employeeId]);
+  }, [employeeId, message]);
 
   useEffect(() => {
     const resolvedFromCards = resolveCardExpirationFromCards(cards);
@@ -302,8 +311,10 @@ const EmployeeSkudTab = ({ employee }) => {
       await employeeApi.updateConstructionSites(employeeId, selectedSiteIds);
       setOriginalSiteIds(selectedSiteIds);
       message.success("Объекты сохранены");
-    } catch {
-      message.error("Не удалось сохранить объекты");
+    } catch (err) {
+      message.error(
+        err?.response?.data?.message || "Не удалось сохранить объекты",
+      );
     } finally {
       setSavingSites(false);
     }

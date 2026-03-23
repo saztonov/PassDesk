@@ -139,6 +139,33 @@ const normalizeTextSearch = (value = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
+const resolveTargetCounterpartyIdForEmployeeMapping = async (
+  user,
+  employee,
+) => {
+  const defaultCounterpartyId = await Setting.getSetting(
+    "default_counterparty_id",
+  );
+
+  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+    ? employee.employeeCounterpartyMappings
+    : [];
+
+  const activeMappings = mappings.filter((mapping) => !mapping?.dismissedAt);
+  const preferredMapping =
+    activeMappings.find((mapping) => mapping?.counterpartyId) ||
+    mappings.find((mapping) => mapping?.counterpartyId) ||
+    null;
+
+  return (
+    preferredMapping?.counterpartyId ||
+    preferredMapping?.counterparty?.id ||
+    user?.counterpartyId ||
+    defaultCounterpartyId ||
+    null
+  );
+};
+
 const normalizeComparableEmployeeValue = (value) => {
   if (value === undefined || value === null || value === "") {
     return null;
@@ -2510,11 +2537,28 @@ export const updateEmployeeConstructionSites = async (req, res, next) => {
     // ПРОВЕРКА ПРАВ ДОСТУПА
     await checkEmployeeAccess(req.user, employee);
 
+    const targetCounterpartyId = await resolveTargetCounterpartyIdForEmployeeMapping(
+      req.user,
+      employee,
+    );
+
+    if (!targetCounterpartyId) {
+      throw new AppError("Контрагент сотрудника не определен", 400);
+    }
+
+    const normalizedSiteIds = [
+      ...new Set(
+        (Array.isArray(siteIds) ? siteIds : [])
+          .map((value) => String(value || "").trim())
+          .filter(Boolean),
+      ),
+    ];
+
     // Получаем существующие маппинги сотрудника для текущего контрагента
     const existingMappings = await EmployeeCounterpartyMapping.findAll({
       where: {
         employeeId: id,
-        counterpartyId: req.user.counterpartyId,
+        counterpartyId: targetCounterpartyId,
       },
     });
 
@@ -2525,19 +2569,19 @@ export const updateEmployeeConstructionSites = async (req, res, next) => {
     // Если нет маппингов, создаем базовый
     if (existingMappings.length === 0) {
       // Если нет выбранных объектов - создаем маппинг с NULL
-      if (!siteIds || siteIds.length === 0) {
+      if (normalizedSiteIds.length === 0) {
         await EmployeeCounterpartyMapping.create({
           employeeId: id,
-          counterpartyId: req.user.counterpartyId,
+          counterpartyId: targetCounterpartyId,
           constructionSiteId: null,
           departmentId: null,
         });
       } else {
         // Создаем маппинги для каждого выбранного объекта
-        for (const siteId of siteIds) {
+        for (const siteId of normalizedSiteIds) {
           await EmployeeCounterpartyMapping.create({
             employeeId: id,
-            counterpartyId: req.user.counterpartyId,
+            counterpartyId: targetCounterpartyId,
             constructionSiteId: siteId,
             departmentId: null,
           });
@@ -2548,24 +2592,24 @@ export const updateEmployeeConstructionSites = async (req, res, next) => {
       await EmployeeCounterpartyMapping.destroy({
         where: {
           employeeId: id,
-          counterpartyId: req.user.counterpartyId,
+          counterpartyId: targetCounterpartyId,
         },
       });
 
       // Если нет выбранных объектов - создаем маппинг с NULL (сохраняем связь с контрагентом)
-      if (!siteIds || siteIds.length === 0) {
+      if (normalizedSiteIds.length === 0) {
         await EmployeeCounterpartyMapping.create({
           employeeId: id,
-          counterpartyId: req.user.counterpartyId,
+          counterpartyId: targetCounterpartyId,
           constructionSiteId: null,
           departmentId: existingDepartmentId, // Сохраняем подразделение
         });
       } else {
         // Создаем новые маппинги для каждого выбранного объекта, сохраняя departmentId
-        for (const siteId of siteIds) {
+        for (const siteId of normalizedSiteIds) {
           await EmployeeCounterpartyMapping.create({
             employeeId: id,
-            counterpartyId: req.user.counterpartyId,
+            counterpartyId: targetCounterpartyId,
             constructionSiteId: siteId,
             departmentId: existingDepartmentId, // Сохраняем подразделение
           });
@@ -2604,11 +2648,20 @@ export const updateEmployeeDepartment = async (req, res, next) => {
     // ПРОВЕРКА ПРАВ ДОСТУПА
     await checkEmployeeAccess(req.user, employee);
 
+    const targetCounterpartyId = await resolveTargetCounterpartyIdForEmployeeMapping(
+      req.user,
+      employee,
+    );
+
+    if (!targetCounterpartyId) {
+      throw new AppError("Контрагент сотрудника не определен", 400);
+    }
+
     // Получаем ВСЕ маппинги сотрудника для текущего контрагента
     const mappings = await EmployeeCounterpartyMapping.findAll({
       where: {
         employeeId: id,
-        counterpartyId: req.user.counterpartyId,
+        counterpartyId: targetCounterpartyId,
       },
     });
 
@@ -2616,7 +2669,7 @@ export const updateEmployeeDepartment = async (req, res, next) => {
     if (mappings.length === 0) {
       await EmployeeCounterpartyMapping.create({
         employeeId: id,
-        counterpartyId: req.user.counterpartyId,
+        counterpartyId: targetCounterpartyId,
         departmentId: departmentId || null,
         constructionSiteId: null,
       });

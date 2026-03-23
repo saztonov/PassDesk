@@ -52,18 +52,18 @@ router.get(
 );
 router.get(
   "/provider/employees",
-  authorize("admin"),
+  authorize("admin", "manager", "user"),
   paginationValidation,
   skudController.providerEmployees,
 );
 router.get(
   "/provider/departments",
-  authorize("admin"),
+  authorize("admin", "manager", "user"),
   skudController.providerDepartments,
 );
 router.get(
   "/provider/access-points",
-  authorize("admin"),
+  authorize("admin", "manager", "user"),
   skudController.providerAccessPoints,
 );
 router.post(
@@ -94,7 +94,7 @@ router.delete(
 );
 router.get(
   "/provider/employees/:externalEmpId",
-  authorize("admin"),
+  authorize("admin", "manager", "user"),
   param("externalEmpId").isString().trim().notEmpty(),
   validate,
   skudController.providerEmployee,

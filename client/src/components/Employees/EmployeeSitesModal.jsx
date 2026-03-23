@@ -86,7 +86,9 @@ const EmployeeSitesModal = ({ visible, employee, onCancel, onSuccess }) => {
       onCancel(); // Закрываем модальное окно
       onSuccess(); // Обновляем данные в родительском компоненте
     } catch (error) {
-      message.error("Ошибка при сохранении объектов");
+      message.error(
+        error?.response?.data?.message || "Ошибка при сохранении объектов",
+      );
     } finally {
       setLoading(false);
     }
