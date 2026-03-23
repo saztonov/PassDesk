@@ -26,8 +26,8 @@
     },
     "nsis": {
       "oneClick": true,
-      "perMachine": true,
-      "allowElevation": true,
+      "perMachine": false,
+      "allowElevation": false,
       "installerLanguages": ["ru_RU"]
     },
     "files": [
