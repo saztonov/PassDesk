@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Table, Button, Space, Tag, Tooltip } from "antd";
 import { EyeOutlined, EditOutlined, FileTextOutlined } from "@ant-design/icons";
 import { useEmployees, useEmployeeActions } from "@/entities/employee";
@@ -68,8 +68,18 @@ const ExportPage = () => {
     );
   }, [currentPage, pageSize]);
 
-  // Загружаем ДОМ только активных сотрудников (с фильтрацией по статусам и датам)
-  const { employees, loading, refetch } = useEmployees(true, filterParams);
+  // Загружаем сотрудников без жёсткого activeOnly, чтобы новые записи без статусов
+  // тоже попадали в выгрузку и отображались со статусом "НЕТ".
+  const {
+    employees,
+    loading,
+    totalCount,
+    refetch,
+  } = useEmployees(false, {
+    ...filterParams,
+    page: currentPage,
+    limit: pageSize,
+  });
 
   // Инициализируем действия с сотрудниками
   const { updateEmployee } = useEmployeeActions(() => {
@@ -133,9 +143,7 @@ const ExportPage = () => {
     refetch();
   };
 
-  // Функция для применения табличных фильтров к employees
-  // Фильтры работают так же как в таблице
-  const getFilteredEmployees = () => {
+  const filteredEmployees = useMemo(() => {
     let filtered = [...employees];
 
     // Применяем фильтры из таблицы (position, department, counterparty, citizenship, isUpload, status)
@@ -235,7 +243,7 @@ const ExportPage = () => {
     }
 
     return filtered;
-  };
+  }, [employees, tableFilters]);
 
   // Получение количества файлов
   const getFilesCount = (employee) => {
@@ -292,7 +300,7 @@ const ExportPage = () => {
       status_processed: { name: "Действующий", color: "success" },
     };
 
-    return statusMap[mainStatus] || { name: "-", color: "default" };
+    return statusMap[mainStatus] || { name: "НЕТ", color: "default" };
   };
 
   // Колонки таблицы
@@ -339,7 +347,6 @@ const ExportPage = () => {
         value: name,
       })),
       filteredValue: tableFilters.position || [],
-      onFilter: (value, record) => record.position?.name === value,
     },
     {
       title: "Подразделение",
@@ -372,10 +379,6 @@ const ExportPage = () => {
         value: name,
       })),
       filteredValue: tableFilters.department || [],
-      onFilter: (value, record) => {
-        const mappings = record.employeeCounterpartyMappings || [];
-        return mappings.some((m) => m.department?.name === value);
-      },
     },
     {
       title: "Контрагент",
@@ -413,10 +416,6 @@ const ExportPage = () => {
         value: name,
       })),
       filteredValue: tableFilters.counterparty || [],
-      onFilter: (value, record) => {
-        const mappings = record.employeeCounterpartyMappings || [];
-        return mappings.some((m) => m.counterparty?.name === value);
-      },
     },
     {
       title: "Гражданство",
@@ -441,7 +440,6 @@ const ExportPage = () => {
         value: name,
       })),
       filteredValue: tableFilters.citizenship || [],
-      onFilter: (value, record) => record.citizenship?.name === value,
     },
     {
       title: "ЗУП",
@@ -469,20 +467,6 @@ const ExportPage = () => {
         { text: "НЕТ (не выгружен)", value: "not_uploaded" },
       ],
       filteredValue: tableFilters.isUpload || [],
-      onFilter: (value, record) => {
-        const statusMappings = record.statusMappings || [];
-        if (statusMappings.length === 0) return false;
-
-        const allUploaded = statusMappings.every((sm) => sm.isUpload);
-
-        if (value === "uploaded") {
-          return allUploaded;
-        }
-        if (value === "not_uploaded") {
-          return !allUploaded;
-        }
-        return true;
-      },
     },
     {
       title: "Файлы",
@@ -515,50 +499,6 @@ const ExportPage = () => {
         { text: "Уволен", value: "fired" },
       ],
       filteredValue: tableFilters.status || [],
-      onFilter: (value, record) => {
-        const statusMappings = record.statusMappings || [];
-
-        // Фильтруем только активные статусы
-        const activeStatusMappings = statusMappings.filter((m) => m.isActive);
-
-        const getStatusByGroup = (group) => {
-          const mapping = activeStatusMappings.find((m) => {
-            const mappingGroup = m.statusGroup || m.status_group;
-            return mappingGroup === group;
-          });
-          if (!mapping) return null;
-          const statusObj = mapping.status || mapping.Status;
-          return statusObj?.name;
-        };
-
-        const activeStatus = getStatusByGroup("status_active");
-        const hrStatus = getStatusByGroup("status_hr");
-        const mainStatus = getStatusByGroup("status");
-
-        if (value === "fired") {
-          return (
-            activeStatus === "status_active_fired" ||
-            activeStatus === "status_active_fired_compl"
-          );
-        }
-        if (value === "fired_off") {
-          return hrStatus === "status_hr_fired_off";
-        }
-        if (value === "edited") {
-          return hrStatus === "status_hr_edited";
-        }
-        if (value === "active") {
-          // Действующий = текущий active-статус или legacy main-статусы
-          return (
-            activeStatus === "status_active_employed" ||
-            mainStatus === "status_new" ||
-            mainStatus === "status_tb_passed" ||
-            mainStatus === "status_processed"
-          );
-        }
-
-        return false;
-      },
     },
     {
       title: "Действия",
@@ -587,8 +527,12 @@ const ExportPage = () => {
     },
   ];
 
+  const hasClientTableFilters = Object.values(tableFilters || {}).some(
+    (value) => Array.isArray(value) && value.length > 0,
+  );
+
   return (
-    <div style={{ padding: "16px 0" }}>
+    <div style={{ padding: "16px" }}>
       <style>{`
         .export-table .ant-table-cell {
           padding: 4px 8px !important;
@@ -609,18 +553,21 @@ const ExportPage = () => {
       <Table
         className="export-table"
         columns={columns}
-        dataSource={employees}
+        dataSource={filteredEmployees}
         rowKey="id"
         loading={loading}
         size="small"
-        onChange={(pag, filters, _sorter) => {
-          // Сохраняем фильтры при изменении
+        onChange={(pag, filters) => {
           setTableFilters(filters);
+          setPagination((prev) => ({
+            current: pag?.current || prev.current || 1,
+            pageSize: pag?.pageSize || prev.pageSize || 20,
+          }));
         }}
         pagination={{
           current: pagination.current,
           pageSize: pagination.pageSize,
-          total: employees.length,
+          total: hasClientTableFilters ? filteredEmployees.length : totalCount,
           showSizeChanger: true,
           showTotal: (total) => `Всего: ${total}`,
           pageSizeOptions: ["10", "20", "50", "100"],
@@ -631,7 +578,7 @@ const ExportPage = () => {
             setPagination({ current: 1, pageSize });
           },
         }}
-        scroll={{ x: 1300, y: 600 }}
+        scroll={{ x: 1300 }}
       />
 
       {/* Модальное окно просмотра */}
@@ -662,7 +609,7 @@ const ExportPage = () => {
       {/* Модальное окно выгрузки в Excel */}
       <ExcelExportModal
         visible={isExcelExportModalOpen}
-        employees={getFilteredEmployees()}
+        employees={filteredEmployees}
         onCancel={handleCloseExcelExportModal}
         onSuccess={handleExcelExportSuccess}
       />
