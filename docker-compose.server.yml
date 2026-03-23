@@ -1,0 +1,199 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: passdesk_redis
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - ${REDIS_PASSWORD:?Set_REDIS_PASSWORD_in_.env}
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - -a
+        - ${REDIS_PASSWORD:?Set_REDIS_PASSWORD_in_.env}
+        - ping
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: passdesk_server
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      API_VERSION: ${API_VERSION:-v1}
+      CLIENT_URL: ${CLIENT_URL:?Set_CLIENT_URL_in_.env}
+      SERVER_URL: ${SERVER_URL:-}
+
+      DB_HOST: ${DB_HOST:?Set_DB_HOST_in_.env}
+      DB_PORT: ${DB_PORT:?Set_DB_PORT_in_.env}
+      DB_NAME: ${DB_NAME:?Set_DB_NAME_in_.env}
+      DB_USER: ${DB_USER:?Set_DB_USER_in_.env}
+      DB_PASSWORD: ${DB_PASSWORD:?Set_DB_PASSWORD_in_.env}
+      DB_SSL: ${DB_SSL:-false}
+      DB_SSL_CA: ${DB_SSL_CA:-}
+      DB_SSL_CA_PATH: ${DB_SSL_CA_PATH:-/app/cert/root.crt}
+
+      JWT_SECRET: ${JWT_SECRET:?Set_JWT_SECRET_in_.env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set_JWT_REFRESH_SECRET_in_.env}
+      JWT_EXPIRE: ${JWT_EXPIRE:-2h}
+      JWT_REFRESH_EXPIRE: ${JWT_REFRESH_EXPIRE:-7d}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-10}
+
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-cloudru}
+      CLOUDRU_S3_ENDPOINT: ${CLOUDRU_S3_ENDPOINT:-https://s3.ru1.storage.beget.cloud}
+      CLOUDRU_S3_REGION: ${CLOUDRU_S3_REGION:-ru1}
+      CLOUDRU_S3_ACCESS_KEY_ID: ${CLOUDRU_S3_ACCESS_KEY_ID:?Set_CLOUDRU_S3_ACCESS_KEY_ID_in_.env}
+      CLOUDRU_S3_SECRET_ACCESS_KEY: ${CLOUDRU_S3_SECRET_ACCESS_KEY:?Set_CLOUDRU_S3_SECRET_ACCESS_KEY_in_.env}
+      CLOUDRU_S3_BUCKET_NAME: ${CLOUDRU_S3_BUCKET_NAME:?Set_CLOUDRU_S3_BUCKET_NAME_in_.env}
+      CLOUDRU_S3_BASE_PATH: ${CLOUDRU_S3_BASE_PATH:-}
+      CLOUDRU_S3_KMS_KEY_ID: ${CLOUDRU_S3_KMS_KEY_ID:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_BASE_PATH: ${S3_BASE_PATH:-}
+      S3_KMS_KEY_ID: ${S3_KMS_KEY_ID:-}
+      YANDEX_S3_ENDPOINT: ${YANDEX_S3_ENDPOINT:-https://storage.yandexcloud.net}
+      YANDEX_S3_REGION: ${YANDEX_S3_REGION:-ru-central1}
+      YANDEX_S3_BUCKET_NAME: ${YANDEX_S3_BUCKET_NAME:-}
+      YANDEX_S3_ACCESS_KEY_ID: ${YANDEX_S3_ACCESS_KEY_ID:-}
+      YANDEX_S3_SECRET_ACCESS_KEY: ${YANDEX_S3_SECRET_ACCESS_KEY:-}
+      YANDEX_S3_BASE_PATH: ${YANDEX_S3_BASE_PATH:-}
+      YANDEX_S3_KMS_KEY_ID: ${YANDEX_S3_KMS_KEY_ID:-}
+      YANDEX_DISK_TOKEN: ${YANDEX_DISK_TOKEN:-}
+      YANDEX_DISK_BASE_PATH: ${YANDEX_DISK_BASE_PATH:-/PassDesk}
+
+      FIELD_ENCRYPTION_ENABLED: ${FIELD_ENCRYPTION_ENABLED:-true}
+      APP_FIELD_ENCRYPTION_ACTIVE_KEY_VERSION: ${APP_FIELD_ENCRYPTION_ACTIVE_KEY_VERSION:-v1}
+      APP_FIELD_ENCRYPTION_KEYS: ${APP_FIELD_ENCRYPTION_KEYS:?Set_APP_FIELD_ENCRYPTION_KEYS_in_.env}
+      APP_FIELD_HASH_PEPPER: ${APP_FIELD_HASH_PEPPER:?Set_APP_FIELD_HASH_PEPPER_in_.env}
+      # Full encryption mode by default (plaintext disabled for sensitive fields).
+      FIELD_ENCRYPTION_KEEP_LEGACY_DOC_PLAINTEXT: ${FIELD_ENCRYPTION_KEEP_LEGACY_DOC_PLAINTEXT:-false}
+      FIELD_ENCRYPTION_KEEP_LEGACY_PLAINTEXT: ${FIELD_ENCRYPTION_KEEP_LEGACY_PLAINTEXT:-false}
+
+      FILE_ENCRYPTION_ENABLED: ${FILE_ENCRYPTION_ENABLED:-true}
+      APP_FILE_ENCRYPTION_ACTIVE_KEY_VERSION: ${APP_FILE_ENCRYPTION_ACTIVE_KEY_VERSION:-}
+      APP_FILE_ENCRYPTION_KEYS: ${APP_FILE_ENCRYPTION_KEYS:-}
+      FILE_ENCRYPTION_SENSITIVE_DOC_TYPES: ${FILE_ENCRYPTION_SENSITIVE_DOC_TYPES:-passport,kig,patent_front,patent_back,application_scan}
+      FILE_PROXY_TOKEN_TTL_SECONDS: ${FILE_PROXY_TOKEN_TTL_SECONDS:-300}
+      UPLOAD_TMP_DIR: ${UPLOAD_TMP_DIR:-}
+
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-104857600}
+      MAX_FILES_PER_REQUEST: ${MAX_FILES_PER_REQUEST:-10}
+
+      OCR_ENABLED: ${OCR_ENABLED:-true}
+      OCR_PROVIDER: ${OCR_PROVIDER:-openrouter}
+      OCR_API_KEY: ${OCR_API_KEY:-}
+      OCR_OPENROUTER_API_KEY: ${OCR_OPENROUTER_API_KEY:-}
+      OCR_OPENROUTER_ENDPOINT: ${OCR_OPENROUTER_ENDPOINT:-https://openrouter.ai/api/v1/chat/completions}
+      OCR_MODEL: ${OCR_MODEL:-qwen/qwen3.5-35b-a3b}
+      OCR_SCAN_MODELS: ${OCR_SCAN_MODELS:-google/gemini-3.1-flash-lite-preview,qwen/qwen3.5-35b-a3b}
+      OCR_OPENROUTER_MODEL: ${OCR_OPENROUTER_MODEL:-}
+      OCR_REQUEST_TIMEOUT_MS: ${OCR_REQUEST_TIMEOUT_MS:-60000}
+      OCR_SCAN_REQUEST_TIMEOUT_MS: ${OCR_SCAN_REQUEST_TIMEOUT_MS:-180000}
+      OCR_OPENROUTER_HTTP_REFERER: ${OCR_OPENROUTER_HTTP_REFERER:-}
+      OCR_OPENROUTER_APP_TITLE: ${OCR_OPENROUTER_APP_TITLE:-}
+      OCR_MAX_FILE_SIZE: ${OCR_MAX_FILE_SIZE:-12582912}
+      OCR_PASSPORT_RF_PROMPT: ${OCR_PASSPORT_RF_PROMPT:-}
+      OCR_FOREIGN_PASSPORT_PROMPT: ${OCR_FOREIGN_PASSPORT_PROMPT:-}
+      OCR_PATENT_PROMPT: ${OCR_PATENT_PROMPT:-}
+      OCR_KIG_PROMPT: ${OCR_KIG_PROMPT:-}
+      OCR_INN_PROMPT: ${OCR_INN_PROMPT:-}
+      OCR_SNILS_PROMPT: ${OCR_SNILS_PROMPT:-}
+      OCR_BANK_DETAILS_PROMPT: ${OCR_BANK_DETAILS_PROMPT:-}
+      OCR_VISA_PROMPT: ${OCR_VISA_PROMPT:-}
+      OCR_CONFLICT_EMAIL_WEBHOOK_URL: ${OCR_CONFLICT_EMAIL_WEBHOOK_URL:-}
+      EMAIL_WEBHOOK_URL: ${EMAIL_WEBHOOK_URL:-}
+      OT_EMAIL_WEBHOOK_URL: ${OT_EMAIL_WEBHOOK_URL:-}
+
+      TELEGRAM_BOT_ENABLED: ${TELEGRAM_BOT_ENABLED:-false}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_LINK_CODE_TTL_MINUTES: ${TELEGRAM_LINK_CODE_TTL_MINUTES:-10}
+      TELEGRAM_EXPIRY_CHECK_INTERVAL_MS: ${TELEGRAM_EXPIRY_CHECK_INTERVAL_MS:-3600000}
+      MOBILE_ACCESS_CODE_TTL_MINUTES: ${MOBILE_ACCESS_CODE_TTL_MINUTES:-5}
+      MOBILE_ACCESS_CODE_MAX_ATTEMPTS: ${MOBILE_ACCESS_CODE_MAX_ATTEMPTS:-5}
+      MOBILE_ACCESS_SESSION_TTL_DAYS: ${MOBILE_ACCESS_SESSION_TTL_DAYS:-30}
+      MOBILE_ACCESS_SESSION_LIMIT: ${MOBILE_ACCESS_SESSION_LIMIT:-5}
+      MOBILE_ACCESS_DELIVERY_MODE: ${MOBILE_ACCESS_DELIVERY_MODE:-log}
+      MOBILE_ACCESS_DEBUG_RETURN_CODE: ${MOBILE_ACCESS_DEBUG_RETURN_CODE:-false}
+
+      SKUD_ENABLED: ${SKUD_ENABLED:-false}
+      SKUD_PROVIDER: ${SKUD_PROVIDER:-sigur}
+      SKUD_SIGUR_BASE_URL: ${SKUD_SIGUR_BASE_URL:-}
+      SKUD_SIGUR_USERNAME: ${SKUD_SIGUR_USERNAME:-}
+      SKUD_SIGUR_PASSWORD: ${SKUD_SIGUR_PASSWORD:-}
+      SKUD_SIGUR_TIMEOUT_MS: ${SKUD_SIGUR_TIMEOUT_MS:-15000}
+      SKUD_SIGUR_INSECURE_TLS: ${SKUD_SIGUR_INSECURE_TLS:-false}
+      SKUD_SIGUR_DEPARTMENT_ROOT: ${SKUD_SIGUR_DEPARTMENT_ROOT:-}
+      SKUD_SIGUR_DEPARTMENT_ROOT_CONTRACTORS: ${SKUD_SIGUR_DEPARTMENT_ROOT_CONTRACTORS:-}
+      SKUD_WEBHOOK_BASIC_USER: ${SKUD_WEBHOOK_BASIC_USER:-}
+      SKUD_WEBHOOK_BASIC_PASS: ${SKUD_WEBHOOK_BASIC_PASS:-}
+      SKUD_WEBHOOK_ALLOWED_IPS: ${SKUD_WEBHOOK_ALLOWED_IPS:-}
+      SKUD_QR_HMAC_SECRET: ${SKUD_QR_HMAC_SECRET:-}
+      SKUD_QR_PERSISTENT_TTL_SECONDS: ${SKUD_QR_PERSISTENT_TTL_SECONDS:-3600}
+      SKUD_QR_ONE_TIME_TTL_SECONDS: ${SKUD_QR_ONE_TIME_TTL_SECONDS:-300}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set_REDIS_PASSWORD_in_.env}
+      SKUD_SYNC_CONCURRENCY: ${SKUD_SYNC_CONCURRENCY:-2}
+      SKUD_SYNC_RETRY_LIMIT: ${SKUD_SYNC_RETRY_LIMIT:-5}
+
+    command: >
+      sh -c "npm ci --omit=dev && npm run db:migrate && npm run start"
+    ports:
+      - "5003:5000"
+    volumes:
+      - ${HOST_CERT_PATH:-./cert/root.crt}:/app/cert/root.crt:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "wget -qO- http://127.0.0.1:5000/health >/dev/null 2>&1 || exit 1"
+      interval: 20s
+      timeout: 5s
+      retries: 10
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    environment:
+      VITE_DEV_HTTPS: "false"
+      VITE_PROXY_TARGET: ${VITE_PROXY_TARGET:-http://server:5000}
+      VITE_ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+    container_name: passdesk_client
+    command: >
+      sh -c "npm ci && npm run build && npm run preview -- --host 0.0.0.0 --port 5173"
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "5173:5173"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "wget -qO- http://127.0.0.1:5173 >/dev/null 2>&1 || exit 1"
+      interval: 20s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  redis_data:
