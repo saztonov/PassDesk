@@ -20,6 +20,7 @@ const EmployeeBasicInfoTab = ({
   dateFormat,
   passportType,
   setPassportType,
+  compactLayout,
 }) => (
   <>
     <EmployeeBasicInfoHeader
@@ -43,6 +44,7 @@ const EmployeeBasicInfoTab = ({
       dateFormat={dateFormat}
       passportType={passportType}
       setPassportType={setPassportType}
+      compactLayout={compactLayout}
     />
 
     <EmployeeBasicInfoSecondaryRows

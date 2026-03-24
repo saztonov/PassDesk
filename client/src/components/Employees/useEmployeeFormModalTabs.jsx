@@ -42,6 +42,7 @@ export const useEmployeeFormModalTabs = ({
   conflictSummary,
   onOcrConflictsChanged,
   includeFilesTab = true,
+  compactLayout = false,
 }) => {
   return useMemo(() => {
     const showCounterpartySection = false;
@@ -90,6 +91,7 @@ export const useEmployeeFormModalTabs = ({
               dateFormat={dateFormat}
               passportType={passportType}
               setPassportType={setPassportType}
+              compactLayout={compactLayout}
             />
 
             <Divider style={{ margin: "12px 0" }} />
@@ -102,6 +104,7 @@ export const useEmployeeFormModalTabs = ({
               requiresPatent={requiresPatent}
               checkingCitizenship={checkingCitizenship}
               dateFormat={dateFormat}
+              compactLayout={compactLayout}
             />
 
             {showCounterpartySection && (
@@ -193,5 +196,6 @@ export const useEmployeeFormModalTabs = ({
     documentProfilesConfig,
     onOcrConflictsChanged,
     includeFilesTab,
+    compactLayout,
   ]);
 };

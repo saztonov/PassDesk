@@ -101,6 +101,8 @@ const DocumentTypeUploader = ({
     sampleModalVisible: false,
     selectedSampleDocType: null,
   });
+  const [hoverPreviewMap, setHoverPreviewMap] = useState({});
+  const [hoverPreviewLoadingId, setHoverPreviewLoadingId] = useState(null);
   const [resolvedEmployeeId, setResolvedEmployeeId] = useState(null);
   const uploadingRef = useRef(new Set());
   const ensureEmployeeIdPromiseRef = useRef(null);
@@ -355,6 +357,7 @@ const DocumentTypeUploader = ({
             url,
             mimeType: file.mimeType || "application/pdf",
             fileName: file.fileName,
+            fileId: file.id,
           },
           viewerVisible: true,
         }));
@@ -367,6 +370,45 @@ const DocumentTypeUploader = ({
       message.error("Ошибка просмотра файла");
     }
   };
+
+  const handleHoverPreviewOpenChange = useCallback(
+    async (file, open) => {
+      if (!open || !effectiveEmployeeId || !file?.id || hoverPreviewMap[file.id]) {
+        return;
+      }
+
+      setHoverPreviewLoadingId(file.id);
+
+      try {
+        const viewLink = await employeeService.getFileViewLink(
+          effectiveEmployeeId,
+          file.id,
+        );
+        const url = viewLink?.data?.viewUrl || viewLink?.viewUrl;
+
+        if (!url || typeof url !== "string") {
+          return;
+        }
+
+        setHoverPreviewMap((prev) => ({
+          ...prev,
+          [file.id]: {
+            url,
+            mimeType: file.mimeType || "application/pdf",
+            fileName: file.fileName,
+            fileId: file.id,
+          },
+        }));
+      } catch (error) {
+        console.error("Error loading hover preview:", error);
+      } finally {
+        setHoverPreviewLoadingId((current) =>
+          current === file.id ? null : current,
+        );
+      }
+    },
+    [effectiveEmployeeId, hoverPreviewMap],
+  );
 
   const handleDownloadViewingFile = async () => {
     if (!effectiveEmployeeId || !viewingFile?.fileId) {
@@ -466,6 +508,9 @@ const DocumentTypeUploader = ({
                   onViewFile={handleViewFile}
                   onDownloadFile={handleDownloadFile}
                   onDeleteFile={handleDeleteFile}
+                  onHoverPreviewOpenChange={handleHoverPreviewOpenChange}
+                  hoverPreviewById={hoverPreviewMap}
+                  hoverPreviewLoadingId={hoverPreviewLoadingId}
                   compact={compact}
                 />
               ))}

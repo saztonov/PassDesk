@@ -15,6 +15,11 @@ const shouldShowBirthPlaceField = (getFieldProps) =>
     (fieldName) => !getFieldProps(fieldName).hidden,
   );
 
+const getQuarterColProps = (compactLayout) =>
+  compactLayout
+    ? { xs: 24, sm: 12, md: 12, lg: 12, xl: 12, xxl: 12 }
+    : { xs: 24, sm: 12, md: 12, xxl: 6 };
+
 const EmployeeBasicInfoPrimaryRows = ({
   form,
   getFieldProps,
@@ -27,11 +32,12 @@ const EmployeeBasicInfoPrimaryRows = ({
   dateFormat,
   passportType,
   setPassportType,
+  compactLayout = false,
 }) => (
   <>
     <Row gutter={16}>
       {!getFieldProps("lastName").hidden && (
-        <Col xs={24} sm={12} md={12} xxl={6}>
+        <Col {...getQuarterColProps(compactLayout)}>
           <Form.Item
             name="lastName"
             label="Фамилия"
@@ -54,7 +60,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("firstName").hidden && (
-        <Col xs={24} sm={12} md={12} xxl={6}>
+        <Col {...getQuarterColProps(compactLayout)}>
           <Form.Item
             name="firstName"
             label="Имя"
@@ -77,7 +83,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("middleName").hidden && (
-        <Col xs={24} sm={12} md={12} xxl={6}>
+        <Col {...getQuarterColProps(compactLayout)}>
           <Form.Item
             name="middleName"
             label="Отчество"
@@ -100,7 +106,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("positionId").hidden && (
-        <Col xs={24} sm={12} md={12} xxl={6}>
+        <Col {...getQuarterColProps(compactLayout)}>
           <Form.Item
             name="positionId"
             label="Должность"
@@ -134,7 +140,7 @@ const EmployeeBasicInfoPrimaryRows = ({
 
     <Row gutter={16}>
       {!getFieldProps("citizenshipId").hidden && (
-        <Col xs={24} sm={12} md={12} xxl={6}>
+        <Col {...getQuarterColProps(compactLayout)}>
           <Form.Item
             name="citizenshipId"
             label="Гражданство"
@@ -160,7 +166,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("birthDate").hidden && (
-        <Col xs={24} sm={12} md={12} xxl={6}>
+        <Col {...getQuarterColProps(compactLayout)}>
           <Form.Item
             name="birthDate"
             label="Дата рождения"
@@ -198,7 +204,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("phone").hidden && (
-        <Col xs={24} sm={12} md={12} xxl={6}>
+        <Col {...getQuarterColProps(compactLayout)}>
           <Form.Item
             name="phone"
             label="Телефон"
@@ -250,7 +256,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("passportType").hidden && (
-        <Col xs={24} sm={12} md={12} xxl={6}>
+        <Col {...getQuarterColProps(compactLayout)}>
           <Form.Item
             name="passportType"
             label="Тип паспорта"
@@ -270,7 +276,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("passportNumber").hidden && (
-        <Col xs={24} sm={12} md={12} xxl={6}>
+        <Col {...getQuarterColProps(compactLayout)}>
           <Form.Item
             name="passportNumber"
             label="№ паспорта"
@@ -294,7 +300,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("passportDate").hidden && (
-        <Col xs={24} sm={12} md={12} xxl={6}>
+        <Col {...getQuarterColProps(compactLayout)}>
           <Form.Item
             name="passportDate"
             label="Дата выдачи паспорта"
@@ -307,7 +313,7 @@ const EmployeeBasicInfoPrimaryRows = ({
       )}
       {passportType === "foreign" &&
         !getFieldProps("passportExpiryDate").hidden && (
-          <Col xs={24} sm={12} md={12} xxl={6}>
+          <Col {...getQuarterColProps(compactLayout)}>
             <Form.Item
               name="passportExpiryDate"
               label="Дата окончания паспорта"

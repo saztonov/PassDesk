@@ -7,6 +7,21 @@ import * as XLSX from "xlsx";
 
 const EMPTY_EMPLOYEES = [];
 
+const formatDateValue = (value) =>
+  value ? dayjs(value).format("DD.MM.YYYY") : "-";
+
+const formatGender = (gender) => {
+  if (!gender) return "-";
+  return gender === "male" ? "М" : gender === "female" ? "Ж" : gender;
+};
+
+const formatPassportType = (passportType) => {
+  if (!passportType) return "-";
+  if (passportType === "russian") return "Российский";
+  if (passportType === "foreign") return "Иностранного гражданина";
+  return passportType;
+};
+
 /**
  * Модальное окно для выгрузки сотрудников в Excel.
  * Показывает ровно тот же список сотрудников, который виден на странице.
@@ -68,12 +83,6 @@ const ExcelExportModal = ({
         // Получаем основного контрагента (первый в списке)
         const counterpartyMapping = emp.employeeCounterpartyMappings?.[0];
 
-        // Форматирование пола для экспорта
-        const formatGender = (gender) => {
-          if (!gender) return "-";
-          return gender === "male" ? "М" : gender === "female" ? "Ж" : gender;
-        };
-
         return {
           UUID: emp.id || "-",
           Фамилия: emp.lastName || "-",
@@ -81,35 +90,28 @@ const ExcelExportModal = ({
           Отчество: emp.middleName || "-",
           Пол: formatGender(emp.gender),
           Телефон: emp.phone || "-",
-          "Дата рождения": emp.birthDate
-            ? dayjs(emp.birthDate).format("DD.MM.YYYY")
-            : "-",
-          "Страна рождения": emp.birthCountry?.code || "-",
-          "Тип паспорта": emp.passportType || "-",
+          "Дата рождения": formatDateValue(emp.birthDate),
+          "Страна рождения": emp.birthCountry?.name || "-",
+          "Область рождения": emp.birthRegion || "-",
+          "Населенный пункт рождения": emp.birthCity || "-",
+          "Тип паспорта": formatPassportType(emp.passportType),
           "Номер паспорта": emp.passportNumber || "-",
-          "Дата выдачи паспорта": emp.passportDate
-            ? dayjs(emp.passportDate).format("DD.MM.YYYY")
-            : "-",
+          "Дата выдачи паспорта": formatDateValue(emp.passportDate),
           "Кем выдан паспорт": emp.passportIssuer || "-",
           "Адрес регистрации": emp.registrationAddress || "-",
           Патент: emp.patentNumber || "-",
-          "Дата выдачи патента": emp.patentIssueDate
-            ? dayjs(emp.patentIssueDate).format("DD.MM.YYYY")
-            : "-",
+          "Дата выдачи патента": formatDateValue(emp.patentIssueDate),
           "Номер бланка патента": emp.blankNumber || "-",
           ИНН: emp.inn || "-",
           СНИЛС: emp.snils || "-",
           КИГ: emp.kig || "-",
-          "Дата окончания КИГ": emp.kigEndDate
-            ? dayjs(emp.kigEndDate).format("DD.MM.YYYY")
-            : "-",
-          Гражданство: emp.citizenship?.code || "-",
+          "Дата окончания КИГ": formatDateValue(emp.kigEndDate),
+          Гражданство: emp.citizenship?.name || "-",
           Организация: counterpartyMapping?.counterparty?.name || "-",
           "ИНН организации": counterpartyMapping?.counterparty?.inn || "-",
+          БИК: emp.bankBik || "-",
           id_all: emp.idAll || "-",
-          "Дата окончания паспорта": emp.passportExpiryDate
-            ? dayjs(emp.passportExpiryDate).format("DD.MM.YYYY")
-            : "-",
+          "Дата окончания паспорта": formatDateValue(emp.passportExpiryDate),
         };
       });
 

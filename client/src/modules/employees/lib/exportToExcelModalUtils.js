@@ -1,6 +1,19 @@
 import dayjs from "dayjs";
 import { formatInn, formatKig, formatSnils } from "@/utils/formatters";
 
+const formatDateValue = (value) =>
+  value ? dayjs(value).format("DD.MM.YYYY") : "-";
+
+const formatBirthPlace = (employee) => {
+  const parts = [
+    employee.birthCountry?.name,
+    employee.birthRegion,
+    employee.birthCity,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(", ") : "-";
+};
+
 const getStatusByGroup = (employee, group) => {
   const mapping = employee.statusMappings?.find(
     (item) => item.statusGroup === group || item.status_group === group,
@@ -74,13 +87,18 @@ export const buildExportExcelRows = ({
       "№": index + 1,
       "Ф.И.О.": `${employee.lastName} ${employee.firstName} ${employee.middleName || ""}`,
       КИГ: formatKig(employee.kig),
+      "Срок окончания КИГ": formatDateValue(employee.kigEndDate),
       Гражданство: employee.citizenship?.name || "-",
-      "Дата рождения": employee.birthDate
-        ? dayjs(employee.birthDate).format("DD.MM.YYYY")
-        : "-",
+      "Дата рождения": formatDateValue(employee.birthDate),
+      "Место рождения": formatBirthPlace(employee),
+      "Страна рождения": employee.birthCountry?.name || "-",
+      "Область рождения": employee.birthRegion || "-",
+      "Населенный пункт рождения": employee.birthCity || "-",
       СНИЛС: formatSnils(employee.snils),
       Должность: employee.position?.name || "-",
       "ИНН сотрудника": formatInn(employee.inn),
+      БИК: employee.bankBik || "-",
+      "Дата окончания паспорта": formatDateValue(employee.passportExpiryDate),
       Организация: mapping?.counterparty?.name || "-",
       "ИНН организации": mapping?.counterparty?.inn || "-",
       "КПП организации": mapping?.counterparty?.kpp || "-",

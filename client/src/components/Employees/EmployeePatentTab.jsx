@@ -7,14 +7,20 @@ import {
 } from "./employeeFormUtils";
 import MaskedDatePicker from "../../shared/ui/MaskedDatePicker";
 
+const getQuarterColProps = (compactLayout) =>
+  compactLayout
+    ? { xs: 24, sm: 12, md: 12, lg: 12, xl: 12, xxl: 12 }
+    : { xs: 24, sm: 12, md: 12, xxl: 6 };
+
 const EmployeePatentTab = ({
   getFieldProps,
   dateFormat,
+  compactLayout = false,
 }) => {
   return (
     <>
       <Row gutter={16}>
-        <Col xs={24} sm={12} md={12} xxl={6}>
+        <Col {...getQuarterColProps(compactLayout)}>
           <Form.Item
             name="kig"
             label="КИГ"
@@ -32,7 +38,7 @@ const EmployeePatentTab = ({
             <Input placeholder="AF1234567" maxLength={9} {...noAutoFillProps} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={12} md={12} xxl={6}>
+        <Col {...getQuarterColProps(compactLayout)}>
           <Form.Item
             name="kigEndDate"
             label="Срок окончания КИГ"
@@ -43,7 +49,7 @@ const EmployeePatentTab = ({
           </Form.Item>
         </Col>
         {!getFieldProps("patentNumber").hidden && (
-          <Col xs={24} sm={12} md={12} xxl={6}>
+          <Col {...getQuarterColProps(compactLayout)}>
             <Form.Item
               name="patentNumber"
               label="Номер патента"
@@ -67,7 +73,7 @@ const EmployeePatentTab = ({
           </Col>
         )}
         {!getFieldProps("patentIssueDate").hidden && (
-          <Col xs={24} sm={12} md={12} xxl={6}>
+          <Col {...getQuarterColProps(compactLayout)}>
             <Form.Item
               name="patentIssueDate"
               label="Дата выдачи патента"
@@ -79,7 +85,7 @@ const EmployeePatentTab = ({
           </Col>
         )}
         {!getFieldProps("blankNumber").hidden && (
-          <Col xs={24} sm={12} md={12} xxl={6}>
+          <Col {...getQuarterColProps(compactLayout)}>
             <Form.Item
               name="blankNumber"
               label="Номер бланка"

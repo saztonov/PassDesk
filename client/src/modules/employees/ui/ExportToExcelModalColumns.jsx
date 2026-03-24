@@ -2,6 +2,18 @@ import dayjs from "dayjs";
 import { formatInn, formatKig, formatSnils } from "@/utils/formatters";
 import { findEmployeeMapping } from "@/modules/employees/lib/exportToExcelModalUtils";
 
+const formatDateValue = (date) => (date ? dayjs(date).format("DD.MM.YYYY") : "-");
+
+const formatBirthPlace = (record) => {
+  const parts = [
+    record.birthCountry?.name,
+    record.birthRegion,
+    record.birthCity,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(", ") : "-";
+};
+
 export const buildExportToExcelModalColumns = ({
   constructionSiteId,
   counterpartyId,
@@ -21,6 +33,13 @@ export const buildExportToExcelModalColumns = ({
     render: (value) => formatKig(value),
   },
   {
+    title: "Срок окончания КИГ",
+    dataIndex: "kigEndDate",
+    key: "kigEndDate",
+    render: formatDateValue,
+    ellipsis: true,
+  },
+  {
     title: "Гражданство",
     dataIndex: ["citizenship", "name"],
     key: "citizenship",
@@ -30,8 +49,34 @@ export const buildExportToExcelModalColumns = ({
     title: "Дата рождения",
     dataIndex: "birthDate",
     key: "birthDate",
-    render: (date) => (date ? dayjs(date).format("DD.MM.YYYY") : "-"),
+    render: formatDateValue,
     ellipsis: true,
+  },
+  {
+    title: "Место рождения",
+    key: "birthPlace",
+    width: 240,
+    render: (_, record) => formatBirthPlace(record),
+  },
+  {
+    title: "Страна рождения",
+    dataIndex: ["birthCountry", "name"],
+    key: "birthCountry",
+    ellipsis: true,
+  },
+  {
+    title: "Область рождения",
+    dataIndex: "birthRegion",
+    key: "birthRegion",
+    ellipsis: true,
+    render: (value) => value || "-",
+  },
+  {
+    title: "Населенный пункт рождения",
+    dataIndex: "birthCity",
+    key: "birthCity",
+    ellipsis: true,
+    render: (value) => value || "-",
   },
   {
     title: "СНИЛС",
@@ -52,6 +97,20 @@ export const buildExportToExcelModalColumns = ({
     key: "inn",
     ellipsis: true,
     render: (value) => formatInn(value),
+  },
+  {
+    title: "БИК",
+    dataIndex: "bankBik",
+    key: "bankBik",
+    ellipsis: true,
+    render: (value) => value || "-",
+  },
+  {
+    title: "Дата окончания паспорта",
+    dataIndex: "passportExpiryDate",
+    key: "passportExpiryDate",
+    render: formatDateValue,
+    ellipsis: true,
   },
   {
     title: "Организация",

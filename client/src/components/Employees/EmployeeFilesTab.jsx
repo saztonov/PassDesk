@@ -18,6 +18,7 @@ const EmployeeFilesTab = ({
   showInfoBanner,
   embeddedViewerHeight,
   compact,
+  readonly = false,
 }) => {
   const counterpartyId = resolveEmployeeCounterpartyId({
     employee,
@@ -34,7 +35,7 @@ const EmployeeFilesTab = ({
     <DocumentTypeUploader
       employeeId={employee?.id}
       ensureEmployeeId={ensureEmployeeId}
-      readonly={false}
+      readonly={readonly}
       onFilesUpdated={onFilesUpdated}
       onUploadComplete={onUploadComplete}
       profileCode={profileCode}

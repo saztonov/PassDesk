@@ -1,4 +1,13 @@
-import { Button, List, Popconfirm, Space, Spin, Tooltip, Upload } from "antd";
+import {
+  Button,
+  List,
+  Popconfirm,
+  Popover,
+  Space,
+  Spin,
+  Tooltip,
+  Upload,
+} from "antd";
 import {
   CheckCircleOutlined,
   DeleteOutlined,
@@ -79,6 +88,59 @@ const validateUploadFile = (file, messageApi) => {
   return false;
 };
 
+const FileHoverPreview = ({ previewFile, loading }) => {
+  const isImage = previewFile?.mimeType?.startsWith("image/");
+  const isPdf = previewFile?.mimeType?.includes("pdf");
+
+  return (
+    <div
+      style={{
+        width: 220,
+        minHeight: 140,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {loading ? <Spin size="small" /> : null}
+
+      {!loading && previewFile && isImage ? (
+        <img
+          src={previewFile.url}
+          alt={previewFile.fileName}
+          style={{
+            display: "block",
+            maxWidth: "100%",
+            maxHeight: 220,
+            objectFit: "contain",
+            borderRadius: 8,
+          }}
+        />
+      ) : null}
+
+      {!loading && previewFile && isPdf ? (
+        <iframe
+          title={previewFile.fileName}
+          src={previewFile.url}
+          style={{
+            width: 220,
+            height: 220,
+            border: "none",
+            borderRadius: 8,
+            background: "#fff",
+          }}
+        />
+      ) : null}
+
+      {!loading && !previewFile ? (
+        <span style={{ fontSize: 12, color: "#8c8c8c", textAlign: "center" }}>
+          Предпросмотр недоступен
+        </span>
+      ) : null}
+    </div>
+  );
+};
+
 const DocumentTypeUploaderItem = ({
   docType,
   filesOfType,
@@ -92,6 +154,9 @@ const DocumentTypeUploaderItem = ({
   onViewFile,
   onDownloadFile,
   onDeleteFile,
+  onHoverPreviewOpenChange,
+  hoverPreviewById,
+  hoverPreviewLoadingId,
   compact = false,
 }) => {
   const uploadDisabled = uploading || (!employeeId && !canEnsureEmployeeId);
@@ -167,25 +232,47 @@ const DocumentTypeUploaderItem = ({
               <List.Item className={compact ? "document-uploader-file-item-compact" : ""}>
                 <List.Item.Meta
                   title={
-                    <span style={{ fontSize: "12px" }}>
-                      {resolveDisplayName(file)}
-                    </span>
+                    <Popover
+                      trigger="hover"
+                      placement={compact ? "leftTop" : "topLeft"}
+                      mouseEnterDelay={0.2}
+                      onOpenChange={(open) =>
+                        onHoverPreviewOpenChange?.(file, open)
+                      }
+                      content={
+                        <FileHoverPreview
+                          previewFile={hoverPreviewById?.[file.id] || null}
+                          loading={hoverPreviewLoadingId === file.id}
+                        />
+                      }
+                    >
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          cursor: "pointer",
+                          textDecoration: "underline dotted",
+                          textUnderlineOffset: 2,
+                        }}
+                      >
+                        {resolveDisplayName(file)}
+                      </span>
+                    </Popover>
                   }
                 />
-                {!readonly && (
-                  <Space size="small">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<EyeOutlined />}
-                      onClick={() => onViewFile(file)}
-                    />
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<DownloadOutlined />}
-                      onClick={() => onDownloadFile(file)}
-                    />
+                <Space size="small">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<EyeOutlined />}
+                    onClick={() => onViewFile(file)}
+                  />
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<DownloadOutlined />}
+                    onClick={() => onDownloadFile(file)}
+                  />
+                  {!readonly ? (
                     <Popconfirm
                       title="Удалить файл?"
                       description="Вы уверены, что хотите удалить этот файл?"
@@ -200,8 +287,8 @@ const DocumentTypeUploaderItem = ({
                         icon={<DeleteOutlined />}
                       />
                     </Popconfirm>
-                  </Space>
-                )}
+                  ) : null}
+                </Space>
               </List.Item>
             )}
           />

@@ -40,6 +40,10 @@ import EmployeeFilesTab from "./EmployeeFilesTab.jsx";
 
 const { useBreakpoint } = Grid;
 const { Text } = Typography;
+const PAGE_DOCS_MIN_WIDTH = 360;
+const PAGE_DOCS_MAX_WIDTH = 760;
+const PAGE_FORM_MIN_WIDTH = 560;
+const PAGE_FORM_COMPACT_WIDTH = 860;
 
 const EmployeeFormModal = ({
   visible,
@@ -73,6 +77,11 @@ const EmployeeFormModal = ({
   const [transferModalVisible, setTransferModalVisible] = useState(false); // Модальное окно перевода сотрудника
   const [availableCounterparties, setAvailableCounterparties] = useState([]); // Доступные контрагенты
   const [loadingCounterparties, setLoadingCounterparties] = useState(false); // Загрузка контрагентов
+  const [pageDocsWidth, setPageDocsWidth] = useState(460);
+  const [isResizingPageLayout, setIsResizingPageLayout] = useState(false);
+  const pageSplitContainerRef = useRef(null);
+  const pageFormPanelRef = useRef(null);
+  const [pageFormWidth, setPageFormWidth] = useState(0);
   const {
     conflictSummary,
     handleUploadedFileForOcr,
@@ -205,6 +214,12 @@ const EmployeeFormModal = ({
     tabsValidation,
   });
 
+  const compactPageFormLayout =
+    mode === "page" &&
+    screens.xl &&
+    pageFormWidth > 0 &&
+    pageFormWidth < PAGE_FORM_COMPACT_WIDTH;
+
   const handleFilesChange = useCallback(() => {}, []);
 
   const {
@@ -291,6 +306,7 @@ const EmployeeFormModal = ({
     conflictSummary,
     onOcrConflictsChanged: refreshConflictSummary,
     includeFilesTab: mode !== "page",
+    compactLayout: compactPageFormLayout,
   });
 
   // Контент формы
@@ -371,6 +387,72 @@ const EmployeeFormModal = ({
     </div>
   );
 
+  useEffect(() => {
+    if (!screens.xl) {
+      setIsResizingPageLayout(false);
+    }
+  }, [screens.xl]);
+
+  useEffect(() => {
+    if (!isResizingPageLayout || !screens.xl) {
+      return undefined;
+    }
+
+    const handleMouseMove = (event) => {
+      const container = pageSplitContainerRef.current;
+      if (!container) {
+        return;
+      }
+
+      const bounds = container.getBoundingClientRect();
+      const maxAllowedWidth = Math.max(
+        PAGE_DOCS_MIN_WIDTH,
+        Math.min(PAGE_DOCS_MAX_WIDTH, bounds.width - PAGE_FORM_MIN_WIDTH),
+      );
+      const nextWidth = bounds.right - event.clientX - 12;
+
+      setPageDocsWidth(
+        Math.min(maxAllowedWidth, Math.max(PAGE_DOCS_MIN_WIDTH, nextWidth)),
+      );
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingPageLayout(false);
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizingPageLayout, screens.xl]);
+
+  useEffect(() => {
+    const node = pageFormPanelRef.current;
+    if (!node || typeof ResizeObserver === "undefined") {
+      return undefined;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
+        return;
+      }
+      setPageFormWidth(entry.contentRect.width);
+    });
+
+    observer.observe(node);
+    setPageFormWidth(node.getBoundingClientRect().width);
+
+    return () => observer.disconnect();
+  }, [mode, screens.xl]);
+
   const pageContent = (
     <div
       style={{
@@ -394,6 +476,7 @@ const EmployeeFormModal = ({
         }}
       >
         <div
+          ref={pageSplitContainerRef}
           style={{
             display: "flex",
             flexDirection: screens.xl ? "row" : "column",
@@ -404,6 +487,7 @@ const EmployeeFormModal = ({
           }}
         >
           <div
+            ref={pageFormPanelRef}
             style={{
               flex: "1 1 auto",
               minWidth: 0,
@@ -426,11 +510,39 @@ const EmployeeFormModal = ({
             </div>
           </div>
 
+          {screens.xl ? (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              onMouseDown={() => setIsResizingPageLayout(true)}
+              style={{
+                width: 12,
+                cursor: "col-resize",
+                alignSelf: "stretch",
+                flex: "0 0 12px",
+                order: 2,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <div
+                style={{
+                  width: 4,
+                  height: "100%",
+                  borderRadius: 999,
+                  background: isResizingPageLayout ? "#1677ff" : "#f0f0f0",
+                  transition: "background 0.2s ease",
+                }}
+              />
+            </div>
+          ) : null}
+
           <div
             style={{
-              flex: screens.xxl ? "0 0 460px" : screens.xl ? "0 0 400px" : "1 1 auto",
+              flex: screens.xl ? `0 0 ${pageDocsWidth}px` : "1 1 auto",
               minWidth: 0,
-              order: 2,
+              order: screens.xl ? 3 : 2,
               overflow: "hidden",
             }}
           >
@@ -471,10 +583,9 @@ const EmployeeFormModal = ({
                 onUploadComplete={handleUploadedFileForOcr}
                 ensureEmployeeId={ensureEmployeeId}
                 documentProfilesConfig={settings?.employeeDocumentProfiles || null}
-                viewerMode="inline"
+                viewerMode="modal"
                 columnsCount={1}
                 showInfoBanner={false}
-                embeddedViewerHeight={screens.xl ? 300 : 240}
                 compact
               />
             </div>
