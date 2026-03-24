@@ -19,7 +19,7 @@ const EmployeeDocumentsTab = ({
   return (
     <>
       <Row gutter={16}>
-        <Col xs={24} sm={12} md={6} lg={6}>
+        <Col xs={24} sm={12} md={12} xxl={6}>
           <Form.Item
             name="inn"
             label="ИНН"
@@ -44,7 +44,7 @@ const EmployeeDocumentsTab = ({
         </Col>
 
         {!getFieldProps("snils").hidden && (
-          <Col xs={24} sm={12} md={6} lg={6}>
+          <Col xs={24} sm={12} md={12} xxl={6}>
             <Form.Item
               name="snils"
               label="СНИЛС"
@@ -68,7 +68,7 @@ const EmployeeDocumentsTab = ({
         )}
 
         {!getFieldProps("bankAccountNumber").hidden && (
-          <Col xs={24} sm={12} md={6} lg={6}>
+          <Col xs={24} sm={12} md={12} xxl={6}>
             <Form.Item
               name="bankAccountNumber"
               label="Номер банковского счета"
@@ -92,7 +92,7 @@ const EmployeeDocumentsTab = ({
         )}
 
         {!getFieldProps("bankBik").hidden && (
-          <Col xs={24} sm={12} md={6} lg={6}>
+          <Col xs={24} sm={12} md={12} xxl={6}>
             <Form.Item
               name="bankBik"
               label="БИК"
@@ -116,7 +116,7 @@ const EmployeeDocumentsTab = ({
         )}
 
         {!getFieldProps("insurancePolicyNumber").hidden && (
-          <Col xs={24} sm={12} md={6} lg={6}>
+          <Col xs={24} sm={12} md={12} xxl={6}>
             <Form.Item
               name="insurancePolicyNumber"
               label="Номер страхового полиса"
@@ -133,7 +133,7 @@ const EmployeeDocumentsTab = ({
         )}
 
         {!getFieldProps("insurancePolicyDate").hidden && (
-          <Col xs={24} sm={12} md={6} lg={6}>
+          <Col xs={24} sm={12} md={12} xxl={6}>
             <Form.Item
               name="insurancePolicyDate"
               label="Дата выдачи полиса"

@@ -5,6 +5,7 @@ import {
   DownloadOutlined,
   EyeOutlined,
   InfoCircleOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import {
   ALLOWED_EXTENSIONS,
@@ -91,33 +92,49 @@ const DocumentTypeUploaderItem = ({
   onViewFile,
   onDownloadFile,
   onDeleteFile,
+  compact = false,
 }) => {
   const uploadDisabled = uploading || (!employeeId && !canEnsureEmployeeId);
+  const countNode = uploading ? (
+    <Spin size="small" />
+  ) : (
+    <>
+      <CheckCircleOutlined style={{ color: "#52c41a", marginRight: 4 }} />
+      {filesOfType.length}
+    </>
+  );
 
   return (
-    <div className="document-uploader-item">
+    <div
+      className={`document-uploader-item${compact ? " document-uploader-item-compact" : ""}`}
+    >
       <div className="document-uploader-header">
-        <span className="document-uploader-label">
-          <Tooltip title={docType.label}>{docType.label}</Tooltip>
-        </span>
-        <Tooltip
-          title={
-            getSampleUrl(docType)
-              ? "Показать образец документа"
-              : "Образец пока не добавлен"
-          }
-        >
-          <Button
-            type="text"
-            size="small"
-            className="document-uploader-info-button"
-            icon={<InfoCircleOutlined />}
-            onClick={() => onOpenSample(docType)}
-          />
-        </Tooltip>
+        <div className="document-uploader-title-group">
+          <span className="document-uploader-label">
+            <Tooltip title={docType.label}>{docType.label}</Tooltip>
+          </span>
+          <div className="document-uploader-meta">
+            <Tooltip
+              title={
+                getSampleUrl(docType)
+                  ? "Показать образец документа"
+                  : "Образец пока не добавлен"
+              }
+            >
+              <Button
+                type="text"
+                size="small"
+                className="document-uploader-info-button"
+                icon={<InfoCircleOutlined />}
+                onClick={() => onOpenSample(docType)}
+              />
+            </Tooltip>
+            <span className="document-uploader-count">{countNode}</span>
+          </div>
+        </div>
 
         {!readonly ? (
-          <>
+          <div className="document-uploader-actions">
             <Upload
               accept={ALLOWED_EXTENSIONS}
               multiple={true}
@@ -131,30 +148,14 @@ const DocumentTypeUploaderItem = ({
                 loading={uploading}
                 className="document-uploader-button"
                 disabled={uploadDisabled}
+                icon={compact ? <UploadOutlined /> : undefined}
+                block={compact}
               >
                 {uploading ? "Загруз." : "Загрузить"}
               </Button>
             </Upload>
-
-            <span className="document-uploader-count">
-              {uploading ? (
-                <Spin size="small" />
-              ) : (
-                <>
-                  <CheckCircleOutlined
-                    style={{ color: "#52c41a", marginRight: 4 }}
-                  />
-                  {filesOfType.length}
-                </>
-              )}
-            </span>
-          </>
-        ) : (
-          <span className="document-uploader-count">
-            <CheckCircleOutlined style={{ color: "#52c41a", marginRight: 4 }} />
-            {filesOfType.length}
-          </span>
-        )}
+          </div>
+        ) : null}
       </div>
 
       {filesOfType.length > 0 && (
@@ -163,7 +164,7 @@ const DocumentTypeUploaderItem = ({
             size="small"
             dataSource={filesOfType}
             renderItem={(file) => (
-              <List.Item>
+              <List.Item className={compact ? "document-uploader-file-item-compact" : ""}>
                 <List.Item.Meta
                   title={
                     <span style={{ fontSize: "12px" }}>

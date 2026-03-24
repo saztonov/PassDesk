@@ -13,6 +13,11 @@ const EmployeeFilesTab = ({
   onUploadComplete,
   ensureEmployeeId,
   documentProfilesConfig,
+  viewerMode,
+  columnsCount,
+  showInfoBanner,
+  embeddedViewerHeight,
+  compact,
 }) => {
   const counterpartyId = resolveEmployeeCounterpartyId({
     employee,
@@ -34,6 +39,11 @@ const EmployeeFilesTab = ({
       onUploadComplete={onUploadComplete}
       profileCode={profileCode}
       profilesConfig={documentProfilesConfig}
+      viewerMode={viewerMode}
+      columnsCount={columnsCount}
+      showInfoBanner={showInfoBanner}
+      embeddedViewerHeight={embeddedViewerHeight}
+      compact={compact}
     />
   );
 };

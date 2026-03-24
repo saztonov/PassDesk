@@ -945,46 +945,55 @@ const EmployeeSkudTab = ({ employee }) => {
           Выдать новый пропуск
         </Text>
         <Form form={newCardForm} layout="inline" onFinish={handleAssign} component={false}>
-          <Form.Item
-            name="cardNumber"
-            rules={[{ required: true, message: "Введите номер карты" }]}
-            style={{ flex: 1, marginBottom: 0 }}
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 8,
+              alignItems: "flex-start",
+            }}
           >
-            <Input
-              prefix={<CreditCardOutlined />}
-              placeholder="Приложите карту к считывателю или введите вручную"
-              allowClear
-            />
-          </Form.Item>
-          <Form.Item style={{ marginBottom: 0 }}>
-            <Select
-              value={readerUidFormat}
-              onChange={setReaderUidFormat}
-              options={READER_UID_FORMAT_OPTIONS}
-              style={{ width: 150 }}
-              title="Формат данных от считывателя"
-            />
-          </Form.Item>
-          <Form.Item style={{ marginBottom: 0 }}>
-            <Button
-              icon={<WifiOutlined />}
-              danger={readerArmed}
-              onClick={handleArmReader}
-              title={readerArmed ? (readerConnected ? "Считыватель активен" : "Ожидание (ввод вручную)") : "Ожидать карту от считывателя"}
+            <Form.Item
+              name="cardNumber"
+              rules={[{ required: true, message: "Введите номер карты" }]}
+              style={{ flex: "1 1 420px", marginBottom: 0 }}
             >
-              {readerArmed ? (readerConnected ? "Считыватель активен" : "Ожидание...") : "Ожидать карту"}
-            </Button>
-          </Form.Item>
-          <Form.Item style={{ marginBottom: 0 }}>
-            <Button
-              type="primary"
-              loading={submitting}
-              icon={<CreditCardOutlined />}
-              onClick={handleAssign}
-            >
-              Выдать
-            </Button>
-          </Form.Item>
+              <Input
+                prefix={<CreditCardOutlined />}
+                placeholder="Приложите карту к считывателю или введите вручную"
+                allowClear
+              />
+            </Form.Item>
+            <Form.Item style={{ flex: "0 0 150px", marginBottom: 0 }}>
+              <Select
+                value={readerUidFormat}
+                onChange={setReaderUidFormat}
+                options={READER_UID_FORMAT_OPTIONS}
+                style={{ width: "100%" }}
+                title="Формат данных от считывателя"
+              />
+            </Form.Item>
+            <Form.Item style={{ marginBottom: 0 }}>
+              <Button
+                icon={<WifiOutlined />}
+                danger={readerArmed}
+                onClick={handleArmReader}
+                title={readerArmed ? (readerConnected ? "Считыватель активен" : "Ожидание (ввод вручную)") : "Ожидать карту от считывателя"}
+              >
+                {readerArmed ? (readerConnected ? "Считыватель активен" : "Ожидание...") : "Ожидать карту"}
+              </Button>
+            </Form.Item>
+            <Form.Item style={{ marginBottom: 0 }}>
+              <Button
+                type="primary"
+                loading={submitting}
+                icon={<CreditCardOutlined />}
+                onClick={handleAssign}
+              >
+                Выдать
+              </Button>
+            </Form.Item>
+          </div>
         </Form>
         {sitesChanged && (
           <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: "block" }}>

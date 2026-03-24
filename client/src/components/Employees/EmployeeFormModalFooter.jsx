@@ -13,7 +13,7 @@ const EmployeeFormModalFooter = ({
   const canSaveDirectly = allTabsValid() || !allowTabNavigation;
 
   return (
-    <Space>
+    <Space wrap>
       <Button onClick={onCancel}>{employee ? "Закрыть" : "Отмена"}</Button>
       <Button onClick={onSaveDraft} loading={loading}>
         Сохранить черновик

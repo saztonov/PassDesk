@@ -41,6 +41,7 @@ export const useEmployeeFormModalTabs = ({
   documentProfilesConfig,
   conflictSummary,
   onOcrConflictsChanged,
+  includeFilesTab = true,
 }) => {
   return useMemo(() => {
     const showCounterpartySection = false;
@@ -120,22 +121,24 @@ export const useEmployeeFormModalTabs = ({
       },
     ];
 
-    items.push({
-      key: "4",
-      label: "Файлы",
-      children: (
-        <EmployeeFilesTab
-          employee={employee}
-          selectedCitizenship={selectedCitizenship}
-          defaultCounterpartyId={defaultCounterpartyId}
-          userCounterpartyId={user?.counterpartyId || null}
-          onFilesUpdated={handleFilesChange}
-          onUploadComplete={onDocumentUploaded}
-          ensureEmployeeId={ensureEmployeeId}
-          documentProfilesConfig={documentProfilesConfig}
-        />
-      ),
-    });
+    if (includeFilesTab) {
+      items.push({
+        key: "4",
+        label: "Файлы",
+        children: (
+          <EmployeeFilesTab
+            employee={employee}
+            selectedCitizenship={selectedCitizenship}
+            defaultCounterpartyId={defaultCounterpartyId}
+            userCounterpartyId={user?.counterpartyId || null}
+            onFilesUpdated={handleFilesChange}
+            onUploadComplete={onDocumentUploaded}
+            ensureEmployeeId={ensureEmployeeId}
+            documentProfilesConfig={documentProfilesConfig}
+          />
+        ),
+      });
+    }
 
     items.push({
       key: "5",
@@ -189,5 +192,6 @@ export const useEmployeeFormModalTabs = ({
     user,
     documentProfilesConfig,
     onOcrConflictsChanged,
+    includeFilesTab,
   ]);
 };

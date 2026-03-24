@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Modal, Form, App, Tabs, Alert } from "antd";
+import { Modal, Form, App, Tabs, Alert, Space, Grid, Typography } from "antd";
 import {
   capitalizeFirstLetter,
   filterCyrillicOnly,
@@ -35,6 +35,11 @@ import { useEmployeeFormTabFlow } from "@/modules/employees/model/useEmployeeFor
 import { useEmployeeOcrHandlers } from "@/modules/employees/model/useEmployeeOcrHandlers";
 import { formatEmployeeFormPayload } from "@/modules/employees/lib/employeeFormPayload";
 import OcrConflictSummaryNotice from "@/modules/employees/ui/OcrConflictSummaryNotice";
+import EmployeeAuditInfoTooltip from "@/modules/employees/ui/EmployeeAuditInfoTooltip";
+import EmployeeFilesTab from "./EmployeeFilesTab.jsx";
+
+const { useBreakpoint } = Grid;
+const { Text } = Typography;
 
 const EmployeeFormModal = ({
   visible,
@@ -42,8 +47,10 @@ const EmployeeFormModal = ({
   onCancel,
   onSuccess,
   onCheckInn,
+  mode = "modal",
 }) => {
   const { message } = App.useApp();
+  const screens = useBreakpoint();
   const [form] = Form.useForm();
   const watchedCitizenshipId = Form.useWatch("citizenshipId", form);
   const antiAutofillIds = useMemo(() => createAntiAutofillIds(), []);
@@ -283,6 +290,7 @@ const EmployeeFormModal = ({
     documentProfilesConfig: settings?.employeeDocumentProfiles || null,
     conflictSummary,
     onOcrConflictsChanged: refreshConflictSummary,
+    includeFilesTab: mode !== "page",
   });
 
   // Контент формы
@@ -344,11 +352,167 @@ const EmployeeFormModal = ({
     />
   );
 
-  // Модальное окно
+  const titleNode = (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        paddingRight: mode === "modal" ? 24 : 0,
+      }}
+    >
+      <span>{employee ? "Редактировать сотрудника" : "Добавить сотрудника"}</span>
+      {employee ? (
+        <Space size={8}>
+          <EmployeeAuditInfoTooltip employee={employee} />
+        </Space>
+      ) : null}
+    </div>
+  );
+
+  const pageContent = (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        background: "#fff",
+        border: "1px solid #f0f0f0",
+        borderRadius: 16,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
+          padding: "24px",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: screens.xl ? "row" : "column",
+            gap: 24,
+            alignItems: "stretch",
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <div
+            style={{
+              flex: "1 1 auto",
+              minWidth: 0,
+              order: 1,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                border: "1px solid #f0f0f0",
+                borderRadius: 16,
+                padding: 20,
+                background: "#fff",
+                height: "100%",
+                overflowY: "auto",
+                boxSizing: "border-box",
+              }}
+            >
+              {formContent}
+            </div>
+          </div>
+
+          <div
+            style={{
+              flex: screens.xxl ? "0 0 460px" : screens.xl ? "0 0 400px" : "1 1 auto",
+              minWidth: 0,
+              order: 2,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                border: "1px solid #f0f0f0",
+                borderRadius: 16,
+                padding: 16,
+                background: "#fff",
+                height: "100%",
+                overflowY: "auto",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  marginBottom: 8,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>Документы</div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Просмотр и загрузка сканов
+                  </Text>
+                </div>
+                {employee ? <EmployeeAuditInfoTooltip employee={employee} /> : null}
+              </div>
+              <EmployeeFilesTab
+                employee={employee}
+                selectedCitizenship={selectedCitizenship}
+                defaultCounterpartyId={defaultCounterpartyId}
+                userCounterpartyId={user?.counterpartyId || null}
+                onFilesUpdated={handleFilesChange}
+                onUploadComplete={handleUploadedFileForOcr}
+                ensureEmployeeId={ensureEmployeeId}
+                documentProfilesConfig={settings?.employeeDocumentProfiles || null}
+                viewerMode="inline"
+                columnsCount={1}
+                showInfoBanner={false}
+                embeddedViewerHeight={screens.xl ? 300 : 240}
+                compact
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          padding: "16px 24px",
+          borderTop: "1px solid #f0f0f0",
+          background: "#fff",
+          flexShrink: 0,
+        }}
+      >
+        {footer}
+      </div>
+    </div>
+  );
+
+  if (mode === "page") {
+    return (
+      <>
+        {pageContent}
+        <TransferEmployeeModal
+          visible={transferModalVisible}
+          employee={employee}
+          onCancel={() => setTransferModalVisible(false)}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <Modal
-        title={employee ? "Редактировать сотрудника" : "Добавить сотрудника"}
+        title={titleNode}
         open={visible}
         onCancel={handleModalCancel}
         maskClosable={false}

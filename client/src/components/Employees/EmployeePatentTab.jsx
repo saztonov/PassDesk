@@ -14,7 +14,7 @@ const EmployeePatentTab = ({
   return (
     <>
       <Row gutter={16}>
-        <Col xs={24} sm={6} md={6} lg={6}>
+        <Col xs={24} sm={12} md={12} xxl={6}>
           <Form.Item
             name="kig"
             label="КИГ"
@@ -32,7 +32,7 @@ const EmployeePatentTab = ({
             <Input placeholder="AF1234567" maxLength={9} {...noAutoFillProps} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={6} md={6} lg={6}>
+        <Col xs={24} sm={12} md={12} xxl={6}>
           <Form.Item
             name="kigEndDate"
             label="Срок окончания КИГ"
@@ -43,7 +43,7 @@ const EmployeePatentTab = ({
           </Form.Item>
         </Col>
         {!getFieldProps("patentNumber").hidden && (
-          <Col xs={24} sm={6} md={6} lg={6}>
+          <Col xs={24} sm={12} md={12} xxl={6}>
             <Form.Item
               name="patentNumber"
               label="Номер патента"
@@ -67,7 +67,7 @@ const EmployeePatentTab = ({
           </Col>
         )}
         {!getFieldProps("patentIssueDate").hidden && (
-          <Col xs={24} sm={6} md={6} lg={6}>
+          <Col xs={24} sm={12} md={12} xxl={6}>
             <Form.Item
               name="patentIssueDate"
               label="Дата выдачи патента"
@@ -79,7 +79,7 @@ const EmployeePatentTab = ({
           </Col>
         )}
         {!getFieldProps("blankNumber").hidden && (
-          <Col xs={24} sm={6} md={6} lg={6}>
+          <Col xs={24} sm={12} md={12} xxl={6}>
             <Form.Item
               name="blankNumber"
               label="Номер бланка"

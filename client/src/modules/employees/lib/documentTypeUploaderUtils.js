@@ -100,20 +100,40 @@ export const DOCUMENT_TYPE_UPLOADER_STYLES = `
   .document-uploader-header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .document-uploader-title-group {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
     gap: 8px;
+    min-width: 0;
+    width: 100%;
+  }
+  .document-uploader-meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 auto;
   }
   .document-uploader-label {
-    min-width: 140px;
+    min-width: 0;
     font-size: 13px;
     font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex: 0 0 auto;
+    white-space: normal;
+    line-height: 1.35;
+    flex: 1 1 auto;
   }
   .document-uploader-info-button {
     flex-shrink: 0;
     color: #1677ff;
+  }
+  .document-uploader-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
   }
   .document-uploader-button {
     flex: 0 0 auto;
@@ -122,7 +142,7 @@ export const DOCUMENT_TYPE_UPLOADER_STYLES = `
   .document-uploader-count {
     font-size: 12px;
     color: #8c8c8c;
-    min-width: 50px;
+    min-width: 44px;
     text-align: right;
     flex: 0 0 auto;
   }
@@ -140,6 +160,60 @@ export const DOCUMENT_TYPE_UPLOADER_STYLES = `
     padding: 4px 0;
     border: none;
   }
+  .document-uploader-item-compact {
+    padding: 10px 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #f0f0f0;
+    border-radius: 0;
+    gap: 8px;
+  }
+  .document-uploader-item-compact:last-child {
+    border-bottom: none;
+  }
+  .document-uploader-item-compact .document-uploader-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .document-uploader-item-compact .document-uploader-title-group {
+    width: 100%;
+  }
+  .document-uploader-item-compact .document-uploader-label {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+  .document-uploader-item-compact .document-uploader-meta {
+    align-self: flex-start;
+  }
+  .document-uploader-item-compact .document-uploader-actions {
+    width: 100%;
+  }
+  .document-uploader-item-compact .document-uploader-button {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 10px;
+  }
+  .document-uploader-item-compact .document-uploader-count {
+    min-width: 0;
+    color: #595959;
+  }
+  .document-uploader-item-compact .document-uploader-files {
+    padding-left: 0;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+  .document-uploader-item-compact .document-uploader-files .ant-list-item {
+    padding: 6px 0 0;
+  }
+  .document-uploader-file-item-compact .ant-list-item-meta {
+    margin-bottom: 0;
+  }
+  .document-uploader-file-item-compact .ant-list-item-meta-title {
+    margin-bottom: 0;
+  }
   .document-sample-preview {
     max-height: 60vh;
     overflow: auto;
@@ -153,5 +227,17 @@ export const DOCUMENT_TYPE_UPLOADER_STYLES = `
     height: auto;
     display: block;
     margin: 0 auto;
+  }
+  @media (max-width: 1200px) {
+    .document-uploader-header {
+      align-items: flex-start;
+    }
+    .document-uploader-actions {
+      align-self: stretch;
+    }
+    .document-uploader-item-compact .document-uploader-actions {
+      width: 100%;
+      align-self: stretch;
+    }
   }
 `;

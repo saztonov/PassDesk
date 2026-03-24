@@ -4,6 +4,7 @@ import { FileViewer } from "../../shared/ui/FileViewer";
 import { employeeService } from "../../services/employeeService";
 import DocumentTypeUploaderItem from "@/modules/employees/ui/DocumentTypeUploaderItem";
 import DocumentTypeUploaderSampleModal from "@/modules/employees/ui/DocumentTypeUploaderSampleModal";
+import EmployeeDocumentPreviewPane from "@/modules/employees/ui/EmployeeDocumentPreviewPane";
 import {
   DEFAULT_DOCUMENT_TYPES,
   DOCUMENT_TYPE_UPLOADER_STYLES,
@@ -81,6 +82,11 @@ const DocumentTypeUploader = ({
   readonly = false,
   profileCode,
   profilesConfig,
+  viewerMode = "modal",
+  columnsCount = 3,
+  showInfoBanner = true,
+  embeddedViewerHeight = 360,
+  compact = false,
 }) => {
   const { message } = App.useApp();
   const [dataState, setDataState] = useState({
@@ -362,42 +368,87 @@ const DocumentTypeUploader = ({
     }
   };
 
+  const handleDownloadViewingFile = async () => {
+    if (!effectiveEmployeeId || !viewingFile?.fileId) {
+      return;
+    }
+    try {
+      const downloadLink = await employeeService.getFileDownloadLink(
+        effectiveEmployeeId,
+        viewingFile.fileId,
+      );
+      const url = downloadLink?.data?.downloadUrl || downloadLink?.downloadUrl;
+
+      if (url && typeof url === "string") {
+        window.open(url, "_blank");
+      } else {
+        message.error("Ошибка при получении ссылки скачивания");
+      }
+    } catch (error) {
+      console.error("Error downloading preview file:", error);
+      message.error("Ошибка скачивания файла");
+    }
+  };
+
   const documentTypeColumns = useMemo(
-    () => splitIntoColumns(profileDocumentTypes, 3),
-    [profileDocumentTypes],
+    () => splitIntoColumns(profileDocumentTypes, columnsCount),
+    [columnsCount, profileDocumentTypes],
   );
+
+  const colSpan = useMemo(() => {
+    if (columnsCount === 1) return { xs: 24, sm: 24, lg: 24 };
+    if (columnsCount === 2) return { xs: 24, sm: 12, lg: 12 };
+    return { xs: 24, sm: 12, lg: 8 };
+  }, [columnsCount]);
 
   return (
     <div style={{ padding: "16px 0" }}>
       <style>{DOCUMENT_TYPE_UPLOADER_STYLES}</style>
 
-      <div
-        style={{
-          marginBottom: 16,
-          padding: "10px 12px",
-          backgroundColor: "#f0f5ff",
-          borderRadius: 4,
-          fontSize: "12px",
-          color: "#1890ff",
-          border: "1px solid #b3d8ff",
-        }}
-      >
-        ℹ️ Укажите тип документа и выберите файл (поддерживаемые форматы:{" "}
-        {SUPPORTED_FORMATS})
-        {loadingDocumentTypes && (
-          <span style={{ marginLeft: 8 }}>
-            <Spin size="small" />
-          </span>
-        )}
-      </div>
+      {viewerMode === "inline" ? (
+        <div style={{ marginBottom: 16 }}>
+          <EmployeeDocumentPreviewPane
+            viewingFile={viewingFile}
+            height={embeddedViewerHeight}
+            onClose={() =>
+              setUiState((prev) => ({
+                ...prev,
+                viewingFile: null,
+                viewerVisible: false,
+              }))
+            }
+            onDownload={handleDownloadViewingFile}
+          />
+        </div>
+      ) : null}
+
+      {showInfoBanner ? (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: "10px 12px",
+            backgroundColor: "#f0f5ff",
+            borderRadius: 4,
+            fontSize: "12px",
+            color: "#1890ff",
+            border: "1px solid #b3d8ff",
+          }}
+        >
+          ℹ️ Укажите тип документа и выберите файл (поддерживаемые форматы:{" "}
+          {SUPPORTED_FORMATS})
+          {loadingDocumentTypes && (
+            <span style={{ marginLeft: 8 }}>
+              <Spin size="small" />
+            </span>
+          )}
+        </div>
+      ) : null}
 
       <Row gutter={[16, 16]}>
         {documentTypeColumns.map((column) => (
           <Col
             key={`doc-column-${column.map((docType) => docType.value).join("|")}`}
-            xs={24}
-            sm={12}
-            lg={8}
+            {...colSpan}
           >
             <div className="document-uploader-column">
               {column.map((docType) => (
@@ -415,6 +466,7 @@ const DocumentTypeUploader = ({
                   onViewFile={handleViewFile}
                   onDownloadFile={handleDownloadFile}
                   onDeleteFile={handleDeleteFile}
+                  compact={compact}
                 />
               ))}
             </div>
@@ -422,7 +474,7 @@ const DocumentTypeUploader = ({
         ))}
       </Row>
 
-      {viewingFile && (
+      {viewerMode === "modal" && viewingFile && (
         <FileViewer
           visible={viewerVisible}
           fileUrl={viewingFile.url}

@@ -11,8 +11,8 @@ const { useBreakpoint } = Grid;
 
 /**
  * Страница добавления/редактирования сотрудника
- * Используется на мобильных устройствах как отдельная страница
- * На десктопе остается модальное окно
+ * Используется как отдельная страница
+ * На мобильных устройствах рендерится специальная mobile-форма
  */
 const AddEmployeePage = () => {
   const navigate = useNavigate();
@@ -49,22 +49,24 @@ const AddEmployeePage = () => {
           style={{
             display: "flex",
             alignItems: "center",
+            justifyContent: "space-between",
             marginBottom: 24,
             gap: 16,
             padding: "16px 24",
             flexShrink: 0,
           }}
         >
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate("/employees")}
-            size="large"
-          >
-            Назад
-          </Button>
-          <Title level={2} style={{ margin: 0 }}>
-            {id ? "Редактирование сотрудника" : "Добавление сотрудника"}
-          </Title>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <Button
+              icon={<ArrowLeftOutlined />}
+              onClick={() => navigate("/employees")}
+            >
+              Назад
+            </Button>
+            <Title level={3} style={{ margin: 0 }}>
+              {id ? "Редактирование сотрудника" : "Добавление сотрудника"}
+            </Title>
+          </div>
         </div>
       ) : null}
 
@@ -83,6 +85,7 @@ const AddEmployeePage = () => {
             onCancel={handleClose}
             onSuccess={handleFormSuccess}
             onCheckInn={handleCheckInn}
+            mode="page"
           />
         )}
       </div>

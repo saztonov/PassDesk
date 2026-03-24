@@ -31,7 +31,7 @@ const EmployeeBasicInfoPrimaryRows = ({
   <>
     <Row gutter={16}>
       {!getFieldProps("lastName").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
+        <Col xs={24} sm={12} md={12} xxl={6}>
           <Form.Item
             name="lastName"
             label="Фамилия"
@@ -54,7 +54,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("firstName").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
+        <Col xs={24} sm={12} md={12} xxl={6}>
           <Form.Item
             name="firstName"
             label="Имя"
@@ -77,7 +77,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("middleName").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
+        <Col xs={24} sm={12} md={12} xxl={6}>
           <Form.Item
             name="middleName"
             label="Отчество"
@@ -100,7 +100,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("positionId").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
+        <Col xs={24} sm={12} md={12} xxl={6}>
           <Form.Item
             name="positionId"
             label="Должность"
@@ -134,7 +134,7 @@ const EmployeeBasicInfoPrimaryRows = ({
 
     <Row gutter={16}>
       {!getFieldProps("citizenshipId").hidden && (
-        <Col xs={24} sm={12} md={4} lg={6}>
+        <Col xs={24} sm={12} md={12} xxl={6}>
           <Form.Item
             name="citizenshipId"
             label="Гражданство"
@@ -160,7 +160,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("birthDate").hidden && (
-        <Col xs={24} sm={12} md={4} lg={3}>
+        <Col xs={24} sm={12} md={12} xxl={6}>
           <Form.Item
             name="birthDate"
             label="Дата рождения"
@@ -198,7 +198,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("phone").hidden && (
-        <Col xs={24} sm={12} md={4} lg={3}>
+        <Col xs={24} sm={12} md={12} xxl={6}>
           <Form.Item
             name="phone"
             label="Телефон"
@@ -223,7 +223,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("registrationAddress").hidden && (
-        <Col xs={24} sm={24} md={12} lg={12}>
+        <Col xs={24} sm={24} md={24} xxl={24}>
           <Form.Item
             name="registrationAddress"
             label="Адрес регистрации"
@@ -243,14 +243,14 @@ const EmployeeBasicInfoPrimaryRows = ({
 
     <Row gutter={16}>
       {shouldShowBirthPlaceField(getFieldProps) && (
-        <Col xs={24} sm={24} md={12} lg={6}>
+        <Col xs={24} sm={24} md={24} xxl={12}>
           <Form.Item label="Место рождения">
             <BirthPlaceModal form={form} citizenships={citizenships} />
           </Form.Item>
         </Col>
       )}
       {!getFieldProps("passportType").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
+        <Col xs={24} sm={12} md={12} xxl={6}>
           <Form.Item
             name="passportType"
             label="Тип паспорта"
@@ -270,7 +270,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("passportNumber").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
+        <Col xs={24} sm={12} md={12} xxl={6}>
           <Form.Item
             name="passportNumber"
             label="№ паспорта"
@@ -294,7 +294,7 @@ const EmployeeBasicInfoPrimaryRows = ({
         </Col>
       )}
       {!getFieldProps("passportDate").hidden && (
-        <Col xs={24} sm={12} md={6} lg={6}>
+        <Col xs={24} sm={12} md={12} xxl={6}>
           <Form.Item
             name="passportDate"
             label="Дата выдачи паспорта"
@@ -307,7 +307,7 @@ const EmployeeBasicInfoPrimaryRows = ({
       )}
       {passportType === "foreign" &&
         !getFieldProps("passportExpiryDate").hidden && (
-          <Col xs={24} sm={12} md={6} lg={6}>
+          <Col xs={24} sm={12} md={12} xxl={6}>
             <Form.Item
               name="passportExpiryDate"
               label="Дата окончания паспорта"
@@ -319,7 +319,7 @@ const EmployeeBasicInfoPrimaryRows = ({
           </Col>
         )}
       {!getFieldProps("passportIssuer").hidden && (
-        <Col xs={24} sm={24} md={12} lg={12}>
+        <Col xs={24} sm={24} md={24} xxl={12}>
           <Form.Item
             name="passportIssuer"
             label="Кем выдан паспорт"
