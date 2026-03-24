@@ -32,6 +32,12 @@ const STATUS_LABELS = {
 
 const PROFILE_CODES = {
   EXTERNAL: "external",
+  DEFAULT_RU: "default_ru",
+  DEFAULT_EAEU: "default_eaeu",
+  DEFAULT_MIGRANT: "default_migrant",
+};
+
+const LEGACY_PROFILE_CODES = {
   DEFAULT_RU_BY: "default_ru_by",
   DEFAULT_FOREIGN: "default_foreign",
 };
@@ -43,20 +49,28 @@ const BASE_CONSENTS = [
 ];
 const REQUIRED_PROFILE_CODES = {
   [PROFILE_CODES.EXTERNAL]: [],
-  [PROFILE_CODES.DEFAULT_RU_BY]: [],
-  [PROFILE_CODES.DEFAULT_FOREIGN]: ["kig"],
+  [PROFILE_CODES.DEFAULT_RU]: [],
+  [PROFILE_CODES.DEFAULT_EAEU]: [],
+  [PROFILE_CODES.DEFAULT_MIGRANT]: ["kig"],
 };
 
 const DEFAULT_DOCUMENT_PROFILES = {
   [PROFILE_CODES.EXTERNAL]: [...BASE_CONSENTS],
-  [PROFILE_CODES.DEFAULT_RU_BY]: [
+  [PROFILE_CODES.DEFAULT_RU]: [
     "passport",
     "bank_details",
     ...BASE_CONSENTS,
     "diploma",
     "snils_card",
   ],
-  [PROFILE_CODES.DEFAULT_FOREIGN]: [
+  [PROFILE_CODES.DEFAULT_EAEU]: [
+    "passport",
+    "bank_details",
+    ...BASE_CONSENTS,
+    "diploma",
+    "snils_card",
+  ],
+  [PROFILE_CODES.DEFAULT_MIGRANT]: [
     "passport",
     "passport_translation",
     "kig",
@@ -93,6 +107,44 @@ const normalizeDocumentProfilesConfig = (rawConfig) => {
       ? rawConfig
       : {};
 
+  const getInputCodes = (profileCode) => {
+    if (Array.isArray(input[profileCode])) {
+      return input[profileCode];
+    }
+
+    if (
+      profileCode === PROFILE_CODES.DEFAULT_RU ||
+      profileCode === PROFILE_CODES.DEFAULT_EAEU
+    ) {
+      return input[LEGACY_PROFILE_CODES.DEFAULT_RU_BY];
+    }
+
+    if (profileCode === PROFILE_CODES.DEFAULT_MIGRANT) {
+      return input[LEGACY_PROFILE_CODES.DEFAULT_FOREIGN];
+    }
+
+    return input[profileCode];
+  };
+
+  const hasExplicitProfile = (profileCode) => {
+    if (Array.isArray(input[profileCode])) {
+      return true;
+    }
+
+    if (
+      profileCode === PROFILE_CODES.DEFAULT_RU ||
+      profileCode === PROFILE_CODES.DEFAULT_EAEU
+    ) {
+      return Array.isArray(input[LEGACY_PROFILE_CODES.DEFAULT_RU_BY]);
+    }
+
+    if (profileCode === PROFILE_CODES.DEFAULT_MIGRANT) {
+      return Array.isArray(input[LEGACY_PROFILE_CODES.DEFAULT_FOREIGN]);
+    }
+
+    return false;
+  };
+
   return Object.values(PROFILE_CODES).reduce((acc, profileCode) => {
     const ensureRequiredByProfile = (codes = []) => {
       const requiredCodes = REQUIRED_PROFILE_CODES[profileCode] || [];
@@ -108,12 +160,11 @@ const normalizeDocumentProfilesConfig = (rawConfig) => {
       return result;
     };
 
-    const inputCodes = ensureRequiredByProfile(input[profileCode]);
+    const inputCodes = ensureRequiredByProfile(getInputCodes(profileCode));
     const fallbackCodes = ensureRequiredByProfile(
       DEFAULT_DOCUMENT_PROFILES[profileCode] || [],
     );
-    const hasExplicitProfile = Array.isArray(input[profileCode]);
-    acc[profileCode] = hasExplicitProfile
+    acc[profileCode] = hasExplicitProfile(profileCode)
       ? inputCodes
       : inputCodes.length > 0
         ? inputCodes
@@ -318,10 +369,12 @@ const buildDocumentCte = async ({ user, filters }) => {
 
   replacements.profileExternalDocTypes =
     documentProfiles[PROFILE_CODES.EXTERNAL];
-  replacements.profileDefaultRuByDocTypes =
-    documentProfiles[PROFILE_CODES.DEFAULT_RU_BY];
-  replacements.profileDefaultForeignDocTypes =
-    documentProfiles[PROFILE_CODES.DEFAULT_FOREIGN];
+  replacements.profileDefaultRuDocTypes =
+    documentProfiles[PROFILE_CODES.DEFAULT_RU];
+  replacements.profileDefaultEaeuDocTypes =
+    documentProfiles[PROFILE_CODES.DEFAULT_EAEU];
+  replacements.profileDefaultMigrantDocTypes =
+    documentProfiles[PROFILE_CODES.DEFAULT_MIGRANT];
 
   const hasDefaultCounterparty = Boolean(defaultCounterpartyId);
   if (hasDefaultCounterparty) {
@@ -402,8 +455,9 @@ const buildDocumentCte = async ({ user, filters }) => {
     ? `(
         CASE
           WHEN fe.counterparty_id::text <> :defaultCounterpartyId::text THEN dt.code IN (:profileExternalDocTypes)
-          WHEN fe.is_ru_by_citizenship = TRUE THEN dt.code IN (:profileDefaultRuByDocTypes)
-          ELSE dt.code IN (:profileDefaultForeignDocTypes)
+          WHEN fe.is_russian_citizenship = TRUE THEN dt.code IN (:profileDefaultRuDocTypes)
+          WHEN fe.is_eaeu_citizenship = TRUE THEN dt.code IN (:profileDefaultEaeuDocTypes)
+          ELSE dt.code IN (:profileDefaultMigrantDocTypes)
         END
       )`
     : "dt.code IN (:profileExternalDocTypes)";
@@ -430,13 +484,26 @@ const buildDocumentCte = async ({ user, filters }) => {
         c.id AS counterparty_id,
         c.name AS counterparty_name,
         CASE
-          WHEN LOWER(COALESCE(ctz.code, '')) IN ('ru', 'rus', '643', 'by', 'blr', '112', 'rb') THEN TRUE
+          WHEN LOWER(COALESCE(ctz.code, '')) IN ('ru', 'rus', '643') THEN TRUE
           WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%рос%' THEN TRUE
           WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%russia%' THEN TRUE
+          ELSE FALSE
+        END AS is_russian_citizenship,
+        CASE
+          WHEN COALESCE(ctz.is_eaeu, FALSE) = TRUE THEN TRUE
+          WHEN LOWER(COALESCE(ctz.code, '')) IN ('by', 'blr', '112', 'rb', 'kz', 'kaz', '398', 'kg', 'kgz', '417', 'am', 'arm', '051') THEN TRUE
           WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%беларус%' THEN TRUE
           WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%belarus%' THEN TRUE
+          WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%белорус%' THEN TRUE
+          WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%казах%' THEN TRUE
+          WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%kazakh%' THEN TRUE
+          WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%киргиз%' THEN TRUE
+          WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%кыргыз%' THEN TRUE
+          WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%kyrgyz%' THEN TRUE
+          WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%армени%' THEN TRUE
+          WHEN LOWER(COALESCE(ctz.name, '')) LIKE '%armenia%' THEN TRUE
           ELSE FALSE
-        END AS is_ru_by_citizenship
+        END AS is_eaeu_citizenship
       FROM employees e
       INNER JOIN employee_counterparty_mapping ecm
         ON ecm.employee_id = e.id

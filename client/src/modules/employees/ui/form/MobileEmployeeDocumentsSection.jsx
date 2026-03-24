@@ -27,6 +27,7 @@ export const buildMobileEmployeeDocumentsSection = ({
   handleInnBlur,
   formatSnils,
   formatBankAccountNumber,
+  formatBankBik,
   noAutoFillProps,
   employee,
   ensureEmployeeId,
@@ -36,7 +37,7 @@ export const buildMobileEmployeeDocumentsSection = ({
   patentFields,
 }) => {
   const uploads = getUploadsForDocumentProfile(profileCode, profilesConfig);
-  const { documentUploads, consentUploads } = splitUploadsByConsent(uploads);
+  const { documentUploads, consentUploads, postConsentUploads } = splitUploadsByConsent(uploads);
   const uploadsByType = new Map(
     uploads.map((upload) => [upload.documentType, upload]),
   );
@@ -185,6 +186,29 @@ export const buildMobileEmployeeDocumentsSection = ({
           </>
         )}
 
+        {!getFieldProps("bankBik").hidden && (
+          <Form.Item
+            label="БИК"
+            name="bankBik"
+            required={getFieldProps("bankBik").required}
+            rules={[
+              ...getFieldProps("bankBik").rules,
+              {
+                pattern: /^\d{9}$/,
+                message: "БИК должен содержать 9 цифр",
+              },
+            ]}
+            getValueFromEvent={(e) => formatBankBik(e.target.value)}
+          >
+            <Input
+              placeholder="044525225"
+              size="large"
+              maxLength={9}
+              {...noAutoFillProps}
+            />
+          </Form.Item>
+        )}
+
         {patentFields}
 
         {additionalDocumentUploads.length > 0 && (
@@ -208,6 +232,20 @@ export const buildMobileEmployeeDocumentsSection = ({
             </div>
             <MobileEmployeeUploadsSection
               uploads={consentUploads}
+              employee={employee}
+              ensureEmployeeId={ensureEmployeeId}
+              handleDocumentUploadComplete={onDocumentUploadComplete}
+            />
+          </>
+        )}
+
+        {postConsentUploads.length > 0 && (
+          <>
+            <div style={{ marginTop: 12, marginBottom: 12 }}>
+              <Text strong>Прочие документы</Text>
+            </div>
+            <MobileEmployeeUploadsSection
+              uploads={postConsentUploads}
               employee={employee}
               ensureEmployeeId={ensureEmployeeId}
               handleDocumentUploadComplete={onDocumentUploadComplete}

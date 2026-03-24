@@ -1,9 +1,9 @@
 import EmployeeBasicInfoHeader from "./EmployeeBasicInfoHeader.jsx";
 import EmployeeBasicInfoPrimaryRows from "./EmployeeBasicInfoPrimaryRows.jsx";
 import EmployeeBasicInfoSecondaryRows from "./EmployeeBasicInfoSecondaryRows.jsx";
-import EmployeeOcrConflictsCompact from "./EmployeeOcrConflictsCompact.jsx";
 
 const EmployeeBasicInfoTab = ({
+  form,
   employee,
   messageApi,
   onCancel,
@@ -22,8 +22,6 @@ const EmployeeBasicInfoTab = ({
   setPassportType,
 }) => (
   <>
-    <EmployeeOcrConflictsCompact employee={employee} />
-
     <EmployeeBasicInfoHeader
       employee={employee}
       messageApi={messageApi}
@@ -34,6 +32,7 @@ const EmployeeBasicInfoTab = ({
     />
 
     <EmployeeBasicInfoPrimaryRows
+      form={form}
       getFieldProps={getFieldProps}
       positions={positions}
       citizenships={citizenships}

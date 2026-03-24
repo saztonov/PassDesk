@@ -12,6 +12,12 @@ const CONSENT_DOCUMENT_TYPES = new Set([
   "biometric_consent_developer",
 ]);
 
+const POST_CONSENT_DOCUMENT_TYPES = new Set([
+  "memo_approval",
+  "employment_history_stdr",
+  "registration_amina",
+]);
+
 export const formatDateInputValue = (value) => {
   if (!value) return value;
   if (typeof value === "string") return value;
@@ -62,16 +68,21 @@ export const getUploadsForDocumentProfile = (
 export const splitUploadsByConsent = (uploads = []) => {
   const documentUploads = [];
   const consentUploads = [];
+  const postConsentUploads = [];
 
   uploads.forEach((upload) => {
     if (CONSENT_DOCUMENT_TYPES.has(upload?.documentType)) {
       consentUploads.push(upload);
       return;
     }
+    if (POST_CONSENT_DOCUMENT_TYPES.has(upload?.documentType)) {
+      postConsentUploads.push(upload);
+      return;
+    }
     documentUploads.push(upload);
   });
 
-  return { documentUploads, consentUploads };
+  return { documentUploads, consentUploads, postConsentUploads };
 };
 
 export const renderUploads = ({

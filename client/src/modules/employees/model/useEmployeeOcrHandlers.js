@@ -20,6 +20,9 @@ const toFileId = (responseData = {}, fallbackFileId = null) =>
   normalizeString(responseData.fileId || responseData?.data?.fileId) ||
   fallbackFileId;
 
+const FIO_FIELDS = ["lastName", "firstName", "middleName"];
+const PRIMARY_FIO_DOCUMENT_TYPES = new Set(["passport_translation"]);
+
 export const useEmployeeOcrHandlers = ({
   form,
   citizenships = [],
@@ -86,6 +89,7 @@ export const useEmployeeOcrHandlers = ({
           : normalizeString(form.getFieldValue("passportType") || "");
 
       const ocrDocumentType = resolveOcrDocumentTypeByFile(docType, passportType);
+      const isPrimaryFioSource = PRIMARY_FIO_DOCUMENT_TYPES.has(docType);
 
       if (!fileId || !employeeId || !ocrDocumentType) {
         return;
@@ -118,6 +122,44 @@ export const useEmployeeOcrHandlers = ({
           dateOutputMode,
         });
 
+        if (ocrDocumentType === "foreign_passport") {
+          formPatch.passportType = "foreign";
+        }
+
+        // Fallback: если citizenshipId не заполнился — ищем вручную по имени/коду
+        if (!formPatch.citizenshipId && normalized.citizenship) {
+          const raw = String(normalized.citizenship).trim();
+          const parts = raw.toUpperCase().split(/[/,|\s]+/).filter((p) => p.length >= 2);
+          const NAME_TO_ISO3 = {
+            TAJIKISTAN: "TJK", ТОЧИКИСТОН: "TJK", ТАДЖИКИСТАН: "TJK",
+            UZBEKISTAN: "UZB", УЗБЕКИСТАН: "UZB", ЎЗБЕКИСТОН: "UZB",
+            KAZAKHSTAN: "KAZ", КАЗАХСТАН: "KAZ", ҚАЗАҚСТАН: "KAZ",
+            KYRGYZSTAN: "KGZ", КЫРГЫЗСТАН: "KGZ", КИРГИЗИЯ: "KGZ",
+            AZERBAIJAN: "AZE", АЗЕРБАЙДЖАН: "AZE",
+            ARMENIA: "ARM", АРМЕНИЯ: "ARM", ՀԱՅԱՍՏԱՆ: "ARM",
+            BELARUS: "BLR", БЕЛАРУСЬ: "BLR", БЕЛОРУССИЯ: "BLR",
+            UKRAINE: "UKR", УКРАИНА: "UKR",
+            MOLDOVA: "MDA", МОЛДОВА: "MDA", МОЛДАВИЯ: "MDA",
+            TURKEY: "TUR", ТУРЦИЯ: "TUR", TÜRKIYE: "TUR",
+            RUSSIA: "RUS", РОССИЯ: "RUS",
+            SERBIA: "SRB", СЕРБИЯ: "SRB",
+            IRAN: "IRN", ИРАН: "IRN",
+          };
+          for (const part of parts) {
+            const iso3 = NAME_TO_ISO3[part] || (part.length === 3 ? part : null);
+            if (iso3) {
+              const found = citizenships.find(
+                (c) => String(c.code || "").toUpperCase() === iso3,
+              );
+              if (found) { formPatch.citizenshipId = found.id; break; }
+            }
+          }
+        }
+
+        console.log("[OCR] normalized:", normalized);
+        console.log("[OCR] citizenships count:", citizenships?.length);
+        console.log("[OCR] formPatch:", formPatch);
+
         if (Object.keys(formPatch).length === 0) {
           messageApi?.warning?.("Не удалось извлечь данные для автозаполнения");
           return;
@@ -127,7 +169,18 @@ export const useEmployeeOcrHandlers = ({
         const { autoFillPatch, conflicts } = buildOcrApplyPlan({
           currentValues,
           ocrPatch: formPatch,
+          overwriteFields: isPrimaryFioSource ? FIO_FIELDS : [],
+          skipConflictFields: isPrimaryFioSource ? [] : FIO_FIELDS,
         });
+
+        if (ocrDocumentType === "foreign_passport") {
+          autoFillPatch.passportType = "foreign";
+          delete conflicts.passportType;
+        }
+
+        console.log("[OCR] currentValues:", currentValues);
+        console.log("[OCR] autoFillPatch:", autoFillPatch);
+        console.log("[OCR] conflicts:", conflicts);
 
         if (Object.keys(autoFillPatch).length > 0) {
           form.setFieldsValue(autoFillPatch);

@@ -6,6 +6,7 @@ import { useReferencesStore } from "@/store/referencesStore";
 import { DEFAULT_FORM_CONFIG } from "@/shared/config/employeeFields";
 import {
   formatBankAccountNumber,
+  formatBankBik,
   formatBlankNumber,
   formatInn,
   formatKig,
@@ -14,6 +15,7 @@ import {
   formatRussianPassportNumber,
   formatSnils,
   normalizeBankAccountNumber,
+  normalizeBankBik,
   normalizeKig,
   normalizePatentNumber,
   normalizePhoneNumber,
@@ -31,6 +33,9 @@ const TEMP_HIDDEN_FIELDS = new Set([
   "gender",
   "email",
 ]);
+
+const doesCitizenshipRequirePatent = (citizenship) =>
+  citizenship?.requiresPatent !== false && citizenship?.isEaeu !== true;
 
 /**
  * Хук для управления формой сотрудника
@@ -67,7 +72,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
   const [activeConfig, setActiveConfig] = useState(DEFAULT_FORM_CONFIG);
 
   // Определяем, требуется ли патент для выбранного гражданства
-  const requiresPatent = selectedCitizenship?.requiresPatent !== false;
+  const requiresPatent = doesCitizenshipRequirePatent(selectedCitizenship);
 
   // Определяем активный конфиг
   useEffect(() => {
@@ -215,6 +220,12 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
     checkCitizenship(watchedCitizenshipId || null);
   }, [watchedCitizenshipId, checkCitizenship]);
 
+  useEffect(() => {
+    if (watchedCitizenshipId && !form.getFieldValue("birthCountryId")) {
+      form.setFieldValue("birthCountryId", watchedCitizenshipId);
+    }
+  }, [form, watchedCitizenshipId]);
+
   // Нормализация СНИЛС и ИНН - удаляем маску, оставляем только цифры
   const normalizeSnils = normalizeDigitsOnly;
   const normalizeInn = normalizeDigitsOnly;
@@ -248,7 +259,11 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
   // Обработка изменения гражданства
   const handleCitizenshipChange = useCallback((citizenshipId) => {
     checkCitizenship(citizenshipId);
-  }, [checkCitizenship]);
+    // Автозаполнение страны рождения если ещё не заполнена
+    if (citizenshipId && !form.getFieldValue("birthCountryId")) {
+      form.setFieldValue("birthCountryId", citizenshipId);
+    }
+  }, [checkCitizenship, form]);
 
   // Сохранение формы
   const handleSave = async ({ draftEmployeeId = null } = {}) => {
@@ -264,6 +279,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
             normalizeSnils,
             normalizeInn,
             normalizeBankAccountNumber,
+            normalizeBankBik,
             normalizeKig,
             normalizePatentNumber,
             normalizeRussianPassportNumber,
@@ -302,6 +318,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
             normalizeSnils,
             normalizeInn,
             normalizeBankAccountNumber,
+            normalizeBankBik,
             normalizeKig,
             normalizePatentNumber,
             normalizeRussianPassportNumber,
@@ -351,6 +368,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
     formatSnils,
     formatKig,
     formatBankAccountNumber,
+    formatBankBik,
     formatInn,
     formatPatentNumber,
     formatBlankNumber,

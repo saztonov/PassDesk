@@ -6,10 +6,17 @@ import {
   noAutoFillProps,
 } from "./employeeFormUtils";
 import MaskedDatePicker from "../../shared/ui/MaskedDatePicker";
+import BirthPlaceModal from "./BirthPlaceModal";
 
 const { Option } = Select;
 
+const shouldShowBirthPlaceField = (getFieldProps) =>
+  ["birthCountryId", "birthRegion", "birthCity"].some(
+    (fieldName) => !getFieldProps(fieldName).hidden,
+  );
+
 const EmployeeBasicInfoPrimaryRows = ({
+  form,
   getFieldProps,
   positions,
   citizenships,
@@ -235,6 +242,13 @@ const EmployeeBasicInfoPrimaryRows = ({
     </Row>
 
     <Row gutter={16}>
+      {shouldShowBirthPlaceField(getFieldProps) && (
+        <Col xs={24} sm={24} md={12} lg={6}>
+          <Form.Item label="Место рождения">
+            <BirthPlaceModal form={form} citizenships={citizenships} />
+          </Form.Item>
+        </Col>
+      )}
       {!getFieldProps("passportType").hidden && (
         <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item

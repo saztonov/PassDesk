@@ -111,6 +111,8 @@ export const buildEmployeeInitialFormData = ({
     constructionSiteId: mapping?.constructionSiteId || null,
     counterpartyId: mapping?.counterpartyId || null,
     birthCountryId: employee.birthCountryId || null,
+    birthRegion: employee.birthRegion || null,
+    birthCity: employee.birthCity || null,
     isFired,
     isInactive,
     inn: employee.inn ? formatInn(employee.inn) : null,
@@ -118,6 +120,9 @@ export const buildEmployeeInitialFormData = ({
     phone: employee.phone ? formatPhoneNumber(employee.phone) : null,
     bankAccountNumber: employee.bankAccountNumber
       ? formatBankAccountNumber(employee.bankAccountNumber)
+      : null,
+    bankBik: employee.bankBik
+      ? String(employee.bankBik).replace(/[^\d]/g, "").slice(0, 9)
       : null,
     kig: employee.kig ? formatKig(employee.kig) : null,
     patentNumber: employee.patentNumber
@@ -148,6 +153,7 @@ export const buildSaveNormalizedValues = ({ values, normalizers }) => ({
   bankAccountNumber: normalizers.normalizeBankAccountNumber(
     values.bankAccountNumber,
   ),
+  bankBik: values.bankBik ? String(values.bankBik).replace(/[^\d]/g, "").slice(0, 9) : null,
   kig: normalizers.normalizeKig(values.kig),
   patentNumber: normalizers.normalizePatentNumber(values.patentNumber),
   passportNumber:
@@ -168,6 +174,9 @@ export const buildDraftNormalizedValues = ({ values, normalizers }) => ({
   inn: values.inn ? normalizers.normalizeInn(values.inn) : null,
   bankAccountNumber: values.bankAccountNumber
     ? normalizers.normalizeBankAccountNumber(values.bankAccountNumber)
+    : null,
+  bankBik: values.bankBik
+    ? String(values.bankBik).replace(/[^\d]/g, "").slice(0, 9)
     : null,
   kig: values.kig ? normalizers.normalizeKig(values.kig) : null,
   patentNumber: values.patentNumber

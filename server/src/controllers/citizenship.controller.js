@@ -38,12 +38,13 @@ export const getAllCitizenships = async (req, res, next) => {
 // Создать новое гражданство
 export const createCitizenship = async (req, res, next) => {
   try {
-    const { name, code, requiresPatent } = req.body;
+    const { name, code, requiresPatent, isEaeu } = req.body;
     
     const citizenship = await Citizenship.create({ 
       name, 
       code,
-      requiresPatent: requiresPatent !== undefined ? requiresPatent : true
+      requiresPatent: requiresPatent !== undefined ? requiresPatent : true,
+      isEaeu: isEaeu !== undefined ? isEaeu : false,
     });
     
     res.status(201).json({
@@ -80,7 +81,7 @@ export const createCitizenship = async (req, res, next) => {
 export const updateCitizenship = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, code, requiresPatent } = req.body;
+    const { name, code, requiresPatent, isEaeu } = req.body;
     
     const citizenship = await Citizenship.findByPk(id);
     
@@ -94,7 +95,8 @@ export const updateCitizenship = async (req, res, next) => {
     await citizenship.update({ 
       name, 
       code,
-      requiresPatent
+      requiresPatent,
+      isEaeu,
     });
     
     res.json({
@@ -261,4 +263,3 @@ export const deleteCitizenship = async (req, res, next) => {
     next(error);
   }
 };
-

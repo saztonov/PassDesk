@@ -1,4 +1,5 @@
 import { Form, Input, Radio, Select, Typography } from "antd";
+import BirthPlaceModal from "@/components/Employees/BirthPlaceModal";
 import dayjs from "dayjs";
 import MaskedDateInput from "@/shared/ui/MaskedDateInput";
 import EmployeeDocumentUpload from "@/components/Employees/EmployeeDocumentUpload";
@@ -69,7 +70,13 @@ const renderRequiredLabel = (label, showRequiredMark) =>
     label
   );
 
+const shouldShowBirthPlaceField = (getFieldProps) =>
+  ["birthCountryId", "birthRegion", "birthCity"].some(
+    (fieldName) => !getFieldProps(fieldName).hidden,
+  );
+
 export const buildMobileEmployeePersonalSection = ({
+  form,
   getFieldProps,
   handleLastNameBlur,
   noAutoFillProps,
@@ -372,6 +379,33 @@ export const buildMobileEmployeePersonalSection = ({
             size="large"
             {...noAutoFillProps}
           />
+        </Form.Item>
+      )}
+
+      {shouldShowBirthPlaceField(getFieldProps) && (
+        <Form.Item label="Место рождения">
+          <BirthPlaceModal form={form} citizenships={citizenships} />
+        </Form.Item>
+      )}
+
+      {!getFieldProps("passportExpiryDate").hidden && (
+        <Form.Item shouldUpdate={(prev, cur) => prev.passportType !== cur.passportType} noStyle>
+          {({ getFieldValue }) =>
+            getFieldValue("passportType") === "foreign" ? (
+              <Form.Item
+                label={renderRequiredLabel(
+                  "Дата окончания действия паспорта",
+                  getFieldProps("passportExpiryDate").required,
+                )}
+                name="passportExpiryDate"
+                required={getFieldProps("passportExpiryDate").required}
+                rules={createDateInputRules(getFieldProps("passportExpiryDate").rules)}
+                normalize={formatDateInputValue}
+              >
+                <MaskedDateInput format={DATE_FORMAT} size="large" />
+              </Form.Item>
+            ) : null
+          }
         </Form.Item>
       )}
     </>

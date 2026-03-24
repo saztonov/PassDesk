@@ -5,6 +5,9 @@ export const OCR_FIELD_LABELS = {
   firstName: "Имя",
   middleName: "Отчество",
   birthDate: "Дата рождения",
+  birthCountryId: "Страна рождения",
+  birthRegion: "Область рождения",
+  birthCity: "Населенный пункт рождения",
   gender: "Пол",
   citizenshipId: "Гражданство",
   passportNumber: "№ паспорта",
@@ -19,6 +22,7 @@ export const OCR_FIELD_LABELS = {
   patentIssueDate: "Дата выдачи патента",
   blankNumber: "Номер бланка",
   bankAccountNumber: "Номер банковского счета",
+  bankBik: "БИК",
 };
 
 const DATE_FORMAT = "YYYY-MM-DD";
@@ -128,28 +132,59 @@ const mapOcrSexToFormGender = (ocrValue) => {
   return null;
 };
 
+// Маппинг английских/таджикских/etc. названий стран → ISO3
+const COUNTRY_NAME_TO_ISO3 = {
+  russia: "RUS", russian: "RUS", россия: "RUS",
+  tajikistan: "TJK", точикистон: "TJK",
+  uzbekistan: "UZB", узбекистан: "UZB",
+  kazakhstan: "KAZ", казахстан: "KAZ",
+  kyrgyzstan: "KGZ", кыргызстан: "KGZ", киргизия: "KGZ",
+  azerbaijan: "AZE", азербайджан: "AZE",
+  armenia: "ARM", армения: "ARM",
+  belarus: "BLR", belorussia: "BLR", беларусь: "BLR",
+  ukraine: "UKR", украина: "UKR",
+  moldova: "MDA", молдова: "MDA",
+  turkey: "TUR", türkiye: "TUR", турция: "TUR",
+  serbia: "SRB", сербия: "SRB",
+};
+
 const resolveCitizenshipIdByOcrCode = (citizenships = [], ocrValue = "") => {
   const normalized = normalizeString(ocrValue).toUpperCase();
   if (!normalized) return null;
 
+  // 1. Точное совпадение по коду (с учётом RU/RUS)
   const byCode = citizenships.find((item) => {
     const code = normalizeString(item.code).toUpperCase();
     if (!code) return false;
-
     return (
       code === normalized ||
       (normalized === "RUS" && code === "RU") ||
       (normalized === "RU" && code === "RUS")
     );
   });
-
   if (byCode) return byCode.id;
 
-  if (normalized === "RU" || normalized === "RUS") {
-    const byName = citizenships.find((item) =>
-      normalizeString(item.name).toLowerCase().includes("рос"),
-    );
-    return byName?.id || null;
+  // 2. Значение может быть "ТОЧИКИСТОН/TAJIKISTAN" — пробуем каждую часть
+  const parts = normalized.split(/[/,|\s]+/).filter((p) => p.length >= 2);
+
+  // 2a. Совпадение по коду для каждой части
+  for (const part of parts) {
+    const byPart = citizenships.find((item) => {
+      const code = normalizeString(item.code).toUpperCase();
+      return code === part;
+    });
+    if (byPart) return byPart.id;
+  }
+
+  // 2b. Через таблицу английских/национальных названий → ISO3
+  for (const part of parts) {
+    const iso3 = COUNTRY_NAME_TO_ISO3[part.toLowerCase()];
+    if (iso3) {
+      const byIso = citizenships.find(
+        (item) => normalizeString(item.code).toUpperCase() === iso3,
+      );
+      if (byIso) return byIso.id;
+    }
   }
 
   return null;
@@ -344,6 +379,7 @@ export const buildFormPatchFromOcr = ({
   if (birthDate) patch.birthDate = birthDate;
   if (gender) patch.gender = gender;
   if (citizenshipId) patch.citizenshipId = citizenshipId;
+  if (citizenshipId) patch.birthCountryId = citizenshipId;
 
   const passportNumber = formatPassportNumber({
     series: normalized.passportSeries,
@@ -370,6 +406,9 @@ export const buildFormPatchFromOcr = ({
 
   if (passportDate) patch.passportDate = passportDate;
   if (passportExpiryDate) patch.passportExpiryDate = passportExpiryDate;
+
+  const birthPlace = normalizeString(normalized.birthPlace);
+  if (birthPlace) patch.birthCity = birthPlace;
 
   if (normalizeString(normalized.passportIssuedBy)) {
     patch.passportIssuer = normalizeString(normalized.passportIssuedBy);
@@ -402,6 +441,9 @@ export const buildFormPatchFromOcr = ({
   const bankAccountNumber = toDigits(normalized.bankAccountNumber, 20);
   if (bankAccountNumber) patch.bankAccountNumber = bankAccountNumber;
 
+  const bankBik = toDigits(normalized.bankBik || normalized.bik, 9);
+  if (bankBik) patch.bankBik = bankBik;
+
   if (normalizeString(normalized.insurancePolicyNumber)) {
     patch.insurancePolicyNumber = normalizeString(normalized.insurancePolicyNumber);
   }
@@ -429,6 +471,23 @@ export const isEmptyFormValue = (value) => {
   if (value === null || value === undefined) return true;
   if (dayjs.isDayjs(value)) return !value.isValid();
   return normalizeString(value) === "";
+};
+
+const formatConflictDisplayValue = (value) => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (dayjs.isDayjs(value)) {
+    return value.isValid() ? value.format("DD.MM.YYYY") : "";
+  }
+
+  const parsed = toDayjsOrNull(value);
+  if (parsed && /^\d{4}-\d{2}-\d{2}$/.test(normalizeString(value))) {
+    return parsed.format("DD.MM.YYYY");
+  }
+
+  return String(value).trim();
 };
 
 export const normalizeFormValueForCompare = (fieldName, value) => {
@@ -479,12 +538,23 @@ export const normalizeFormValueForCompare = (fieldName, value) => {
     return toDigits(value, 20);
   }
 
+  if (fieldName === "bankBik") {
+    return toDigits(value, 9);
+  }
+
   return normalizeString(value).toLowerCase();
 };
 
-export const buildOcrApplyPlan = ({ currentValues = {}, ocrPatch = {} }) => {
+export const buildOcrApplyPlan = ({
+  currentValues = {},
+  ocrPatch = {},
+  overwriteFields = [],
+  skipConflictFields = [],
+}) => {
   const autoFillPatch = {};
   const conflicts = {};
+  const overwriteFieldSet = new Set(overwriteFields);
+  const skipConflictFieldSet = new Set(skipConflictFields);
 
   Object.entries(ocrPatch).forEach(([fieldName, ocrValue]) => {
     if (isEmptyFormValue(ocrValue)) {
@@ -497,18 +567,23 @@ export const buildOcrApplyPlan = ({ currentValues = {}, ocrPatch = {} }) => {
       return;
     }
 
+    if (overwriteFieldSet.has(fieldName)) {
+      autoFillPatch[fieldName] = ocrValue;
+      return;
+    }
+
     const currentNormalized = normalizeFormValueForCompare(
       fieldName,
       currentValue,
     );
     const ocrNormalized = normalizeFormValueForCompare(fieldName, ocrValue);
 
-    if (currentNormalized !== ocrNormalized) {
+    if (currentNormalized !== ocrNormalized && !skipConflictFieldSet.has(fieldName)) {
       conflicts[fieldName] = {
         fieldName,
         fieldLabel: OCR_FIELD_LABELS[fieldName] || fieldName,
-        currentValue: currentNormalized || String(currentValue ?? ""),
-        ocrValue: ocrNormalized || String(ocrValue ?? ""),
+        currentValue: formatConflictDisplayValue(currentValue),
+        ocrValue: formatConflictDisplayValue(ocrValue),
       };
     }
   });

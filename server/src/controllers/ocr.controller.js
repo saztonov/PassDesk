@@ -390,11 +390,30 @@ export const getEmployeeConflictsSummary = async (req, res, next) => {
 
 export const getOcrConflictsList = async (req, res, next) => {
   try {
-    const { status = "open", page = 1, limit = 50 } = req.query || {};
+    const { status = "open", page = 1, limit = 50, employeeId = null } =
+      req.query || {};
+    const normalizedEmployeeId = normalizeString(employeeId);
+
+    if (normalizedEmployeeId) {
+      const employee = await fetchEmployeeWithMappings(normalizedEmployeeId);
+
+      if (!employee || employee.isDeleted) {
+        throw new AppError("Сотрудник не найден", 404);
+      }
+
+      await checkEmployeeAccess(req.user, employee, "read");
+    } else if (req.user?.role === "user") {
+      throw new AppError(
+        "Для пользователя доступен только просмотр конфликтов по конкретному сотруднику",
+        403,
+      );
+    }
+
     const data = await listEmployeeOcrConflicts({
       status,
       page,
       limit,
+      employeeId: normalizedEmployeeId || null,
     });
 
     return res.json({

@@ -29,6 +29,7 @@ const DEFAULT_PROMPTS = {
     "Если в поле имени указаны имя и отчество вместе (например 'БИЛОЛ ТИМУРОВИЧ'), раздели их: в givenNames пиши только имя (Билол), в middleName — только отчество (Тимурович). " +
     NAME_CASE_INSTRUCTION +
     DATE_FORMAT_INSTRUCTION +
+    "Поле expiryDate: срок действия иностранного паспорта обычно составляет 5 или 10 лет от даты выдачи. Если дата окончания явно указана в документе — бери её. " +
     "Верни строго JSON без markdown и пояснений. Поля: surname, givenNames, middleName, birthDate, sex, nationality, " +
     "passportNumber, issueDate, authority, expiryDate, birthPlace.",
   patent:
@@ -253,11 +254,16 @@ const normalizeSex = (value) => {
 
 const normalizeCitizenship = (value) => {
   if (!value) return null;
-  const normalized = String(value).trim().toLowerCase();
+  const raw = String(value).trim();
+  const normalized = raw.toLowerCase();
   if (normalized.includes("рос") || normalized === "ru" || normalized === "rus") {
     return "RUS";
   }
-  return String(value).trim().toUpperCase();
+  // Если формат "ТОЧИКИСТОН/TAJIKISTAN" — пробуем вытащить 3-буквенный латинский ISO-код
+  const parts = raw.toUpperCase().split(/[/,|\s]+/).filter(Boolean);
+  const isoCode = parts.find((p) => /^[A-Z]{3}$/.test(p));
+  if (isoCode) return isoCode;
+  return raw.toUpperCase();
 };
 
 const normalizeDigits = (value, maxLength = 64) => {

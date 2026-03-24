@@ -168,6 +168,18 @@ Employee.init(
       },
       comment: "Страна рождения",
     },
+    birthRegion: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: "birth_region",
+      comment: "Область / регион рождения",
+    },
+    birthCity: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: "birth_city",
+      comment: "Населённый пункт рождения",
+    },
     birthDate: {
       type: DataTypes.DATE,
       allowNull: true,
@@ -405,6 +417,22 @@ Employee.init(
         },
       },
       comment: "Номер банковского счета (20 цифр)",
+    },
+    bankBik: {
+      type: DataTypes.STRING(9),
+      allowNull: true,
+      field: "bank_bik",
+      validate: {
+        isValidBankBik(value) {
+          if (!value || value.trim() === "") {
+            return;
+          }
+          if (!/^\d{9}$/.test(value)) {
+            throw new Error("БИК должен содержать 9 цифр");
+          }
+        },
+      },
+      comment: "БИК банка (9 цифр)",
     },
     notes: {
       type: DataTypes.TEXT,

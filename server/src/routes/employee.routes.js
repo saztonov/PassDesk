@@ -66,6 +66,7 @@ const createEmployeeValidation = [
   body("email").optional().trim(),
   body("phone").optional().trim(),
   body("bankAccountNumber").optional().trim(),
+  body("bankBik").optional().trim(),
 ];
 
 // Для обновления черновика - мягкая валидация
@@ -77,6 +78,7 @@ const updateEmployeeDraftValidation = [
   body("email").optional().trim(),
   body("phone").optional().trim(),
   body("bankAccountNumber").optional().trim(),
+  body("bankBik").optional().trim(),
   body("inn").optional().trim(),
   body("snils").optional().trim(),
   body("kig").optional().trim(),
@@ -98,6 +100,7 @@ const updateEmployeeValidation = [
   body("email").optional().trim(),
   body("phone").optional().trim(),
   body("bankAccountNumber").optional().trim(),
+  body("bankBik").optional().trim(),
 ];
 
 // Более мягкая валидация для профиля пользователя
@@ -109,6 +112,7 @@ const updateMyProfileValidation = [
   body("email").optional().isEmail().withMessage("Введите корректный email"),
   body("phone").optional().trim(),
   body("bankAccountNumber").optional().trim(),
+  body("bankBik").optional().trim(),
   body("inn").optional().trim(),
   body("snils").optional().trim(),
   body("kig").optional().trim(),

@@ -14,7 +14,7 @@ const DATE_FIELDS = new Set([
   "insurancePolicyDate",
 ]);
 
-const UUID_FIELDS = new Set(["positionId", "citizenshipId"]);
+const UUID_FIELDS = new Set(["positionId", "citizenshipId", "birthCountryId"]);
 const BOOLEAN_FIELDS = new Set(["isFired", "isInactive"]);
 
 export const formatEmployeeFormPayload = (
@@ -57,6 +57,11 @@ export const formatEmployeeFormPayload = (
     }
 
     if (key === "bankAccountNumber") {
+      formatted[key] = value ? value.replace(/[^\d]/g, "") : null;
+      return;
+    }
+
+    if (key === "bankBik") {
       formatted[key] = value ? value.replace(/[^\d]/g, "") : null;
       return;
     }

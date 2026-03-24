@@ -2,6 +2,7 @@ import { buildMobileEmployeePersonalSection } from "@/modules/employees/ui/form/
 import { buildMobileEmployeeStatusSection } from "@/modules/employees/ui/form/MobileEmployeeStatusSection";
 
 export const buildMobilePrimarySections = ({
+  form,
   employee,
   ensureEmployeeId,
   documentProfileCode,
@@ -46,6 +47,7 @@ export const buildMobilePrimarySections = ({
 
   sections.push(
     buildMobileEmployeePersonalSection({
+      form,
       getFieldProps,
       handleLastNameBlur,
       noAutoFillProps,

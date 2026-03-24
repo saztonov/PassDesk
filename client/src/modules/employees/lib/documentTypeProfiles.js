@@ -1,14 +1,20 @@
 const PROFILE_CODES = {
   EXTERNAL: "external",
+  DEFAULT_RU: "default_ru",
+  DEFAULT_EAEU: "default_eaeu",
+  DEFAULT_MIGRANT: "default_migrant",
+};
+
+const LEGACY_PROFILE_CODES = {
   DEFAULT_RU_BY: "default_ru_by",
   DEFAULT_FOREIGN: "default_foreign",
 };
 
 export const profileLabels = {
   [PROFILE_CODES.EXTERNAL]: "Все контрагенты (кроме дефолтного)",
-  [PROFILE_CODES.DEFAULT_RU_BY]: "Дефолтный контрагент: РФ + РБ",
-  [PROFILE_CODES.DEFAULT_FOREIGN]:
-    "Дефолтный контрагент: остальные гражданства",
+  [PROFILE_CODES.DEFAULT_RU]: "Дефолтный контрагент: РФ",
+  [PROFILE_CODES.DEFAULT_EAEU]: "Дефолтный контрагент: страны ЕАЭС",
+  [PROFILE_CODES.DEFAULT_MIGRANT]: "Дефолтный контрагент: мигранты",
 };
 
 const BASE_CONSENTS = [
@@ -18,21 +24,38 @@ const BASE_CONSENTS = [
 ];
 const REQUIRED_PROFILE_CODES = {
   [PROFILE_CODES.EXTERNAL]: [],
-  [PROFILE_CODES.DEFAULT_RU_BY]: [],
-  [PROFILE_CODES.DEFAULT_FOREIGN]: ["kig"],
+  [PROFILE_CODES.DEFAULT_RU]: [],
+  [PROFILE_CODES.DEFAULT_EAEU]: [],
+  [PROFILE_CODES.DEFAULT_MIGRANT]: ["kig"],
 };
 
+const BASE_EXTRA_DOCS = [
+  "memo_approval",
+  "employment_history_stdr",
+  "registration_amina",
+];
+
 export const DEFAULT_DOCUMENT_PROFILES = {
-  [PROFILE_CODES.EXTERNAL]: [...BASE_CONSENTS, "insurance_policy"],
-  [PROFILE_CODES.DEFAULT_RU_BY]: [
+  [PROFILE_CODES.EXTERNAL]: [...BASE_CONSENTS, "insurance_policy", ...BASE_EXTRA_DOCS],
+  [PROFILE_CODES.DEFAULT_RU]: [
     "passport",
     "bank_details",
     ...BASE_CONSENTS,
     "diploma",
     "snils_card",
     "insurance_policy",
+    ...BASE_EXTRA_DOCS,
   ],
-  [PROFILE_CODES.DEFAULT_FOREIGN]: [
+  [PROFILE_CODES.DEFAULT_EAEU]: [
+    "passport",
+    "bank_details",
+    ...BASE_CONSENTS,
+    "diploma",
+    "snils_card",
+    "insurance_policy",
+    ...BASE_EXTRA_DOCS,
+  ],
+  [PROFILE_CODES.DEFAULT_MIGRANT]: [
     "passport",
     "passport_translation",
     "kig",
@@ -46,6 +69,7 @@ export const DEFAULT_DOCUMENT_PROFILES = {
     "arrival_notice",
     "patent_payment_receipt",
     "insurance_policy",
+    ...BASE_EXTRA_DOCS,
   ],
 };
 
@@ -67,23 +91,54 @@ const DOCUMENT_TYPE_LABELS = {
   arrival_notice: "Уведомление о прибытии (регистрация)",
   patent_payment_receipt: "Чек оплаты патента",
   insurance_policy: "Страховой полис",
+  memo_approval: "Служебная записка (согласование)",
+  employment_history_stdr: "Справка о трудовой деятельности работника (СТДР)",
+  registration_amina: "Регистрация (Амина)",
 };
 
-const RU_BY_CODES = new Set(["ru", "rus", "643", "by", "blr", "112", "rb"]);
+const RUSSIAN_CODES = new Set(["ru", "rus", "643"]);
+const EAEU_CODES = new Set([
+  "by",
+  "blr",
+  "112",
+  "rb",
+  "kz",
+  "kaz",
+  "398",
+  "kg",
+  "kgz",
+  "417",
+  "am",
+  "arm",
+  "051",
+]);
 
 const normalizeString = (value) =>
   String(value || "")
     .trim()
     .toLowerCase();
 
-const isRuOrByName = (nameValue) => {
+const isRussianName = (nameValue) => {
   const normalized = normalizeString(nameValue);
   if (!normalized) return false;
+  return normalized.includes("рос") || normalized.includes("russia");
+};
+
+const isEaeuName = (nameValue) => {
+  const normalized = normalizeString(nameValue);
+  if (!normalized) return false;
+
   return (
-    normalized.includes("рос") ||
-    normalized.includes("russia") ||
     normalized.includes("беларус") ||
-    normalized.includes("belarus")
+    normalized.includes("belarus") ||
+    normalized.includes("белорус") ||
+    normalized.includes("казах") ||
+    normalized.includes("kazakh") ||
+    normalized.includes("киргиз") ||
+    normalized.includes("кыргыз") ||
+    normalized.includes("kyrgyz") ||
+    normalized.includes("армени") ||
+    normalized.includes("armenia")
   );
 };
 
@@ -104,12 +159,29 @@ export const resolveEmployeeCounterpartyId = ({
   );
 };
 
-export const isRuOrByCitizenship = (citizenship) => {
+export const isRussianCitizenship = (citizenship) => {
   const code = normalizeString(citizenship?.code || citizenship?.countryCode);
-  if (RU_BY_CODES.has(code)) {
+  if (RUSSIAN_CODES.has(code)) {
     return true;
   }
-  return isRuOrByName(citizenship?.name);
+  return isRussianName(citizenship?.name);
+};
+
+export const isEaeuCitizenship = (citizenship) => {
+  if (isRussianCitizenship(citizenship)) {
+    return false;
+  }
+
+  if (citizenship?.isEaeu === true) {
+    return true;
+  }
+
+  const code = normalizeString(citizenship?.code || citizenship?.countryCode);
+  if (EAEU_CODES.has(code)) {
+    return true;
+  }
+
+  return isEaeuName(citizenship?.name);
 };
 
 export const resolveEmployeeDocumentProfile = ({
@@ -126,9 +198,15 @@ export const resolveEmployeeDocumentProfile = ({
     return PROFILE_CODES.EXTERNAL;
   }
 
-  return isRuOrByCitizenship(citizenship)
-    ? PROFILE_CODES.DEFAULT_RU_BY
-    : PROFILE_CODES.DEFAULT_FOREIGN;
+  if (isRussianCitizenship(citizenship)) {
+    return PROFILE_CODES.DEFAULT_RU;
+  }
+
+  if (isEaeuCitizenship(citizenship)) {
+    return PROFILE_CODES.DEFAULT_EAEU;
+  }
+
+  return PROFILE_CODES.DEFAULT_MIGRANT;
 };
 
 const toUniqueCodes = (values = []) => {
@@ -169,6 +247,44 @@ const filterCodesByAllowed = (codes = [], allowedCodeSet = null) => {
   return codes.filter((code) => allowedCodeSet.has(code));
 };
 
+const getProfileInputCodes = (input, profileCode) => {
+  if (Array.isArray(input[profileCode])) {
+    return input[profileCode];
+  }
+
+  if (
+    profileCode === PROFILE_CODES.DEFAULT_RU ||
+    profileCode === PROFILE_CODES.DEFAULT_EAEU
+  ) {
+    return input[LEGACY_PROFILE_CODES.DEFAULT_RU_BY];
+  }
+
+  if (profileCode === PROFILE_CODES.DEFAULT_MIGRANT) {
+    return input[LEGACY_PROFILE_CODES.DEFAULT_FOREIGN];
+  }
+
+  return input[profileCode];
+};
+
+const hasExplicitProfileConfig = (input, profileCode) => {
+  if (Array.isArray(input[profileCode])) {
+    return true;
+  }
+
+  if (
+    profileCode === PROFILE_CODES.DEFAULT_RU ||
+    profileCode === PROFILE_CODES.DEFAULT_EAEU
+  ) {
+    return Array.isArray(input[LEGACY_PROFILE_CODES.DEFAULT_RU_BY]);
+  }
+
+  if (profileCode === PROFILE_CODES.DEFAULT_MIGRANT) {
+    return Array.isArray(input[LEGACY_PROFILE_CODES.DEFAULT_FOREIGN]);
+  }
+
+  return false;
+};
+
 export const normalizeDocumentProfilesConfig = ({
   profilesConfig,
   availableDocumentTypeCodes = null,
@@ -192,10 +308,10 @@ export const normalizeDocumentProfilesConfig = ({
       allowedCodeSet,
     );
     const inputCodes = filterCodesByAllowed(
-      ensureRequiredByProfile(code, toUniqueCodes(input[code])),
+      ensureRequiredByProfile(code, toUniqueCodes(getProfileInputCodes(input, code))),
       allowedCodeSet,
     );
-    const hasExplicitProfile = Array.isArray(input[code]);
+    const hasExplicitProfile = hasExplicitProfileConfig(input, code);
     accumulator[code] = hasExplicitProfile
       ? inputCodes
       : inputCodes.length > 0

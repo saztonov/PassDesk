@@ -1,5 +1,8 @@
 import { useCallback, useMemo } from "react";
 
+const doesCitizenshipRequirePatent = (citizenship) =>
+  citizenship?.requiresPatent !== false && citizenship?.isEaeu !== true;
+
 const getRequiredFieldsByTab = (
   getFieldProps,
   requiresPatent,
@@ -19,6 +22,7 @@ const getRequiredFieldsByTab = (
       "email",
       "phone",
       "bankAccountNumber",
+      "bankBik",
       "notes",
       "snils",
       "passportType",
@@ -67,7 +71,7 @@ const useEmployeeTabsValidation = ({
   passportType,
   selectedCitizenship,
 }) => {
-  const requiresPatent = selectedCitizenship?.requiresPatent !== false;
+  const requiresPatent = doesCitizenshipRequirePatent(selectedCitizenship);
 
   const requiredFieldsByTab = useMemo(
     () => getRequiredFieldsByTab(getFieldProps, requiresPatent, passportType),
@@ -81,7 +85,7 @@ const useEmployeeTabsValidation = ({
 
       const currentCitizenship = citizenshipOverride || selectedCitizenship;
       const currentRequiresPatent =
-        currentCitizenship?.requiresPatent !== false;
+        doesCitizenshipRequirePatent(currentCitizenship);
       const currentPassportType = values.passportType || passportType;
 
       const currentRequiredFieldsByTab = getRequiredFieldsByTab(

@@ -70,6 +70,7 @@ const EmployeeFormModal = ({
     conflictSummary,
     handleUploadedFileForOcr,
     isOcrProcessing,
+    refreshConflictSummary,
   } = useEmployeeOcrHandlers({
     form,
     citizenships,
@@ -164,12 +165,27 @@ const EmployeeFormModal = ({
     updateSelectedCitizenship(watchedCitizenshipId || null);
   }, [watchedCitizenshipId, updateSelectedCitizenship]);
 
+  useEffect(() => {
+    if (watchedCitizenshipId && !form.getFieldValue("birthCountryId")) {
+      form.setFieldValue("birthCountryId", watchedCitizenshipId);
+    }
+  }, [form, watchedCitizenshipId]);
+
+  useEffect(() => {
+    if (activeTab === "ocr-conflicts" && !conflictSummary?.hasConflicts) {
+      setActiveTab("1");
+    }
+  }, [activeTab, conflictSummary?.hasConflicts]);
+
   const handleCitizenshipChange = useCallback(
     (citizenshipId) => {
       updateSelectedCitizenship(citizenshipId);
+      if (citizenshipId && !form.getFieldValue("birthCountryId")) {
+        form.setFieldValue("birthCountryId", citizenshipId);
+      }
       // Валидация запустится автоматически через handleFieldsChange
     },
-    [updateSelectedCitizenship],
+    [form, updateSelectedCitizenship],
   );
 
   const { allTabsValid, handleNext } = useEmployeeFormTabFlow({
@@ -237,6 +253,7 @@ const EmployeeFormModal = ({
   }, [discardIfAutoCreated, onCancel]);
 
   const tabsItems = useEmployeeFormModalTabs({
+    form,
     employee,
     selectedCitizenship,
     message,
@@ -264,6 +281,8 @@ const EmployeeFormModal = ({
     ensureEmployeeId,
     tabsValidation,
     documentProfilesConfig: settings?.employeeDocumentProfiles || null,
+    conflictSummary,
+    onOcrConflictsChanged: refreshConflictSummary,
   });
 
   // Контент формы
@@ -294,7 +313,10 @@ const EmployeeFormModal = ({
             message="OCR: распознаем документ..."
           />
         )}
-        <OcrConflictSummaryNotice summary={conflictSummary} />
+        <OcrConflictSummaryNotice
+          summary={conflictSummary}
+          onOpen={() => setActiveTab("ocr-conflicts")}
+        />
         <Tabs
           activeKey={activeTab}
           onChange={(key) => {

@@ -113,6 +113,16 @@ export const normalizeBankAccountNumber = (value) => {
   return value.replace(/[^\d]/g, "");
 };
 
+export const formatBankBik = (value) => {
+  if (!value) return value;
+  return value.replace(/[^\d]/g, "").slice(0, 9);
+};
+
+export const normalizeBankBik = (value) => {
+  if (!value) return value;
+  return value.replace(/[^\d]/g, "");
+};
+
 export const formatInn = (value) => {
   if (!value) return value;
   const inn = value.replace(/[^\d]/g, "");

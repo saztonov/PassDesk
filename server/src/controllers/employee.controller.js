@@ -74,6 +74,8 @@ const EMPLOYEE_UPDATE_ALLOWED_FIELDS = new Set([
   "positionId",
   "citizenshipId",
   "birthCountryId",
+  "birthRegion",
+  "birthCity",
   "birthDate",
   "inn",
   "snils",
@@ -91,6 +93,7 @@ const EMPLOYEE_UPDATE_ALLOWED_FIELDS = new Set([
   "email",
   "phone",
   "bankAccountNumber",
+  "bankBik",
   "insurancePolicyNumber",
   "insurancePolicyDate",
   "notes",
@@ -555,6 +558,7 @@ const buildInnLookupEmployeePayload = (employee) => {
           name: source.citizenship.name,
           code: source.citizenship.code,
           requiresPatent: source.citizenship.requiresPatent,
+          isEaeu: source.citizenship.isEaeu,
         }
       : null,
     employeeCounterpartyMappings: Array.isArray(
@@ -883,7 +887,7 @@ export const getAllEmployees = async (req, res, next) => {
       {
         model: Citizenship,
         as: "citizenship",
-        attributes: ["id", "name", "code", "requiresPatent"],
+        attributes: ["id", "name", "code", "requiresPatent", "isEaeu"],
       },
       {
         model: Citizenship,
@@ -1483,7 +1487,7 @@ export const getEmployeeById = async (req, res, next) => {
         {
           model: Citizenship,
           as: "citizenship",
-          attributes: ["id", "name", "code", "requiresPatent"],
+          attributes: ["id", "name", "code", "requiresPatent", "isEaeu"],
         },
         {
           model: Citizenship,
@@ -1693,7 +1697,7 @@ export const createEmployee = async (req, res, next) => {
           {
             model: Citizenship,
             as: "citizenship",
-            attributes: ["id", "name", "code", "requiresPatent"],
+            attributes: ["id", "name", "code", "requiresPatent", "isEaeu"],
           },
           {
             model: Position,
@@ -1811,7 +1815,7 @@ export const createEmployee = async (req, res, next) => {
         {
           model: Citizenship,
           as: "citizenship",
-          attributes: ["id", "name", "code", "requiresPatent"],
+          attributes: ["id", "name", "code", "requiresPatent", "isEaeu"],
         },
         {
           model: Position,
@@ -2099,7 +2103,7 @@ export const updateEmployee = async (req, res, next) => {
           {
             model: Citizenship,
             as: "citizenship",
-            attributes: ["id", "name", "code", "requiresPatent"],
+            attributes: ["id", "name", "code", "requiresPatent", "isEaeu"],
           },
           {
             model: Position,
@@ -2188,7 +2192,7 @@ export const updateEmployee = async (req, res, next) => {
         {
           model: Citizenship,
           as: "citizenship",
-          attributes: ["id", "name", "code", "requiresPatent"],
+          attributes: ["id", "name", "code", "requiresPatent", "isEaeu"],
         },
         {
           model: Position, // Добавлена связь с Position
@@ -3968,7 +3972,7 @@ export const checkEmployeeByInn = async (req, res, next) => {
         {
           model: Citizenship,
           as: "citizenship",
-          attributes: ["id", "name", "code", "requiresPatent"],
+          attributes: ["id", "name", "code", "requiresPatent", "isEaeu"],
         },
         {
           model: Position,
@@ -4006,7 +4010,7 @@ export const checkEmployeeByInn = async (req, res, next) => {
             {
               model: Citizenship,
               as: "citizenship",
-              attributes: ["id", "name", "code", "requiresPatent"],
+              attributes: ["id", "name", "code", "requiresPatent", "isEaeu"],
             },
             {
               model: Position,
@@ -4733,7 +4737,7 @@ export const getActiveEmployeesForExport = async (req, res, next) => {
       {
         model: Citizenship,
         as: "citizenship",
-        attributes: ["id", "name", "code", "requiresPatent"],
+        attributes: ["id", "name", "code", "requiresPatent", "isEaeu"],
       },
       {
         model: Citizenship,

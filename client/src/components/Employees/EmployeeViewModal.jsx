@@ -24,6 +24,9 @@ import {
 
 const DATE_FORMAT = "DD.MM.YYYY";
 
+const doesCitizenshipRequirePatent = (citizenship) =>
+  citizenship?.requiresPatent !== false && citizenship?.isEaeu !== true;
+
 const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
   const { user } = useAuthStore();
   const { formConfigDefault, formConfigExternal, settings } = useReferencesStore();
@@ -37,7 +40,7 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
   if (!employee) return null;
 
   // Проверяем, требуется ли патент для данного гражданства
-  const requiresPatent = employee.citizenship?.requiresPatent !== false;
+  const requiresPatent = doesCitizenshipRequirePatent(employee.citizenship);
 
   // Построение элементов вкладок новым API
   const tabItems = [

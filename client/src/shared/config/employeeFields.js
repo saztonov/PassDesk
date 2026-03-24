@@ -11,7 +11,9 @@ export const EMPLOYEE_FIELDS = [
   { key: 'positionId', label: 'Должность', group: 'personal', defaultRequired: false, defaultVisible: true },
   { key: 'citizenshipId', label: 'Гражданство', group: 'personal', defaultRequired: true, defaultVisible: true },
   { key: 'birthDate', label: 'Дата рождения', group: 'personal', defaultRequired: true, defaultVisible: true },
-  { key: 'birthCountryId', label: 'Страна рождения', group: 'personal', defaultRequired: true, defaultVisible: true },
+  { key: 'birthCountryId', label: 'Страна рождения', group: 'personal', defaultRequired: false, defaultVisible: true },
+  { key: 'birthRegion', label: 'Область рождения', group: 'personal', defaultRequired: false, defaultVisible: true },
+  { key: 'birthCity', label: 'Населённый пункт рождения', group: 'personal', defaultRequired: false, defaultVisible: true },
   { key: 'registrationAddress', label: 'Адрес регистрации', group: 'personal', defaultRequired: true, defaultVisible: true },
   
   // Контакты
@@ -26,12 +28,13 @@ export const EMPLOYEE_FIELDS = [
   { key: 'passportIssuer', label: 'Кем выдан паспорт', group: 'documents', defaultRequired: true, defaultVisible: true },
   { key: 'passportExpiryDate', label: 'Дата окончания паспорта', group: 'documents', defaultRequired: false, defaultVisible: true }, // Только для иностранцев
   { key: 'bankAccountNumber', label: 'Номер банковского счета', group: 'documents', defaultRequired: false, defaultVisible: true },
+  { key: 'bankBik', label: 'БИК', group: 'documents', defaultRequired: false, defaultVisible: true },
   { key: 'insurancePolicyNumber', label: 'Номер страхового полиса', group: 'documents', defaultRequired: false, defaultVisible: true },
   { key: 'insurancePolicyDate', label: 'Дата выдачи полиса', group: 'documents', defaultRequired: false, defaultVisible: true },
   
   // Патент и КИГ (видимость зависит от гражданства, но глобально можно отключить)
   { key: 'kig', label: 'КИГ (Карта иностранного гражданина)', group: 'patent', defaultRequired: true, defaultVisible: true },
-  { key: 'kigEndDate', label: 'Дата окончания КИГ', group: 'patent', defaultRequired: true, defaultVisible: true },
+  { key: 'kigEndDate', label: 'Дата окончания КИГ', group: 'patent', defaultRequired: false, defaultVisible: true },
   { key: 'patentNumber', label: 'Номер патента', group: 'patent', defaultRequired: true, defaultVisible: true },
   { key: 'patentIssueDate', label: 'Дата выдачи патента', group: 'patent', defaultRequired: true, defaultVisible: true },
   { key: 'blankNumber', label: 'Номер бланка патента', group: 'patent', defaultRequired: true, defaultVisible: true },

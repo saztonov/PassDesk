@@ -14,7 +14,9 @@ export const EMPLOYEE_FIELDS = [
   { key: 'positionId', defaultRequired: false, defaultVisible: true },
   { key: 'citizenshipId', defaultRequired: true, defaultVisible: true },
   { key: 'birthDate', defaultRequired: true, defaultVisible: true },
-  { key: 'birthCountryId', defaultRequired: true, defaultVisible: true },
+  { key: 'birthCountryId', defaultRequired: false, defaultVisible: true },
+  { key: 'birthRegion', defaultRequired: false, defaultVisible: true },
+  { key: 'birthCity', defaultRequired: false, defaultVisible: true },
   { key: 'registrationAddress', defaultRequired: true, defaultVisible: true },
   
   // Контакты
@@ -29,12 +31,13 @@ export const EMPLOYEE_FIELDS = [
   { key: 'passportIssuer', defaultRequired: true, defaultVisible: true },
   { key: 'passportExpiryDate', defaultRequired: false, defaultVisible: true },
   { key: 'bankAccountNumber', defaultRequired: false, defaultVisible: true },
+  { key: 'bankBik', defaultRequired: false, defaultVisible: true },
   { key: 'insurancePolicyNumber', defaultRequired: false, defaultVisible: true },
   { key: 'insurancePolicyDate', defaultRequired: false, defaultVisible: true },
   
   // Патент и КИГ
   { key: 'kig', defaultRequired: true, defaultVisible: true },
-  { key: 'kigEndDate', defaultRequired: true, defaultVisible: true },
+  { key: 'kigEndDate', defaultRequired: false, defaultVisible: true },
   { key: 'patentNumber', defaultRequired: true, defaultVisible: true },
   { key: 'patentIssueDate', defaultRequired: true, defaultVisible: true },
   { key: 'blankNumber', defaultRequired: true, defaultVisible: true },
@@ -54,9 +57,7 @@ export const DEFAULT_FORM_CONFIG = EMPLOYEE_FIELDS.reduce((acc, field) => {
 
 // Поля, временно скрытые на фронте. Они не должны влиять на статус заполненности карточки.
 const TEMP_HIDDEN_FIELDS = new Set([
-  "birthCountryId",
   "passportType",
-  "passportExpiryDate",
   "kigEndDate",
   "gender",
   "email",
@@ -68,6 +69,9 @@ const TEMP_HIDDEN_FIELDS = new Set([
 // Поля, которые временно не должны влиять на статус заполненности.
 const FORCED_OPTIONAL_FIELDS = new Set(["positionId"]);
 
+const doesCitizenshipRequirePatent = (citizenship) =>
+  citizenship?.requiresPatent !== false && citizenship?.isEaeu !== true;
+
 /**
  * Проверить, заполнены ли все обязательные поля сотрудника согласно конфигурации
  * @param {Object} employee - объект сотрудника
@@ -77,7 +81,7 @@ const FORCED_OPTIONAL_FIELDS = new Set(["positionId"]);
  */
 export const isEmployeeCardComplete = (employee, formConfig = DEFAULT_FORM_CONFIG, debug = false) => {
   // Определяем условия для специальных полей
-  const requiresPatent = employee.citizenship?.requiresPatent !== false;
+  const requiresPatent = doesCitizenshipRequirePatent(employee.citizenship);
   const isForeignPassport = employee.passportType === 'foreign';
 
   const missingFields = [];
@@ -151,7 +155,7 @@ export const isEmployeeCardComplete = (employee, formConfig = DEFAULT_FORM_CONFI
  */
 export const getMissingRequiredFields = (employee, formConfig = DEFAULT_FORM_CONFIG) => {
   const missing = [];
-  const requiresPatent = employee.citizenship?.requiresPatent !== false;
+  const requiresPatent = doesCitizenshipRequirePatent(employee.citizenship);
   const isForeignPassport = employee.passportType === 'foreign';
 
   for (const fieldKey in formConfig) {

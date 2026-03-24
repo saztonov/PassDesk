@@ -3,6 +3,7 @@ import { buildMobileDocumentSections } from "./MobileEmployeeDocumentSections";
 import { buildMobilePrimarySections } from "./MobileEmployeePrimarySections";
 
 export const useMobileEmployeeFormSections = ({
+  form,
   employee,
   user,
   defaultCounterpartyId,
@@ -27,6 +28,7 @@ export const useMobileEmployeeFormSections = ({
   requiresPatent,
   formatSnils,
   formatBankAccountNumber,
+  formatBankBik,
   formatKig,
   documentProfileCode,
   documentProfilesConfig,
@@ -40,6 +42,7 @@ export const useMobileEmployeeFormSections = ({
   return useMemo(() => {
     const items = [
       ...buildMobilePrimarySections({
+        form,
         employee,
         ensureEmployeeId,
         documentProfileCode,
@@ -74,6 +77,7 @@ export const useMobileEmployeeFormSections = ({
         requiresPatent,
         formatSnils,
         formatBankAccountNumber,
+        formatBankBik,
         formatKig,
         documentProfileCode,
         documentProfilesConfig,
@@ -90,6 +94,7 @@ export const useMobileEmployeeFormSections = ({
 
     return items;
   }, [
+    form,
     activateLoading,
     antiAutofillIds,
     availableCounterparties,
@@ -102,6 +107,7 @@ export const useMobileEmployeeFormSections = ({
     fireLoading,
     formatBlankNumber,
     formatBankAccountNumber,
+    formatBankBik,
     formatInn,
     formatKig,
     formatPatentNumber,

@@ -58,6 +58,9 @@ const inferCitizenshipRequiresPatent = (citizenshipName) =>
       normalizeCitizenshipLookupValue(citizenshipName),
   );
 
+const doesCitizenshipRequirePatent = (citizenship) =>
+  citizenship?.requiresPatent !== false && citizenship?.isEaeu !== true;
+
 const shouldSkipPatentValidation = (employeeData) =>
   employeeData?.isClosedBrigade === true ||
   String(employeeData?.employmentStatus || "").trim().toLowerCase() === "fired";
@@ -556,7 +559,7 @@ export const validateEmployeeForImport = async (employeeData, rowIndex) => {
     if (!citizenship) {
       errors.push(`Гражданство "${employeeData.citizenship}" не найдено`);
     } else if (
-      citizenship.requiresPatent !== false &&
+      doesCitizenshipRequirePatent(citizenship) &&
       !shouldSkipPatentValidation(employeeData)
     ) {
       // Проверяем КИГ если требуется патент
@@ -744,7 +747,7 @@ export const validateEmployeeForImportOptimized = async (
     if (!citizenship) {
       errors.push(`Гражданство "${employeeData.citizenship}" не найдено`);
     } else if (
-      citizenship.requiresPatent !== false &&
+      doesCitizenshipRequirePatent(citizenship) &&
       !shouldSkipPatentValidation(employeeData)
     ) {
       // Проверяем КИГ если требуется патент

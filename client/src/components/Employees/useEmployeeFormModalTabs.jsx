@@ -6,10 +6,12 @@ import EmployeeDocumentsTab from "./EmployeeDocumentsTab.jsx";
 import EmployeeCounterpartyTab from "./EmployeeCounterpartyTab.jsx";
 import EmployeeFilesTab from "./EmployeeFilesTab.jsx";
 import EmployeeSkudTab from "./EmployeeSkudTab.jsx";
+import EmployeeOcrConflictsCompact from "./EmployeeOcrConflictsCompact.jsx";
 
 const { Text } = Typography;
 
 export const useEmployeeFormModalTabs = ({
+  form,
   employee,
   selectedCitizenship,
   message,
@@ -37,6 +39,8 @@ export const useEmployeeFormModalTabs = ({
   ensureEmployeeId,
   tabsValidation,
   documentProfilesConfig,
+  conflictSummary,
+  onOcrConflictsChanged,
 }) => {
   return useMemo(() => {
     const showCounterpartySection = false;
@@ -68,6 +72,7 @@ export const useEmployeeFormModalTabs = ({
         children: (
           <>
             <EmployeeBasicInfoTab
+              form={form}
               employee={employee}
               messageApi={message}
               onCancel={onCancel}
@@ -138,16 +143,32 @@ export const useEmployeeFormModalTabs = ({
       children: <EmployeeSkudTab employee={employee} />,
     });
 
+    if (employee?.id && conflictSummary?.hasConflicts) {
+      items.push({
+        key: "ocr-conflicts",
+        label: "Расхождения",
+        children: (
+          <EmployeeOcrConflictsCompact
+            employee={employee}
+            user={user}
+            onChanged={onOcrConflictsChanged}
+          />
+        ),
+      });
+    }
+
     return items;
   }, [
     antiAutofillIds,
     availableCounterparties,
     checkingCitizenship,
+    conflictSummary,
     citizenships,
     selectedCitizenship,
     dateFormat,
     defaultCounterpartyId,
     employee,
+    form,
     getFieldProps,
     handleCitizenshipChange,
     handleFilesChange,
@@ -167,5 +188,6 @@ export const useEmployeeFormModalTabs = ({
     tabsValidation,
     user,
     documentProfilesConfig,
+    onOcrConflictsChanged,
   ]);
 };

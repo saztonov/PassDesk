@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Table,
   Button,
@@ -54,6 +54,23 @@ const createCitizenshipColumns = ({
       { text: "Не требуется", value: false },
     ],
     onFilter: (value, record) => record.requiresPatent === value,
+  },
+  {
+    title: "ЕАЭС",
+    dataIndex: "isEaeu",
+    key: "isEaeu",
+    width: 110,
+    align: "center",
+    render: (isEaeu) => (
+      <Tag color={isEaeu ? "geekblue" : "default"}>
+        {isEaeu ? "Да" : "Нет"}
+      </Tag>
+    ),
+    filters: [
+      { text: "ЕАЭС", value: true },
+      { text: "Не ЕАЭС", value: false },
+    ],
+    onFilter: (value, record) => record.isEaeu === value,
   },
   {
     title: "Синонимы",
@@ -139,6 +156,10 @@ const CitizenshipEditorFields = () => (
     >
       <Switch checkedChildren="Да" unCheckedChildren="Нет" />
     </Form.Item>
+
+    <Form.Item name="isEaeu" label="Страна ЕАЭС" valuePropName="checked">
+      <Switch checkedChildren="Да" unCheckedChildren="Нет" />
+    </Form.Item>
   </>
 );
 
@@ -210,7 +231,7 @@ const CitizenshipsPage = () => {
   } = modalState;
 
   // Загрузка списка гражданств
-  const fetchCitizenships = async () => {
+  const fetchCitizenships = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get("/citizenships");
@@ -221,14 +242,14 @@ const CitizenshipsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchCitizenships();
-  }, []);
+  }, [fetchCitizenships]);
 
   // Открыть модальное окно для создания/редактирования
-  const handleOpenModal = (citizenship = null) => {
+  const handleOpenModal = useCallback((citizenship = null) => {
     setModalState((prev) => ({
       ...prev,
       editingCitizenship: citizenship,
@@ -239,12 +260,13 @@ const CitizenshipsPage = () => {
         name: citizenship.name,
         code: citizenship.code,
         requiresPatent: citizenship.requiresPatent,
+        isEaeu: citizenship.isEaeu,
       });
     } else {
       form.resetFields();
-      form.setFieldsValue({ requiresPatent: true });
+      form.setFieldsValue({ requiresPatent: true, isEaeu: false });
     }
-  };
+  }, [form]);
 
   // Закрыть модальное окно
   const handleCloseModal = () => {
@@ -280,13 +302,13 @@ const CitizenshipsPage = () => {
   };
 
   // Открыть модальное окно для управления синонимами
-  const handleOpenSynonymModal = (citizenship) => {
+  const handleOpenSynonymModal = useCallback((citizenship) => {
     setModalState((prev) => ({
       ...prev,
       selectedCitizenship: citizenship,
       synonymVisible: true,
     }));
-  };
+  }, []);
 
   // Закрыть модальное окно синонимов
   const handleCloseSynonymModal = () => {
@@ -330,7 +352,7 @@ const CitizenshipsPage = () => {
   };
 
   // Удалить гражданство
-  const handleDeleteCitizenship = async (citizenshipId) => {
+  const handleDeleteCitizenship = useCallback(async (citizenshipId) => {
     try {
       await api.delete(`/citizenships/${citizenshipId}`);
       message.success("Гражданство удалено");
@@ -341,7 +363,7 @@ const CitizenshipsPage = () => {
         error.response?.data?.message || "Ошибка при удалении гражданства";
       message.error(errorMessage);
     }
-  };
+  }, [fetchCitizenships]);
 
   const columns = useMemo(
     () =>
@@ -421,7 +443,7 @@ const CitizenshipsPage = () => {
         <Form
           form={form}
           layout="vertical"
-          initialValues={{ requiresPatent: true }}
+          initialValues={{ requiresPatent: true, isEaeu: false }}
         >
           <CitizenshipEditorFields />
         </Form>

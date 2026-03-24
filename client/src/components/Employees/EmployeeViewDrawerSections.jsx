@@ -25,6 +25,7 @@ export const buildEmployeeViewDrawerFormData = (employee) => {
     inn: employee.inn,
     snils: employee.snils,
     bankAccountNumber: employee.bankAccountNumber,
+    bankBik: employee.bankBik,
     passportType: employee.passportType,
     passportNumber: employee.passportNumber,
     passportDate: employee.passportDate
@@ -331,6 +332,16 @@ export const buildEmployeeViewDrawerItems = ({
                 hideIfEmpty
               />
             </>
+          )}
+
+          {!getFieldProps("bankBik").hidden && (
+            <Form.Item label="БИК" name="bankBik">
+              <Input
+                placeholder={employee?.bankBik ? undefined : ""}
+                size="large"
+                disabled
+              />
+            </Form.Item>
           )}
 
           {patentFields}

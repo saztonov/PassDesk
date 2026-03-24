@@ -29,6 +29,13 @@ const Citizenship = sequelize.define('Citizenship', {
     defaultValue: true,
     field: 'requires_patent',
     comment: 'Требуется ли патент для данного гражданства'
+  },
+  isEaeu: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+    field: 'is_eaeu',
+    comment: 'Относится ли гражданство к странам ЕАЭС (без РФ)'
   }
 }, {
   sequelize,
@@ -45,4 +52,3 @@ const Citizenship = sequelize.define('Citizenship', {
 });
 
 export default Citizenship;
-

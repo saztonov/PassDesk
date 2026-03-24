@@ -58,6 +58,7 @@ const FIO_FIELDS = [
   { fieldName: "firstName", fieldLabel: "Имя" },
   { fieldName: "middleName", fieldLabel: "Отчество" },
 ];
+const FIO_FIELD_NAMES = new Set(FIO_FIELDS.map((item) => item.fieldName));
 
 const OCR_FIO_DOCUMENT_TYPES = new Set([
   "passport",
@@ -220,6 +221,36 @@ const buildFioSourcesByEmployee = (files = []) => {
     }
 
     employeeMap.set(employeeId, currentEmployee);
+  });
+
+  return employeeMap;
+};
+
+const buildPreferredFioFieldsByEmployee = (files = []) => {
+  const employeeMap = new Map();
+
+  files.forEach((file) => {
+    if (normalizeString(file?.documentType) !== "passport_translation") {
+      return;
+    }
+
+    const employeeId = normalizeString(file?.employeeId);
+    if (!employeeId) {
+      return;
+    }
+
+    const normalized = getNormalizedOcrResult(file);
+    if (!normalized || !hasFioValue(normalized)) {
+      return;
+    }
+
+    const currentFields = employeeMap.get(employeeId) || new Set();
+    FIO_FIELDS.forEach(({ fieldName }) => {
+      if (normalizeString(normalized[fieldName])) {
+        currentFields.add(fieldName);
+      }
+    });
+    employeeMap.set(employeeId, currentFields);
   });
 
   return employeeMap;
@@ -450,49 +481,88 @@ const listStoredEmployeeOcrConflicts = async ({
         model: File,
         as: "file",
         required: false,
-        attributes: ["id", "fileName", "originalName", "documentType"],
+        attributes: ["id", "fileName", "originalName", "documentType", "mimeType"],
       },
     ],
     order: [["createdAt", "DESC"]],
   });
 
-  return rows.map((row) => ({
-    id: row.id,
-    type: "employee_vs_ocr",
-    status: row.status,
-    fieldName: row.fieldName,
-    fieldLabel: row.fieldLabel,
-    createdAt: row.createdAt,
-    employee: row.employee
-      ? {
-          id: row.employee.id,
-          fullName: getEmployeeFullName(row.employee),
-          counterpartyName: getCounterpartyName(row.employee),
-        }
-      : null,
-    sources: [
-      {
-        sourceType: EMPLOYEE_CARD_SOURCE,
-        documentType: EMPLOYEE_CARD_SOURCE,
-        documentLabel: EMPLOYEE_CARD_LABEL,
-        fileId: null,
-        fileName: null,
-        createdAt: row.createdAt,
-        value: row.currentValue,
+  const employeeIds = [...new Set(rows.map((row) => normalizeString(row.employeeId)).filter(Boolean))];
+  let preferredFioFieldsByEmployee = new Map();
+
+  if (employeeIds.length > 0) {
+    const preferredFioFiles = await File.findAll({
+      where: {
+        entityType: "employee",
+        isDeleted: false,
+        ocrVerified: true,
+        employeeId: {
+          [Op.in]: employeeIds,
+        },
+        documentType: "passport_translation",
+        ocrResultJson: {
+          [Op.ne]: null,
+        },
       },
-      {
-        sourceType: "ocr_document",
-        documentType: row.documentType || row.file?.documentType || "unknown",
-        documentLabel: toDocumentLabel(
-          row.documentType || row.file?.documentType || "unknown",
-        ),
-        fileId: row.fileId || row.file?.id || null,
-        fileName: row.file?.originalName || row.file?.fileName || "—",
-        createdAt: row.createdAt,
-        value: row.ocrValue,
-      },
-    ],
-  }));
+      attributes: ["employeeId", "documentType", "ocrResultJson", "ocrVerifiedAt", "createdAt"],
+      order: [
+        ["employeeId", "ASC"],
+        ["ocrVerifiedAt", "DESC"],
+        ["createdAt", "DESC"],
+      ],
+    });
+
+    preferredFioFieldsByEmployee = buildPreferredFioFieldsByEmployee(preferredFioFiles);
+  }
+
+  return rows
+    .filter((row) => {
+      const employeeIdValue = normalizeString(row.employeeId);
+      const documentType = normalizeString(row.documentType || row.file?.documentType);
+      if (!FIO_FIELD_NAMES.has(row.fieldName) || documentType === "passport_translation") {
+        return true;
+      }
+
+      return !preferredFioFieldsByEmployee.get(employeeIdValue)?.has(row.fieldName);
+    })
+    .map((row) => ({
+      id: row.id,
+      type: "employee_vs_ocr",
+      status: row.status,
+      fieldName: row.fieldName,
+      fieldLabel: row.fieldLabel,
+      createdAt: row.createdAt,
+      employee: row.employee
+        ? {
+            id: row.employee.id,
+            fullName: getEmployeeFullName(row.employee),
+            counterpartyName: getCounterpartyName(row.employee),
+          }
+        : null,
+      sources: [
+        {
+          sourceType: EMPLOYEE_CARD_SOURCE,
+          documentType: EMPLOYEE_CARD_SOURCE,
+          documentLabel: EMPLOYEE_CARD_LABEL,
+          fileId: null,
+          fileName: null,
+          createdAt: row.createdAt,
+          value: row.currentValue,
+        },
+        {
+          sourceType: "ocr_document",
+          documentType: row.documentType || row.file?.documentType || "unknown",
+          documentLabel: toDocumentLabel(
+            row.documentType || row.file?.documentType || "unknown",
+          ),
+          fileId: row.fileId || row.file?.id || null,
+          fileName: row.file?.originalName || row.file?.fileName || "—",
+          mimeType: row.file?.mimeType || "",
+          createdAt: row.createdAt,
+          value: row.ocrValue,
+        },
+      ],
+    }));
 };
 
 const buildInterdocumentConflictItems = ({
@@ -562,16 +632,18 @@ const buildInterdocumentConflictItems = ({
 };
 
 export const getEmployeeOcrConflictSummary = async (employeeId) => {
-  const conflicts = await listEmployeeOcrConflicts({
+  const conflicts = await listStoredEmployeeOcrConflicts({
     employeeId,
-    page: 1,
-    limit: 200,
+    status: "open",
   });
   const documentsMap = new Map();
 
-  conflicts.items.forEach((conflict) => {
+  conflicts.forEach((conflict) => {
     (conflict.sources || []).forEach((source) => {
       const documentType = normalizeString(source.documentType) || "unknown";
+      if (documentType === EMPLOYEE_CARD_SOURCE) {
+        return;
+      }
       const current = documentsMap.get(documentType) || {
         documentType,
         conflictsCount: 0,
@@ -581,7 +653,7 @@ export const getEmployeeOcrConflictSummary = async (employeeId) => {
     });
   });
 
-  const lastDetectedAt = conflicts.items.reduce((latest, item) => {
+  const lastDetectedAt = conflicts.reduce((latest, item) => {
     if (!latest || getTimestampValue(item.createdAt) > getTimestampValue(latest)) {
       return item.createdAt;
     }
@@ -589,8 +661,8 @@ export const getEmployeeOcrConflictSummary = async (employeeId) => {
   }, null);
 
   return {
-    hasConflicts: conflicts.items.length > 0,
-    conflictsCount: conflicts.items.length,
+    hasConflicts: conflicts.length > 0,
+    conflictsCount: conflicts.length,
     documents: Array.from(documentsMap.values()),
     lastDetectedAt,
   };

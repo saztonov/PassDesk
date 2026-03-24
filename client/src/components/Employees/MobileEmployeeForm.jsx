@@ -72,6 +72,7 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     formatPhoneNumber,
     formatSnils,
     formatBankAccountNumber,
+    formatBankBik,
     formatKig,
     formatInn,
     formatPatentNumber,
@@ -181,6 +182,7 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
   });
 
   const collapseItems = useMobileEmployeeFormSections({
+    form,
     employee,
     user,
     defaultCounterpartyId,
@@ -205,6 +207,7 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     requiresPatent,
     formatSnils,
     formatBankAccountNumber,
+    formatBankBik,
     formatKig,
     documentProfileCode: resolveEmployeeDocumentProfile({
       counterpartyId: resolveEmployeeCounterpartyId({

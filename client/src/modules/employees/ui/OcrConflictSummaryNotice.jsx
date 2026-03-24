@@ -1,30 +1,10 @@
-import { Alert, Space, Tag, Typography } from "antd";
+import { Alert, Button } from "antd";
 import { WarningOutlined } from "@ant-design/icons";
-import dayjs from "dayjs";
-import { DEFAULT_DOCUMENT_TYPES } from "@/modules/employees/lib/documentTypeUploaderUtils";
 
-const { Text } = Typography;
-
-const DOCUMENT_LABELS = DEFAULT_DOCUMENT_TYPES.reduce((accumulator, item) => {
-  accumulator[item.value] = item.label;
-  return accumulator;
-}, {});
-
-const getDocumentLabel = (documentType) =>
-  documentType === "employee_card"
-    ? "Карточка сотрудника"
-    :
-  DOCUMENT_LABELS[documentType] || documentType || "Документ";
-
-const OcrConflictSummaryNotice = ({ summary }) => {
+const OcrConflictSummaryNotice = ({ summary, onOpen }) => {
   if (!summary?.hasConflicts) {
     return null;
   }
-
-  const documents = Array.isArray(summary.documents) ? summary.documents : [];
-  const detectedAt = summary.lastDetectedAt
-    ? dayjs(summary.lastDetectedAt).format("DD.MM.YYYY HH:mm")
-    : null;
 
   return (
     <Alert
@@ -32,21 +12,13 @@ const OcrConflictSummaryNotice = ({ summary }) => {
       showIcon
       icon={<WarningOutlined />}
       style={{ marginBottom: 12 }}
-      message="Найдены расхождения OCR"
-      description={
-        <Space direction="vertical" size={6} style={{ width: "100%" }}>
-          <Space wrap size={[6, 6]}>
-            {documents.map((item) => (
-              <Tag key={item.documentType} color="gold">
-                {getDocumentLabel(item.documentType)}
-              </Tag>
-            ))}
-          </Space>
-          <Text type="secondary">
-            Расхождений: {summary.conflictsCount}
-            {detectedAt ? `, последнее: ${detectedAt}` : ""}
-          </Text>
-        </Space>
+      message={`Найдено расхождений: ${summary.conflictsCount}`}
+      action={
+        typeof onOpen === "function" ? (
+          <Button size="small" type="primary" onClick={onOpen}>
+            Открыть
+          </Button>
+        ) : null
       }
     />
   );

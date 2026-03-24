@@ -37,7 +37,7 @@ router.get(
   employeeIdParamValidation,
   getEmployeeConflictsSummary,
 );
-router.get("/conflicts", authorize("admin", "manager"), getOcrConflictsList);
+router.get("/conflicts", authorize("admin", "manager", "user"), getOcrConflictsList);
 router.post(
   "/conflicts/:id/resolve",
   authorize("admin", "manager"),

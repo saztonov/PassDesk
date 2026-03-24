@@ -3,6 +3,7 @@ import EmployeePatentTab from "./EmployeePatentTab";
 import MaskedDatePicker from "../../shared/ui/MaskedDatePicker";
 import {
   formatBankAccountNumber,
+  formatBankBik,
   formatInn,
   formatSnils,
   noAutoFillProps,
@@ -84,6 +85,30 @@ const EmployeeDocumentsTab = ({
               <Input
                 maxLength={20}
                 placeholder="40702810900000000000"
+                {...noAutoFillProps}
+              />
+            </Form.Item>
+          </Col>
+        )}
+
+        {!getFieldProps("bankBik").hidden && (
+          <Col xs={24} sm={12} md={6} lg={6}>
+            <Form.Item
+              name="bankBik"
+              label="БИК"
+              required={getFieldProps("bankBik").required}
+              rules={[
+                ...getFieldProps("bankBik").rules,
+                {
+                  pattern: /^\d{9}$/,
+                  message: "БИК должен содержать 9 цифр",
+                },
+              ]}
+              normalize={(value) => formatBankBik(value)}
+            >
+              <Input
+                maxLength={9}
+                placeholder="044525225"
                 {...noAutoFillProps}
               />
             </Form.Item>

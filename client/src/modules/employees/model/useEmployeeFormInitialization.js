@@ -124,6 +124,8 @@ export const useEmployeeFormInitialization = ({
             constructionSiteId: mapping?.constructionSiteId || null,
             counterpartyId: mapping?.counterpartyId || null,
             birthCountryId: employee.birthCountryId || null,
+            birthRegion: employee.birthRegion || null,
+            birthCity: employee.birthCity || null,
             isFired,
             isInactive,
             inn: employee.inn ? formatInn(employee.inn) : null,
@@ -131,6 +133,9 @@ export const useEmployeeFormInitialization = ({
             phone: employee.phone ? formatPhoneNumber(employee.phone) : null,
             bankAccountNumber: employee.bankAccountNumber
               ? employee.bankAccountNumber.replace(/[^\d]/g, "").slice(0, 20)
+              : null,
+            bankBik: employee.bankBik
+              ? String(employee.bankBik).replace(/[^\d]/g, "").slice(0, 9)
               : null,
             insurancePolicyNumber: employee.insurancePolicyNumber || null,
             insurancePolicyDate: employee.insurancePolicyDate
