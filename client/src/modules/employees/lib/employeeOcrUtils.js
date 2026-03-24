@@ -314,8 +314,8 @@ const normalizeKig = (value) => {
   const letters = raw.replace(/[^A-Z]/g, "");
   const digits = raw.replace(/[^\d]/g, "");
 
-  if (!letters && digits) {
-    return digits.slice(0, 16) || null;
+  if (letters.length < 2 || digits.length < 7) {
+    return null;
   }
 
   return `${letters.slice(0, 2)}${digits.slice(0, 7)}`.slice(0, 9) || null;

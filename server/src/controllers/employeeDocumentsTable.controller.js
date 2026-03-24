@@ -47,6 +47,11 @@ const BASE_CONSENTS = [
   "biometric_consent",
   "biometric_consent_developer",
 ];
+const BASE_EXTRA_DOCS = [
+  "memo_approval",
+  "employment_history_stdr",
+  "registration_amina",
+];
 const REQUIRED_PROFILE_CODES = {
   [PROFILE_CODES.EXTERNAL]: [],
   [PROFILE_CODES.DEFAULT_RU]: [],
@@ -55,13 +60,19 @@ const REQUIRED_PROFILE_CODES = {
 };
 
 const DEFAULT_DOCUMENT_PROFILES = {
-  [PROFILE_CODES.EXTERNAL]: [...BASE_CONSENTS],
+  [PROFILE_CODES.EXTERNAL]: [
+    ...BASE_CONSENTS,
+    "insurance_policy",
+    ...BASE_EXTRA_DOCS,
+  ],
   [PROFILE_CODES.DEFAULT_RU]: [
     "passport",
     "bank_details",
     ...BASE_CONSENTS,
     "diploma",
     "snils_card",
+    "insurance_policy",
+    ...BASE_EXTRA_DOCS,
   ],
   [PROFILE_CODES.DEFAULT_EAEU]: [
     "passport",
@@ -69,11 +80,14 @@ const DEFAULT_DOCUMENT_PROFILES = {
     ...BASE_CONSENTS,
     "diploma",
     "snils_card",
+    "insurance_policy",
+    ...BASE_EXTRA_DOCS,
   ],
   [PROFILE_CODES.DEFAULT_MIGRANT]: [
     "passport",
     "passport_translation",
     "kig",
+    "kig_back",
     "patent_front",
     "patent_back",
     "bank_details",
@@ -82,6 +96,8 @@ const DEFAULT_DOCUMENT_PROFILES = {
     "visa",
     "arrival_notice",
     "patent_payment_receipt",
+    "insurance_policy",
+    ...BASE_EXTRA_DOCS,
   ],
 };
 

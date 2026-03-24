@@ -39,10 +39,17 @@ const DEFAULT_PROMPTS = {
     DATE_FORMAT_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: patentNumber, issueDate, expiryDate, surname, givenNames, middleName, birthDate, nationality, blankNumber.",
   kig:
-    "На фото лицевая сторона карты иностранного гражданина (КИГ). " +
-    "На лицевой стороне есть ТОЛЬКО номер карты (2 буквы + 7 цифр, например AB0339982). ФИО, дата рождения и срок действия на лицевой стороне НЕ указаны — не придумывай их. " +
+    "На фото карта иностранного гражданина (КИГ). Это может быть как лицевая, так и оборотная сторона. " +
+    "Сначала определи сторону документа по содержимому. " +
+    "Если это лицевая сторона, на ней есть только номер карты (2 буквы + 7 цифр, например AB0339982). В этом случае верни kigNumber и не придумывай остальные поля. " +
+    "Если это оборотная сторона, извлеки ФИО, дату рождения, пол, гражданство, номер карты и срок действия. " +
+    "На оборотной стороне может встречаться длинный внутренний числовой идентификатор. НЕ записывай такой номер в kigNumber. Поле kigNumber заполняй только если явно виден карточный номер формата 2 буквы + 7 цифр. " +
+    "Для оборотной стороны бери ФИО из кириллической области карты, а не из латинской MRZ-строки. " +
+    NAME_CASE_INSTRUCTION +
+    DATE_FORMAT_INSTRUCTION +
     "Верни ПОЛНЫЙ номер карты в поле kigNumber, не сокращай. " +
-    "Верни строго JSON без markdown и пояснений. Поля: kigNumber.",
+    "Если какого-то поля на конкретной стороне нет, верни null или не указывай его. " +
+    "Верни строго JSON без markdown и пояснений. Поля: surname, givenNames, middleName, birthDate, sex, nationality, kigNumber, expiryDate.",
   kig_back:
     "На фото оборотная сторона карты иностранного гражданина (КИГ). " +
     "На ней есть ФИО, дата рождения, пол, гражданство, номер карты (77...) и срок действия. " +
@@ -312,8 +319,8 @@ const normalizeKigNumber = (value) => {
   const letters = raw.replace(/[^A-Z]/g, "");
   const digits = raw.replace(/[^\d]/g, "");
 
-  if (!letters && digits) {
-    return digits.slice(0, 16) || null;
+  if (letters.length < 2 || digits.length < 7) {
+    return null;
   }
 
   const result = `${letters.slice(0, 2)}${digits.slice(0, 7)}`.slice(0, 9);
@@ -617,6 +624,7 @@ const normalizeKig = (parsedJson = {}) => ({
   birthDate: normalizeDate(
     valueFrom(parsedJson, ["birthDate", "birth_date", "dateOfBirth"]),
   ),
+  sex: normalizeSex(valueFrom(parsedJson, ["sex", "gender"])),
   citizenship: normalizeCitizenship(
     valueFrom(parsedJson, ["nationality", "citizenship"]),
   ),
@@ -624,7 +632,13 @@ const normalizeKig = (parsedJson = {}) => ({
     valueFrom(parsedJson, ["kigNumber", "kig_number", "number"]),
   ),
   kigEndDate: normalizeDate(
-    valueFrom(parsedJson, ["expiryDate", "expiry_date", "kigExpiryDate"]),
+    valueFrom(parsedJson, [
+      "expiryDate",
+      "expiry_date",
+      "kigExpiryDate",
+      "validUntil",
+      "valid_until",
+    ]),
   ),
 });
 
@@ -1035,6 +1049,10 @@ const buildOpenRouterPayload = ({
     model,
     temperature: 0.1,
     max_tokens: maxTokens,
+    reasoning: {
+      effort: "none",
+      exclude: true,
+    },
     messages: [
       {
         role: "system",
@@ -1303,7 +1321,7 @@ export const recognizeDocument = async ({
       prompt: selectedPrompt,
       imageDataUrl,
       enforceJson: attempt.enforceJson,
-      maxTokens: attempt.enforceJson ? 1500 : 1800,
+      maxTokens: attempt.enforceJson ? 700 : 900,
     });
 
     let response;
