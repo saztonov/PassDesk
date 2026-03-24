@@ -25,7 +25,9 @@ const resolveFileExtension = (fileName = "") =>
     .pop();
 
 const isImageFile = (file) => {
-  const mimeType = String(file?.type || "").trim().toLowerCase();
+  const mimeType = String(file?.type || "")
+    .trim()
+    .toLowerCase();
   const extension = resolveFileExtension(file?.name);
 
   return mimeType.startsWith("image/") || IMAGE_EXTENSIONS.has(extension);
@@ -158,20 +160,26 @@ const DocumentTypeUploader = ({
     return ensureEmployeeIdPromiseRef.current;
   }, [effectiveEmployeeId, ensureEmployeeId, message]);
 
-  const fetchAllFiles = useCallback(async (targetEmployeeId = effectiveEmployeeId, options = {}) => {
-    try {
-      if (!targetEmployeeId) {
-        setDataState((prev) => ({ ...prev, allFiles: [] }));
-        return;
+  const fetchAllFiles = useCallback(
+    async (targetEmployeeId = effectiveEmployeeId, options = {}) => {
+      try {
+        if (!targetEmployeeId) {
+          setDataState((prev) => ({ ...prev, allFiles: [] }));
+          return;
+        }
+        const response = await employeeService.getFiles(
+          targetEmployeeId,
+          options,
+        );
+        const files = response?.data || response || [];
+        setDataState((prev) => ({ ...prev, allFiles: files }));
+      } catch (error) {
+        console.error("Error loading files:", error);
+        message.error("Ошибка загрузки файлов");
       }
-      const response = await employeeService.getFiles(targetEmployeeId, options);
-      const files = response?.data || response || [];
-      setDataState((prev) => ({ ...prev, allFiles: files }));
-    } catch (error) {
-      console.error("Error loading files:", error);
-      message.error("Ошибка загрузки файлов");
-    }
-  }, [effectiveEmployeeId, message]);
+    },
+    [effectiveEmployeeId, message],
+  );
 
   useEffect(() => {
     fetchAllFiles();
@@ -373,7 +381,12 @@ const DocumentTypeUploader = ({
 
   const handleHoverPreviewOpenChange = useCallback(
     async (file, open) => {
-      if (!open || !effectiveEmployeeId || !file?.id || hoverPreviewMap[file.id]) {
+      if (
+        !open ||
+        !effectiveEmployeeId ||
+        !file?.id ||
+        hoverPreviewMap[file.id]
+      ) {
         return;
       }
 

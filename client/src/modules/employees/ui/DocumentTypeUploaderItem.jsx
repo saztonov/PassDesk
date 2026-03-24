@@ -28,7 +28,9 @@ const ALLOWED_EXTENSION_SET = new Set(
 );
 
 const resolveFileExtension = (fileName = "") => {
-  const normalizedName = String(fileName || "").trim().toLowerCase();
+  const normalizedName = String(fileName || "")
+    .trim()
+    .toLowerCase();
   if (!normalizedName.includes(".")) {
     return "";
   }
@@ -37,7 +39,9 @@ const resolveFileExtension = (fileName = "") => {
 };
 
 const isHeicFamilyFile = (file) => {
-  const mimeType = String(file?.type || "").trim().toLowerCase();
+  const mimeType = String(file?.type || "")
+    .trim()
+    .toLowerCase();
   const extension = resolveFileExtension(file?.name);
 
   return (
@@ -64,7 +68,9 @@ const validateUploadFile = (file, messageApi) => {
     return Upload.LIST_IGNORE;
   }
 
-  const mimeType = String(file?.type || "").trim().toLowerCase();
+  const mimeType = String(file?.type || "")
+    .trim()
+    .toLowerCase();
   const extension = resolveFileExtension(file?.name);
   const isSupportedType =
     ALLOWED_MIME_TYPES.includes(mimeType) ||
@@ -95,8 +101,8 @@ const FileHoverPreview = ({ previewFile, loading }) => {
   return (
     <div
       style={{
-        width: 220,
-        minHeight: 140,
+        width: 320,
+        minHeight: 320,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -111,7 +117,7 @@ const FileHoverPreview = ({ previewFile, loading }) => {
           style={{
             display: "block",
             maxWidth: "100%",
-            maxHeight: 220,
+            maxHeight: 720,
             objectFit: "contain",
             borderRadius: 8,
           }}
@@ -123,8 +129,8 @@ const FileHoverPreview = ({ previewFile, loading }) => {
           title={previewFile.fileName}
           src={previewFile.url}
           style={{
-            width: 220,
-            height: 220,
+            width: 520,
+            height: 520,
             border: "none",
             borderRadius: 8,
             background: "#fff",
@@ -229,12 +235,14 @@ const DocumentTypeUploaderItem = ({
             size="small"
             dataSource={filesOfType}
             renderItem={(file) => (
-              <List.Item className={compact ? "document-uploader-file-item-compact" : ""}>
+              <List.Item
+                className={compact ? "document-uploader-file-item-compact" : ""}
+              >
                 <List.Item.Meta
                   title={
                     <Popover
                       trigger="hover"
-                      placement={compact ? "leftTop" : "topLeft"}
+                      placement="bottomRight"
                       mouseEnterDelay={0.2}
                       onOpenChange={(open) =>
                         onHoverPreviewOpenChange?.(file, open)
