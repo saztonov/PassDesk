@@ -147,6 +147,10 @@ const FileHoverPreview = ({ previewFile, loading }) => {
   );
 };
 
+const stopRowClick = (event) => {
+  event.stopPropagation();
+};
+
 const DocumentTypeUploaderItem = ({
   docType,
   filesOfType,
@@ -237,6 +241,16 @@ const DocumentTypeUploaderItem = ({
             renderItem={(file) => (
               <List.Item
                 className={compact ? "document-uploader-file-item-compact" : ""}
+                onClick={() => onViewFile(file)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onViewFile(file);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                style={{ cursor: "pointer" }}
               >
                 <List.Item.Meta
                   title={
@@ -272,13 +286,19 @@ const DocumentTypeUploaderItem = ({
                     type="text"
                     size="small"
                     icon={<EyeOutlined />}
-                    onClick={() => onViewFile(file)}
+                    onClick={(event) => {
+                      stopRowClick(event);
+                      onViewFile(file);
+                    }}
                   />
                   <Button
                     type="text"
                     size="small"
                     icon={<DownloadOutlined />}
-                    onClick={() => onDownloadFile(file)}
+                    onClick={(event) => {
+                      stopRowClick(event);
+                      onDownloadFile(file);
+                    }}
                   />
                   {!readonly ? (
                     <Popconfirm
@@ -293,6 +313,7 @@ const DocumentTypeUploaderItem = ({
                         size="small"
                         danger
                         icon={<DeleteOutlined />}
+                        onClick={stopRowClick}
                       />
                     </Popconfirm>
                   ) : null}

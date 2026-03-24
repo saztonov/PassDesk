@@ -22,6 +22,9 @@ const formatPassportType = (passportType) => {
   return passportType;
 };
 
+const getBirthCountryName = (employee) =>
+  employee?.birthCountry?.name || employee?.citizenship?.name || "-";
+
 /**
  * Модальное окно для выгрузки сотрудников в Excel.
  * Показывает ровно тот же список сотрудников, который виден на странице.
@@ -91,7 +94,7 @@ const ExcelExportModal = ({
           Пол: formatGender(emp.gender),
           Телефон: emp.phone || "-",
           "Дата рождения": formatDateValue(emp.birthDate),
-          "Страна рождения": emp.birthCountry?.name || "-",
+          "Страна рождения": getBirthCountryName(emp),
           "Область рождения": emp.birthRegion || "-",
           "Населенный пункт рождения": emp.birthCity || "-",
           "Тип паспорта": formatPassportType(emp.passportType),

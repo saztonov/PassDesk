@@ -72,6 +72,9 @@ const OCR_FIO_DOCUMENT_TYPES = new Set([
   "bank_details",
 ]);
 
+const PASSPORT_DOCUMENT_TYPES = new Set(["passport"]);
+const PASSPORT_TRANSLATION_DOCUMENT_TYPE = "passport_translation";
+
 const normalizeComparableText = (value) =>
   String(value || "")
     .trim()
@@ -256,6 +259,43 @@ const buildPreferredFioFieldsByEmployee = (files = []) => {
   return employeeMap;
 };
 
+const listEmployeeIdsWithPassportTranslation = async (employeeIds = []) => {
+  const normalizedEmployeeIds = [...new Set(employeeIds.map(normalizeString).filter(Boolean))];
+
+  if (normalizedEmployeeIds.length === 0) {
+    return new Set();
+  }
+
+  const files = await File.findAll({
+    where: {
+      entityType: "employee",
+      isDeleted: false,
+      ocrVerified: true,
+      employeeId: {
+        [Op.in]: normalizedEmployeeIds,
+      },
+      documentType: PASSPORT_TRANSLATION_DOCUMENT_TYPE,
+      ocrResultJson: {
+        [Op.ne]: null,
+      },
+    },
+    attributes: ["employeeId"],
+    group: ["employeeId"],
+  });
+
+  return new Set(
+    files.map((file) => normalizeString(file.employeeId)).filter(Boolean),
+  );
+};
+
+const employeeHasPassportTranslation = async (employeeId) => {
+  const employeeIdsWithTranslation = await listEmployeeIdsWithPassportTranslation([
+    employeeId,
+  ]);
+
+  return employeeIdsWithTranslation.has(normalizeString(employeeId));
+};
+
 const parseDateValue = (value) => {
   const normalized = normalizeString(value);
   if (!normalized) return null;
@@ -343,9 +383,43 @@ export const saveEmployeeOcrConflicts = async ({
   conflicts = [],
   createdBy = null,
 }) => {
+  const normalizedDocumentType = normalizeString(documentType);
+  const hasPassportTranslation =
+    normalizeString(employeeId) &&
+    normalizedDocumentType !== PASSPORT_TRANSLATION_DOCUMENT_TYPE
+      ? await employeeHasPassportTranslation(employeeId)
+      : false;
+
   const normalizedConflicts = conflicts
     .map(toConflictPayload)
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((conflict) => {
+      if (!hasPassportTranslation) {
+        return true;
+      }
+
+      return !PASSPORT_DOCUMENT_TYPES.has(normalizedDocumentType);
+    });
+
+  if (hasPassportTranslation) {
+    await EmployeeOcrConflict.update(
+      {
+        status: "resolved",
+        resolvedBy: createdBy,
+        resolvedAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        where: {
+          employeeId,
+          status: "open",
+          documentType: {
+            [Op.in]: [...PASSPORT_DOCUMENT_TYPES],
+          },
+        },
+      },
+    );
+  }
 
   const activeFieldNames = normalizedConflicts.map((item) => item.fieldName);
 
@@ -489,6 +563,7 @@ const listStoredEmployeeOcrConflicts = async ({
 
   const employeeIds = [...new Set(rows.map((row) => normalizeString(row.employeeId)).filter(Boolean))];
   let preferredFioFieldsByEmployee = new Map();
+  let employeeIdsWithPassportTranslation = new Set();
 
   if (employeeIds.length > 0) {
     const preferredFioFiles = await File.findAll({
@@ -513,12 +588,23 @@ const listStoredEmployeeOcrConflicts = async ({
     });
 
     preferredFioFieldsByEmployee = buildPreferredFioFieldsByEmployee(preferredFioFiles);
+    employeeIdsWithPassportTranslation = new Set(
+      preferredFioFiles.map((file) => normalizeString(file.employeeId)).filter(Boolean),
+    );
   }
 
   return rows
     .filter((row) => {
       const employeeIdValue = normalizeString(row.employeeId);
       const documentType = normalizeString(row.documentType || row.file?.documentType);
+
+      if (
+        employeeIdsWithPassportTranslation.has(employeeIdValue) &&
+        PASSPORT_DOCUMENT_TYPES.has(documentType)
+      ) {
+        return false;
+      }
+
       if (!FIO_FIELD_NAMES.has(row.fieldName) || documentType === "passport_translation") {
         return true;
       }

@@ -1,7 +1,4 @@
 .contentContainer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
   min-height: calc(90vh - 150px);
   height: calc(90vh - 150px);
   background: #f7f8fa;
@@ -35,47 +32,61 @@
 }
 
 .imageContainer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
   width: 100%;
   height: 100%;
-  padding: 24px;
   overflow: auto;
 }
 
-.imageWrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: fit-content;
-  height: fit-content;
-  transform-origin: center center;
+.imageCanvas {
+  display: grid;
+  place-items: center;
+  min-width: 100%;
+  min-height: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.imageFrame {
+  position: relative;
+  flex: none;
 }
 
 .image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   display: block;
-  width: auto;
-  height: auto;
-  max-width: min(100%, calc(90vw - 160px));
-  max-height: calc(90vh - 240px);
-  object-fit: contain;
   border-radius: 10px;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
   background: #fff;
+  transform-origin: center center;
+  transition:
+    width 0.18s ease,
+    height 0.18s ease,
+    transform 0.18s ease;
 }
 
 .pdfContainer {
   width: 100%;
-  height: calc(90vh - 180px);
-  overflow: auto;
+  height: 100%;
   border: 1px solid #e8e8e8;
   border-radius: 10px;
   background: #fff;
+  overflow: hidden;
 }
 
-.pdfObject {
-  transform-origin: top center;
+.pdfFrame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+
+.pdfFallback {
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .unsupportedContainer {
@@ -100,16 +111,14 @@
   }
 
   .pdfContainer {
-    height: calc(90vh - 180px);
+    height: 100%;
   }
 
-  .imageContainer {
-    padding: 10px;
+  .imageCanvas {
+    padding: 12px;
   }
 
   .image {
-    max-width: calc(100vw - 72px);
-    max-height: calc(90vh - 220px);
     border-radius: 8px;
   }
 

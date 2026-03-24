@@ -4,9 +4,12 @@ import { formatInn, formatKig, formatSnils } from "@/utils/formatters";
 const formatDateValue = (value) =>
   value ? dayjs(value).format("DD.MM.YYYY") : "-";
 
+export const getBirthCountryName = (employee) =>
+  employee?.birthCountry?.name || employee?.citizenship?.name || "-";
+
 const formatBirthPlace = (employee) => {
   const parts = [
-    employee.birthCountry?.name,
+    getBirthCountryName(employee) !== "-" ? getBirthCountryName(employee) : null,
     employee.birthRegion,
     employee.birthCity,
   ].filter(Boolean);
@@ -91,7 +94,7 @@ export const buildExportExcelRows = ({
       Гражданство: employee.citizenship?.name || "-",
       "Дата рождения": formatDateValue(employee.birthDate),
       "Место рождения": formatBirthPlace(employee),
-      "Страна рождения": employee.birthCountry?.name || "-",
+      "Страна рождения": getBirthCountryName(employee),
       "Область рождения": employee.birthRegion || "-",
       "Населенный пункт рождения": employee.birthCity || "-",
       СНИЛС: formatSnils(employee.snils),

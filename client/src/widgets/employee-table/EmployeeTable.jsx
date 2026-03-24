@@ -24,9 +24,36 @@ const tableStyles = `
   .table-row-dark {
     background-color: #f5f5f5;
   }
-  .table-row-light:hover,
-  .table-row-dark:hover {
-    background-color: #e6f7ff !important;
+  .employee-table-container .ant-table-tbody > tr > td {
+    transition:
+      background-color 0.16s ease,
+      box-shadow 0.16s ease;
+  }
+
+  .employee-table-container .table-row-light > td {
+    background-color: #ffffff !important;
+  }
+  .employee-table-container .table-row-dark > td {
+    background-color: #f5f5f5 !important;
+  }
+  .employee-table-container .table-row-light:hover > td,
+  .employee-table-container .table-row-light.ant-table-row:hover > td,
+  .employee-table-container .table-row-light:focus-within > td {
+    background-color: #eef4ff !important;
+  }
+  .employee-table-container .table-row-dark:hover > td,
+  .employee-table-container .table-row-dark.ant-table-row:hover > td,
+  .employee-table-container .table-row-dark:focus-within > td {
+    background-color: #e7efff !important;
+  }
+  .employee-table-container .table-row-light:hover > td:first-child,
+  .employee-table-container .table-row-dark:hover > td:first-child,
+  .employee-table-container .table-row-light:focus-within > td:first-child,
+  .employee-table-container .table-row-dark:focus-within > td:first-child {
+    box-shadow: inset 3px 0 0 #1677ff;
+  }
+  .employee-table-container .ant-table-tbody > tr.ant-table-row-selected > td {
+    background-color: inherit !important;
   }
 
   /* Однострочное отображение Select в столбце "Подразделение" */
@@ -108,6 +135,23 @@ const tableStyles = `
  * Сохраняет состояние фильтров в localStorage
  */
 const EMPTY_HIDDEN_COLUMN_KEYS = [];
+const INTERACTIVE_ROW_TARGET_SELECTOR = [
+  "button",
+  "a",
+  "input",
+  "textarea",
+  "[role='button']",
+  ".ant-btn",
+  ".ant-select",
+  ".ant-select-selector",
+  ".ant-picker",
+  ".ant-picker-input",
+  ".ant-input",
+  ".ant-input-affix-wrapper",
+  ".ant-popover",
+  ".ant-popconfirm",
+  ".ant-badge",
+].join(", ");
 
 export const EmployeeTable = ({
   employees,
@@ -256,6 +300,21 @@ export const EmployeeTable = ({
         rowClassName={(record, index) =>
           index % 2 === 0 ? "table-row-light" : "table-row-dark"
         }
+        onRow={(record) => ({
+          onClick: (event) => {
+            if (
+              event.target instanceof Element &&
+              event.target.closest(INTERACTIVE_ROW_TARGET_SELECTOR)
+            ) {
+              return;
+            }
+
+            onView(record);
+          },
+          style: {
+            cursor: "pointer",
+          },
+        })}
         scroll={{
           x: 1300,
           y: "calc(100vh - 220px)",

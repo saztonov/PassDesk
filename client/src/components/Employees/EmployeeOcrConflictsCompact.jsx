@@ -1,27 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  App,
   Button,
   Empty,
-  Popconfirm,
   Space,
   Table,
   Tag,
-  Tooltip,
   Typography,
 } from "antd";
-import {
-  CheckOutlined,
-  EyeOutlined,
-  ReloadOutlined,
-  WarningOutlined,
-} from "@ant-design/icons";
+import { EyeOutlined, ReloadOutlined, WarningOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { employeeService } from "@/services/employeeService";
 import ocrService from "@/services/ocrService";
 import { FileViewer } from "@/shared/ui/FileViewer";
 
-const { Text } = Typography;
+const { Paragraph, Text } = Typography;
 
 const toResponseData = (response) => response?.data || response || {};
 
@@ -42,18 +34,15 @@ const getCardSource = (sources = []) =>
 const getOcrSources = (sources = []) =>
   sources.filter((source) => source.documentType !== "employee_card");
 
-const EmployeeOcrConflictsCompact = ({ employee, user, onChanged }) => {
-  const { message } = App.useApp();
+const EmployeeOcrConflictsCompact = ({ employee }) => {
   const [conflicts, setConflicts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
-  const [actionLoadingKey, setActionLoadingKey] = useState(null);
   const [fileLoadingKey, setFileLoadingKey] = useState(null);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewingFile, setViewingFile] = useState(null);
 
   const employeeId = employee?.id;
-  const canResolveConflicts = user?.role === "admin" || user?.role === "manager";
 
   const loadConflicts = useCallback(async () => {
     if (!employeeId) {
@@ -86,50 +75,6 @@ const EmployeeOcrConflictsCompact = ({ employee, user, onChanged }) => {
     loadConflicts();
   }, [loadConflicts]);
 
-  const notifySummaryChanged = useCallback(async () => {
-    if (typeof onChanged === "function") {
-      await onChanged(employeeId);
-    }
-  }, [employeeId, onChanged]);
-
-  const handleResolve = useCallback(
-    async (conflictId) => {
-      const loadingKey = `resolve:${conflictId}`;
-      setActionLoadingKey(loadingKey);
-      try {
-        await ocrService.resolveConflict(conflictId);
-        setConflicts((prev) => prev.filter((item) => item.id !== conflictId));
-        message.success("Оставили значение карточки");
-        await notifySummaryChanged();
-      } catch (error) {
-        console.error("Failed to resolve OCR conflict:", error);
-        message.error("Не удалось обработать конфликт");
-      } finally {
-        setActionLoadingKey(null);
-      }
-    },
-    [message, notifySummaryChanged],
-  );
-
-  const handleApply = useCallback(
-    async (conflictId) => {
-      const loadingKey = `apply:${conflictId}`;
-      setActionLoadingKey(loadingKey);
-      try {
-        await ocrService.applyConflict(conflictId);
-        setConflicts((prev) => prev.filter((item) => item.id !== conflictId));
-        message.success("Приняли значение из OCR");
-        await notifySummaryChanged();
-      } catch (error) {
-        console.error("Failed to apply OCR conflict:", error);
-        message.error("Не удалось применить значение OCR");
-      } finally {
-        setActionLoadingKey(null);
-      }
-    },
-    [message, notifySummaryChanged],
-  );
-
   const handleOpenSourceFile = useCallback(
     async (source) => {
       const fileId = source?.fileId;
@@ -154,12 +99,11 @@ const EmployeeOcrConflictsCompact = ({ employee, user, onChanged }) => {
         setViewerVisible(true);
       } catch (error) {
         console.error("Failed to open OCR source file:", error);
-        message.error("Не удалось открыть файл-источник");
       } finally {
         setFileLoadingKey(null);
       }
     },
-    [employeeId, message],
+    [employeeId],
   );
 
   const handleDownloadFromViewer = useCallback(async () => {
@@ -178,9 +122,8 @@ const EmployeeOcrConflictsCompact = ({ employee, user, onChanged }) => {
       }
     } catch (error) {
       console.error("Failed to download OCR source file:", error);
-      message.error("Не удалось скачать файл-источник");
     }
-  }, [employeeId, message, viewingFile?.fileId]);
+  }, [employeeId, viewingFile?.fileId]);
 
   const modalColumns = useMemo(
     () => [
@@ -198,14 +141,16 @@ const EmployeeOcrConflictsCompact = ({ employee, user, onChanged }) => {
         render: (_, record) => formatValue(getCardSource(record.sources)?.value),
       },
       {
-        title: "OCR",
+        title: "Распознано из файла",
         key: "ocrValue",
         render: (_, record) => (
-          <Space direction="vertical" size={4} style={{ width: "100%" }}>
+          <Space direction="vertical" size={8} style={{ width: "100%" }}>
             {getOcrSources(record.sources).map((source) => (
               <div key={`${record.id}-${source.fileId || source.documentType}`}>
-                <Space wrap size={[6, 6]}>
-                  <Tag color="gold">{source.documentLabel || source.documentType || "OCR"}</Tag>
+                <Space wrap size={[6, 6]} style={{ marginBottom: 4 }}>
+                  <Tag color="gold">
+                    {source.documentLabel || source.documentType || "OCR"}
+                  </Tag>
                   <Text type="secondary">{source.fileName || "—"}</Text>
                   {source.fileId ? (
                     <Button
@@ -220,7 +165,10 @@ const EmployeeOcrConflictsCompact = ({ employee, user, onChanged }) => {
                     </Button>
                   ) : null}
                 </Space>
-                <div>{formatValue(source.value)}</div>
+                <div>
+                  <Text type="secondary">OCR:</Text>{" "}
+                  <Text strong>{formatValue(source.value)}</Text>
+                </div>
               </div>
             ))}
           </Space>
@@ -233,62 +181,11 @@ const EmployeeOcrConflictsCompact = ({ employee, user, onChanged }) => {
         width: 170,
         render: (value) => formatDateTime(value),
       },
-      {
-        title: "Действия",
-        key: "actions",
-        width: canResolveConflicts ? 180 : 1,
-        render: (_, record) => {
-          if (!canResolveConflicts) {
-            return null;
-          }
-
-          return (
-            <Space size={4}>
-              <Tooltip title="Оставить значение карточки">
-                <Popconfirm
-                  title="Оставить текущее значение карточки?"
-                  okText="Оставить"
-                  cancelText="Отмена"
-                  onConfirm={() => handleResolve(record.id)}
-                >
-                  <Button
-                    size="small"
-                    loading={actionLoadingKey === `resolve:${record.id}`}
-                  >
-                    Оставить
-                  </Button>
-                </Popconfirm>
-              </Tooltip>
-              <Tooltip title="Принять значение из OCR">
-                <Popconfirm
-                  title="Принять значение из OCR?"
-                  okText="Принять"
-                  cancelText="Отмена"
-                  onConfirm={() => handleApply(record.id)}
-                >
-                  <Button
-                    size="small"
-                    type="primary"
-                    loading={actionLoadingKey === `apply:${record.id}`}
-                    icon={<CheckOutlined />}
-                  >
-                    Принять
-                  </Button>
-                </Popconfirm>
-              </Tooltip>
-            </Space>
-          );
-        },
-      },
     ],
     [
-      actionLoadingKey,
-      canResolveConflicts,
       employeeId,
       fileLoadingKey,
-      handleApply,
       handleOpenSourceFile,
-      handleResolve,
     ],
   );
 
@@ -329,10 +226,15 @@ const EmployeeOcrConflictsCompact = ({ employee, user, onChanged }) => {
             icon={<ReloadOutlined />}
             loading={loading}
             onClick={loadConflicts}
-          >
-            Обновить
-          </Button>
+        >
+          Обновить
+        </Button>
         </Space>
+
+        <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          Сравнивается текущее значение в карточке сотрудника и значение,
+          которое OCR распознал из конкретного документа.
+        </Paragraph>
 
         {hasLoaded && conflicts.length === 0 ? (
           <Empty

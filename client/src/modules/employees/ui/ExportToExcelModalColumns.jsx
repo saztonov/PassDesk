@@ -1,12 +1,15 @@
 import dayjs from "dayjs";
 import { formatInn, formatKig, formatSnils } from "@/utils/formatters";
-import { findEmployeeMapping } from "@/modules/employees/lib/exportToExcelModalUtils";
+import {
+  findEmployeeMapping,
+  getBirthCountryName,
+} from "@/modules/employees/lib/exportToExcelModalUtils";
 
 const formatDateValue = (date) => (date ? dayjs(date).format("DD.MM.YYYY") : "-");
 
 const formatBirthPlace = (record) => {
   const parts = [
-    record.birthCountry?.name,
+    getBirthCountryName(record) !== "-" ? getBirthCountryName(record) : null,
     record.birthRegion,
     record.birthCity,
   ].filter(Boolean);
@@ -60,9 +63,9 @@ export const buildExportToExcelModalColumns = ({
   },
   {
     title: "Страна рождения",
-    dataIndex: ["birthCountry", "name"],
     key: "birthCountry",
     ellipsis: true,
+    render: (_, record) => getBirthCountryName(record),
   },
   {
     title: "Область рождения",

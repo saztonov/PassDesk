@@ -59,11 +59,20 @@ const DEFAULT_PROMPTS = {
     "Верни строго JSON без markdown и пояснений. Поля: surname, givenNames, middleName, birthDate, sex, nationality, kigNumber, expiryDate.",
   inn:
     "Распознай свидетельство ИНН на фото. " +
+    "Поле ИНН на документе содержит ровно 12 цифр и обычно напечатано крупно в верхней части бланка, отдельной большой строкой. " +
+    "Ищи именно основной номер свидетельства рядом с заголовком документа, а не числа из печатей, QR-кодов, штрихкодов, электронной подписи или служебных блоков внизу. " +
+    "Обязательно верни эти 12 цифр в поле inn без пробелов и других символов. " +
+    "Не подставляй null, если номер читается хотя бы с умеренной уверенностью: выбери наиболее вероятную 12-значную последовательность на документе. " +
     NAME_CASE_INSTRUCTION +
     DATE_FORMAT_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: inn, surname, givenNames, middleName, birthDate.",
   snils:
     "Распознай карточку СНИЛС на фото. " +
+    "Номер СНИЛС содержит ровно 11 цифр и часто записан как XXX-XXX-XXX XX. " +
+    "Ищи именно строку рядом с подписью 'Страховой номер индивидуального лицевого счета (СНИЛС)' или короткой подписью 'СНИЛС' в верхней части документа. " +
+    "Игнорируй любые другие длинные номера из штампов, регистрационных блоков, электронной подписи, QR-кодов и служебных полей внизу документа. " +
+    "Обязательно верни номер в поле snils, сохранив все 11 цифр; можно без дефисов и пробелов. " +
+    "Не подставляй null, если номер читается хотя бы с умеренной уверенностью: выбери наиболее вероятный номер СНИЛС на документе. " +
     NAME_CASE_INSTRUCTION +
     DATE_FORMAT_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: snils, surname, givenNames, middleName, birthDate.",
@@ -91,6 +100,17 @@ const DEFAULT_SCAN_PROMPT =
   "Используй нормализованные координаты, где 0..1000 соответствуют ширине и высоте изображения. " +
   "Игнорируй стол, ноутбук, руки, тени, блики и фон вокруг документа. " +
   'Если документ не найден уверенно, верни {"detected":false,"confidence":0,"corners":[]}.';
+
+const FALLBACK_IDENTIFIER_PROMPTS = {
+  inn:
+    "Что видишь на изображении, ответь строго JSON без markdown. " +
+    "Если это документ ИНН, обязательно верни основной 12-значный номер документа в одном из ключей inn, documentNumber или document_number. " +
+    "Если видны ФИО и дата рождения, тоже верни их в JSON.",
+  snils:
+    "Что видишь на изображении, ответь строго JSON без markdown. " +
+    "Если это документ СНИЛС или АДИ-РЕГ, обязательно верни номер СНИЛС из 11 цифр в одном из ключей snils, documentNumber или document_number. " +
+    "Если видны ФИО и дата рождения, тоже верни их в JSON.",
+};
 
 const resolveScanPromptByDocumentType = (documentType) => {
   const normalizedDocumentType = normalizeDocumentType(documentType);
@@ -277,6 +297,138 @@ const normalizeDigits = (value, maxLength = 64) => {
   if (!value) return null;
   const normalized = String(value).replace(/[^\d]/g, "").slice(0, maxLength);
   return normalized || null;
+};
+
+const normalizeExactDigits = (value, exactLength) => {
+  if (!value) return null;
+
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const digitsOnly = raw.replace(/[^\d]/g, "");
+  if (digitsOnly.length === exactLength) {
+    return digitsOnly;
+  }
+
+  const groupedPattern = new RegExp(
+    `(^|[^\\d])((?:\\d[\\s-]?){${exactLength}})(?=[^\\d]|$)`,
+    "g",
+  );
+  const groupedMatches = [...raw.matchAll(groupedPattern)];
+  for (const match of groupedMatches) {
+    const normalizedCandidate = String(match[2] || "").replace(/[^\d]/g, "");
+    if (normalizedCandidate.length === exactLength) {
+      return normalizedCandidate;
+    }
+  }
+
+  return null;
+};
+
+const normalizeNameToken = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  return raw
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((token) =>
+      token
+        .split("-")
+        .map((part) =>
+          part ? `${part.slice(0, 1).toUpperCase()}${part.slice(1).toLowerCase()}` : "",
+        )
+        .join("-"),
+    )
+    .join(" ");
+};
+
+const splitFullName = (value) => {
+  const parts = String(value || "")
+    .trim()
+    .split(/\s+/)
+    .map((part) => normalizeNameToken(part))
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return {
+      lastName: null,
+      firstName: null,
+      middleName: null,
+    };
+  }
+
+  if (parts.length === 1) {
+    return {
+      lastName: parts[0],
+      firstName: null,
+      middleName: null,
+    };
+  }
+
+  if (parts.length === 2) {
+    return {
+      lastName: parts[0],
+      firstName: parts[1],
+      middleName: null,
+    };
+  }
+
+  return {
+    lastName: parts[0],
+    firstName: parts[1],
+    middleName: parts.slice(2).join(" "),
+  };
+};
+
+const resolvePersonNameParts = (parsedJson = {}) => {
+  const explicitLastName = normalizeNameToken(
+    valueFrom(parsedJson, ["surname", "lastName", "last_name"]),
+  );
+  const explicitFirstName = normalizeNameToken(
+    valueFrom(parsedJson, ["givenNames", "firstName", "first_name", "name"]),
+  );
+  const explicitMiddleName = normalizeNameToken(
+    valueFrom(parsedJson, ["middleName", "middle_name", "patronymic"]),
+  );
+  const fullNameValue = valueFrom(parsedJson, ["fullName", "full_name", "fio"]);
+  const fullNameParts = splitFullName(fullNameValue);
+
+  return {
+    lastName: explicitLastName || fullNameParts.lastName,
+    firstName: explicitFirstName || fullNameParts.firstName,
+    middleName: explicitMiddleName || fullNameParts.middleName,
+  };
+};
+
+const mergeMissingNormalizedFields = (primary = {}, secondary = {}) => {
+  const merged = { ...primary };
+
+  for (const [key, value] of Object.entries(secondary)) {
+    const currentValue = merged[key];
+    const hasCurrentValue =
+      currentValue !== null &&
+      currentValue !== undefined &&
+      (!(typeof currentValue === "string") || currentValue.trim() !== "");
+
+    if (!hasCurrentValue && value !== null && value !== undefined && String(value).trim() !== "") {
+      merged[key] = value;
+    }
+  }
+
+  return merged;
+};
+
+const shouldRunIdentifierFallback = (documentType, normalized = {}) => {
+  if (documentType === "inn") {
+    return !normalized.inn;
+  }
+
+  if (documentType === "snils") {
+    return !normalized.snils;
+  }
+
+  return false;
 };
 
 const LOOKALIKE_CYRILLIC_TO_LATIN = {
@@ -661,28 +813,55 @@ const normalizeKigBack = (parsedJson = {}) => ({
   ),
 });
 
-const normalizeInn = (parsedJson = {}) => ({
-  lastName: valueFrom(parsedJson, ["surname", "lastName", "last_name"]),
-  firstName: valueFrom(parsedJson, ["givenNames", "firstName", "first_name"]),
-  middleName: valueFrom(parsedJson, ["middleName", "middle_name", "patronymic"]),
-  birthDate: normalizeDate(
-    valueFrom(parsedJson, ["birthDate", "birth_date", "dateOfBirth"]),
-  ),
-  inn: normalizeDigits(valueFrom(parsedJson, ["inn", "innNumber", "inn_number"]), 12),
-});
+const normalizeInn = (parsedJson = {}) => {
+  const names = resolvePersonNameParts(parsedJson);
 
-const normalizeSnils = (parsedJson = {}) => ({
-  lastName: valueFrom(parsedJson, ["surname", "lastName", "last_name"]),
-  firstName: valueFrom(parsedJson, ["givenNames", "firstName", "first_name"]),
-  middleName: valueFrom(parsedJson, ["middleName", "middle_name", "patronymic"]),
-  birthDate: normalizeDate(
-    valueFrom(parsedJson, ["birthDate", "birth_date", "dateOfBirth"]),
-  ),
-  snils: normalizeDigits(
-    valueFrom(parsedJson, ["snils", "snilsNumber", "snils_number"]),
-    11,
-  ),
-});
+  return {
+    lastName: names.lastName,
+    firstName: names.firstName,
+    middleName: names.middleName,
+    birthDate: normalizeDate(
+      valueFrom(parsedJson, ["birthDate", "birth_date", "dateOfBirth", "date_of_birth"]),
+    ),
+    inn: normalizeExactDigits(
+      valueFrom(parsedJson, [
+        "inn",
+        "innNumber",
+        "inn_number",
+        "documentNumber",
+        "document_number",
+        "number",
+        "certificateNumber",
+        "certificate_number",
+      ]),
+      12,
+    ),
+  };
+};
+
+const normalizeSnils = (parsedJson = {}) => {
+  const names = resolvePersonNameParts(parsedJson);
+
+  return {
+    lastName: names.lastName,
+    firstName: names.firstName,
+    middleName: names.middleName,
+    birthDate: normalizeDate(
+      valueFrom(parsedJson, ["birthDate", "birth_date", "dateOfBirth", "date_of_birth"]),
+    ),
+    snils: normalizeExactDigits(
+      valueFrom(parsedJson, [
+        "snils",
+        "snilsNumber",
+        "snils_number",
+        "documentNumber",
+        "document_number",
+        "number",
+      ]),
+      11,
+    ),
+  };
+};
 
 const normalizeBankDetails = (parsedJson = {}) => ({
   lastName: valueFrom(parsedJson, ["surname", "lastName", "last_name"]),
@@ -1367,10 +1546,53 @@ export const recognizeDocument = async ({
     }
 
     const parsedJson = parseStructuredJson(content) || {};
-    const normalized = normalizeResponseByDocumentType(
+    let normalized = normalizeResponseByDocumentType(
       normalizedDocumentType,
       parsedJson,
     );
+    let fallbackRaw = null;
+
+    if (shouldRunIdentifierFallback(normalizedDocumentType, normalized)) {
+      const fallbackPrompt = FALLBACK_IDENTIFIER_PROMPTS[normalizedDocumentType];
+
+      if (fallbackPrompt) {
+        try {
+          const fallbackPayload = buildOpenRouterPayload({
+            model: attempt.model,
+            prompt: fallbackPrompt,
+            imageDataUrl,
+            enforceJson: true,
+            maxTokens: 1200,
+          });
+
+          const fallbackResponse = await postOpenRouterPayload({
+            config,
+            payload: fallbackPayload,
+            headers,
+            errorLabel: "OCR fallback",
+          });
+
+          const fallbackContent = extractResponseContent(fallbackResponse.data);
+          const fallbackParsedJson = parseStructuredJson(fallbackContent) || {};
+          const fallbackNormalized = normalizeResponseByDocumentType(
+            normalizedDocumentType,
+            fallbackParsedJson,
+          );
+
+          normalized = mergeMissingNormalizedFields(normalized, fallbackNormalized);
+          fallbackRaw = {
+            content: fallbackContent,
+            json: fallbackParsedJson,
+          };
+        } catch (error) {
+          console.warn("[ocr] identifier fallback failed", {
+            documentType: normalizedDocumentType,
+            model: attempt.model,
+            message: error?.message || "unknown fallback error",
+          });
+        }
+      }
+    }
 
     if (!hasMeaningfulNormalizedData(normalized)) {
       lastNoDataMeta = {
@@ -1392,6 +1614,7 @@ export const recognizeDocument = async ({
       raw: {
         content,
         json: parsedJson,
+        fallback: fallbackRaw,
       },
     };
   }
