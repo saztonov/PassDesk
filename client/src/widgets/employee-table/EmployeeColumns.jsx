@@ -33,6 +33,20 @@ const getUniqueMappingValues = (mappings, selector) => [
   ...new Set(mappings.map(selector).filter(Boolean)),
 ];
 
+const getEmployeeUploadState = (record) => {
+  const activeStatusMappings = Array.isArray(record?.statusMappings)
+    ? record.statusMappings.filter((mapping) => mapping?.isActive !== false)
+    : [];
+
+  if (activeStatusMappings.length === 0) {
+    return null;
+  }
+
+  return activeStatusMappings.every((mapping) => mapping?.isUpload)
+    ? "uploaded"
+    : "not_uploaded";
+};
+
 const renderMappingState = ({
   activeValues = [],
   dismissedValues = [],
@@ -438,6 +452,30 @@ export const useEmployeeColumns = ({
           value: cit,
         })),
         filteredValue: filters.citizenship || [],
+      },
+      {
+        title: "ЗУП",
+        key: "isUpload",
+        width: 96,
+        align: "center",
+        render: (_, record) => {
+          const uploadState = getEmployeeUploadState(record);
+
+          if (uploadState === "uploaded") {
+            return <Tag color="green">ДА</Tag>;
+          }
+
+          if (uploadState === "not_uploaded") {
+            return <Tag color="orange">НЕТ</Tag>;
+          }
+
+          return "-";
+        },
+        filters: [
+          { text: "ДА (выгружен)", value: "uploaded" },
+          { text: "НЕТ (не выгружен)", value: "not_uploaded" },
+        ],
+        filteredValue: filters.isUpload || [],
       },
       {
         title: "Заполнен",

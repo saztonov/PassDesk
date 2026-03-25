@@ -1,12 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import positionService from "@/services/positionService";
-import { citizenshipService } from "@/services/citizenshipService";
 import { constructionSiteService } from "@/services/constructionSiteService";
+import { useReferencesStore } from "@/store/referencesStore";
+
+const REFERENCE_CACHE_TTL_MS = 5 * 60 * 1000;
+let constructionSiteLabelsCache = null;
+let constructionSiteLabelsLastFetch = 0;
 
 export const getConstructionSiteFilterLabel = (site) =>
   String(site?.shortName || site?.name || site?.fullName || "").trim();
 
 const loadAllConstructionSiteLabels = async () => {
+  const now = Date.now();
+  if (
+    Array.isArray(constructionSiteLabelsCache) &&
+    now - constructionSiteLabelsLastFetch < REFERENCE_CACHE_TTL_MS
+  ) {
+    return constructionSiteLabelsCache;
+  }
+
   const labels = [];
   let page = 1;
   let totalPages = 1;
@@ -26,6 +37,8 @@ const loadAllConstructionSiteLabels = async () => {
     page += 1;
   }
 
+  constructionSiteLabelsCache = labels;
+  constructionSiteLabelsLastFetch = Date.now();
   return labels;
 };
 
@@ -62,16 +75,17 @@ export const useEmployeeTableFilterOptions = ({
   const [positions, setPositions] = useState([]);
   const [citizenships, setCitizenships] = useState([]);
   const [constructionSites, setConstructionSites] = useState([]);
+  const { fetchPositions, fetchCitizenships } = useReferencesStore();
 
   useEffect(() => {
     let cancelled = false;
 
     const loadReferenceFilters = async () => {
       try {
-        const [positionsResponse, citizenshipsResponse, sitesResponse] =
+        const [positionsData, citizenshipsData, sitesResponse] =
           await Promise.all([
-            positionService.getAll({ limit: 10000, page: 1 }),
-            citizenshipService.getAll(),
+            fetchPositions(),
+            fetchCitizenships(),
             loadAllConstructionSiteLabels(),
           ]);
 
@@ -80,13 +94,14 @@ export const useEmployeeTableFilterOptions = ({
         }
 
         setPositions(
-          positionsResponse?.data?.data?.positions?.map((position) => position?.name) ||
-            [],
+          Array.isArray(positionsData)
+            ? positionsData.map((position) => position?.name)
+            : [],
         );
         setCitizenships(
-          citizenshipsResponse?.data?.data?.citizenships?.map(
-            (citizenship) => citizenship?.name,
-          ) || [],
+          Array.isArray(citizenshipsData)
+            ? citizenshipsData.map((citizenship) => citizenship?.name)
+            : [],
         );
         setConstructionSites(
           Array.isArray(sitesResponse) ? sitesResponse : [],
@@ -105,7 +120,7 @@ export const useEmployeeTableFilterOptions = ({
     return () => {
       cancelled = true;
     };
-  }, [defaultCounterpartyId, user]);
+  }, [defaultCounterpartyId, fetchCitizenships, fetchPositions, user]);
 
   return useMemo(
     () => ({

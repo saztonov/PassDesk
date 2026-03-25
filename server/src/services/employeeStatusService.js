@@ -412,6 +412,31 @@ class EmployeeStatusService {
   }
 
   /**
+   * Сбросить флаг выгрузки в ЗУП для всех активных статусов сотрудника.
+   */
+  static async resetActiveUploadFlags(employeeId, userId) {
+    const [updatedCount] = await EmployeeStatusMapping.update(
+      {
+        isUpload: false,
+        ...(userId
+          ? {
+              updatedBy: userId,
+              updatedAt: new Date(),
+            }
+          : {}),
+      },
+      {
+        where: {
+          employeeId,
+          isActive: true,
+        },
+      },
+    );
+
+    return updatedCount;
+  }
+
+  /**
    * Инициализировать статусы для нового сотрудника
    */
   static async initializeEmployeeStatuses(employeeId, userId) {

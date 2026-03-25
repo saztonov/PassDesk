@@ -161,6 +161,10 @@ const EmployeesPage = () => {
       filters.statusCard = JSON.stringify(tableFilters.statusCard);
     }
 
+    if (tableFilters.isUpload?.length > 0) {
+      filters.uploadStates = JSON.stringify(tableFilters.isUpload);
+    }
+
     const createdAtRange = tableFilters.createdAt;
     if (Array.isArray(createdAtRange) && createdAtRange.length > 0) {
       filters.dateFrom = createdAtRange[0];
@@ -185,6 +189,7 @@ const EmployeesPage = () => {
     tableFilters.constructionSite,
     tableFilters.createdAt,
     tableFilters.department,
+    tableFilters.isUpload,
     tableFilters.position,
     tableFilters.status,
     tableFilters.statusCard,
@@ -205,6 +210,7 @@ const EmployeesPage = () => {
     tableFilters.department,
     tableFilters.constructionSite,
     tableFilters.citizenship,
+    tableFilters.isUpload,
     tableFilters.status,
     tableFilters.statusCard,
     tableFilters.createdAt,

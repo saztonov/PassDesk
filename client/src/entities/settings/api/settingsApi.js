@@ -1,4 +1,5 @@
 import api from '@/services/api';
+import { deduplicateRequest } from "@/utils/requestCache";
 
 /**
  * API для работы с настройками
@@ -6,7 +7,10 @@ import api from '@/services/api';
 export const settingsApi = {
   // Получить публичные настройки
   getPublicSettings: async () => {
-    const response = await api.get('/settings/public');
+    const response = await deduplicateRequest(
+      "settings:public",
+      () => api.get('/settings/public'),
+    );
     return response.data;
   },
 
@@ -22,4 +26,3 @@ export const settingsApi = {
     return response.data;
   },
 };
-

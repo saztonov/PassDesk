@@ -15,6 +15,7 @@ import {
 import { AppError } from "../middleware/errorHandler.js";
 import { checkEmployeeAccess } from "../utils/permissionUtils.js";
 import { buildFileProxyUrl } from "../services/fileDownloadTokenService.js";
+import EmployeeStatusService from "../services/employeeStatusService.js";
 
 /**
  * Helper: Загрузить сотрудника с маппингами для проверки прав
@@ -269,6 +270,13 @@ export const uploadEmployeeFiles = async (req, res, next) => {
     console.log(
       `✅ Upload complete! ${uploadedFiles.length} file(s) uploaded successfully`,
     );
+    const updatedUploadFlags = await EmployeeStatusService.resetActiveUploadFlags(
+      employeeId,
+      req.user.id,
+    );
+    console.log(
+      `✓ Active status upload flags reset to false after file upload: ${updatedUploadFlags}`,
+    );
 
     res.status(201).json({
       success: true,
@@ -381,6 +389,13 @@ export const deleteEmployeeFile = async (req, res, next) => {
 
     // Физически удаляем запись из БД
     await file.destroy();
+    const updatedUploadFlags = await EmployeeStatusService.resetActiveUploadFlags(
+      employeeId,
+      req.user.id,
+    );
+    console.log(
+      `✓ Active status upload flags reset to false after file deletion: ${updatedUploadFlags}`,
+    );
 
     res.json({
       success: true,

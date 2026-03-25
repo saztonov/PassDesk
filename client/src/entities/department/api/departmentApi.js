@@ -1,4 +1,5 @@
 import api from '@/services/api';
+import { deduplicateRequest } from "@/utils/requestCache";
 
 /**
  * API для работы с подразделениями
@@ -6,7 +7,10 @@ import api from '@/services/api';
 export const departmentApi = {
   // Получить все подразделения
   getAll: async () => {
-    const response = await api.get('/departments');
+    const response = await deduplicateRequest(
+      "departments:getAll",
+      () => api.get('/departments'),
+    );
     return response.data;
   },
 
@@ -34,4 +38,3 @@ export const departmentApi = {
     return response.data;
   },
 };
-

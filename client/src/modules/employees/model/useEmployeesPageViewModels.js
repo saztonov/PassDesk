@@ -11,6 +11,7 @@ const buildAvailableColumns = ({
   ...(showCounterpartyColumn ? [{ key: "counterparty", label: "Контрагент" }] : []),
   { key: "constructionSite", label: "Объект" },
   { key: "citizenship", label: "Гражданство" },
+  { key: "isUpload", label: "ЗУП" },
   { key: "statusCard", label: "Заполнен" },
   { key: "createdAt", label: "Дата создания" },
   { key: "files", label: "Файлы" },

@@ -2429,19 +2429,8 @@ export const updateEmployee = async (req, res, next) => {
       }
 
       if (hasDataChanges) {
-        const [updatedUploadFlags] = await EmployeeStatusMapping.update(
-          {
-            isUpload: false,
-            updatedBy: req.user.id,
-            updatedAt: new Date(),
-          },
-          {
-            where: {
-              employeeId: id,
-              isActive: true,
-            },
-          },
-        );
+        const updatedUploadFlags =
+          await EmployeeStatusService.resetActiveUploadFlags(id, req.user.id);
         console.log(
           `✓ Active status upload flags reset to false after data changes: ${updatedUploadFlags}`,
         );
@@ -2581,7 +2570,7 @@ export const updateEmployeeConstructionSites = async (req, res, next) => {
           .map((value) => String(value || "").trim())
           .filter(Boolean),
       ),
-    ];
+    ].sort();
 
     // Получаем существующие маппинги сотрудника для текущего контрагента
     const existingMappings = await EmployeeCounterpartyMapping.findAll({
@@ -2594,6 +2583,16 @@ export const updateEmployeeConstructionSites = async (req, res, next) => {
     // Сохраняем существующий departmentId перед обновлением
     const existingDepartmentId =
       existingMappings.length > 0 ? existingMappings[0].departmentId : null;
+    const existingSiteIds = [
+      ...new Set(
+        existingMappings
+          .map((mapping) => String(mapping?.constructionSiteId || "").trim())
+          .filter(Boolean),
+      ),
+    ].sort();
+    const hasSiteChanges =
+      existingSiteIds.length !== normalizedSiteIds.length ||
+      existingSiteIds.some((siteId, index) => siteId !== normalizedSiteIds[index]);
 
     // Если нет маппингов, создаем базовый
     if (existingMappings.length === 0) {
@@ -2646,6 +2645,14 @@ export const updateEmployeeConstructionSites = async (req, res, next) => {
       }
     }
 
+    if (hasSiteChanges) {
+      const updatedUploadFlags =
+        await EmployeeStatusService.resetActiveUploadFlags(id, req.user.id);
+      console.log(
+        `✓ Active status upload flags reset to false after construction site changes: ${updatedUploadFlags}`,
+      );
+    }
+
     // Просто возвращаем успех без лишней загрузки данных
     res.json({
       success: true,
@@ -2693,19 +2700,23 @@ export const updateEmployeeDepartment = async (req, res, next) => {
         counterpartyId: targetCounterpartyId,
       },
     });
+    const normalizedDepartmentId = departmentId || null;
+    const currentDepartmentId =
+      mappings.length > 0 ? mappings[0].departmentId || null : null;
+    const hasDepartmentChanges = currentDepartmentId !== normalizedDepartmentId;
 
     // Если маппингов нет, создаем новый
     if (mappings.length === 0) {
       await EmployeeCounterpartyMapping.create({
         employeeId: id,
         counterpartyId: targetCounterpartyId,
-        departmentId: departmentId || null,
+        departmentId: normalizedDepartmentId,
         constructionSiteId: null,
       });
     } else {
       // Обновляем departmentId во ВСЕХ маппингах сотрудника
       await EmployeeCounterpartyMapping.update(
-        { departmentId: departmentId || null },
+        { departmentId: normalizedDepartmentId },
         {
           where: {
             employeeId: id,
@@ -2715,11 +2726,19 @@ export const updateEmployeeDepartment = async (req, res, next) => {
       );
     }
 
+    if (hasDepartmentChanges) {
+      const updatedUploadFlags =
+        await EmployeeStatusService.resetActiveUploadFlags(id, req.user.id);
+      console.log(
+        `✓ Active status upload flags reset to false after department changes: ${updatedUploadFlags}`,
+      );
+    }
+
     res.json({
       success: true,
       message: "Подразделение обновлено",
       data: {
-        departmentId: departmentId || null,
+        departmentId: normalizedDepartmentId,
       },
     });
   } catch (error) {
