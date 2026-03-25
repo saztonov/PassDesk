@@ -29,7 +29,7 @@ const EmployeesPage = () => {
   const { t } = useTranslation();
 
   const { user } = useAuthStore();
-  const { defaultCounterpartyId, loading: settingsLoading } = useSettings();
+  const { defaultCounterpartyId } = useSettings();
 
   const {
     searchText,
@@ -128,6 +128,10 @@ const EmployeesPage = () => {
       filters.search = debouncedSearchText;
     }
 
+    if (tableFilters.fullName?.length > 0) {
+      filters.fullNames = JSON.stringify(tableFilters.fullName);
+    }
+
     const effectiveStatusFilters =
       tableFilters.status?.length > 0
         ? tableFilters.status
@@ -161,6 +165,10 @@ const EmployeesPage = () => {
       filters.statusCard = JSON.stringify(tableFilters.statusCard);
     }
 
+    if (tableFilters.documentExpiry?.length > 0) {
+      filters.documentExpiryStatuses = JSON.stringify(tableFilters.documentExpiry);
+    }
+
     if (tableFilters.isUpload?.length > 0) {
       filters.uploadStates = JSON.stringify(tableFilters.isUpload);
     }
@@ -189,6 +197,8 @@ const EmployeesPage = () => {
     tableFilters.constructionSite,
     tableFilters.createdAt,
     tableFilters.department,
+    tableFilters.documentExpiry,
+    tableFilters.fullName,
     tableFilters.isUpload,
     tableFilters.position,
     tableFilters.status,
@@ -206,10 +216,12 @@ const EmployeesPage = () => {
     debouncedSearchText,
     statusFilter,
     tableFilters.counterparty,
+    tableFilters.fullName,
     tableFilters.position,
     tableFilters.department,
     tableFilters.constructionSite,
     tableFilters.citizenship,
+    tableFilters.documentExpiry,
     tableFilters.isUpload,
     tableFilters.status,
     tableFilters.statusCard,
@@ -229,9 +241,9 @@ const EmployeesPage = () => {
     isCounterpartyFilterReady,
   );
 
-  const { departments, loading: departmentsLoading } = useDepartments();
+  const { departments } = useDepartments();
 
-  const loading = employeesLoading || departmentsLoading || settingsLoading;
+  const loading = employeesLoading;
 
   const handlePaginationChange = (page, nextPageSize) => {
     if (nextPageSize !== pageSize) {

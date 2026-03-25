@@ -141,6 +141,68 @@ const applyEmployeeSensitiveFieldEncryption = (payload = {}) => {
 const normalizeDigitsSearch = (value = "") =>
   String(value || "").replace(/[^\d]/g, "");
 
+const getEmployeeDocumentExpiryDates = (employee) => {
+  const dates = [
+    employee?.passportExpiryDate || employee?.passport_expiry_date,
+    employee?.kigEndDate || employee?.kig_end_date,
+  ].filter(Boolean);
+
+  const patentIssueDate = employee?.patentIssueDate || employee?.patent_issue_date;
+  if (patentIssueDate) {
+    const issueDate = new Date(patentIssueDate);
+    if (!Number.isNaN(issueDate.getTime())) {
+      const expiryDate = new Date(issueDate);
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+      dates.push(expiryDate.toISOString());
+    }
+  }
+
+  return dates;
+};
+
+const calculateEmployeeDocumentExpiryStatus = (employee) => {
+  const dates = getEmployeeDocumentExpiryDates(employee);
+
+  if (dates.length === 0) {
+    return "no-data";
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const twoWeeksMs = 14 * 24 * 60 * 60 * 1000;
+  let hasExpired = false;
+  let hasExpiringSoon = false;
+
+  dates.forEach((dateValue) => {
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) {
+      return;
+    }
+
+    date.setHours(0, 0, 0, 0);
+    const diff = date.getTime() - today.getTime();
+
+    if (diff < 0) {
+      hasExpired = true;
+      return;
+    }
+
+    if (diff <= twoWeeksMs) {
+      hasExpiringSoon = true;
+    }
+  });
+
+  if (hasExpired) {
+    return "expired";
+  }
+
+  if (hasExpiringSoon) {
+    return "expiring-soon";
+  }
+
+  return "valid";
+};
+
 const normalizeTextSearch = (value = "") =>
   String(value || "")
     .toLowerCase()
@@ -711,6 +773,9 @@ export const getAllEmployees = async (req, res, next) => {
     const normalizedDocSearchValue = normalizeDocSearch(normalizedSearch);
     const requestedStatusFilters = normalizeQueryArray(req.query.statuses);
     const requestedPositionNames = normalizeQueryArray(req.query.positionNames);
+    const requestedFullNames = normalizeQueryArray(req.query.fullNames).map(
+      (value) => String(value || "").trim(),
+    );
     const requestedDepartmentNames = normalizeQueryArray(
       req.query.departmentNames,
     );
@@ -729,6 +794,13 @@ export const getAllEmployees = async (req, res, next) => {
     const requestedUploadFilters = normalizeQueryArray(req.query.uploadStates)
       .map((value) => String(value || "").trim().toLowerCase())
       .filter((value) => value === "uploaded" || value === "not_uploaded");
+    const requestedDocumentExpiryFilters = normalizeQueryArray(
+      req.query.documentExpiryStatuses,
+    )
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter((value) =>
+        ["expired", "expiring-soon", "valid", "no-data"].includes(value),
+      );
     const requestedStatusCardFilters = normalizeQueryArray(req.query.statusCard)
       .map((value) => String(value || "").trim().toLowerCase())
       .filter((value) => value === "completed" || value === "draft");
@@ -739,7 +811,10 @@ export const getAllEmployees = async (req, res, next) => {
       requestedUploadFilters,
     );
     const canUseSqlStatusFiltering = Boolean(sqlStatusPredicate);
-    const requiresPostFiltering = requestedStatusCardFilters.length > 0;
+    const requiresPostFiltering =
+      requestedStatusCardFilters.length > 0 ||
+      requestedFullNames.length > 0 ||
+      requestedDocumentExpiryFilters.length > 0;
     const searchAndConditions = [];
 
     if (hasSearchQuery) {
@@ -1320,6 +1395,30 @@ export const getAllEmployees = async (req, res, next) => {
           return false;
         });
       });
+    }
+
+    if (requestedFullNames.length > 0) {
+      const selectedFullNames = new Set(requestedFullNames);
+      filteredRows = filteredRows.filter((employee) =>
+        selectedFullNames.has(
+          [
+            employee?.lastName,
+            employee?.firstName,
+            employee?.middleName || "",
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .trim(),
+        ),
+      );
+    }
+
+    if (requestedDocumentExpiryFilters.length > 0) {
+      filteredRows = filteredRows.filter((employee) =>
+        requestedDocumentExpiryFilters.includes(
+          calculateEmployeeDocumentExpiryStatus(employee),
+        ),
+      );
     }
 
     // Загружаем настройки полей для расчета statusCard
@@ -4151,6 +4250,7 @@ export const searchEmployees = async (req, res, next) => {
     const { query, counterpartyId, position } = req.query;
     const normalizedSearch = String(query || "").trim();
     const hasSearchQuery = normalizedSearch.length > 0;
+    const requestedCounterpartyIds = normalizeQueryArray(req.query.counterpartyIds);
 
     const where = { isDeleted: false, markedForDeletion: false };
     const userId = req.user.id;
@@ -4193,6 +4293,21 @@ export const searchEmployees = async (req, res, next) => {
       counterpartyMappingInclude.required = true;
     }
 
+    if (requestedCounterpartyIds.length > 0) {
+      const currentCounterpartyFilter = counterpartyMappingInclude.where?.counterpartyId;
+      const effectiveRequestedCounterpartyIds = Array.isArray(currentCounterpartyFilter)
+        ? requestedCounterpartyIds.filter((id) => currentCounterpartyFilter.includes(id))
+        : currentCounterpartyFilter
+          ? requestedCounterpartyIds.filter((id) => id === currentCounterpartyFilter)
+          : requestedCounterpartyIds;
+
+      counterpartyMappingInclude.where = {
+        ...(counterpartyMappingInclude.where || {}),
+        counterpartyId: effectiveRequestedCounterpartyIds,
+      };
+      counterpartyMappingInclude.required = true;
+    }
+
     if (position) {
       // Позиция теперь в таблице Position, а не поле position
       // Но здесь в старом коде было where.position. Исправим на связь.
@@ -4206,7 +4321,9 @@ export const searchEmployees = async (req, res, next) => {
 
     const employees = await Employee.findAll({
       where,
+      attributes: ["id", "firstName", "lastName", "middleName"],
       order: [
+        ["lastName", "ASC"],
         ["firstName", "ASC"],
         ["middleName", "ASC"],
       ],

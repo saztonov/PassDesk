@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Input, Button, Space, Checkbox } from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { Input, Button, Space, Checkbox, Spin } from "antd";
+import { employeeApi } from "@/entities/employee/api/employeeApi";
 
 const EMPTY_SELECTED_COUNTERPARTIES = [];
 
@@ -18,15 +19,82 @@ export const FullNameFilterDropdown = ({
   selectedCounterparties = EMPTY_SELECTED_COUNTERPARTIES,
 }) => {
   const [searchText, setSearchText] = useState("");
+  const [availableFullNames, setAvailableFullNames] = useState(
+    uniqueFilterFullNames,
+  );
+  const [loading, setLoading] = useState(false);
 
-  const filteredFullNames = uniqueFilterFullNames.filter((name) =>
-    name.toLowerCase().includes(searchText.toLowerCase()),
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadFullNames = async () => {
+      setLoading(true);
+      try {
+        const response = await employeeApi.search("", {
+          ...(selectedCounterparties.length > 0
+            ? {
+                counterpartyIds: JSON.stringify(selectedCounterparties),
+              }
+            : {}),
+        });
+        if (cancelled) {
+          return;
+        }
+
+        const nextFullNames = [
+          ...new Set(
+            (response?.data?.employees || [])
+              .map((employee) =>
+                [
+                  employee?.lastName,
+                  employee?.firstName,
+                  employee?.middleName || "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")
+                  .trim(),
+              )
+              .filter(Boolean),
+          ),
+        ].sort((left, right) =>
+          left.localeCompare(right, "ru", {
+            sensitivity: "base",
+            numeric: true,
+          }),
+        );
+
+        setAvailableFullNames(nextFullNames);
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("Ошибка загрузки списка сотрудников для фильтра ФИО:", error);
+          setAvailableFullNames(uniqueFilterFullNames);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadFullNames();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCounterparties, uniqueFilterFullNames]);
+
+  const filteredFullNames = useMemo(
+    () =>
+      availableFullNames.filter((name) =>
+        name.toLowerCase().includes(searchText.toLowerCase()),
+      ),
+    [availableFullNames, searchText],
   );
 
   const handleReset = () => {
     setSearchText("");
     setSelectedKeys([]);
-    clearFilters();
+    clearFilters?.();
     confirm();
   };
 
@@ -58,7 +126,11 @@ export const FullNameFilterDropdown = ({
       <div
         style={{ maxHeight: "200px", overflow: "auto", marginBottom: "8px" }}
       >
-        {filteredFullNames.length > 0 ? (
+        {loading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: "16px 0" }}>
+            <Spin size="small" />
+          </div>
+        ) : filteredFullNames.length > 0 ? (
           filteredFullNames.map((name) => (
             <div key={name} style={{ marginBottom: "4px" }}>
               <Checkbox
@@ -77,7 +149,7 @@ export const FullNameFilterDropdown = ({
           ))
         ) : (
           <div style={{ padding: "8px", color: "#999", textAlign: "center" }}>
-            {showHint ? "Нет сотрудников" : "Выберите контрагента"}
+            {showHint ? "Нет сотрудников у выбранного контрагента" : "Нет сотрудников"}
           </div>
         )}
       </div>

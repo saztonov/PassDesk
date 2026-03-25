@@ -57,8 +57,13 @@ export const employeeApi = {
   },
 
   // Поиск сотрудников
-  search: async (query) => {
-    const response = await api.get('/employees/search', { params: { query } });
+  search: async (query, params = {}) => {
+    const response = await api.get('/employees/search', {
+      params: {
+        query,
+        ...params,
+      },
+    });
     return response.data;
   },
 

@@ -9,7 +9,6 @@ import {
   CloseCircleFilled,
 } from "@ant-design/icons";
 import { getStatusPriority } from "@/entities/employee";
-import { calculateDocumentExpiryStatus } from "@/utils/documentExpiry";
 import { PositionFilterDropdown } from "./PositionFilterDropdown";
 import { FullNameFilterDropdown } from "./FullNameFilterDropdown";
 import { CounterpartyFilterDropdown } from "./CounterpartyFilterDropdown";
@@ -589,29 +588,6 @@ export const useEmployeeColumns = ({
           { text: "-  Нет данных", value: "no-data" },
         ],
         filteredValue: filters.documentExpiry || [],
-        onFilter: (value, record) => {
-          const dates = [
-            record.passportExpiryDate || record.passport_expiry_date,
-            record.kigEndDate || record.kig_end_date,
-            record.patentIssueDate || record.patent_issue_date
-              ? (() => {
-                  const issueDate = new Date(
-                    record.patentIssueDate || record.patent_issue_date,
-                  );
-                  const expiryDate = new Date(issueDate);
-                  expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-                  return expiryDate.toISOString();
-                })()
-              : null,
-          ].filter(Boolean);
-
-          if (dates.length === 0) {
-            return value === "no-data";
-          }
-
-          const status = calculateDocumentExpiryStatus(dates);
-          return status === value;
-        },
       },
       {
         title: "Статус",

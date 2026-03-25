@@ -155,22 +155,45 @@ const mapOcrSexToFormGender = (ocrValue) => {
 // Маппинг английских/таджикских/etc. названий стран → ISO3
 const COUNTRY_NAME_TO_ISO3 = {
   russia: "RUS", russian: "RUS", россия: "RUS",
-  tajikistan: "TJK", точикистон: "TJK",
-  uzbekistan: "UZB", узбекистан: "UZB",
+  tajikistan: "TJK", точикистон: "TJK", таджикистан: "TJK",
+  uzbekistan: "UZB", узбекистан: "UZB", ўзбекистон: "UZB",
   kazakhstan: "KAZ", казахстан: "KAZ",
   kyrgyzstan: "KGZ", кыргызстан: "KGZ", киргизия: "KGZ",
   azerbaijan: "AZE", азербайджан: "AZE",
   armenia: "ARM", армения: "ARM",
-  belarus: "BLR", belorussia: "BLR", беларусь: "BLR",
+  belarus: "BLR", belorussia: "BLR", беларусь: "BLR", белоруссия: "BLR",
   ukraine: "UKR", украина: "UKR",
-  moldova: "MDA", молдова: "MDA",
+  moldova: "MDA", молдова: "MDA", молдавия: "MDA",
   turkey: "TUR", türkiye: "TUR", турция: "TUR",
   serbia: "SRB", сербия: "SRB",
 };
 
 const resolveCitizenshipIdByOcrCode = (citizenships = [], ocrValue = "") => {
-  const normalized = normalizeString(ocrValue).toUpperCase();
-  if (!normalized) return null;
+  const normalizedRaw = normalizeString(ocrValue);
+  const normalized = normalizedRaw.toUpperCase();
+  if (!normalizedRaw) return null;
+
+  const normalizedLookup = normalizedRaw.toLowerCase();
+
+  const matchesCitizenshipName = (item, candidate) => {
+    if (!candidate) return false;
+
+    if (normalizeString(item?.name).toLowerCase() === candidate) {
+      return true;
+    }
+
+    if (
+      Array.isArray(item?.synonyms) &&
+      item.synonyms.some(
+        (synonym) =>
+          normalizeString(synonym?.synonym || synonym?.name).toLowerCase() === candidate,
+      )
+    ) {
+      return true;
+    }
+
+    return false;
+  };
 
   // 1. Точное совпадение по коду (с учётом RU/RUS)
   const byCode = citizenships.find((item) => {
@@ -184,8 +207,17 @@ const resolveCitizenshipIdByOcrCode = (citizenships = [], ocrValue = "") => {
   });
   if (byCode) return byCode.id;
 
+  // 1a. Точное совпадение по названию или синонимам
+  const byName = citizenships.find((item) =>
+    matchesCitizenshipName(item, normalizedLookup),
+  );
+  if (byName) return byName.id;
+
   // 2. Значение может быть "ТОЧИКИСТОН/TAJIKISTAN" — пробуем каждую часть
   const parts = normalized.split(/[/,|\s]+/).filter((p) => p.length >= 2);
+  const partsLookup = normalizedLookup
+    .split(/[/,|\s]+/)
+    .filter((part) => part.length >= 2);
 
   // 2a. Совпадение по коду для каждой части
   for (const part of parts) {
@@ -196,7 +228,15 @@ const resolveCitizenshipIdByOcrCode = (citizenships = [], ocrValue = "") => {
     if (byPart) return byPart.id;
   }
 
-  // 2b. Через таблицу английских/национальных названий → ISO3
+  // 2b. Совпадение по названию или синонимам для каждой части
+  for (const part of partsLookup) {
+    const byPartName = citizenships.find((item) =>
+      matchesCitizenshipName(item, part),
+    );
+    if (byPartName) return byPartName.id;
+  }
+
+  // 2c. Через таблицу английских/национальных названий → ISO3
   for (const part of parts) {
     const iso3 = COUNTRY_NAME_TO_ISO3[part.toLowerCase()];
     if (iso3) {

@@ -27,6 +27,8 @@ export const useEmployees = (
    */
   const fetchEmployees = useCallback(
     async (force = false) => {
+      const hasVisibleEmployees = employees.length > 0;
+
       // Проверяем кэш (если не force)
       if (!force) {
         const cached = useEmployeesStore
@@ -41,8 +43,8 @@ export const useEmployees = (
         }
       }
 
-      setLoading(true);
-      setBackgroundLoading(false);
+      setLoading(!hasVisibleEmployees);
+      setBackgroundLoading(hasVisibleEmployees);
       setError(null);
 
       try {
@@ -58,6 +60,7 @@ export const useEmployees = (
         setTotalCount(total);
         setEmployees(employeesPage);
         setLoading(false);
+        setBackgroundLoading(false);
         useEmployeesStore
           .getState()
           .setEmployees(employeesPage, total, {
@@ -75,7 +78,7 @@ export const useEmployees = (
         return [];
       }
     },
-    [activeOnly, queryParams],
+    [activeOnly, employees.length, queryParams],
   );
 
   useEffect(() => {

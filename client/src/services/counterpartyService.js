@@ -1,7 +1,12 @@
 import api from './api';
+import { deduplicateRequest } from "../utils/requestCache";
 
 export const counterpartyService = {
-  getAll: (params) => api.get('/counterparties', { params }),
+  getAll: (params) =>
+    deduplicateRequest(
+      `counterparties:getAll:${JSON.stringify(params || {})}`,
+      () => api.get('/counterparties', { params }),
+    ),
   getById: (id) => api.get(`/counterparties/${id}`),
   create: (data) => api.post('/counterparties', data),
   update: (id, data) => api.put(`/counterparties/${id}`, data),
@@ -10,6 +15,9 @@ export const counterpartyService = {
   generateRegistrationCode: (id) => api.post(`/counterparties/${id}/generate-registration-code`),
   getConstructionSites: (counterpartyId) => api.get(`/counterparties/${counterpartyId}/construction-sites`),
   saveConstructionSites: (counterpartyId, constructionSiteIds) => api.post(`/counterparties/${counterpartyId}/construction-sites`, { constructionSiteIds }),
-  getAvailable: () => api.get('/counterparties/available') // Список доступных контрагентов для текущего пользователя
+  getAvailable: () =>
+    deduplicateRequest(
+      "counterparties:getAvailable",
+      () => api.get('/counterparties/available'),
+    ) // Список доступных контрагентов для текущего пользователя
 };
-
