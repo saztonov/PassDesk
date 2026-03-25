@@ -9,19 +9,27 @@ export const useCounterpartyMap = ({ user, defaultCounterpartyId }) => {
   useEffect(() => {
     const loadCounterparties = async () => {
       try {
-        const isAdmin = user?.role === "admin";
-        const response = isAdmin
-          ? await counterpartyService.getAll({
-              limit: 10000,
-              page: 1,
-            })
-          : await counterpartyService.getAvailable();
+        let counterparties = [];
 
-        const counterparties = isAdmin
-          ? response?.data?.data?.counterparties ||
+        try {
+          const response = await counterpartyService.getAll({
+            limit: 10000,
+            page: 1,
+          });
+          counterparties =
+            response?.data?.data?.counterparties ||
             response?.data?.counterparties ||
-            []
-          : response?.data?.data || [];
+            [];
+        } catch (error) {
+          if (error?.response?.status && error.response.status !== 403) {
+            throw error;
+          }
+        }
+
+        if (counterparties.length === 0) {
+          const response = await counterpartyService.getAvailable();
+          counterparties = response?.data?.data || [];
+        }
 
         const nextMap = {};
         counterparties.forEach((counterparty) => {
@@ -49,6 +57,9 @@ export const useCounterpartyMap = ({ user, defaultCounterpartyId }) => {
         }
       } catch (error) {
         console.warn("Ошибка загрузки контрагентов:", error);
+        setCounterpartyMap({});
+        setCounterpartyOptions([]);
+        setHasSubcontractors(false);
       }
     };
 

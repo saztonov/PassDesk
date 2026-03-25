@@ -37,7 +37,6 @@ import { constructionSiteService } from "@/services/constructionSiteService";
 import { departmentService } from "@/services/departmentService";
 
 const { Text } = Typography;
-const { RangePicker } = DatePicker;
 
 const CARD_STATUS_LABEL = {
   active: { text: "Активна", color: "green" },
@@ -57,40 +56,6 @@ const READER_UID_FORMAT_STORAGE_KEY = "employee_skud_reader_uid_format";
 const SKUD_AUTO_REFRESH_INTERVAL_MS = 2000;
 const SKUD_AUTO_REFRESH_DURATION_MS = 30000;
 const SKUD_AUTO_REFRESH_MIN_TICKS = 3;
-const SKUD_EVENTS_LIMIT = 50;
-
-const EVENT_TYPE_LABELS = {
-  PASS_DETECTED: "Проход",
-  PASS_GRANTED: "Разрешенный проход",
-  PASS_DENIED: "Запрещенный проход",
-  PASS_ATTEMPT: "Попытка прохода",
-  AP_ONLINE_STATUS: "Статус контроллера",
-};
-
-const getDefaultEventRange = () => [
-  dayjs().subtract(6, "day").startOf("day"),
-  dayjs().endOf("day"),
-];
-
-const getEventTypeLabel = (value) => EVENT_TYPE_LABELS[value] || value || "—";
-
-const getAccessPointName = (record) => {
-  const explicitLabel = String(record?.accessPointLabel || "").trim();
-  if (explicitLabel) {
-    return explicitLabel;
-  }
-
-  const rawItem = record?.rawItem || record?.rawPayload?.rawItem || record?.rawPayload || {};
-  const value =
-    record?.accessPointName ||
-    rawItem?.additionalData?.accessPoint?.name ||
-    rawItem?.additionalData?.access_point?.name ||
-    rawItem?.data?.accessPointName ||
-    rawItem?.data?.access_point_name ||
-    null;
-
-  return value ? String(value).trim() : "";
-};
 
 const resolveCardExpirationFromCards = (rows = []) => {
   const candidates = Array.isArray(rows) ? rows : [];
@@ -148,18 +113,10 @@ const EmployeeSkudTab = ({ employee }) => {
   const autoRefreshStopAtRef = useRef(0);
   const autoRefreshRemainingTicksRef = useRef(0);
   const autoRefreshInFlightRef = useRef(false);
-  const eventsRequestSeqRef = useRef(0);
 
   // sync jobs
   const [syncJobs, setSyncJobs] = useState([]);
   const [syncJobsLoading, setSyncJobsLoading] = useState(false);
-  const [events, setEvents] = useState([]);
-  const [eventsLoading, setEventsLoading] = useState(false);
-  const [eventDateRange, setEventDateRange] = useState(getDefaultEventRange);
-  const [eventDirectionFilter, setEventDirectionFilter] = useState("all");
-  const [eventDecisionFilter, setEventDecisionFilter] = useState("all");
-  const [bindingExternalEmpId, setBindingExternalEmpId] = useState("");
-  const [bindingResolved, setBindingResolved] = useState(false);
 
   // подразделение Sigur
   const [sigurDepts, setSigurDepts] = useState([]);
@@ -190,9 +147,6 @@ const EmployeeSkudTab = ({ employee }) => {
   // если employeeCounterpartyMappings не загружены — рефетч (новый сотрудник)
   useEffect(() => {
     setFreshEmployee(null);
-    setBindingExternalEmpId("");
-    setBindingResolved(false);
-    setEvents([]);
     if (!employee?.id) return;
     if (Array.isArray(employee?.employeeCounterpartyMappings)) return;
     employeeApi.getById(employee.id)
@@ -260,67 +214,6 @@ const EmployeeSkudTab = ({ employee }) => {
       setSyncJobsLoading(false);
     }
   }, [employeeId]);
-
-  const loadEvents = useCallback(async () => {
-    if (!employeeId || !bindingResolved) return [];
-
-    const requestSeq = eventsRequestSeqRef.current + 1;
-    eventsRequestSeqRef.current = requestSeq;
-    setEventsLoading(true);
-    try {
-      const result = await skudService.getEvents({
-        ...(bindingExternalEmpId
-          ? { externalEmpId: bindingExternalEmpId }
-          : { employeeId }),
-        limit: SKUD_EVENTS_LIMIT,
-        offset: 0,
-        passageOnly: true,
-        useRawLog: eventDecisionFilter === "all",
-        ...(eventDirectionFilter !== "all" ? { direction: eventDirectionFilter } : {}),
-        ...(eventDecisionFilter === "allowed"
-          ? { allow: true }
-          : eventDecisionFilter === "denied"
-            ? { allow: false }
-            : {}),
-        ...(Array.isArray(eventDateRange) && eventDateRange[0] && eventDateRange[1]
-          ? {
-              from: eventDateRange[0].startOf("day").toISOString(),
-              to: eventDateRange[1].endOf("day").toISOString(),
-            }
-          : {}),
-        sortBy: "eventTime",
-        sortOrder: "desc",
-      });
-      if (eventsRequestSeqRef.current !== requestSeq) {
-        return result?.items || [];
-      }
-
-      setEvents(Array.isArray(result?.items) ? result.items : []);
-      return result?.items || [];
-    } catch (err) {
-      if (eventsRequestSeqRef.current !== requestSeq) {
-        return [];
-      }
-
-      message.error(
-        err?.response?.data?.message || "Не удалось загрузить журнал проходов сотрудника",
-      );
-      setEvents([]);
-      return [];
-    } finally {
-      if (eventsRequestSeqRef.current === requestSeq) {
-        setEventsLoading(false);
-      }
-    }
-  }, [
-    bindingResolved,
-    bindingExternalEmpId,
-    employeeId,
-    eventDateRange,
-    eventDecisionFilter,
-    eventDirectionFilter,
-    message,
-  ]);
 
   const stopAutoRefresh = useCallback(() => {
     if (typeof window !== "undefined" && autoRefreshTimeoutRef.current) {
@@ -401,10 +294,6 @@ const EmployeeSkudTab = ({ employee }) => {
     loadSyncJobs();
   }, [loadCards, loadSyncJobs]);
 
-  useEffect(() => {
-    void loadEvents();
-  }, [loadEvents]);
-
   useEffect(() => stopAutoRefresh, [stopAutoRefresh]);
 
   useEffect(() => {
@@ -415,7 +304,6 @@ const EmployeeSkudTab = ({ employee }) => {
   useEffect(() => {
     if (!employeeId) return;
 
-    setBindingResolved(false);
     setSigurDeptsLoading(true);
     Promise.all([
       skudService.getProviderDepartments().catch((error) => ({
@@ -444,9 +332,6 @@ const EmployeeSkudTab = ({ employee }) => {
       setInternalDepts(Array.isArray(deptList) ? deptList : []);
 
       const externalEmpId = String(bindingResult?.externalEmpId || "").trim();
-      setBindingExternalEmpId(
-        externalEmpId && !externalEmpId.startsWith("pending:") ? externalEmpId : "",
-      );
       const providerEmployee = externalEmpId && externalEmpId !== "pending"
         ? await skudService.getProviderEmployee(externalEmpId).catch(() => null)
         : null;
@@ -461,7 +346,6 @@ const EmployeeSkudTab = ({ employee }) => {
       setSelectedDeptId(resolvedDeptId != null ? String(resolvedDeptId) : null);
       setCardExpirationDate(storedCardExpirationDate ? dayjs(storedCardExpirationDate) : null);
     }).finally(() => {
-      setBindingResolved(true);
       setSigurDeptsLoading(false);
     });
   }, [employeeId, message]);
@@ -886,55 +770,6 @@ const EmployeeSkudTab = ({ employee }) => {
     },
   ];
 
-  const eventColumns = [
-    {
-      title: "Время",
-      dataIndex: "eventTime",
-      key: "eventTime",
-      width: 170,
-      render: (value) =>
-        value ? dayjs(value).format("DD.MM.YYYY HH:mm:ss") : "—",
-    },
-    {
-      title: "Точка прохода",
-      dataIndex: "accessPoint",
-      key: "accessPoint",
-      render: (value, record) => {
-        const pointName = getAccessPointName(record);
-        return pointName || (value !== null && value !== undefined ? `#${value}` : "—");
-      },
-    },
-    {
-      title: "Тип",
-      dataIndex: "eventType",
-      key: "eventType",
-      width: 170,
-      render: (value) => getEventTypeLabel(value),
-    },
-    {
-      title: "Напр.",
-      dataIndex: "direction",
-      key: "direction",
-      width: 110,
-      render: (value) => {
-        if (value === 1) return <Tag color="green">Вход</Tag>;
-        if (value === 2) return <Tag color="volcano">Выход</Tag>;
-        return <Tag>—</Tag>;
-      },
-    },
-    {
-      title: "Решение",
-      dataIndex: "allow",
-      key: "allow",
-      width: 130,
-      render: (value) => {
-        if (value === true) return <Tag color="green">Разрешено</Tag>;
-        if (value === false) return <Tag color="red">Отказ</Tag>;
-        return <Tag>—</Tag>;
-      },
-    },
-  ];
-
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
 
@@ -1167,67 +1002,6 @@ const EmployeeSkudTab = ({ employee }) => {
             Объекты будут сохранены вместе с выдачей пропуска
           </Text>
         )}
-      </div>
-
-      <Divider style={{ margin: "4px 0" }} />
-
-      <div>
-        <Space style={{ marginBottom: 6 }} align="center" wrap>
-          <Text strong>Журнал проходов</Text>
-          <RangePicker
-            value={eventDateRange}
-            onChange={(value) => setEventDateRange(value || getDefaultEventRange())}
-            format="DD.MM.YYYY"
-            allowEmpty={[false, false]}
-          />
-          <Select
-            style={{ width: 160 }}
-            value={eventDirectionFilter}
-            onChange={setEventDirectionFilter}
-            options={[
-              { value: "all", label: "Все направления" },
-              { value: "1", label: "Вход" },
-              { value: "2", label: "Выход" },
-            ]}
-          />
-          <Select
-            style={{ width: 160 }}
-            value={eventDecisionFilter}
-            onChange={setEventDecisionFilter}
-            options={[
-              { value: "all", label: "Все решения" },
-              { value: "allowed", label: "Разрешено" },
-              { value: "denied", label: "Отказ" },
-            ]}
-          />
-          <Button
-            size="small"
-            type="text"
-            icon={<SyncOutlined />}
-            onClick={loadEvents}
-            loading={eventsLoading}
-          />
-        </Space>
-        <Spin spinning={eventsLoading}>
-          {events.length === 0 && !eventsLoading ? (
-            <Text type="secondary">Нет событий по сотруднику за выбранный период</Text>
-          ) : (
-            <Table
-              dataSource={events}
-              columns={eventColumns}
-              rowKey={(record) =>
-                String(
-                  record.id ||
-                  record.logId ||
-                  `${record.eventTime || "no-time"}-${record.accessPoint || "no-point"}-${record.eventType || "no-type"}`,
-                )
-              }
-              size="small"
-              pagination={false}
-              scroll={{ x: 900 }}
-            />
-          )}
-        </Spin>
       </div>
 
       <Divider style={{ margin: "4px 0" }} />

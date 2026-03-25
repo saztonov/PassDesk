@@ -9,6 +9,7 @@ const LEGACY_PROFILE_CODES = {
   DEFAULT_RU_BY: "default_ru_by",
   DEFAULT_FOREIGN: "default_foreign",
 };
+const CATCH_ALL_DOCUMENT_CODE = "other";
 
 export const profileLabels = {
   [PROFILE_CODES.EXTERNAL]: "Все контрагенты (кроме дефолтного)",
@@ -251,6 +252,22 @@ const filterCodesByAllowed = (codes = [], allowedCodeSet = null) => {
   return codes.filter((code) => allowedCodeSet.has(code));
 };
 
+const ensureCatchAllDocumentCode = (codes = [], allowedCodeSet = null) => {
+  if (
+    allowedCodeSet &&
+    allowedCodeSet.size > 0 &&
+    !allowedCodeSet.has(CATCH_ALL_DOCUMENT_CODE)
+  ) {
+    return codes;
+  }
+
+  if (codes.includes(CATCH_ALL_DOCUMENT_CODE)) {
+    return codes;
+  }
+
+  return [...codes, CATCH_ALL_DOCUMENT_CODE];
+};
+
 const getProfileInputCodes = (input, profileCode) => {
   if (Array.isArray(input[profileCode])) {
     return input[profileCode];
@@ -316,11 +333,16 @@ export const normalizeDocumentProfilesConfig = ({
       allowedCodeSet,
     );
     const hasExplicitProfile = hasExplicitProfileConfig(input, code);
-    accumulator[code] = hasExplicitProfile
+    const resolvedCodes = hasExplicitProfile
       ? inputCodes
       : inputCodes.length > 0
         ? inputCodes
         : defaultCodes;
+
+    accumulator[code] = ensureCatchAllDocumentCode(
+      resolvedCodes,
+      allowedCodeSet,
+    );
     return accumulator;
   }, {});
 };

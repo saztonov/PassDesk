@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 const STORAGE_KEY = "employee_table_filters";
 
@@ -21,7 +21,7 @@ export const useTableFilters = () => {
   const [filters, setFilters] = useState(getInitialFilters);
 
   // Сохранение фильтров при изменении
-  const handleFiltersChange = (newFilters) => {
+  const handleFiltersChange = useCallback((newFilters) => {
     // Фильтруем фильтры: оставляем только те, у которых есть значения
     const filteredFilters = {};
     Object.keys(newFilters).forEach((key) => {
@@ -45,13 +45,13 @@ export const useTableFilters = () => {
     } else {
       localStorage.removeItem(STORAGE_KEY);
     }
-  };
+  }, []);
 
   // Очистка фильтров
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setFilters({});
     localStorage.removeItem(STORAGE_KEY);
-  };
+  }, []);
 
   return {
     filters,

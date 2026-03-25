@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Input, Button, Space, Checkbox, Spin } from "antd";
 import { employeeApi } from "@/entities/employee/api/employeeApi";
 
@@ -15,14 +15,21 @@ export const FullNameFilterDropdown = ({
   confirm,
   clearFilters,
   uniqueFilterFullNames,
-  resetTrigger: _resetTrigger,
+  resetTrigger = 0,
   selectedCounterparties = EMPTY_SELECTED_COUNTERPARTIES,
 }) => {
+  const selectedValues = Array.isArray(selectedKeys) ? selectedKeys : [];
   const [searchText, setSearchText] = useState("");
   const [availableFullNames, setAvailableFullNames] = useState(
     uniqueFilterFullNames,
   );
   const [loading, setLoading] = useState(false);
+  const fallbackFullNamesRef = useRef(uniqueFilterFullNames);
+  const selectedCounterpartiesKey = JSON.stringify(selectedCounterparties || []);
+
+  useEffect(() => {
+    fallbackFullNamesRef.current = uniqueFilterFullNames;
+  }, [uniqueFilterFullNames]);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +74,7 @@ export const FullNameFilterDropdown = ({
       } catch (error) {
         if (!cancelled) {
           console.warn("Ошибка загрузки списка сотрудников для фильтра ФИО:", error);
-          setAvailableFullNames(uniqueFilterFullNames);
+          setAvailableFullNames(fallbackFullNamesRef.current);
         }
       } finally {
         if (!cancelled) {
@@ -81,7 +88,11 @@ export const FullNameFilterDropdown = ({
     return () => {
       cancelled = true;
     };
-  }, [selectedCounterparties, uniqueFilterFullNames]);
+  }, [selectedCounterpartiesKey]);
+
+  useEffect(() => {
+    setSearchText("");
+  }, [resetTrigger]);
 
   const filteredFullNames = useMemo(
     () =>
@@ -134,12 +145,12 @@ export const FullNameFilterDropdown = ({
           filteredFullNames.map((name) => (
             <div key={name} style={{ marginBottom: "4px" }}>
               <Checkbox
-                checked={selectedKeys.includes(name)}
+                checked={selectedValues.includes(name)}
                 onChange={(e) => {
                   if (e.target.checked) {
-                    setSelectedKeys([...selectedKeys, name]);
+                    setSelectedKeys([...selectedValues, name]);
                   } else {
-                    setSelectedKeys(selectedKeys.filter((v) => v !== name));
+                    setSelectedKeys(selectedValues.filter((v) => v !== name));
                   }
                 }}
               >

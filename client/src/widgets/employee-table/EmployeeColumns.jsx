@@ -9,11 +9,15 @@ import {
   CloseCircleFilled,
 } from "@ant-design/icons";
 import { getStatusPriority } from "@/entities/employee";
-import { PositionFilterDropdown } from "./PositionFilterDropdown";
 import { FullNameFilterDropdown } from "./FullNameFilterDropdown";
 import { CounterpartyFilterDropdown } from "./CounterpartyFilterDropdown";
 import { CreatedAtFilterDropdown } from "./CreatedAtFilterDropdown";
 import { DocumentExpiryStatus } from "./DocumentExpiryStatus";
+import { AsyncCheckboxFilterDropdown } from "./AsyncCheckboxFilterDropdown";
+import positionService from "@/services/positionService";
+import { citizenshipService } from "@/services/citizenshipService";
+import { constructionSiteService } from "@/services/constructionSiteService";
+import { departmentApi } from "@/entities/department";
 
 const getEmployeeMappings = (record) =>
   Array.isArray(record?.employeeCounterpartyMappings)
@@ -106,10 +110,6 @@ export const useEmployeeColumns = ({
   onConstructionSitesEdit, // Новый callback для редактирования объектов
   resetTrigger = 0, // Триггер для сброса фильтров
 }) => {
-  const departmentFilterOptions = [
-    ...new Set((departments || []).map((dept) => dept?.name).filter(Boolean)),
-  ].sort();
-
   return useMemo(() => {
     const columns = [
       {
@@ -178,11 +178,19 @@ export const useEmployeeColumns = ({
           return aPos.localeCompare(bPos);
         },
         filterDropdown: (props) => (
-          <PositionFilterDropdown
+          <AsyncCheckboxFilterDropdown
             key={`position-filter-${resetTrigger}`}
             {...props}
-            uniqueFilterPositions={filterOptions.positions}
             resetTrigger={resetTrigger}
+            placeholder="Поиск должности..."
+            emptyText="Должности не найдены"
+            cacheKey="employee-filter:positions"
+            fallbackOptions={filterOptions.positions}
+            loadOptions={async () => {
+              const response = await positionService.getAll({ limit: 10000 });
+              const positions = response?.data?.data?.positions || [];
+              return positions.map((position) => position?.name).filter(Boolean);
+            }}
           />
         ),
         filterIcon: (filtered) => (
@@ -255,14 +263,26 @@ export const useEmployeeColumns = ({
                   "";
                 return aDept.localeCompare(bDept);
               },
-              filters: departmentFilterOptions.map((dept) => ({
-                text: dept,
-                value: dept,
-              })),
-              filterSearch: (input, filter) =>
-                String(filter?.text || "")
-                  .toLowerCase()
-                  .includes(String(input || "").toLowerCase()),
+              filterDropdown: (props) => (
+                <AsyncCheckboxFilterDropdown
+                  key={`department-filter-${resetTrigger}`}
+                  {...props}
+                  resetTrigger={resetTrigger}
+                  placeholder="Поиск подразделения..."
+                  emptyText="Подразделения не найдены"
+                  cacheKey="employee-filter:departments"
+                  fallbackOptions={(departments || [])
+                    .map((department) => department?.name)
+                    .filter(Boolean)}
+                  loadOptions={async () => {
+                    const response = await departmentApi.getAll();
+                    const availableDepartments = response?.departments || [];
+                    return availableDepartments
+                      .map((department) => department?.name)
+                      .filter(Boolean);
+                  }}
+                />
+              ),
               filteredValue: filters.department || [],
             },
           ]
@@ -422,11 +442,46 @@ export const useEmployeeColumns = ({
             "";
           return aSite.localeCompare(bSite);
         },
-        filters:
-          filterOptions.constructionSites?.map((site) => ({
-            text: site,
-            value: site,
-          })) || [],
+        filterDropdown: (props) => (
+          <AsyncCheckboxFilterDropdown
+            key={`construction-site-filter-${resetTrigger}`}
+            {...props}
+            resetTrigger={resetTrigger}
+            placeholder="Поиск объекта..."
+            emptyText="Объекты не найдены"
+            cacheKey="employee-filter:construction-sites"
+            fallbackOptions={filterOptions.constructionSites}
+            loadOptions={async () => {
+              const labels = [];
+              let page = 1;
+              let totalPages = 1;
+
+              while (page <= totalPages) {
+                const response = await constructionSiteService.getAll({
+                  limit: 100,
+                  page,
+                });
+                const payload = response?.data?.data || {};
+                const sites = Array.isArray(payload.constructionSites)
+                  ? payload.constructionSites
+                  : [];
+
+                labels.push(
+                  ...sites
+                    .map((site) =>
+                      String(site?.shortName || site?.name || site?.fullName || "").trim(),
+                    )
+                    .filter(Boolean),
+                );
+
+                totalPages = Number(payload.pagination?.pages || 1);
+                page += 1;
+              }
+
+              return labels;
+            }}
+          />
+        ),
         filteredValue: filters.constructionSite || [],
       },
       {
@@ -441,10 +496,24 @@ export const useEmployeeColumns = ({
           const bCit = b.citizenship?.name || "";
           return aCit.localeCompare(bCit);
         },
-        filters: filterOptions.citizenships.map((cit) => ({
-          text: cit,
-          value: cit,
-        })),
+        filterDropdown: (props) => (
+          <AsyncCheckboxFilterDropdown
+            key={`citizenship-filter-${resetTrigger}`}
+            {...props}
+            resetTrigger={resetTrigger}
+            placeholder="Поиск гражданства..."
+            emptyText="Гражданства не найдены"
+            cacheKey="employee-filter:citizenships"
+            fallbackOptions={filterOptions.citizenships}
+            loadOptions={async () => {
+              const response = await citizenshipService.getAll();
+              const citizenships = response?.data?.data?.citizenships || [];
+              return citizenships
+                .map((citizenship) => citizenship?.name)
+                .filter(Boolean);
+            }}
+          />
+        ),
         filteredValue: filters.citizenship || [],
       },
       {
@@ -731,6 +800,5 @@ export const useEmployeeColumns = ({
     resetTrigger,
     canMarkForDeletion,
     onMarkForDeletion,
-    departmentFilterOptions,
   ]);
 };

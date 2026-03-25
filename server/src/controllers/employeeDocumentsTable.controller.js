@@ -41,6 +41,7 @@ const LEGACY_PROFILE_CODES = {
   DEFAULT_RU_BY: "default_ru_by",
   DEFAULT_FOREIGN: "default_foreign",
 };
+const CATCH_ALL_DOCUMENT_CODE = "other";
 
 const BASE_CONSENTS = [
   "consent",
@@ -163,6 +164,14 @@ const normalizeDocumentProfilesConfig = (rawConfig) => {
     return false;
   };
 
+  const ensureCatchAllDocumentCode = (codes = []) => {
+    const normalizedCodes = toUniqueCodes(codes);
+    if (normalizedCodes.includes(CATCH_ALL_DOCUMENT_CODE)) {
+      return normalizedCodes;
+    }
+    return [...normalizedCodes, CATCH_ALL_DOCUMENT_CODE];
+  };
+
   return Object.values(PROFILE_CODES).reduce((acc, profileCode) => {
     const ensureRequiredByProfile = (codes = []) => {
       const requiredCodes = REQUIRED_PROFILE_CODES[profileCode] || [];
@@ -178,9 +187,11 @@ const normalizeDocumentProfilesConfig = (rawConfig) => {
       return result;
     };
 
-    const inputCodes = ensureRequiredByProfile(getInputCodes(profileCode));
-    const fallbackCodes = ensureRequiredByProfile(
-      DEFAULT_DOCUMENT_PROFILES[profileCode] || [],
+    const inputCodes = ensureCatchAllDocumentCode(
+      ensureRequiredByProfile(getInputCodes(profileCode)),
+    );
+    const fallbackCodes = ensureCatchAllDocumentCode(
+      ensureRequiredByProfile(DEFAULT_DOCUMENT_PROFILES[profileCode] || []),
     );
     acc[profileCode] = hasExplicitProfile(profileCode)
       ? inputCodes

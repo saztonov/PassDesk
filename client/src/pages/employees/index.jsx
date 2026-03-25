@@ -286,8 +286,6 @@ const EmployeesPage = () => {
     skipSearchFiltering: true,
   });
   const filterOptions = useEmployeeTableFilterOptions({
-    user,
-    defaultCounterpartyId,
     counterpartyOptions,
     uniqueFilters,
   });

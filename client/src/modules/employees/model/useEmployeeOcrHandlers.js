@@ -21,9 +21,6 @@ const toFileId = (responseData = {}, fallbackFileId = null) =>
   normalizeString(responseData.fileId || responseData?.data?.fileId) ||
   fallbackFileId;
 
-const FIO_FIELDS = ["lastName", "firstName", "middleName"];
-const PRIMARY_FIO_DOCUMENT_TYPES = new Set(["passport_translation"]);
-
 export const useEmployeeOcrHandlers = ({
   form,
   citizenships = [],
@@ -90,7 +87,6 @@ export const useEmployeeOcrHandlers = ({
           : normalizeString(form.getFieldValue("passportType") || "");
 
       const ocrDocumentType = resolveOcrDocumentTypeByFile(docType, passportType);
-      const isPrimaryFioSource = PRIMARY_FIO_DOCUMENT_TYPES.has(docType);
 
       if (!fileId || !employeeId || !ocrDocumentType) {
         return;
@@ -151,8 +147,6 @@ export const useEmployeeOcrHandlers = ({
         const { autoFillPatch, conflicts } = buildOcrApplyPlan({
           currentValues,
           ocrPatch: formPatch,
-          overwriteFields: isPrimaryFioSource ? FIO_FIELDS : [],
-          skipConflictFields: isPrimaryFioSource ? [] : FIO_FIELDS,
         });
 
         if (ocrDocumentType === "foreign_passport") {
