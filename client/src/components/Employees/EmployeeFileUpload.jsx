@@ -231,6 +231,11 @@ const EmployeeFileUpload = ({
     }
   };
 
+  const stopFileActionEvent = (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+  };
+
   // Скачивание файла из просмотрщика
   const handleDownloadFromViewer = async () => {
     if (viewingFile) {
@@ -347,14 +352,20 @@ const EmployeeFileUpload = ({
                 <Button
                   icon={<EyeOutlined />}
                   size="small"
-                  onClick={() => handleView(file)}
+                  onClick={(event) => {
+                    stopFileActionEvent(event);
+                    handleView(file);
+                  }}
                 />
               </Tooltip>,
               <Tooltip key="download" title="Скачать">
                 <Button
                   icon={<DownloadOutlined />}
                   size="small"
-                  onClick={() => handleDownload(file)}
+                  onClick={(event) => {
+                    stopFileActionEvent(event);
+                    handleDownload(file);
+                  }}
                 />
               </Tooltip>,
               !readonly && (
@@ -362,12 +373,22 @@ const EmployeeFileUpload = ({
                   key="delete"
                   title="Удалить файл?"
                   description="Это действие нельзя отменить"
-                  onConfirm={() => handleDelete(file.id)}
+                  onConfirm={(event) => {
+                    stopFileActionEvent(event);
+                    handleDelete(file.id);
+                  }}
+                  onCancel={stopFileActionEvent}
                   okText="Удалить"
                   cancelText="Отмена"
                 >
                   <Tooltip title="Удалить">
-                    <Button icon={<DeleteOutlined />} size="small" danger />
+                    <Button
+                      icon={<DeleteOutlined />}
+                      size="small"
+                      danger
+                      onClick={stopFileActionEvent}
+                      onMouseDown={stopFileActionEvent}
+                    />
                   </Tooltip>
                 </Popconfirm>
               ),

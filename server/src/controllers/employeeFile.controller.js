@@ -246,10 +246,13 @@ export const uploadEmployeeFiles = async (req, res, next) => {
           message: error.message,
           stack: error.stack,
         });
+        const publicErrorMessage =
+          String(error?.message || "").trim() ||
+          String(error?.code || "").trim() ||
+          "Ошибка сохранения файла";
         errors.push({
           fileName: file.originalname,
-          error:
-            process.env.NODE_ENV === "development" ? error.message : undefined,
+          error: publicErrorMessage,
         });
         // Продолжаем загрузку остальных файлов
       }

@@ -151,6 +151,11 @@ const stopRowClick = (event) => {
   event.stopPropagation();
 };
 
+const stopRowInteraction = (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+};
+
 const DocumentTypeUploaderItem = ({
   docType,
   filesOfType,
@@ -281,7 +286,11 @@ const DocumentTypeUploaderItem = ({
                     </Popover>
                   }
                 />
-                <Space size="small">
+                <Space
+                  size="small"
+                  onClick={stopRowClick}
+                  onMouseDown={stopRowInteraction}
+                >
                   <Button
                     type="text"
                     size="small"
@@ -304,7 +313,11 @@ const DocumentTypeUploaderItem = ({
                     <Popconfirm
                       title="Удалить файл?"
                       description="Вы уверены, что хотите удалить этот файл?"
-                      onConfirm={() => onDeleteFile(file.id)}
+                      onConfirm={(event) => {
+                        stopRowInteraction(event);
+                        onDeleteFile(file.id);
+                      }}
+                      onCancel={stopRowInteraction}
                       okText="Да"
                       cancelText="Отмена"
                     >
@@ -314,6 +327,7 @@ const DocumentTypeUploaderItem = ({
                         danger
                         icon={<DeleteOutlined />}
                         onClick={stopRowClick}
+                        onMouseDown={stopRowInteraction}
                       />
                     </Popconfirm>
                   ) : null}
