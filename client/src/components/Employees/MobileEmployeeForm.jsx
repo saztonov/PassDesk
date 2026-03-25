@@ -79,6 +79,7 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     formatBlankNumber,
     getFieldProps,
   } = useEmployeeForm(employee, true, onSuccess);
+  const watchedCitizenshipId = Form.useWatch("citizenshipId", form);
   const antiAutofillIds = useMemo(() => createAntiAutofillIds(), []);
   const {
     conflictSummary,
@@ -216,7 +217,15 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
           form.getFieldValue("counterpartyId") || user?.counterpartyId || null,
       }),
       defaultCounterpartyId,
-      citizenship: selectedCitizenship || employee?.citizenship || null,
+      citizenship:
+        watchedCitizenshipId === undefined
+          ? selectedCitizenship || employee?.citizenship || null
+          : watchedCitizenshipId
+            ? selectedCitizenship ||
+              (employee?.citizenship?.id === watchedCitizenshipId
+                ? employee.citizenship
+                : null)
+            : null,
     }),
     documentProfilesConfig,
     ensureEmployeeId,

@@ -80,6 +80,7 @@ export const uploadEmployeeFiles = async (req, res, next) => {
       "snils_card",
       "kig",
       "diploma",
+      "migration_card",
       "arrival_notice",
       "patent_payment_receipt",
       "insurance_policy",

@@ -38,7 +38,11 @@ const useEmployeeReferences = ({
   const fetchDefaultCounterparty = useCallback(async () => {
     try {
       const { fetchSettings } = useReferencesStore.getState();
-      const settings = await fetchSettings();
+      const cachedSettings = useReferencesStore.getState().settings;
+      const shouldForceRefresh =
+        !cachedSettings?.defaultCounterpartyId ||
+        !cachedSettings?.employeeDocumentProfiles;
+      const settings = await fetchSettings(shouldForceRefresh);
       const dcId = settings?.defaultCounterpartyId;
       setDefaultCounterpartyId(dcId);
       return dcId;

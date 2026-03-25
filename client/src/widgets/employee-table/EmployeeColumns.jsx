@@ -276,7 +276,8 @@ export const useEmployeeColumns = ({
                     .filter(Boolean)}
                   loadOptions={async () => {
                     const response = await departmentApi.getAll();
-                    const availableDepartments = response?.departments || [];
+                    const availableDepartments =
+                      response?.data?.departments || response?.departments || [];
                     return availableDepartments
                       .map((department) => department?.name)
                       .filter(Boolean);

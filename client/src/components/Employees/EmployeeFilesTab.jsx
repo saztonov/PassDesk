@@ -8,6 +8,8 @@ const EmployeeFilesTab = ({
   employee,
   defaultCounterpartyId,
   selectedCitizenship,
+  selectedCitizenshipId,
+  selectedCounterpartyId,
   userCounterpartyId,
   onFilesUpdated,
   onUploadComplete,
@@ -21,14 +23,30 @@ const EmployeeFilesTab = ({
   readonly = false,
 }) => {
   const counterpartyId = resolveEmployeeCounterpartyId({
-    employee,
-    fallbackCounterpartyId: userCounterpartyId,
+    employee: selectedCounterpartyId
+      ? {
+          ...employee,
+          counterpartyId: selectedCounterpartyId,
+          employeeCounterpartyMappings: [],
+        }
+      : employee,
+    fallbackCounterpartyId: selectedCounterpartyId || userCounterpartyId,
   });
+
+  const effectiveCitizenship =
+    selectedCitizenshipId === undefined
+      ? selectedCitizenship || employee?.citizenship || null
+      : selectedCitizenshipId
+        ? selectedCitizenship ||
+          (employee?.citizenship?.id === selectedCitizenshipId
+            ? employee.citizenship
+            : null)
+        : null;
 
   const profileCode = resolveEmployeeDocumentProfile({
     counterpartyId,
     defaultCounterpartyId,
-    citizenship: selectedCitizenship || employee?.citizenship || null,
+    citizenship: effectiveCitizenship,
   });
 
   return (

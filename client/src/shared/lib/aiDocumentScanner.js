@@ -1,5 +1,9 @@
 import ocrService from "@/services/ocrService";
 
+export const AI_DOCUMENT_SCAN_ENABLED = false;
+
+export const isAiDocumentScanEnabled = () => AI_DOCUMENT_SCAN_ENABLED;
+
 const clamp = (value, min, max) => {
   if (value < min) return min;
   if (value > max) return max;
@@ -285,6 +289,10 @@ export const createAiScannedDocument = async ({
   file,
   documentType,
 }) => {
+  if (!AI_DOCUMENT_SCAN_ENABLED) {
+    return file;
+  }
+
   const fileNameBase = String(file.name || "document")
     .replace(/\.[^.]+$/, "")
     .replace(/[^\w.-]+/g, "_");

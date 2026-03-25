@@ -14,6 +14,8 @@ export const useEmployeeFormModalTabs = ({
   form,
   employee,
   selectedCitizenship,
+  selectedCitizenshipId,
+  selectedCounterpartyId,
   message,
   onCancel,
   user,
@@ -132,6 +134,8 @@ export const useEmployeeFormModalTabs = ({
           <EmployeeFilesTab
             employee={employee}
             selectedCitizenship={selectedCitizenship}
+            selectedCitizenshipId={selectedCitizenshipId}
+            selectedCounterpartyId={selectedCounterpartyId}
             defaultCounterpartyId={defaultCounterpartyId}
             userCounterpartyId={user?.counterpartyId || null}
             onFilesUpdated={handleFilesChange}
@@ -171,6 +175,8 @@ export const useEmployeeFormModalTabs = ({
     conflictSummary,
     citizenships,
     selectedCitizenship,
+    selectedCitizenshipId,
+    selectedCounterpartyId,
     dateFormat,
     defaultCounterpartyId,
     employee,

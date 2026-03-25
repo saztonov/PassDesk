@@ -9,7 +9,10 @@ import {
 } from "@ant-design/icons";
 import { employeeService } from "@/services/employeeService";
 import DocumentCaptureModal from "@/modules/employees/ui/DocumentCaptureModal";
-import createAiScannedDocument from "@/shared/lib/aiDocumentScanner";
+import {
+  createAiScannedDocument,
+  isAiDocumentScanEnabled,
+} from "@/shared/lib/aiDocumentScanner";
 import {
   ALLOWED_MIME_TYPES,
   SUPPORTED_FORMATS,
@@ -189,7 +192,7 @@ const EmployeeDocumentUpload = ({
       const alreadyPreparedScan =
         file instanceof File && /-scan\.(jpe?g|png|webp)$/i.test(file.name);
 
-      if (isImageFile && !alreadyPreparedScan) {
+      if (isAiDocumentScanEnabled() && isImageFile && !alreadyPreparedScan) {
         const aiScanMessageKey = `ai-scan-${documentType}`;
         message.loading({
           content: "AI: подготавливаем скан документа...",

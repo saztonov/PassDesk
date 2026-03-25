@@ -66,6 +66,7 @@ const EmployeeFormModal = ({
   const screens = useBreakpoint();
   const [form] = Form.useForm();
   const watchedCitizenshipId = Form.useWatch("citizenshipId", form);
+  const watchedCounterpartyId = Form.useWatch("counterpartyId", form);
   const antiAutofillIds = useMemo(() => createAntiAutofillIds(), []);
   const [citizenships, setCitizenships] = useState([]);
   const [positions, setPositions] = useState([]);
@@ -323,6 +324,8 @@ const EmployeeFormModal = ({
     form,
     employee,
     selectedCitizenship,
+    selectedCitizenshipId: watchedCitizenshipId,
+    selectedCounterpartyId: watchedCounterpartyId,
     message,
     onCancel,
     user,
@@ -622,6 +625,8 @@ const EmployeeFormModal = ({
               <EmployeeFilesTab
                 employee={employee}
                 selectedCitizenship={selectedCitizenship}
+                selectedCitizenshipId={watchedCitizenshipId}
+                selectedCounterpartyId={watchedCounterpartyId}
                 defaultCounterpartyId={defaultCounterpartyId}
                 userCounterpartyId={user?.counterpartyId || null}
                 onFilesUpdated={handleFilesChange}

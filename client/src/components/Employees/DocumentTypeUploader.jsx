@@ -13,7 +13,10 @@ import {
 } from "@/modules/employees/lib/documentTypeUploaderUtils";
 import { applyDocumentTypeProfile } from "@/modules/employees/lib/documentTypeProfiles";
 import { SUPPORTED_FORMATS } from "@/shared/constants/fileTypes";
-import createAiScannedDocument from "@/shared/lib/aiDocumentScanner";
+import {
+  createAiScannedDocument,
+  isAiDocumentScanEnabled,
+} from "@/shared/lib/aiDocumentScanner";
 
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 
@@ -34,7 +37,7 @@ const isImageFile = (file) => {
 };
 
 const prepareFileForUpload = async ({ file, documentType, messageApi }) => {
-  if (!isImageFile(file)) {
+  if (!isAiDocumentScanEnabled() || !isImageFile(file)) {
     return file;
   }
 

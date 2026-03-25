@@ -248,7 +248,10 @@ export const useReferencesStore = create((set, get) => ({
           formConfigExternal: null,
           settingsError: null,
           settingsLoading: false,
-          settingsLastFetch: Date.now(),
+          // Не кэшируем fallback после 401/403.
+          // Иначе следующий успешный запрос не произойдёт до истечения TTL,
+          // а UI останется без defaultCounterpartyId и профилей документов.
+          settingsLastFetch: null,
         });
 
         return fallback;
