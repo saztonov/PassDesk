@@ -14,6 +14,8 @@ const paginationValidation = [
   query("offset").optional().isInt({ min: 0 }),
   query("from").optional().isISO8601(),
   query("to").optional().isISO8601(),
+  query("employeeId").optional().isUUID(),
+  query("externalEmpId").optional().isString().trim().notEmpty(),
   query("eventType").optional().isString().trim().notEmpty(),
   query("direction").optional().isInt({ min: 1, max: 2 }),
   query("allow").optional().isBoolean(),

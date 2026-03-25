@@ -146,6 +146,8 @@ const buildEventsCacheKey = (query = {}) =>
   JSON.stringify({
     from: query.from || null,
     to: query.to || null,
+    employeeId: query.employeeId || null,
+    externalEmpId: query.externalEmpId || null,
     accessPoint: query.accessPoint || null,
     direction: query.direction || null,
     eventType: query.eventType || null,
@@ -676,8 +678,23 @@ const getLiveEventWindows = () => [
   30 * 24 * 60 * 60 * 1000,
 ];
 
-const getLiveEventRawLimit = ({ limit, direction, allow, departmentId, passageOnly }) => {
-  if (direction !== undefined || allow !== undefined || departmentId || passageOnly) {
+const getLiveEventRawLimit = ({
+  limit,
+  employeeId,
+  externalEmpId,
+  direction,
+  allow,
+  departmentId,
+  passageOnly,
+}) => {
+  if (
+    employeeId ||
+    externalEmpId ||
+    direction !== undefined ||
+    allow !== undefined ||
+    departmentId ||
+    passageOnly
+  ) {
     return Math.max(limit * 5, 500);
   }
   return limit;
@@ -779,6 +796,8 @@ const normalizeRawProviderEvent = (item) => ({
 const buildProviderEventView = async ({
   from,
   to,
+  employeeId,
+  externalEmpId,
   accessPoint,
   direction,
   eventType,
@@ -798,9 +817,14 @@ const buildProviderEventView = async ({
     accessPoint === undefined || accessPoint === null || accessPoint === ""
       ? undefined
       : Number.parseInt(String(accessPoint), 10);
+  const accessObjectId =
+    externalEmpId === undefined || externalEmpId === null || externalEmpId === ""
+      ? undefined
+      : Number.parseInt(String(externalEmpId), 10) || String(externalEmpId);
   const canUseRawEventLog =
     useRawLog &&
     allow === undefined &&
+    !employeeId &&
     !departmentId &&
     passageOnly &&
     (!eventType || eventType === "PASS_DETECTED");
@@ -814,6 +838,7 @@ const buildProviderEventView = async ({
       endTime,
       eventType: eventType || undefined,
       accessPointId,
+      accessObjectId,
       limit: limitValue,
       offset: offsetValue,
     });
@@ -854,11 +879,21 @@ const buildProviderEventView = async ({
 
   const finalizeItems = async (items, { hasMore = false } = {}) => {
     const enrichedItems = await enrichProviderEvents({ items, provider });
-    const departmentFiltered = departmentId
+    const employeeFiltered = employeeId
       ? enrichedItems.filter(
-          (item) => String(item?.departmentId || "") === String(departmentId),
+          (item) => String(item?.employeeId || "") === String(employeeId),
         )
       : enrichedItems;
+    const externalFiltered = externalEmpId
+      ? employeeFiltered.filter(
+          (item) => String(item?.externalEmpId || "") === String(externalEmpId),
+        )
+      : employeeFiltered;
+    const departmentFiltered = departmentId
+      ? externalFiltered.filter(
+          (item) => String(item?.departmentId || "") === String(departmentId),
+        )
+      : externalFiltered;
     const visibleItems = departmentFiltered.slice(offset, offset + limit);
 
     return {
@@ -875,6 +910,7 @@ const buildProviderEventView = async ({
       startTime: from || undefined,
       endTime,
       accessPointId,
+      accessObjectId,
       limit: rawLimit,
       offset,
       sortBy: "timestamp",
@@ -904,6 +940,8 @@ const buildProviderEventView = async ({
     const retainLimit = Math.max(
       getLiveEventRawLimit({
         limit: requiredCount,
+        employeeId,
+        externalEmpId,
         direction,
         allow,
         departmentId,
@@ -951,6 +989,8 @@ const buildProviderEventView = async ({
     Math.max(
       getLiveEventRawLimit({
         limit: requiredCount,
+        employeeId,
+        externalEmpId,
         direction,
         allow,
         departmentId,
@@ -1086,6 +1126,8 @@ export const skudController = {
       const data = await buildProviderEventView({
         from: req.query.from,
         to: req.query.to,
+        employeeId: req.query.employeeId,
+        externalEmpId: req.query.externalEmpId,
         accessPoint: req.query.accessPoint,
         direction: req.query.direction,
         eventType: req.query.eventType,

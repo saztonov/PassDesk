@@ -112,6 +112,7 @@ const ExcelExportModal = ({
           Гражданство: emp.citizenship?.name || "-",
           Организация: counterpartyMapping?.counterparty?.name || "-",
           "ИНН организации": counterpartyMapping?.counterparty?.inn || "-",
+          "р/с": emp.bankAccountNumber || "-",
           БИК: emp.bankBik || "-",
           id_all: emp.idAll || "-",
           "Дата окончания паспорта": formatDateValue(emp.passportExpiryDate),
@@ -186,6 +187,13 @@ const ExcelExportModal = ({
       dataIndex: ["citizenship", "name"],
       key: "citizenship",
       ellipsis: true,
+    },
+    {
+      title: "р/с",
+      dataIndex: "bankAccountNumber",
+      key: "bankAccountNumber",
+      ellipsis: true,
+      render: (value) => value || "-",
     },
   ];
 

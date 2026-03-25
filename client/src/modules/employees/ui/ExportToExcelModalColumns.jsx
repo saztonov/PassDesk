@@ -102,6 +102,13 @@ export const buildExportToExcelModalColumns = ({
     render: (value) => formatInn(value),
   },
   {
+    title: "р/с",
+    dataIndex: "bankAccountNumber",
+    key: "bankAccountNumber",
+    ellipsis: true,
+    render: (value) => value || "-",
+  },
+  {
     title: "БИК",
     dataIndex: "bankBik",
     key: "bankBik",

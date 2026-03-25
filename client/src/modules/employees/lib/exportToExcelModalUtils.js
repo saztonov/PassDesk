@@ -100,6 +100,7 @@ export const buildExportExcelRows = ({
       СНИЛС: formatSnils(employee.snils),
       Должность: employee.position?.name || "-",
       "ИНН сотрудника": formatInn(employee.inn),
+      "р/с": employee.bankAccountNumber || "-",
       БИК: employee.bankBik || "-",
       "Дата окончания паспорта": formatDateValue(employee.passportExpiryDate),
       Организация: mapping?.counterparty?.name || "-",
