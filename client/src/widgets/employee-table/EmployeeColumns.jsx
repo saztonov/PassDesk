@@ -657,6 +657,7 @@ export const useEmployeeColumns = ({
         title: "Действия",
         key: "actions",
         width: 150,
+        fixed: "right",
         render: (_, record) => (
           <Space>
             <Tooltip title="Просмотр">
