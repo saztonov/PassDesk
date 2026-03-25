@@ -87,6 +87,7 @@ File.init(
         "memo_approval",
         "employment_history_stdr",
         "registration_amina",
+        "military_id",
         "mvd_notification",
         "other",
       ),

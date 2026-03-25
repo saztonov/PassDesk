@@ -105,6 +105,26 @@ const ensureFileSize = (size) => {
 const buildImageDataUrl = (buffer, mimeType) =>
   `data:${mimeType};base64,${buffer.toString("base64")}`;
 
+const buildConflictUpdateUniqueMessage = (error) => {
+  if (error?.name !== "SequelizeUniqueConstraintError") {
+    return null;
+  }
+
+  const field = String(error?.errors?.[0]?.path || "").trim();
+
+  const fieldNames = {
+    inn: "ИНН",
+    snils: "СНИЛС",
+    kig: "КИГ",
+    kig_hash: "КИГ",
+    passport_number: "Номер паспорта",
+    passport_number_hash: "Номер паспорта",
+  };
+
+  const fieldLabel = fieldNames[field] || field || "Значение";
+  return `${fieldLabel} уже используется у другого сотрудника`;
+};
+
 const fetchStoredFileBuffer = async (filePath) => {
   if (typeof storageProvider.getFileBuffer === "function") {
     return storageProvider.getFileBuffer(filePath);
@@ -469,6 +489,11 @@ export const applyOcrConflict = async (req, res, next) => {
       },
     });
   } catch (error) {
+    const uniqueMessage = buildConflictUpdateUniqueMessage(error);
+    if (uniqueMessage) {
+      return next(new AppError(uniqueMessage, 409));
+    }
+
     next(error);
   }
 };

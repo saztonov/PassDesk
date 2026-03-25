@@ -85,6 +85,7 @@ export const uploadEmployeeFiles = async (req, res, next) => {
       "memo_approval",
       "employment_history_stdr",
       "registration_amina",
+      "military_id",
       "other",
     ];
     if (documentType && !validDocumentTypes.includes(documentType)) {

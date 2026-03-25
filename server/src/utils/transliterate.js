@@ -192,6 +192,7 @@ const documentTypeNames = {
   memo_approval: "служебная_записка_согласование",
   employment_history_stdr: "стдр",
   registration_amina: "регистрация_амина",
+  military_id: "военный_билет",
   mvd_notification: "уведомление_мвд",
 };
 

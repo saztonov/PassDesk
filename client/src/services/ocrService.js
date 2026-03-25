@@ -2,6 +2,49 @@ import api from "./api";
 
 const OCR_SCAN_TIMEOUT_MS = 180000;
 
+export const getOcrRequestErrorMessage = (
+  error,
+  fallback = "Не удалось выполнить OCR-операцию",
+) => {
+  const responseData = error?.response?.data;
+  const responseMessage = String(responseData?.message || "").trim();
+  const errorItems = Array.isArray(responseData?.errors) ? responseData.errors : [];
+
+  if (errorItems.length > 0) {
+    const details = errorItems
+      .map((item) => {
+        const field = String(item?.field || "").trim();
+        const message = String(item?.message || "").trim();
+
+        if (field && message) {
+          return `${field}: ${message}`;
+        }
+
+        return field || message;
+      })
+      .filter(Boolean)
+      .join("; ");
+
+    if (details) {
+      if (
+        responseMessage &&
+        responseMessage !== "Validation error" &&
+        responseMessage !== "Resource already exists"
+      ) {
+        return `${responseMessage}. ${details}`;
+      }
+
+      return details;
+    }
+  }
+
+  return (
+    responseMessage ||
+    String(error?.message || "").trim() ||
+    fallback
+  );
+};
+
 export const ocrService = {
   recognizeDocument: async ({
     documentType,

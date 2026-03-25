@@ -23,6 +23,7 @@ export const DEFAULT_DOCUMENT_TYPES = [
     label: "Справка о трудовой деятельности работника (СТДР)",
   },
   { value: "registration_amina", label: "Регистрация (Амина)" },
+  { value: "military_id", label: "Военный билет" },
 ];
 
 export const splitIntoColumns = (items, columnsCount = 3) => {

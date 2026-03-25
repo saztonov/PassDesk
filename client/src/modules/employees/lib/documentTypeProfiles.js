@@ -33,6 +33,7 @@ const BASE_EXTRA_DOCS = [
   "memo_approval",
   "employment_history_stdr",
   "registration_amina",
+  "military_id",
 ];
 
 export const DEFAULT_DOCUMENT_PROFILES = {
@@ -94,6 +95,7 @@ const DOCUMENT_TYPE_LABELS = {
   memo_approval: "Служебная записка (согласование)",
   employment_history_stdr: "Справка о трудовой деятельности работника (СТДР)",
   registration_amina: "Регистрация (Амина)",
+  military_id: "Военный билет",
 };
 
 const RUSSIAN_CODES = new Set(["ru", "rus", "643"]);

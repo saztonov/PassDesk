@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  App,
   Button,
   Empty,
   Space,
@@ -10,7 +11,7 @@ import {
 import { EyeOutlined, ReloadOutlined, WarningOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { employeeService } from "@/services/employeeService";
-import ocrService from "@/services/ocrService";
+import ocrService, { getOcrRequestErrorMessage } from "@/services/ocrService";
 import { FileViewer } from "@/shared/ui/FileViewer";
 
 const { Paragraph, Text } = Typography;
@@ -34,13 +35,15 @@ const getCardSource = (sources = []) =>
 const getOcrSources = (sources = []) =>
   sources.filter((source) => source.documentType !== "employee_card");
 
-const EmployeeOcrConflictsCompact = ({ employee }) => {
+const EmployeeOcrConflictsCompact = ({ employee, onChanged }) => {
+  const { message } = App.useApp();
   const [conflicts, setConflicts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [fileLoadingKey, setFileLoadingKey] = useState(null);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewingFile, setViewingFile] = useState(null);
+  const [actionLoadingKey, setActionLoadingKey] = useState(null);
 
   const employeeId = employee?.id;
 
@@ -125,6 +128,42 @@ const EmployeeOcrConflictsCompact = ({ employee }) => {
     }
   }, [employeeId, viewingFile?.fileId]);
 
+  const handleConflictAction = useCallback(
+    async (conflict, action) => {
+      if (!conflict?.id) {
+        return;
+      }
+
+      const loadingKey = `${action}:${conflict.id}`;
+      setActionLoadingKey(loadingKey);
+      try {
+        if (action === "apply") {
+          await ocrService.applyConflict(conflict.id);
+          message.success("Значение OCR применено");
+        } else {
+          await ocrService.resolveConflict(conflict.id);
+          message.success("Оставили значение карточки");
+        }
+
+        await loadConflicts();
+        if (typeof onChanged === "function") {
+          await onChanged(employeeId);
+        }
+      } catch (error) {
+        console.error("Failed to resolve OCR conflict:", error);
+        message.error(
+          getOcrRequestErrorMessage(
+            error,
+            "Не удалось обработать OCR-расхождение",
+          ),
+        );
+      } finally {
+        setActionLoadingKey(null);
+      }
+    },
+    [employeeId, loadConflicts, message, onChanged],
+  );
+
   const modalColumns = useMemo(
     () => [
       {
@@ -181,10 +220,37 @@ const EmployeeOcrConflictsCompact = ({ employee }) => {
         width: 170,
         render: (value) => formatDateTime(value),
       },
+      {
+        title: "Действия",
+        key: "actions",
+        width: 200,
+        render: (_, record) => (
+          <Space wrap>
+            <Button
+              size="small"
+              type="default"
+              loading={actionLoadingKey === `resolve:${record.id}`}
+              onClick={() => handleConflictAction(record, "resolve")}
+            >
+              Принять
+            </Button>
+            <Button
+              size="small"
+              type="primary"
+              loading={actionLoadingKey === `apply:${record.id}`}
+              onClick={() => handleConflictAction(record, "apply")}
+            >
+              Заменить
+            </Button>
+          </Space>
+        ),
+      },
     ],
     [
+      actionLoadingKey,
       employeeId,
       fileLoadingKey,
+      handleConflictAction,
       handleOpenSourceFile,
     ],
   );

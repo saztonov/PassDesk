@@ -51,6 +51,7 @@ const BASE_EXTRA_DOCS = [
   "memo_approval",
   "employment_history_stdr",
   "registration_amina",
+  "military_id",
 ];
 const REQUIRED_PROFILE_CODES = {
   [PROFILE_CODES.EXTERNAL]: [],

@@ -11,7 +11,7 @@ import {
 } from "antd";
 import { ReloadOutlined, UserOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import ocrService from "@/services/ocrService";
+import ocrService, { getOcrRequestErrorMessage } from "@/services/ocrService";
 import { DEFAULT_DOCUMENT_TYPES } from "@/modules/employees/lib/documentTypeUploaderUtils";
 
 const { Text } = Typography;
@@ -267,7 +267,12 @@ const OcrConflictsAdminSection = () => {
         });
       } catch (error) {
         console.error("Failed to resolve OCR conflict:", error);
-        message.error("Не удалось обработать OCR-расхождение");
+        message.error(
+          getOcrRequestErrorMessage(
+            error,
+            "Не удалось обработать OCR-расхождение",
+          ),
+        );
       } finally {
         setActionLoadingKey(null);
       }
@@ -309,7 +314,12 @@ const OcrConflictsAdminSection = () => {
         });
       } catch (error) {
         console.error("Failed to resolve OCR conflicts in bulk:", error);
-        message.error("Не удалось обработать все OCR-расхождения");
+        message.error(
+          getOcrRequestErrorMessage(
+            error,
+            "Не удалось обработать все OCR-расхождения",
+          ),
+        );
       } finally {
         setActionLoadingKey(null);
       }
