@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Modal, Form, App, Tabs, Alert, Space, Grid, Typography } from "antd";
+import dayjs from "dayjs";
 import {
   capitalizeFirstLetter,
   filterCyrillicOnly,
@@ -44,6 +45,14 @@ const PAGE_DOCS_MIN_WIDTH = 360;
 const PAGE_DOCS_MAX_WIDTH = 760;
 const PAGE_FORM_MIN_WIDTH = 560;
 const PAGE_FORM_COMPACT_WIDTH = 860;
+const OCR_APPLY_DATE_FIELDS = new Set([
+  "birthDate",
+  "passportDate",
+  "passportExpiryDate",
+  "kigEndDate",
+  "patentIssueDate",
+  "insurancePolicyDate",
+]);
 
 const EmployeeFormModal = ({
   visible,
@@ -193,6 +202,42 @@ const EmployeeFormModal = ({
     }
   }, [activeTab, conflictSummary?.hasConflicts]);
 
+  const handleOcrConflictsChanged = useCallback(
+    async (targetEmployeeId = employee?.id, options = {}) => {
+      const summary = await refreshConflictSummary(targetEmployeeId);
+      const appliedPatch =
+        options?.action === "apply" &&
+        options?.appliedPatch &&
+        typeof options.appliedPatch === "object"
+          ? options.appliedPatch
+          : null;
+
+      if (appliedPatch) {
+        const formPatch = Object.entries(appliedPatch).reduce(
+          (accumulator, [fieldName, value]) => {
+            accumulator[fieldName] =
+              OCR_APPLY_DATE_FIELDS.has(fieldName) && value ? dayjs(value) : value;
+            return accumulator;
+          },
+          {},
+        );
+
+        form.setFieldsValue(formPatch);
+
+        if (Object.prototype.hasOwnProperty.call(formPatch, "citizenshipId")) {
+          updateSelectedCitizenship(formPatch.citizenshipId || null);
+        }
+
+        if (Object.prototype.hasOwnProperty.call(formPatch, "passportType")) {
+          setPassportType(formPatch.passportType || null);
+        }
+      }
+
+      return summary;
+    },
+    [employee?.id, form, refreshConflictSummary, setPassportType, updateSelectedCitizenship],
+  );
+
   const handleCitizenshipChange = useCallback(
     (citizenshipId) => {
       updateSelectedCitizenship(citizenshipId);
@@ -304,7 +349,7 @@ const EmployeeFormModal = ({
     tabsValidation,
     documentProfilesConfig: settings?.employeeDocumentProfiles || null,
     conflictSummary,
-    onOcrConflictsChanged: refreshConflictSummary,
+    onOcrConflictsChanged: handleOcrConflictsChanged,
     includeFilesTab: mode !== "page",
     compactLayout: compactPageFormLayout,
   });

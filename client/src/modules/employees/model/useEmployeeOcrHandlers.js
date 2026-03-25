@@ -4,6 +4,7 @@ import {
   buildFormPatchFromOcr,
   buildOcrApplyPlan,
   normalizeString,
+  resolveCitizenshipIdByOcrCode,
   resolveOcrDocumentTypeByFile,
 } from "@/modules/employees/lib/employeeOcrUtils";
 
@@ -128,31 +129,12 @@ export const useEmployeeOcrHandlers = ({
 
         // Fallback: если citizenshipId не заполнился — ищем вручную по имени/коду
         if (!formPatch.citizenshipId && normalized.citizenship) {
-          const raw = String(normalized.citizenship).trim();
-          const parts = raw.toUpperCase().split(/[/,|\s]+/).filter((p) => p.length >= 2);
-          const NAME_TO_ISO3 = {
-            TAJIKISTAN: "TJK", ТОЧИКИСТОН: "TJK", ТАДЖИКИСТАН: "TJK",
-            UZBEKISTAN: "UZB", УЗБЕКИСТАН: "UZB", ЎЗБЕКИСТОН: "UZB",
-            KAZAKHSTAN: "KAZ", КАЗАХСТАН: "KAZ", ҚАЗАҚСТАН: "KAZ",
-            KYRGYZSTAN: "KGZ", КЫРГЫЗСТАН: "KGZ", КИРГИЗИЯ: "KGZ",
-            AZERBAIJAN: "AZE", АЗЕРБАЙДЖАН: "AZE",
-            ARMENIA: "ARM", АРМЕНИЯ: "ARM", ՀԱՅԱՍՏԱՆ: "ARM",
-            BELARUS: "BLR", БЕЛАРУСЬ: "BLR", БЕЛОРУССИЯ: "BLR",
-            UKRAINE: "UKR", УКРАИНА: "UKR",
-            MOLDOVA: "MDA", МОЛДОВА: "MDA", МОЛДАВИЯ: "MDA",
-            TURKEY: "TUR", ТУРЦИЯ: "TUR", TÜRKIYE: "TUR",
-            RUSSIA: "RUS", РОССИЯ: "RUS",
-            SERBIA: "SRB", СЕРБИЯ: "SRB",
-            IRAN: "IRN", ИРАН: "IRN",
-          };
-          for (const part of parts) {
-            const iso3 = NAME_TO_ISO3[part] || (part.length === 3 ? part : null);
-            if (iso3) {
-              const found = citizenships.find(
-                (c) => String(c.code || "").toUpperCase() === iso3,
-              );
-              if (found) { formPatch.citizenshipId = found.id; break; }
-            }
+          formPatch.citizenshipId = resolveCitizenshipIdByOcrCode(
+            citizenships,
+            normalized.citizenship,
+          );
+          if (formPatch.citizenshipId && !formPatch.birthCountryId) {
+            formPatch.birthCountryId = formPatch.citizenshipId;
           }
         }
 

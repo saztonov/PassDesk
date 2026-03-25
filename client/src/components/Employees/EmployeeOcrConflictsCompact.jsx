@@ -137,8 +137,11 @@ const EmployeeOcrConflictsCompact = ({ employee, onChanged }) => {
       const loadingKey = `${action}:${conflict.id}`;
       setActionLoadingKey(loadingKey);
       try {
+        let appliedPatch = null;
         if (action === "apply") {
-          await ocrService.applyConflict(conflict.id);
+          const response = await ocrService.applyConflict(conflict.id);
+          const payload = toResponseData(response);
+          appliedPatch = payload?.data?.appliedPatch || payload?.appliedPatch || null;
           message.success("Значение OCR применено");
         } else {
           await ocrService.resolveConflict(conflict.id);
@@ -147,7 +150,11 @@ const EmployeeOcrConflictsCompact = ({ employee, onChanged }) => {
 
         await loadConflicts();
         if (typeof onChanged === "function") {
-          await onChanged(employeeId);
+          await onChanged(employeeId, {
+            action,
+            conflict,
+            appliedPatch,
+          });
         }
       } catch (error) {
         console.error("Failed to resolve OCR conflict:", error);

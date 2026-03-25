@@ -152,41 +152,112 @@ const mapOcrSexToFormGender = (ocrValue) => {
   return null;
 };
 
-// Маппинг английских/таджикских/etc. названий стран → ISO3
-const COUNTRY_NAME_TO_ISO3 = {
-  russia: "RUS", russian: "RUS", россия: "RUS",
-  tajikistan: "TJK", точикистон: "TJK", таджикистан: "TJK",
-  uzbekistan: "UZB", узбекистан: "UZB", ўзбекистон: "UZB",
-  kazakhstan: "KAZ", казахстан: "KAZ",
-  kyrgyzstan: "KGZ", кыргызстан: "KGZ", киргизия: "KGZ",
-  azerbaijan: "AZE", азербайджан: "AZE",
-  armenia: "ARM", армения: "ARM",
-  belarus: "BLR", belorussia: "BLR", беларусь: "BLR", белоруссия: "BLR",
-  ukraine: "UKR", украина: "UKR",
-  moldova: "MDA", молдова: "MDA", молдавия: "MDA",
-  turkey: "TUR", türkiye: "TUR", турция: "TUR",
-  serbia: "SRB", сербия: "SRB",
+const normalizeCitizenshipLookup = (value) =>
+  normalizeString(value)
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[^a-zа-я0-9]+/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const COUNTRY_NAME_TO_CODES = {
+  russia: ["RU", "RUS"],
+  russian: ["RU", "RUS"],
+  россия: ["RU", "RUS"],
+  tajikistan: ["TJ", "TJK"],
+  точикистон: ["TJ", "TJK"],
+  таджикистан: ["TJ", "TJK"],
+  uzbekistan: ["UZ", "UZB"],
+  узбекистан: ["UZ", "UZB"],
+  узбекистон: ["UZ", "UZB"],
+  казахстан: ["KZ", "KAZ"],
+  kazakhstan: ["KZ", "KAZ"],
+  kyrgyzstan: ["KG", "KGZ"],
+  кыргызстан: ["KG", "KGZ"],
+  киргизия: ["KG", "KGZ"],
+  azerbaijan: ["AZ", "AZE"],
+  азербайджан: ["AZ", "AZE"],
+  armenia: ["AM", "ARM"],
+  армения: ["AM", "ARM"],
+  belarus: ["BY", "BLR"],
+  belorussia: ["BY", "BLR"],
+  беларусь: ["BY", "BLR"],
+  белоруссия: ["BY", "BLR"],
+  ukraine: ["UA", "UKR"],
+  украина: ["UA", "UKR"],
+  moldova: ["MD", "MDA"],
+  молдова: ["MD", "MDA"],
+  молдавия: ["MD", "MDA"],
+  turkey: ["TR", "TUR"],
+  türkiye: ["TR", "TUR"],
+  turkiye: ["TR", "TUR"],
+  турция: ["TR", "TUR"],
+  serbia: ["RS", "SRB"],
+  сербия: ["RS", "SRB"],
 };
 
-const resolveCitizenshipIdByOcrCode = (citizenships = [], ocrValue = "") => {
+const COUNTRY_CODE_ALIASES = Object.entries(COUNTRY_NAME_TO_CODES).reduce(
+  (accumulator, [, codes]) => {
+    codes.forEach((code) => {
+      const normalizedCode = normalizeString(code).toUpperCase();
+      if (!normalizedCode) {
+        return;
+      }
+
+      const existing = accumulator[normalizedCode] || [];
+      accumulator[normalizedCode] = Array.from(
+        new Set([...existing, ...codes.map((item) => normalizeString(item).toUpperCase())]),
+      );
+    });
+    return accumulator;
+  },
+  { RU: ["RU", "RUS"], RUS: ["RU", "RUS"] },
+);
+
+const getCitizenshipCandidateCodes = (value = "") => {
+  const normalized = normalizeString(value).toUpperCase();
+  if (!normalized) {
+    return [];
+  }
+
+  return COUNTRY_CODE_ALIASES[normalized] || [normalized];
+};
+
+export const resolveCitizenshipIdByOcrCode = (
+  citizenships = [],
+  ocrValue = "",
+) => {
   const normalizedRaw = normalizeString(ocrValue);
   const normalized = normalizedRaw.toUpperCase();
   if (!normalizedRaw) return null;
 
-  const normalizedLookup = normalizedRaw.toLowerCase();
+  const normalizedLookup = normalizeCitizenshipLookup(normalizedRaw);
 
   const matchesCitizenshipName = (item, candidate) => {
     if (!candidate) return false;
 
-    if (normalizeString(item?.name).toLowerCase() === candidate) {
+    const normalizedItemName = normalizeCitizenshipLookup(item?.name);
+    if (
+      normalizedItemName === candidate ||
+      normalizedItemName.includes(candidate) ||
+      candidate.includes(normalizedItemName)
+    ) {
       return true;
     }
 
     if (
       Array.isArray(item?.synonyms) &&
       item.synonyms.some(
-        (synonym) =>
-          normalizeString(synonym?.synonym || synonym?.name).toLowerCase() === candidate,
+        (synonym) => {
+          const normalizedSynonym = normalizeCitizenshipLookup(
+            synonym?.synonym || synonym?.name,
+          );
+          return (
+            normalizedSynonym === candidate ||
+            normalizedSynonym.includes(candidate) ||
+            candidate.includes(normalizedSynonym)
+          );
+        },
       )
     ) {
       return true;
@@ -197,13 +268,9 @@ const resolveCitizenshipIdByOcrCode = (citizenships = [], ocrValue = "") => {
 
   // 1. Точное совпадение по коду (с учётом RU/RUS)
   const byCode = citizenships.find((item) => {
-    const code = normalizeString(item.code).toUpperCase();
-    if (!code) return false;
-    return (
-      code === normalized ||
-      (normalized === "RUS" && code === "RU") ||
-      (normalized === "RU" && code === "RUS")
-    );
+    const itemCodes = getCitizenshipCandidateCodes(item?.code || item?.countryCode);
+    const lookupCodes = getCitizenshipCandidateCodes(normalized);
+    return itemCodes.some((code) => lookupCodes.includes(code));
   });
   if (byCode) return byCode.id;
 
@@ -221,9 +288,10 @@ const resolveCitizenshipIdByOcrCode = (citizenships = [], ocrValue = "") => {
 
   // 2a. Совпадение по коду для каждой части
   for (const part of parts) {
+    const lookupCodes = getCitizenshipCandidateCodes(part);
     const byPart = citizenships.find((item) => {
-      const code = normalizeString(item.code).toUpperCase();
-      return code === part;
+      const itemCodes = getCitizenshipCandidateCodes(item?.code || item?.countryCode);
+      return itemCodes.some((code) => lookupCodes.includes(code));
     });
     if (byPart) return byPart.id;
   }
@@ -238,10 +306,13 @@ const resolveCitizenshipIdByOcrCode = (citizenships = [], ocrValue = "") => {
 
   // 2c. Через таблицу английских/национальных названий → ISO3
   for (const part of parts) {
-    const iso3 = COUNTRY_NAME_TO_ISO3[part.toLowerCase()];
-    if (iso3) {
+    const mappedCodes = COUNTRY_NAME_TO_CODES[part.toLowerCase()];
+    if (mappedCodes?.length) {
       const byIso = citizenships.find(
-        (item) => normalizeString(item.code).toUpperCase() === iso3,
+        (item) =>
+          getCitizenshipCandidateCodes(item?.code || item?.countryCode).some(
+            (code) => mappedCodes.includes(code),
+          ),
       );
       if (byIso) return byIso.id;
     }

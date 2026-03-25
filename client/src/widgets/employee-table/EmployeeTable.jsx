@@ -167,6 +167,7 @@ export const EmployeeTable = ({
   onViewFiles,
   onDepartmentChange,
   canExport,
+  showDepartmentColumn,
   showCounterpartyColumn, // Новый prop для показа столбца "Контрагент"
   canDeleteEmployee,
   canMarkForDeletion,
@@ -174,8 +175,6 @@ export const EmployeeTable = ({
   uniqueFilters,
   filterOptions,
   onFiltersChange,
-  defaultCounterpartyId,
-  userCounterpartyId,
   onConstructionSitesEdit, // Новый prop для редактирования объектов
   resetTrigger, // Триггер для сброса фильтров
   hiddenColumnKeys = EMPTY_HIDDEN_COLUMN_KEYS,
@@ -195,6 +194,7 @@ export const EmployeeTable = ({
     onViewFiles,
     onDepartmentChange,
     canExport,
+    showDepartmentColumn,
     showCounterpartyColumn, // Передаем новый prop
     canDeleteEmployee,
     canMarkForDeletion,
@@ -202,8 +202,6 @@ export const EmployeeTable = ({
     uniqueFilters,
     filterOptions,
     filters, // Передаем фильтры в хук колонок
-    defaultCounterpartyId,
-    userCounterpartyId,
     onConstructionSitesEdit, // Передаем новый callback
     resetTrigger, // Передаем триггер сброса
   });

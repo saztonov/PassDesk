@@ -45,6 +45,7 @@ const DATE_FIELDS = new Set([
   "passportExpiryDate",
   "kigEndDate",
   "patentIssueDate",
+  "insurancePolicyDate",
 ]);
 
 const DIGITS_ONLY_FIELDS = new Map([
@@ -914,7 +915,10 @@ export const applyEmployeeOcrConflict = async ({ conflictId, resolvedBy }) => {
     },
   });
 
-  return conflict;
+  return {
+    conflict,
+    appliedPatch: rawPatch,
+  };
 };
 
 export const notifyManagersAboutOcrConflicts = async ({

@@ -24,7 +24,12 @@ export const DEFAULT_DOCUMENT_TYPES = [
   },
   { value: "registration_amina", label: "Регистрация (Амина)" },
   { value: "military_id", label: "Военный билет" },
+  { value: "other", label: "Иные документы" },
 ];
+
+const DEFAULT_DOCUMENT_TYPES_MAP = new Map(
+  DEFAULT_DOCUMENT_TYPES.map((item) => [item.value, item]),
+);
 
 export const splitIntoColumns = (items, columnsCount = 3) => {
   if (!Array.isArray(items) || items.length === 0) {
@@ -86,6 +91,22 @@ export const normalizeDocumentTypes = (types) => {
           : 0,
     }))
     .filter((item) => item.value);
+
+  const existingCodes = new Set(normalized.map((item) => item.value));
+  const fallbackOther = DEFAULT_DOCUMENT_TYPES_MAP.get("other");
+  if (fallbackOther && !existingCodes.has(fallbackOther.value)) {
+    normalized.push({
+      ...fallbackOther,
+      description: "",
+      sampleUrl: "",
+      sampleMimeType: "",
+      sampleHighlightedFields: [],
+      sortOrder:
+        normalized.length > 0
+          ? Math.max(...normalized.map((item) => Number(item.sortOrder) || 0)) + 10
+          : 0,
+    });
+  }
 
   return normalized.length > 0 ? normalized : DEFAULT_DOCUMENT_TYPES;
 };

@@ -47,6 +47,7 @@ const EmployeesListSection = memo(({ isMobile, model, actions }) => {
         onViewFiles={actions.onViewFiles}
         onDepartmentChange={actions.onDepartmentChange}
         canExport={model.canExport}
+        showDepartmentColumn={model.showDepartmentColumn}
         showCounterpartyColumn={model.showCounterpartyColumn}
         canDeleteEmployee={model.canDeleteEmployee}
         canMarkForDeletion={model.canMarkForDeletion}

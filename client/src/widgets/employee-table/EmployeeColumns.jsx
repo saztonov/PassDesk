@@ -95,6 +95,7 @@ export const useEmployeeColumns = ({
   onViewFiles,
   onDepartmentChange,
   canExport: _canExport,
+  showDepartmentColumn,
   showCounterpartyColumn, // Новый параметр для показа столбца "Контрагент"
   canDeleteEmployee,
   canMarkForDeletion,
@@ -102,15 +103,9 @@ export const useEmployeeColumns = ({
   uniqueFilters: _uniqueFilters,
   filterOptions,
   filters = {}, // Состояние фильтров из localStorage
-  defaultCounterpartyId,
-  userCounterpartyId,
   onConstructionSitesEdit, // Новый callback для редактирования объектов
   resetTrigger = 0, // Триггер для сброса фильтров
 }) => {
-  // Определяем, должен ли быть виден столбец Подразделение
-  // Видно ТОЛЬКО для пользователей контрагента по умолчанию
-  const showDepartmentColumn =
-    defaultCounterpartyId && userCounterpartyId === defaultCounterpartyId;
   const departmentFilterOptions = [
     ...new Set((departments || []).map((dept) => dept?.name).filter(Boolean)),
   ].sort();

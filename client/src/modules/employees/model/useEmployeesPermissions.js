@@ -5,15 +5,20 @@ export const useEmployeesPermissions = ({
   defaultCounterpartyId,
   hasSubcontractors,
 }) => {
+  const canManageEmployeeMappings =
+    user?.role === "admin" || user?.role === "manager";
+
   const canExport = useMemo(
     () =>
       user?.counterpartyId === defaultCounterpartyId && user?.role !== "user",
     [user?.counterpartyId, user?.role, defaultCounterpartyId],
   );
 
-  const showCounterpartyColumn = canExport || hasSubcontractors;
+  const showCounterpartyColumn =
+    canExport || hasSubcontractors || canManageEmployeeMappings;
   const showDepartmentColumn =
-    defaultCounterpartyId && user?.counterpartyId === defaultCounterpartyId;
+    canManageEmployeeMappings ||
+    (defaultCounterpartyId && user?.counterpartyId === defaultCounterpartyId);
 
   const canDeleteEmployee = useCallback(
     () => user?.role === "admin" || user?.role === "manager",

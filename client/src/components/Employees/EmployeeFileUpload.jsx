@@ -59,6 +59,7 @@ const DOCUMENT_TYPES = [
   },
   { value: "registration_amina", label: "Регистрация (Амина)" },
   { value: "military_id", label: "Военный билет" },
+  { value: "other", label: "Иные документы" },
 ];
 
 const EmployeeFileUpload = ({

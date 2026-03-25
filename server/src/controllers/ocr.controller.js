@@ -471,12 +471,12 @@ export const resolveOcrConflict = async (req, res, next) => {
 
 export const applyOcrConflict = async (req, res, next) => {
   try {
-    const conflict = await applyEmployeeOcrConflict({
+    const result = await applyEmployeeOcrConflict({
       conflictId: req.params.id,
       resolvedBy: req.user.id,
     });
 
-    if (!conflict) {
+    if (!result?.conflict) {
       throw new AppError("OCR-конфликт не найден", 404);
     }
 
@@ -484,8 +484,9 @@ export const applyOcrConflict = async (req, res, next) => {
       success: true,
       message: "Значение OCR применено к карточке сотрудника",
       data: {
-        id: conflict.id,
+        id: result.conflict.id,
         status: "resolved",
+        appliedPatch: result.appliedPatch || {},
       },
     });
   } catch (error) {
