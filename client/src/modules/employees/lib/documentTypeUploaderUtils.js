@@ -16,6 +16,13 @@ export const DEFAULT_DOCUMENT_TYPES = [
   { value: "visa", label: "Виза" },
   { value: "arrival_notice", label: "Уведомление о прибытии" },
   { value: "patent_payment_receipt", label: "Чек оплаты патента" },
+  { value: "insurance_policy", label: "Страховой полис" },
+  { value: "memo_approval", label: "Служебная записка (согласование)" },
+  {
+    value: "employment_history_stdr",
+    label: "Справка о трудовой деятельности работника (СТДР)",
+  },
+  { value: "registration_amina", label: "Регистрация (Амина)" },
 ];
 
 export const splitIntoColumns = (items, columnsCount = 3) => {

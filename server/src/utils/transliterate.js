@@ -188,6 +188,10 @@ const documentTypeNames = {
   migration_card: "миграционная_карта",
   arrival_notice: "уведомление_прибытии",
   patent_payment_receipt: "чек_оплата_патента",
+  insurance_policy: "страховой_полис",
+  memo_approval: "служебная_записка_согласование",
+  employment_history_stdr: "стдр",
+  registration_amina: "регистрация_амина",
   mvd_notification: "уведомление_мвд",
 };
 

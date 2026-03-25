@@ -51,6 +51,13 @@ const DOCUMENT_TYPES = [
   { value: "snils_card", label: "СНИЛС" },
   { value: "arrival_notice", label: "Уведомление о прибытии (регистрация)" },
   { value: "patent_payment_receipt", label: "Чек об оплате патента" },
+  { value: "insurance_policy", label: "Страховой полис" },
+  { value: "memo_approval", label: "Служебная записка (согласование)" },
+  {
+    value: "employment_history_stdr",
+    label: "Справка о трудовой деятельности работника (СТДР)",
+  },
+  { value: "registration_amina", label: "Регистрация (Амина)" },
 ];
 
 const EmployeeFileUpload = ({

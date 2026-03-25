@@ -90,6 +90,13 @@ const DEFAULT_PROMPTS = {
     "Найди номер полиса (обычно написано 'Серия' и 'Номер' или просто длинный номер в шапке документа) и дату начала действия полиса (поле 'с' в разделе 'Срок страхования'). " +
     DATE_FORMAT_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: policyNumber, issueDate.",
+  registration_amina:
+    "На изображении экран приложения или скриншот с данными регистрации сотрудника. " +
+    "Найди блоки с адресом проживания/регистрации и номером телефона. " +
+    "Если на экране есть поля 'Населенный пункт', 'Улица', 'Дом', 'Квартира', извлеки их отдельно и собери полный адрес в поле registrationAddress. " +
+    "registrationAddress пиши по-русски, в человекочитаемом виде, без лишних комментариев. " +
+    "Телефон верни в поле phone в том виде, как он указан на экране, сохранив все цифры. " +
+    "Верни строго JSON без markdown и пояснений. Поля: registrationAddress, locality, street, house, apartment, phone.",
 };
 
 const DEFAULT_SCAN_PROMPT =
@@ -174,6 +181,7 @@ const SUPPORTED_DOCUMENT_TYPES = new Set([
   "bank_details",
   "visa",
   "insurance_policy",
+  "registration_amina",
 ]);
 
 const MALE_VALUES = new Set(["m", "male", "м", "муж", "мужской"]);
@@ -212,6 +220,7 @@ export const normalizeDocumentType = (value) => {
   }
   if (normalized === "inn_document") return "inn";
   if (normalized === "snils_card") return "snils";
+  if (normalized === "registration_amina") return "registration_amina";
 
   return normalized;
 };
@@ -297,6 +306,131 @@ const normalizeDigits = (value, maxLength = 64) => {
   if (!value) return null;
   const normalized = String(value).replace(/[^\d]/g, "").slice(0, maxLength);
   return normalized || null;
+};
+
+const normalizePhone = (value) => {
+  if (!value) return null;
+
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const digits = raw.replace(/[^\d]/g, "");
+  if (!digits) {
+    return raw;
+  }
+
+  if (digits.length === 10) {
+    return `+7${digits}`;
+  }
+
+  if (digits.length === 11 && (digits.startsWith("7") || digits.startsWith("8"))) {
+    return `+7${digits.slice(1)}`;
+  }
+
+  return raw;
+};
+
+const normalizeAddressPart = (value) =>
+  String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const prefixAddressPart = (value, prefixes = []) => {
+  const normalized = normalizeAddressPart(value);
+  if (!normalized) return null;
+
+  const lower = normalized.toLowerCase();
+  if (prefixes.some((prefix) => lower.startsWith(prefix))) {
+    return normalized;
+  }
+
+  return normalized;
+};
+
+const buildRegistrationAddress = (parsedJson = {}) => {
+  const directAddress = normalizeAddressPart(
+    valueFrom(parsedJson, [
+      "registrationAddress",
+      "registration_address",
+      "address",
+      "addressLine",
+      "address_line",
+      "registrationPlace",
+      "registration_place",
+      "место сна и отдыха",
+      "адрес регистрации",
+      "адрес",
+    ]),
+  );
+  const locality = normalizeAddressPart(
+    valueFrom(parsedJson, [
+      "locality",
+      "city",
+      "settlement",
+      "location",
+      "place",
+      "населенный пункт",
+      "населённый пункт",
+      "город",
+    ]),
+  );
+  const streetRaw = prefixAddressPart(
+    valueFrom(parsedJson, [
+      "street",
+      "streetName",
+      "street_name",
+      "улица",
+    ]),
+    ["ул", "улиц"],
+  );
+  const houseRaw = normalizeAddressPart(
+    valueFrom(parsedJson, ["house", "houseNumber", "house_number", "дом"]),
+  );
+  const apartmentRaw = normalizeAddressPart(
+    valueFrom(parsedJson, [
+      "apartment",
+      "apartmentNumber",
+      "apartment_number",
+      "flat",
+      "квартира",
+      "кв",
+    ]),
+  );
+
+  const parts = [];
+  const baseAddress = directAddress || locality;
+
+  if (baseAddress) {
+    parts.push(baseAddress);
+  }
+
+  const baseLower = String(baseAddress || "").toLowerCase();
+  if (streetRaw) {
+    const streetLower = streetRaw.toLowerCase();
+    if (!baseLower.includes(streetLower)) {
+      parts.push(streetLower.startsWith("ул") ? streetRaw : `ул. ${streetRaw}`);
+    }
+  }
+
+  if (houseRaw) {
+    const houseDigits = houseRaw.replace(/[^\dA-Za-zА-Яа-яЁё/-]/g, "");
+    if (houseDigits && !baseLower.includes(houseDigits.toLowerCase())) {
+      const houseLower = houseRaw.toLowerCase();
+      parts.push(houseLower.startsWith("д") ? houseRaw : `д. ${houseRaw}`);
+    }
+  }
+
+  if (apartmentRaw) {
+    const apartmentDigits = apartmentRaw.replace(/[^\dA-Za-zА-Яа-яЁё/-]/g, "");
+    if (apartmentDigits && !baseLower.includes(apartmentDigits.toLowerCase())) {
+      const apartmentLower = apartmentRaw.toLowerCase();
+      parts.push(
+        apartmentLower.startsWith("кв") ? apartmentRaw : `кв. ${apartmentRaw}`,
+      );
+    }
+  }
+
+  return parts.filter(Boolean).join(", ") || null;
 };
 
 const normalizeExactDigits = (value, exactLength) => {
@@ -887,6 +1021,21 @@ const normalizeInsurancePolicy = (parsedJson = {}) => ({
   ),
 });
 
+const normalizeRegistrationAmina = (parsedJson = {}) => ({
+  registrationAddress: buildRegistrationAddress(parsedJson),
+  phone: normalizePhone(
+    valueFrom(parsedJson, [
+      "phone",
+      "phoneNumber",
+      "phone_number",
+      "mobilePhone",
+      "mobile_phone",
+      "номер телефона",
+      "телефон",
+    ]),
+  ),
+});
+
 const normalizeVisa = (parsedJson = {}) => ({
   lastName: valueFrom(parsedJson, ["surname", "lastName", "last_name"]),
   firstName: valueFrom(parsedJson, ["givenNames", "firstName", "first_name"]),
@@ -921,6 +1070,9 @@ const normalizeResponseByDocumentType = (documentType, parsedJson) => {
   if (documentType === "bank_details") return normalizeBankDetails(parsedJson);
   if (documentType === "visa") return normalizeVisa(parsedJson);
   if (documentType === "insurance_policy") return normalizeInsurancePolicy(parsedJson);
+  if (documentType === "registration_amina") {
+    return normalizeRegistrationAmina(parsedJson);
+  }
   return {};
 };
 
@@ -1206,6 +1358,7 @@ const resolvePromptByDocumentType = (documentType, promptOverride = "") => {
     snils: process.env.OCR_SNILS_PROMPT,
     bank_details: process.env.OCR_BANK_DETAILS_PROMPT,
     visa: process.env.OCR_VISA_PROMPT,
+    registration_amina: process.env.OCR_REGISTRATION_AMINA_PROMPT,
   };
 
   const envPrompt = String(envPromptMap[documentType] || "").trim();

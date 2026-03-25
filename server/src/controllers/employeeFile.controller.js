@@ -82,6 +82,9 @@ export const uploadEmployeeFiles = async (req, res, next) => {
       "arrival_notice",
       "patent_payment_receipt",
       "insurance_policy",
+      "memo_approval",
+      "employment_history_stdr",
+      "registration_amina",
       "other",
     ];
     if (documentType && !validDocumentTypes.includes(documentType)) {

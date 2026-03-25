@@ -14,6 +14,8 @@ export const OCR_FIELD_LABELS = {
   passportDate: "Дата выдачи паспорта",
   passportIssuer: "Кем выдан паспорт",
   passportExpiryDate: "Дата окончания паспорта",
+  registrationAddress: "Адрес регистрации",
+  phone: "Телефон",
   inn: "ИНН",
   snils: "СНИЛС",
   kig: "КИГ",
@@ -48,6 +50,24 @@ const toDisplayName = (value) => {
 
 const toDigits = (value, maxLength = 64) =>
   normalizeString(value).replace(/[^\d]/g, "").slice(0, maxLength);
+
+const formatPhoneNumber = (value) => {
+  const digits = toDigits(value, 11);
+  if (!digits) return null;
+
+  let normalized = digits;
+  if (normalized.length === 10) {
+    normalized = `7${normalized}`;
+  } else if (normalized.length === 11 && normalized.startsWith("8")) {
+    normalized = `7${normalized.slice(1)}`;
+  }
+
+  if (!(normalized.length === 11 && normalized.startsWith("7"))) {
+    return normalizeString(value) || null;
+  }
+
+  return `+7 (${normalized.slice(1, 4)}) ${normalized.slice(4, 7)}-${normalized.slice(7, 9)}-${normalized.slice(9, 11)}`;
+};
 
 const LOOKALIKE_CYRILLIC_TO_LATIN = {
   А: "A",
@@ -349,6 +369,7 @@ export const resolveOcrDocumentTypeByFile = (
   if (normalized === "snils_card") return "snils";
   if (normalized === "bank_details") return "bank_details";
   if (normalized === "insurance_policy") return "insurance_policy";
+  if (normalized === "registration_amina") return "registration_amina";
 
   return null;
 };
@@ -413,6 +434,13 @@ export const buildFormPatchFromOcr = ({
   if (normalizeString(normalized.passportIssuedBy)) {
     patch.passportIssuer = normalizeString(normalized.passportIssuedBy);
   }
+
+  if (normalizeString(normalized.registrationAddress)) {
+    patch.registrationAddress = normalizeString(normalized.registrationAddress);
+  }
+
+  const phone = formatPhoneNumber(normalized.phone);
+  if (phone) patch.phone = phone;
 
   const inn = formatInn(normalized.inn);
   if (inn) patch.inn = inn;
@@ -512,6 +540,10 @@ export const normalizeFormValueForCompare = (fieldName, value) => {
   if (fieldName === "passportNumber") {
     const normalizedPassport = normalizePassportIdentifier(value, 32);
     return normalizedPassport || toDigits(value, 16);
+  }
+
+  if (fieldName === "phone") {
+    return toDigits(value, 11);
   }
 
   if (fieldName === "inn") {
