@@ -8,6 +8,11 @@ import StatusUploadToggle from "@/modules/employees/ui/StatusUploadToggle";
 import EmployeeViewModal from "@/modules/employees/ui/EmployeeViewModal";
 import EmployeeFormModal from "@/modules/employees/ui/EmployeeFormModal";
 import ExcelExportModal from "@/modules/employees/ui/ExcelExportModal";
+import { AsyncCheckboxFilterDropdown } from "@/widgets/employee-table/AsyncCheckboxFilterDropdown";
+import positionService from "@/services/positionService";
+import { citizenshipService } from "@/services/citizenshipService";
+import { counterpartyService } from "@/services/counterpartyService";
+import { departmentApi } from "@/entities/department";
 
 const FILTER_STORAGE_KEY = "exportPageDateFilter";
 const TABLE_FILTERS_STORAGE_KEY = "exportPageTableFilters";
@@ -51,17 +56,26 @@ const ExportPage = () => {
   });
 
   const employeeQueryParams = useMemo(
-    () => ({
-      ...filterParams,
-      page: currentPage,
-      limit: pageSize,
-      positionNames: normalizeFilterArray(tableFilters.position),
-      departmentNames: normalizeFilterArray(tableFilters.department),
-      counterpartyNames: normalizeFilterArray(tableFilters.counterparty),
-      citizenshipNames: normalizeFilterArray(tableFilters.citizenship),
-      uploadStates: normalizeFilterArray(tableFilters.isUpload),
-      statuses: normalizeFilterArray(tableFilters.status),
-    }),
+    () => {
+      const params = {
+        ...filterParams,
+        page: currentPage,
+        limit: pageSize,
+      };
+      const position = normalizeFilterArray(tableFilters.position);
+      const department = normalizeFilterArray(tableFilters.department);
+      const counterparty = normalizeFilterArray(tableFilters.counterparty);
+      const citizenship = normalizeFilterArray(tableFilters.citizenship);
+      const isUpload = normalizeFilterArray(tableFilters.isUpload);
+      const status = normalizeFilterArray(tableFilters.status);
+      if (position.length > 0) params.positionNames = JSON.stringify(position);
+      if (department.length > 0) params.departmentNames = JSON.stringify(department);
+      if (counterparty.length > 0) params.counterpartyNames = JSON.stringify(counterparty);
+      if (citizenship.length > 0) params.citizenshipNames = JSON.stringify(citizenship);
+      if (isUpload.length > 0) params.uploadStates = JSON.stringify(isUpload);
+      if (status.length > 0) params.statuses = JSON.stringify(status);
+      return params;
+    },
     [currentPage, pageSize, filterParams, tableFilters],
   );
 
@@ -293,12 +307,18 @@ const ExportPage = () => {
           {text || "-"}
         </div>
       ),
-      filters: [
-        ...new Set(employees.map((e) => e.position?.name).filter(Boolean)),
-      ].map((name) => ({
-        text: name,
-        value: name,
-      })),
+      filterDropdown: (props) => (
+        <AsyncCheckboxFilterDropdown
+          {...props}
+          placeholder="Поиск должности..."
+          cacheKey="export-filter:positions"
+          loadOptions={async () => {
+            const response = await positionService.getAll({ limit: 10000 });
+            const positions = response?.data?.data?.positions || [];
+            return positions.map((p) => p?.name).filter(Boolean);
+          }}
+        />
+      ),
       filteredValue: tableFilters.position || [],
     },
     {
@@ -321,16 +341,18 @@ const ExportPage = () => {
           </div>
         );
       },
-      filters: [
-        ...new Set(
-          employees
-            .map((e) => e.employeeCounterpartyMappings?.[0]?.department?.name)
-            .filter(Boolean),
-        ),
-      ].map((name) => ({
-        text: name,
-        value: name,
-      })),
+      filterDropdown: (props) => (
+        <AsyncCheckboxFilterDropdown
+          {...props}
+          placeholder="Поиск подразделения..."
+          cacheKey="export-filter:departments"
+          loadOptions={async () => {
+            const response = await departmentApi.getAll();
+            const departments = response?.data?.departments || response?.departments || [];
+            return departments.map((d) => d?.name).filter(Boolean);
+          }}
+        />
+      ),
       filteredValue: tableFilters.department || [],
     },
     {
@@ -357,17 +379,18 @@ const ExportPage = () => {
           </div>
         );
       },
-      filters: [
-        ...new Set(
-          employees
-            .flatMap((e) => e.employeeCounterpartyMappings || [])
-            .map((m) => m.counterparty?.name)
-            .filter(Boolean),
-        ),
-      ].map((name) => ({
-        text: name,
-        value: name,
-      })),
+      filterDropdown: (props) => (
+        <AsyncCheckboxFilterDropdown
+          {...props}
+          placeholder="Поиск контрагента..."
+          cacheKey="export-filter:counterparties"
+          loadOptions={async () => {
+            const response = await counterpartyService.getAll({ limit: 10000, page: 1 });
+            const counterparties = response?.data?.data?.counterparties || [];
+            return counterparties.map((c) => c?.name).filter(Boolean);
+          }}
+        />
+      ),
       filteredValue: tableFilters.counterparty || [],
     },
     {
@@ -386,14 +409,18 @@ const ExportPage = () => {
           {text || "-"}
         </div>
       ),
-      filters: [
-        ...new Set(
-          employeesWithOverrides.map((e) => e.citizenship?.name).filter(Boolean),
-        ),
-      ].map((name) => ({
-        text: name,
-        value: name,
-      })),
+      filterDropdown: (props) => (
+        <AsyncCheckboxFilterDropdown
+          {...props}
+          placeholder="Поиск гражданства..."
+          cacheKey="export-filter:citizenships"
+          loadOptions={async () => {
+            const response = await citizenshipService.getAll();
+            const citizenships = response?.data?.data?.citizenships || [];
+            return citizenships.map((c) => c?.name).filter(Boolean);
+          }}
+        />
+      ),
       filteredValue: tableFilters.citizenship || [],
     },
     {

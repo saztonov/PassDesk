@@ -1,4 +1,7 @@
 import { useCallback, useMemo } from "react";
+import { EMPLOYEE_FIELDS } from "../../shared/config/employeeFields";
+
+const ALL_FIELD_KEYS = EMPLOYEE_FIELDS.map((f) => f.key);
 
 const doesCitizenshipRequirePatent = (citizenship) =>
   citizenship?.requiresPatent !== false && citizenship?.isEaeu !== true;
@@ -9,33 +12,7 @@ const getRequiredFieldsByTab = (
   passportType,
 ) => {
   const allFields = {
-    1: [
-      "inn",
-      "lastName",
-      "firstName",
-      "middleName",
-      "gender",
-      "positionId",
-      "citizenshipId",
-      "birthDate",
-      "registrationAddress",
-      "email",
-      "phone",
-      "bankAccountNumber",
-      "bankBik",
-      "notes",
-      "snils",
-      "passportType",
-      "passportNumber",
-      "passportDate",
-      "passportIssuer",
-      "passportExpiryDate",
-      "kig",
-      "kigEndDate",
-      "patentNumber",
-      "patentIssueDate",
-      "blankNumber",
-    ],
+    1: ALL_FIELD_KEYS,
   };
 
   const requiredFields = {};

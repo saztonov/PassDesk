@@ -147,6 +147,7 @@ export const useEmployeeOcrHandlers = ({
         const { autoFillPatch, conflicts } = buildOcrApplyPlan({
           currentValues,
           ocrPatch: formPatch,
+          overwriteFields: docType === "passport_translation" ? Object.keys(formPatch) : [],
         });
 
         if (ocrDocumentType === "foreign_passport") {

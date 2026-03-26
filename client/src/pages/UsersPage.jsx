@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Table,
   Button,
@@ -13,8 +13,6 @@ import {
   App,
   Popconfirm,
   Switch,
-  Popover,
-  Checkbox,
 } from "antd";
 import {
   PlusOutlined,
@@ -25,7 +23,6 @@ import {
   LockOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  FilterOutlined,
 } from "@ant-design/icons";
 import { userService } from "@/services/userService";
 import { counterpartyService } from "@/services/counterpartyService";
@@ -74,46 +71,89 @@ const applyServerValidationErrors = (targetForm, error) => {
 const canManageTargetUser = (currentRole, currentUserId, targetUserId) =>
   canManageUsers(currentRole) && targetUserId !== currentUserId;
 
+const roleLabels = {
+  admin: { text: "Администратор", color: "red" },
+  laborer: { text: "Рабочий", color: "cyan" },
+  ot_admin: { text: "Администратор ОТ", color: "magenta" },
+  ot_engineer: { text: "Инженер ОТ", color: "blue" },
+  manager: { text: "Менеджер", color: "gold" },
+  user: { text: "Пользователь", color: "default" },
+};
+
 const UsersPage = () => {
   const { message } = App.useApp();
   const [users, setUsers] = useState([]);
   const [counterparties, setCounterparties] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState(null);
+  const [isActiveFilter, setIsActiveFilter] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [form] = Form.useForm();
   const [passwordForm] = Form.useForm();
   const [editingUser, setEditingUser] = useState(null);
   const { user: currentUser } = useAuthStore();
-  const [statusFilter, setStatusFilter] = useState([]);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
+  const debounceTimerRef = useRef(null);
 
+  // Debounce поиска (350мс, как на странице сотрудников)
   useEffect(() => {
-    fetchUsers();
-    fetchCounterparties();
-  }, []);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedSearch(searchText.trim());
+      setPagination((prev) => ({ ...prev, current: 1 }));
+    }, 350);
+    return () => clearTimeout(debounceTimerRef.current);
+  }, [searchText]);
 
-  const fetchUsers = async () => {
+  // Сброс страницы при изменении фильтров
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, current: 1 }));
+  }, [roleFilter, isActiveFilter]);
+
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await userService.getAll({ limit: 10000 });
+      const params = {
+        page: pagination.current,
+        limit: pagination.pageSize,
+      };
+      if (debouncedSearch) params.search = debouncedSearch;
+      if (roleFilter) params.role = roleFilter;
+      if (isActiveFilter !== null && isActiveFilter !== undefined) params.isActive = isActiveFilter;
+
+      const response = await userService.getAll(params);
       setUsers(response?.data?.users || []);
+      const total = response?.data?.pagination?.total ?? response?.data?.users?.length ?? 0;
+      setPagination((prev) => ({ ...prev, total }));
     } catch (error) {
       console.error("Error fetching users:", error);
       setUsers([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination.current, pagination.pageSize, debouncedSearch, roleFilter, isActiveFilter]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  useEffect(() => {
+    counterpartyService
+      .getAll({ limit: 10000, page: 1 })
+      .then((response) => {
+        setCounterparties(response?.data?.data?.counterparties || []);
+      })
+      .catch(() => {});
+  }, []);
 
   const upsertUser = (userPayload) => {
     if (!userPayload?.id) return;
     setUsers((prev) => {
       const index = prev.findIndex((item) => item.id === userPayload.id);
-      if (index === -1) {
-        return [userPayload, ...prev];
-      }
+      if (index === -1) return [userPayload, ...prev];
       const next = [...prev];
       next[index] = { ...next[index], ...userPayload };
       return next;
@@ -122,44 +162,6 @@ const UsersPage = () => {
 
   const removeUser = (id) => {
     setUsers((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const fetchCounterparties = async () => {
-    try {
-      // Загружаем все контрагенты без ограничения для поиска в Select
-      const response = await counterpartyService.getAll({
-        limit: 10000,
-        page: 1,
-      });
-      const counterpartiesData = response?.data?.data?.counterparties || [];
-      setCounterparties(counterpartiesData);
-    } catch (error) {
-      console.error("Error loading counterparties:", error);
-    }
-  };
-
-  // Восстановить пагинацию при смене поиска или фильтра
-  useEffect(() => {
-    setPagination({ current: 1, pageSize: 20 });
-  }, [searchText, statusFilter]);
-
-  const roleLabels = {
-    admin: { text: "Администратор", color: "red" },
-    laborer: { text: "Рабочий", color: "cyan" },
-    ot_admin: { text: "Администратор ОТ", color: "magenta" },
-    ot_engineer: { text: "Инженер ОТ", color: "blue" },
-    manager: { text: "Менеджер", color: "gold" },
-    user: { text: "Пользователь", color: "default" },
-  };
-
-  // Роли для селекта при создании/редактировании
-  const selectableRoles = {
-    admin: { text: "Администратор", color: "red" },
-    laborer: { text: "Рабочий", color: "cyan" },
-    ot_admin: { text: "Администратор ОТ", color: "magenta" },
-    ot_engineer: { text: "Инженер ОТ", color: "blue" },
-    manager: { text: "Менеджер", color: "gold" },
-    user: { text: "Пользователь", color: "default" },
   };
 
   const columns = [
@@ -189,20 +191,13 @@ const UsersPage = () => {
       render: (role) => (
         <Tag color={roleLabels[role]?.color}>{roleLabels[role]?.text}</Tag>
       ),
-      filters: Object.entries(roleLabels).map(([key, value]) => ({
-        text: value.text,
-        value: key,
-      })),
-      onFilter: (value, record) => record.role === value,
     },
     {
       title: "Контрагент",
       dataIndex: "counterpartyId",
       key: "counterpartyId",
       render: (counterpartyId) => {
-        const counterparty = counterparties.find(
-          (c) => c.id === counterpartyId,
-        );
+        const counterparty = counterparties.find((c) => c.id === counterpartyId);
         return counterparty ? counterparty.name : "-";
       },
     },
@@ -211,7 +206,6 @@ const UsersPage = () => {
       dataIndex: "isActive",
       key: "isActive",
       render: (isActive, record) => {
-        // Для администраторов - Switch, для остальных - Tag
         if (canManageTargetUser(currentUser?.role, currentUser?.id, record.id)) {
           return (
             <Switch
@@ -231,11 +225,6 @@ const UsersPage = () => {
           </Tag>
         );
       },
-      filters: [
-        { text: "Активен", value: true },
-        { text: "Неактивен", value: false },
-      ],
-      onFilter: (value, record) => record.isActive === value,
     },
     {
       title: "Дата создания",
@@ -250,7 +239,6 @@ const UsersPage = () => {
       key: "identificationNumber",
       render: (value) => {
         if (!value) return "-";
-        // Форматируем в маску XXX-XXX
         const digits = value.toString().replace(/\D/g, "");
         return digits.length >= 6
           ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}`
@@ -332,9 +320,7 @@ const UsersPage = () => {
       message.success("Статус пользователя изменен");
       await fetchUsers();
     } catch (error) {
-      message.error(
-        error.response?.data?.message || "Ошибка изменения статуса",
-      );
+      message.error(error.response?.data?.message || "Ошибка изменения статуса");
     }
   };
 
@@ -345,9 +331,7 @@ const UsersPage = () => {
       message.success("Пользователь удален");
       await fetchUsers();
     } catch (error) {
-      message.error(
-        error.response?.data?.message || "Ошибка удаления пользователя",
-      );
+      message.error(error.response?.data?.message || "Ошибка удаления пользователя");
     }
   };
 
@@ -368,40 +352,29 @@ const UsersPage = () => {
       setIsModalOpen(false);
       await fetchUsers();
     } catch (error) {
-      if (error.errorFields) {
-        // Validation error
-        return;
-      }
+      if (error.errorFields) return;
       if (applyServerValidationErrors(form, error)) {
         message.error(error?.response?.data?.errors?.[0]?.message || "Проверьте введенные данные");
         return;
       }
-      message.error(
-        error.response?.data?.message || "Ошибка сохранения пользователя",
-      );
+      message.error(error.response?.data?.message || "Ошибка сохранения пользователя");
     }
   };
 
   const handlePasswordModalOk = async () => {
     try {
       const values = await passwordForm.validateFields();
-
       await userService.updatePassword(editingUser.id, values);
       message.success("Пароль обновлен");
-
       setIsPasswordModalOpen(false);
       passwordForm.resetFields();
     } catch (error) {
-      if (error.errorFields) {
-        return;
-      }
+      if (error.errorFields) return;
       if (applyServerValidationErrors(passwordForm, error)) {
         message.error(error?.response?.data?.errors?.[0]?.message || "Проверьте введенные данные");
         return;
       }
-      message.error(
-        error.response?.data?.message || "Ошибка обновления пароля",
-      );
+      message.error(error.response?.data?.message || "Ошибка обновления пароля");
     }
   };
 
@@ -415,33 +388,6 @@ const UsersPage = () => {
     passwordForm.resetFields();
   };
 
-  const filteredUsers = users.filter((user) => {
-    const searchLower = searchText.toLowerCase();
-    const searchMatch =
-      user.email?.toLowerCase().includes(searchLower) ||
-      false ||
-      user.firstName?.toLowerCase().includes(searchLower) ||
-      false ||
-      user.lastName?.toLowerCase().includes(searchLower) ||
-      false ||
-      user.identificationNumber?.toLowerCase().includes(searchLower) ||
-      false;
-
-    // Фильтрация по статусу
-    let statusMatch = true;
-    if (statusFilter.length > 0) {
-      const isActive = user.isActive;
-      statusMatch =
-        (statusFilter.includes("active") && isActive) ||
-        (statusFilter.includes("inactive") && !isActive);
-    }
-
-    return searchMatch && statusMatch;
-  });
-
-  const totalUsers = filteredUsers.length;
-  const hasMultiplePages = totalUsers > pagination.pageSize;
-
   return (
     <div
       style={{
@@ -452,64 +398,55 @@ const UsersPage = () => {
         overflow: "hidden",
       }}
     >
-      {/* Заголовок, поиск, фильтр и кнопка на одной строке */}
+      {/* Тулбар */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 16,
-          padding: "24px 24px 0 24px",
-          gap: 16,
+          padding: "16px 24px",
+          gap: 12,
           flexShrink: 0,
+          borderBottom: "1px solid #f0f0f0",
+          flexWrap: "wrap",
         }}
       >
-        <Title level={2} style={{ margin: 0, flexShrink: 0 }}>
+        <Title level={3} style={{ margin: 0, whiteSpace: "nowrap" }}>
           Пользователи
         </Title>
 
-        <div
-          style={{ display: "flex", gap: 12, alignItems: "center", flex: 1 }}
-        >
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flex: 1, flexWrap: "wrap" }}>
           <Input
             placeholder="Поиск по email или ФИО..."
             prefix={<SearchOutlined />}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            size="large"
-            style={{ maxWidth: 500 }}
+            allowClear
+            style={{ maxWidth: 320 }}
           />
-          <Popover
-            content={
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 12,
-                  minWidth: 200,
-                }}
-              >
-                <div
-                  style={{ fontSize: 12, fontWeight: "bold", color: "#666" }}
-                >
-                  Статус
-                </div>
-                <Checkbox.Group value={statusFilter} onChange={setStatusFilter}>
-                  <Checkbox value="active">Активен</Checkbox>
-                  <Checkbox value="inactive">Неактивен</Checkbox>
-                </Checkbox.Group>
-              </div>
-            }
-            trigger="click"
-            placement="bottomLeft"
+          <Select
+            placeholder="Роль"
+            style={{ width: 180 }}
+            value={roleFilter}
+            onChange={setRoleFilter}
+            allowClear
           >
-            <Button
-              type={statusFilter.length > 0 ? "primary" : "default"}
-              icon={<FilterOutlined />}
-            >
-              Фильтр
-            </Button>
-          </Popover>
+            {Object.entries(roleLabels).map(([key, value]) => (
+              <Select.Option key={key} value={key}>
+                {value.text}
+              </Select.Option>
+            ))}
+          </Select>
+          <Select
+            placeholder="Статус"
+            style={{ width: 140 }}
+            value={isActiveFilter}
+            onChange={setIsActiveFilter}
+            allowClear
+          >
+            <Select.Option value="true">Активен</Select.Option>
+            <Select.Option value="false">Неактивен</Select.Option>
+          </Select>
         </div>
 
         <Button
@@ -522,9 +459,7 @@ const UsersPage = () => {
         </Button>
       </div>
 
-      {/* Отступ под заголовок */}
-      <div style={{ marginBottom: 16, flexShrink: 0 }} />
-
+      {/* Таблица */}
       <div
         style={{
           flex: 1,
@@ -537,22 +472,18 @@ const UsersPage = () => {
       >
         <Table
           columns={columns}
-          dataSource={filteredUsers}
+          dataSource={users}
           rowKey="id"
           loading={loading}
           size="small"
           pagination={{
             current: pagination.current,
             pageSize: pagination.pageSize,
-            total: totalUsers,
-            hideOnSinglePage: true,
-            showSizeChanger: hasMultiplePages,
+            total: pagination.total,
+            showSizeChanger: true,
             showTotal: (total) => `Всего: ${total}`,
             onChange: (page, pageSize) => {
-              setPagination({ current: page, pageSize });
-            },
-            onShowSizeChange: (current, pageSize) => {
-              setPagination({ current: 1, pageSize });
+              setPagination((prev) => ({ ...prev, current: page, pageSize }));
             },
           }}
           scroll={{ x: "max-content", y: 510 }}
@@ -560,11 +491,9 @@ const UsersPage = () => {
         />
       </div>
 
-      {/* Modal для создания/редактирования пользователя */}
+      {/* Modal создания/редактирования */}
       <Modal
-        title={
-          editingUser ? "Редактировать пользователя" : "Добавить пользователя"
-        }
+        title={editingUser ? "Редактировать пользователя" : "Добавить пользователя"}
         open={isModalOpen}
         onOk={handleModalOk}
         onCancel={handleModalCancel}
@@ -590,16 +519,10 @@ const UsersPage = () => {
               label="Пароль"
               rules={[
                 { required: true, message: "Введите пароль" },
-                {
-                  min: PASSWORD_MIN_LENGTH,
-                  message: PASSWORD_MIN_MESSAGE,
-                },
+                { min: PASSWORD_MIN_LENGTH, message: PASSWORD_MIN_MESSAGE },
               ]}
             >
-              <Input.Password
-                prefix={<LockOutlined />}
-                placeholder="••••••••"
-              />
+              <Input.Password prefix={<LockOutlined />} placeholder="••••••••" />
             </Form.Item>
           )}
 
@@ -618,7 +541,7 @@ const UsersPage = () => {
             initialValue={editingUser?.role || "user"}
           >
             <Select>
-              {Object.entries(selectableRoles).map(([key, value]) => (
+              {Object.entries(roleLabels).map(([key, value]) => (
                 <Select.Option key={key} value={key}>
                   {value.text}
                 </Select.Option>
@@ -637,22 +560,15 @@ const UsersPage = () => {
               showSearch
               optionFilterProp="label"
               filterOption={(input, option) => {
-                // Безопасное преобразование: проверяем тип данных перед вызовом toLowerCase
                 const label = option?.label;
-                const searchText =
-                  typeof label === "string" ? label : String(label || "");
-                return searchText.toLowerCase().includes(input.toLowerCase());
+                const text = typeof label === "string" ? label : String(label || "");
+                return text.toLowerCase().includes(input.toLowerCase());
               }}
               popupMatchSelectWidth={false}
-              maxTagCount="responsive"
               virtual={true}
             >
               {counterparties.map((c) => (
-                <Select.Option
-                  key={c.id}
-                  value={c.id}
-                  label={`${c.name} (${c.inn})`}
-                >
+                <Select.Option key={c.id} value={c.id} label={`${c.name} (${c.inn})`}>
                   {c.name} ({c.inn})
                 </Select.Option>
               ))}
@@ -661,7 +577,7 @@ const UsersPage = () => {
         </Form>
       </Modal>
 
-      {/* Modal для изменения пароля */}
+      {/* Modal изменения пароля */}
       <Modal
         title="Изменить пароль"
         open={isPasswordModalOpen}
