@@ -109,8 +109,27 @@ export const useEmployeeColumns = ({
   filters = {}, // Состояние фильтров из localStorage
   onConstructionSitesEdit, // Новый callback для редактирования объектов
   resetTrigger = 0, // Триггер для сброса фильтров
+  currentSortBy,
+  currentSortOrder,
 }) => {
   return useMemo(() => {
+    const getSortOrder = (columnKey) => {
+      if (currentSortBy !== columnKey) {
+        return null;
+      }
+
+      return currentSortOrder === "ASC"
+        ? "ascend"
+        : currentSortOrder === "DESC"
+          ? "descend"
+          : null;
+    };
+
+    const serverSorter = (columnKey) => ({
+      sorter: true,
+      sortOrder: getSortOrder(columnKey),
+    });
+
     const columns = [
       {
         title: "№",
@@ -139,7 +158,6 @@ export const useEmployeeColumns = ({
             )}
           </div>
         ),
-        sorter: (a, b) => a.lastName.localeCompare(b.lastName),
         filterDropdown: (props) => (
           <FullNameFilterDropdown
             key={`full-name-filter-${resetTrigger}`}
@@ -172,11 +190,7 @@ export const useEmployeeColumns = ({
             {name || "-"}
           </div>
         ),
-        sorter: (a, b) => {
-          const aPos = a.position?.name || "";
-          const bPos = b.position?.name || "";
-          return aPos.localeCompare(bPos);
-        },
+        ...serverSorter("position"),
         filterDropdown: (props) => (
           <AsyncCheckboxFilterDropdown
             key={`position-filter-${resetTrigger}`}
@@ -252,17 +266,7 @@ export const useEmployeeColumns = ({
                   </Select>
                 );
               },
-              sorter: (a, b) => {
-                const aDept =
-                  getActiveEmployeeMappings(a)[0]?.department?.name ||
-                  getDismissedEmployeeMappings(a)[0]?.department?.name ||
-                  "";
-                const bDept =
-                  getActiveEmployeeMappings(b)[0]?.department?.name ||
-                  getDismissedEmployeeMappings(b)[0]?.department?.name ||
-                  "";
-                return aDept.localeCompare(bDept);
-              },
+              ...serverSorter("department"),
               filterDropdown: (props) => (
                 <AsyncCheckboxFilterDropdown
                   key={`department-filter-${resetTrigger}`}
@@ -311,17 +315,7 @@ export const useEmployeeColumns = ({
                   dismissedValues: dismissedCounterparties,
                 });
               },
-              sorter: (a, b) => {
-                const aCounterparty =
-                  getActiveEmployeeMappings(a)[0]?.counterparty?.name ||
-                  getDismissedEmployeeMappings(a)[0]?.counterparty?.name ||
-                  "";
-                const bCounterparty =
-                  getActiveEmployeeMappings(b)[0]?.counterparty?.name ||
-                  getDismissedEmployeeMappings(b)[0]?.counterparty?.name ||
-                  "";
-                return aCounterparty.localeCompare(bCounterparty);
-              },
+              ...serverSorter("counterparty"),
               filterDropdown: (props) => (
                 <CounterpartyFilterDropdown
                   key={`counterparty-filter-${resetTrigger}`}
@@ -420,29 +414,7 @@ export const useEmployeeColumns = ({
             </div>
           );
         },
-        sorter: (a, b) => {
-          const aSite =
-            getActiveEmployeeMappings(a).find((mapping) => mapping.constructionSite)
-              ?.constructionSite?.shortName ||
-            getActiveEmployeeMappings(a).find((mapping) => mapping.constructionSite)
-              ?.constructionSite?.name ||
-            getDismissedEmployeeMappings(a).find((mapping) => mapping.constructionSite)
-              ?.constructionSite?.shortName ||
-            getDismissedEmployeeMappings(a).find((mapping) => mapping.constructionSite)
-              ?.constructionSite?.name ||
-            "";
-          const bSite =
-            getActiveEmployeeMappings(b).find((mapping) => mapping.constructionSite)
-              ?.constructionSite?.shortName ||
-            getActiveEmployeeMappings(b).find((mapping) => mapping.constructionSite)
-              ?.constructionSite?.name ||
-            getDismissedEmployeeMappings(b).find((mapping) => mapping.constructionSite)
-              ?.constructionSite?.shortName ||
-            getDismissedEmployeeMappings(b).find((mapping) => mapping.constructionSite)
-              ?.constructionSite?.name ||
-            "";
-          return aSite.localeCompare(bSite);
-        },
+        ...serverSorter("constructionSite"),
         filterDropdown: (props) => (
           <AsyncCheckboxFilterDropdown
             key={`construction-site-filter-${resetTrigger}`}
@@ -492,11 +464,7 @@ export const useEmployeeColumns = ({
         width: 150,
         ellipsis: true,
         render: (name) => name || "-",
-        sorter: (a, b) => {
-          const aCit = a.citizenship?.name || "";
-          const bCit = b.citizenship?.name || "";
-          return aCit.localeCompare(bCit);
-        },
+        ...serverSorter("citizenship"),
         filterDropdown: (props) => (
           <AsyncCheckboxFilterDropdown
             key={`citizenship-filter-${resetTrigger}`}
@@ -565,11 +533,7 @@ export const useEmployeeColumns = ({
             </Tooltip>
           );
         },
-        sorter: (a, b) => {
-          const aCompleted = a.statusCard === "completed" ? 1 : 0;
-          const bCompleted = b.statusCard === "completed" ? 1 : 0;
-          return aCompleted - bCompleted;
-        },
+        ...serverSorter("statusCard"),
         filters: [
           { text: "Заполнен", value: "completed" },
           { text: "Не заполнен", value: "draft" },
@@ -585,10 +549,7 @@ export const useEmployeeColumns = ({
           const date = new Date(record.createdAt);
           return date.toLocaleDateString("ru-RU");
         },
-        sorter: (a, b) => {
-          if (!a.createdAt || !b.createdAt) return 0;
-          return new Date(a.createdAt) - new Date(b.createdAt);
-        },
+        ...serverSorter("createdAt"),
         filterDropdown: (props) => (
           <CreatedAtFilterDropdown {...props} resetTrigger={resetTrigger} />
         ),
@@ -638,7 +599,7 @@ export const useEmployeeColumns = ({
             </Tooltip>
           );
         },
-        sorter: (a, b) => (a.filesCount || 0) - (b.filesCount || 0),
+        ...serverSorter("files"),
       },
       {
         title: "Срок действия док.",
@@ -722,7 +683,7 @@ export const useEmployeeColumns = ({
           };
           return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
         },
-        sorter: (a, b) => getStatusPriority(a) - getStatusPriority(b),
+        ...serverSorter("status"),
         filters: [
           { text: "Заблокирован", value: "blocked" },
           { text: "Уволен", value: "fired" },
@@ -801,5 +762,7 @@ export const useEmployeeColumns = ({
     resetTrigger,
     canMarkForDeletion,
     onMarkForDeletion,
+    currentSortBy,
+    currentSortOrder,
   ]);
 };

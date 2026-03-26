@@ -87,6 +87,8 @@ const useEmployeesPageViewModels = ({
   setIsRequestModalOpen,
   refetchEmployees,
   setIsExportModalOpen,
+  sortBy,
+  sortOrder,
   handleSortChange,
 }) => {
   const availableColumns = useMemo(
@@ -164,6 +166,8 @@ const useEmployeesPageViewModels = ({
       hiddenColumns,
       canDeleteEmployee,
       canMarkForDeletion,
+      sortBy,
+      sortOrder,
     }),
     [
       filteredEmployees,
@@ -183,6 +187,8 @@ const useEmployeesPageViewModels = ({
       hiddenColumns,
       canDeleteEmployee,
       canMarkForDeletion,
+      sortBy,
+      sortOrder,
     ],
   );
 

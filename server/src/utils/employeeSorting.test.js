@@ -7,9 +7,28 @@ import {
 } from "./employeeSorting.js";
 
 test("requires in-memory sorting for mapping and computed fields", () => {
+  assert.equal(requiresEmployeeInMemorySort("fullName"), true);
   assert.equal(requiresEmployeeInMemorySort("counterparty"), true);
   assert.equal(requiresEmployeeInMemorySort("files"), true);
   assert.equal(requiresEmployeeInMemorySort("createdAt"), false);
+});
+
+test("sorts employees by full name in memory", () => {
+  const employees = [
+    { id: "2", firstName: "Иван", lastName: "Яковлев", middleName: "Петрович" },
+    { id: "1", firstName: "Иван", lastName: "Абаев", middleName: "Петрович" },
+  ];
+
+  const sorted = sortEmployeesInMemory({
+    employees,
+    sortBy: "fullName",
+    sortOrder: "ASC",
+  });
+
+  assert.deepEqual(
+    sorted.map((employee) => employee.id),
+    ["1", "2"],
+  );
 });
 
 test("sorts employees by counterparty using active mappings first", () => {

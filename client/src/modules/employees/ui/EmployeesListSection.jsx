@@ -60,6 +60,8 @@ const EmployeesListSection = memo(({ isMobile, model, actions }) => {
         onConstructionSitesEdit={actions.onConstructionSitesEdit}
         resetTrigger={model.resetTrigger}
         hiddenColumnKeys={model.hiddenColumns}
+        currentSortBy={model.sortBy}
+        currentSortOrder={model.sortOrder}
         onSortChange={actions.onSortChange}
       />
     </div>

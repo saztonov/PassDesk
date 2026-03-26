@@ -47,6 +47,12 @@ import { deleteEmployeeFromSkud } from "../services/skud/SkudCardsService.js";
 import { isSkudEnabled } from "../services/skud/skudConfig.js";
 import { issueSkudQrTokenForEmployeeActivePass } from "../services/skud/SkudQrService.js";
 import {
+  AUDIT_EVENT_TYPES,
+  getEmployeeCounterpartyAuditDetails,
+  logAuditEvent,
+} from "../services/auditEventService.js";
+import { transferEmployeeBetweenCounterparties } from "../services/employeeTransferService.js";
+import {
   requiresEmployeeInMemorySort,
   sortEmployeesInMemory,
 } from "../utils/employeeSorting.js";
@@ -358,6 +364,33 @@ const matchesEmployeeSearch = (employee, rawSearch) => {
       normalizeDocSearch(source.patentNumber) === normalizedDocSearchValue);
 
   return isTextMatch || isDigitsMatch || isDocumentExact;
+};
+
+const employeeFullNameCollator = new Intl.Collator("ru", {
+  sensitivity: "base",
+  numeric: true,
+});
+
+const compareEmployeesByFullName = (leftEmployee, rightEmployee) => {
+  const left = getEmployeeSearchSource(leftEmployee);
+  const right = getEmployeeSearchSource(rightEmployee);
+  const keys = ["lastName", "firstName", "middleName"];
+
+  for (const key of keys) {
+    const result = employeeFullNameCollator.compare(
+      String(left?.[key] || ""),
+      String(right?.[key] || ""),
+    );
+
+    if (result !== 0) {
+      return result;
+    }
+  }
+
+  return employeeFullNameCollator.compare(
+    String(left?.id || ""),
+    String(right?.id || ""),
+  );
 };
 
 const matchesEmployeeStatusFilter = (employee, requestedStatuses = []) => {
@@ -1188,7 +1221,8 @@ export const getAllEmployees = async (req, res, next) => {
       }
     }
 
-    const requiresInMemorySort = requiresEmployeeInMemorySort(sortBy);
+    const normalizedSortBy = sortBy === "fullName" ? "updatedAt" : sortBy;
+    const requiresInMemorySort = requiresEmployeeInMemorySort(normalizedSortBy);
 
     // Для JOIN-фильтров (подразделение/контрагент/объект/должность/гражданство)
     // применяем in-memory пагинацию по уникальным сотрудникам, иначе LIMIT на SQL JOIN
@@ -1197,6 +1231,7 @@ export const getAllEmployees = async (req, res, next) => {
       requiresPostFiltering || hasJoinBasedFilters || requiresInMemorySort;
     const canUseLightIdScan =
       shouldUseInMemoryPagination &&
+      !requiresPostFiltering &&
       !requiresInMemorySort &&
       !hasSearchQuery &&
       requestedStatusFilters.length === 0 &&
@@ -1232,11 +1267,13 @@ export const getAllEmployees = async (req, res, next) => {
     const allowedSortFields = {
       createdAt: "createdAt",
       updatedAt: "updatedAt",
-      fullName: "fullName",
     };
-    const resolvedSortField = allowedSortFields[sortBy] || "createdAt";
+    const resolvedSortField = allowedSortFields[normalizedSortBy] || "updatedAt";
     const resolvedSortOrder =
       sortOrder === "ASC" ? "ASC" : sortOrder === "DESC" ? "DESC" : "DESC";
+    const sqlSortField = requiresInMemorySort
+      ? "updatedAt"
+      : resolvedSortField;
     const filesCountAttribute = [
       sequelize.literal(`(
         SELECT COUNT(*)::int
@@ -1249,13 +1286,11 @@ export const getAllEmployees = async (req, res, next) => {
     ];
 
     const queryOrder =
-      resolvedSortField === "fullName"
+      sqlSortField === "fullName"
         ? [
-            ["lastName", `${resolvedSortOrder} NULLS LAST`],
-            ["firstName", `${resolvedSortOrder} NULLS LAST`],
-            ["middleName", `${resolvedSortOrder} NULLS LAST`],
+            ["updatedAt", `${resolvedSortOrder} NULLS LAST`],
           ]
-        : [[resolvedSortField, `${resolvedSortOrder} NULLS LAST`]];
+        : [[sqlSortField, `${resolvedSortOrder} NULLS LAST`]];
 
     // В режиме in-memory пагинации сначала делаем scan, затем загружаем
     // полные данные только для текущей страницы.
@@ -2154,10 +2189,15 @@ export const updateEmployee = async (req, res, next) => {
 
     // ПРОВЕРКА ПРАВ ДОСТУПА
     await checkEmployeeAccess(req.user, employee);
-    const currentMapping = await EmployeeCounterpartyMapping.findOne({
+    let currentMapping = await EmployeeCounterpartyMapping.findOne({
       where: {
         employeeId: id,
+        dismissedAt: null,
       },
+      order: [
+        ["updatedAt", "DESC"],
+        ["createdAt", "DESC"],
+      ],
     });
     const currentActiveStatusBeforeUpdate =
       await EmployeeStatusService.getCurrentStatus(id, "status_active");
@@ -2166,6 +2206,15 @@ export const updateEmployee = async (req, res, next) => {
 
     const changedEmployeeFields = Object.entries(cleanedData).filter(
       ([key, value]) => hasComparableValueChanged(employee[key], value),
+    );
+    const employeeFieldChangesForAudit = Object.fromEntries(
+      changedEmployeeFields.map(([fieldName, nextValue]) => [
+        fieldName,
+        {
+          from: employee[fieldName] ?? null,
+          to: nextValue ?? null,
+        },
+      ]),
     );
     const hasEmployeeFieldChanges = changedEmployeeFields.length > 0;
 
@@ -2181,6 +2230,8 @@ export const updateEmployee = async (req, res, next) => {
         currentMapping?.constructionSiteId,
         normalizedConstructionSiteId,
       );
+    const previousConstructionSiteIdForAudit =
+      currentMapping?.constructionSiteId ?? null;
 
     const desiredActiveStatusName = isFired
       ? "status_active_fired"
@@ -2262,25 +2313,29 @@ export const updateEmployee = async (req, res, next) => {
       console.log("✓ Employee fields updated:", changedFieldNames);
     }
 
-    if (hasCounterpartyChange && currentMapping) {
-      const previousCounterpartyId = currentMapping.counterpartyId;
-      await currentMapping.update({
-        counterpartyId,
-      });
-      console.log("✓ Employee counterparty mapping updated:", {
+    if (hasCounterpartyChange) {
+      const transferResult = await transferEmployeeBetweenCounterparties({
         employeeId: id,
-        oldCounterpartyId: previousCounterpartyId,
+        targetCounterpartyId: counterpartyId,
+        userId: req.user.id,
+        req,
+        source: "employee_update",
+      });
+      currentMapping = transferResult.mapping;
+      console.log("✓ Employee counterparty transfer completed:", {
+        employeeId: id,
         newCounterpartyId: counterpartyId,
       });
     }
 
     if (hasConstructionSiteChange && currentMapping) {
+      const previousConstructionSiteId = currentMapping.constructionSiteId;
       await currentMapping.update({
         constructionSiteId: normalizedConstructionSiteId,
       });
       console.log("✓ Employee construction site mapping updated:", {
         employeeId: id,
-        oldConstructionSiteId: currentMapping.constructionSiteId,
+        oldConstructionSiteId: previousConstructionSiteId,
         newConstructionSiteId: normalizedConstructionSiteId,
       });
     }
@@ -2313,11 +2368,24 @@ export const updateEmployee = async (req, res, next) => {
     });
 
     const employeeDataWithStatus = updatedEmployee.toJSON();
+    const activeCounterpartyForAudit =
+      employeeDataWithStatus.employeeCounterpartyMappings?.find(
+        (mapping) => !mapping.dismissedAt,
+      )?.counterparty || null;
     const formConfig = await getEmployeeFormConfig(employeeDataWithStatus);
     const calculatedStatusCard = isDraftRequest
       ? "draft"
       : calculateStatusCard(employeeDataWithStatus, formConfig);
     employeeDataWithStatus.statusCard = calculatedStatusCard;
+
+    const statusAuditContext = {
+      req,
+      reason: "employee_updated",
+      metadata: {
+        isDraftRequest,
+        hasDataChanges,
+      },
+    };
 
     // Обновляем статусы на основе текущего состояния
     try {
@@ -2365,6 +2433,9 @@ export const updateEmployee = async (req, res, next) => {
           "status_hr_edited",
           req.user.id,
           false,
+          {
+            auditContext: statusAuditContext,
+          },
         );
         console.log("✓ status_hr_edited activated with is_upload=false");
       }
@@ -2382,6 +2453,9 @@ export const updateEmployee = async (req, res, next) => {
           id,
           "status_hr_edited",
           req.user.id,
+          {
+            auditContext: statusAuditContext,
+          },
         );
       }
 
@@ -2430,6 +2504,9 @@ export const updateEmployee = async (req, res, next) => {
           id,
           statusName,
           req.user.id,
+          {
+            auditContext: statusAuditContext,
+          },
         );
         console.log(`✓ Employee status_active updated to ${statusName}`);
       } else {
@@ -2509,6 +2586,9 @@ export const updateEmployee = async (req, res, next) => {
             "status_hr_fired_off",
             req.user.id,
             false,
+            {
+              auditContext: statusAuditContext,
+            },
           );
           console.log(
             "✓ Activated or created status_hr_fired_off with is_upload=false",
@@ -2522,6 +2602,9 @@ export const updateEmployee = async (req, res, next) => {
             id,
             "status_active_employed",
             req.user.id,
+            {
+              auditContext: statusAuditContext,
+            },
           );
           console.log("✓ Employee status_active updated to employed");
         }
@@ -2529,7 +2612,9 @@ export const updateEmployee = async (req, res, next) => {
 
       if (hasDataChanges) {
         const updatedUploadFlags =
-          await EmployeeStatusService.resetActiveUploadFlags(id, req.user.id);
+          await EmployeeStatusService.resetActiveUploadFlags(id, req.user.id, {
+            auditContext: statusAuditContext,
+          });
         console.log(
           `✓ Active status upload flags reset to false after data changes: ${updatedUploadFlags}`,
         );
@@ -2537,6 +2622,31 @@ export const updateEmployee = async (req, res, next) => {
     } catch (statusError) {
       console.warn("Warning: could not update statuses:", statusError.message);
       // Не прерываем обновление, если ошибка со статусами
+    }
+
+    if (hasEmployeeFieldChanges || hasConstructionSiteChange) {
+      await logAuditEvent({
+        userId: req.user.id,
+        eventType: AUDIT_EVENT_TYPES.EMPLOYEE_UPDATED,
+        entityType: "employee",
+        entityId: id,
+        details: {
+          counterpartyId: activeCounterpartyForAudit?.id || null,
+          counterpartyName: activeCounterpartyForAudit?.name || null,
+          changedFields: [
+            ...changedEmployeeFields.map(([fieldName]) => fieldName),
+            ...(hasConstructionSiteChange ? ["constructionSiteId"] : []),
+          ],
+          fieldChanges: employeeFieldChangesForAudit,
+          constructionSiteChange: hasConstructionSiteChange
+            ? {
+                from: previousConstructionSiteIdForAudit,
+                to: normalizedConstructionSiteId,
+              }
+            : null,
+        },
+        req,
+      });
     }
 
     res.json({
@@ -3429,6 +3539,30 @@ export const updateAllStatusesUploadFlag = async (req, res, next) => {
     }
 
     // Обновляем все активные статусы сотрудника
+    const currentMappings = await EmployeeStatusMapping.findAll({
+      where: {
+        employeeId: employeeId,
+        isActive: true,
+      },
+      include: [
+        {
+          model: Status,
+          as: "status",
+        },
+      ],
+    });
+    const changedMappings = currentMappings.filter(
+      (mapping) => Boolean(mapping.isUpload) !== Boolean(isUpload),
+    );
+    const previousUploadState =
+      changedMappings.length === 0
+        ? null
+        : changedMappings.every((mapping) => Boolean(mapping.isUpload) === true)
+          ? true
+          : changedMappings.every((mapping) => Boolean(mapping.isUpload) === false)
+            ? false
+            : "mixed";
+
     const [updatedCount] = await EmployeeStatusMapping.update(
       {
         isUpload: isUpload,
@@ -3441,6 +3575,41 @@ export const updateAllStatusesUploadFlag = async (req, res, next) => {
         },
       },
     );
+
+    await Employee.update(
+      {
+        updatedBy: userId,
+        updatedAt: new Date(),
+      },
+      {
+        where: { id: employeeId },
+      },
+    );
+
+    if (changedMappings.length > 0) {
+      const counterpartyDetails = await getEmployeeCounterpartyAuditDetails(
+        employeeId,
+      );
+      await logAuditEvent({
+        userId,
+        eventType: AUDIT_EVENT_TYPES.ZUP_FLAG_CHANGED,
+        entityType: "employee",
+        entityId: employeeId,
+        details: {
+          ...counterpartyDetails,
+          from: previousUploadState,
+          to: isUpload,
+          scope: "active_statuses",
+          changedMappings: changedMappings.map((mapping) => ({
+            id: mapping.id,
+            statusGroup: mapping.statusGroup,
+            statusName: mapping.status?.name || null,
+          })),
+          reason: "manual_upload_flag_update",
+        },
+        req,
+      });
+    }
 
     res.json({
       success: true,
@@ -3488,10 +3657,43 @@ export const updateStatusUploadFlag = async (req, res, next) => {
     }
 
     // Обновляем флаг
+    const previousIsUpload = statusMapping.isUpload;
     await statusMapping.update({
       isUpload: isUpload,
       updatedBy: userId,
     });
+
+    await Employee.update(
+      {
+        updatedBy: userId,
+        updatedAt: new Date(),
+      },
+      {
+        where: { id: employeeId },
+      },
+    );
+
+    if (Boolean(previousIsUpload) !== Boolean(isUpload)) {
+      const counterpartyDetails = await getEmployeeCounterpartyAuditDetails(
+        employeeId,
+      );
+      await logAuditEvent({
+        userId,
+        eventType: AUDIT_EVENT_TYPES.ZUP_FLAG_CHANGED,
+        entityType: "employee",
+        entityId: employeeId,
+        details: {
+          ...counterpartyDetails,
+          from: previousIsUpload,
+          to: isUpload,
+          scope: "single_status",
+          statusMappingId,
+          statusGroup: statusMapping.statusGroup,
+          reason: "manual_upload_flag_update",
+        },
+        req,
+      });
+    }
 
     res.json({
       success: true,
@@ -3553,6 +3755,8 @@ export const setEditedStatus = async (req, res, next) => {
         },
       ],
     });
+    const previousHrStatusName = firedOffMapping?.status?.name || null;
+    const previousHrIsUpload = firedOffMapping?.isUpload ?? null;
 
     // Если активен status_hr_fired_off - не создаем status_hr_edited
     if (firedOffMapping?.status?.name === "status_hr_fired_off") {
@@ -3608,6 +3812,40 @@ export const setEditedStatus = async (req, res, next) => {
         isActive: true,
         createdBy: userId,
         updatedBy: userId,
+      });
+    }
+
+    await Employee.update(
+      {
+        updatedBy: userId,
+        updatedAt: new Date(),
+      },
+      {
+        where: { id: employeeId },
+      },
+    );
+
+    if (
+      previousHrStatusName !== "status_hr_edited" ||
+      Boolean(previousHrIsUpload) !== Boolean(isUpload)
+    ) {
+      const counterpartyDetails = await getEmployeeCounterpartyAuditDetails(
+        employeeId,
+      );
+      await logAuditEvent({
+        userId,
+        eventType: AUDIT_EVENT_TYPES.STATUS_CHANGED,
+        entityType: "employee",
+        entityId: employeeId,
+        details: {
+          ...counterpartyDetails,
+          statusGroup: "status_hr",
+          from: previousHrStatusName,
+          to: "status_hr_edited",
+          isUpload,
+          reason: "manual_set_edited_status",
+        },
+        req,
       });
     }
 
@@ -3687,6 +3925,12 @@ export const fireEmployee = async (req, res, next) => {
       id,
       "status_active_fired",
       userId,
+      {
+        auditContext: {
+          req,
+          reason: "employee_fired",
+        },
+      },
     );
 
     // Обновляем is_upload = false для только что установленного статуса
@@ -3808,6 +4052,12 @@ export const reinstateEmployee = async (req, res, next) => {
       "status_hr_fired_off",
       userId,
       false,
+      {
+        auditContext: {
+          req,
+          reason: "employee_reinstated",
+        },
+      },
     );
     console.log("✓ status_hr_fired_off activated with is_upload=false");
 
@@ -3830,6 +4080,12 @@ export const reinstateEmployee = async (req, res, next) => {
       id,
       "status_active_employed",
       userId,
+      {
+        auditContext: {
+          req,
+          reason: "employee_reinstated",
+        },
+      },
     );
     console.log("✓ status_active_employed activated");
 
@@ -3895,6 +4151,12 @@ export const deactivateEmployee = async (req, res, next) => {
       id,
       "status_active_inactive",
       userId,
+      {
+        auditContext: {
+          req,
+          reason: "employee_deactivated",
+        },
+      },
     );
     console.log("✓ status_active_inactive activated");
 
@@ -3969,6 +4231,12 @@ export const activateEmployee = async (req, res, next) => {
       id,
       "status_active_employed",
       userId,
+      {
+        auditContext: {
+          req,
+          reason: "employee_activated",
+        },
+      },
     );
     console.log("✓ status_active_employed activated");
 
@@ -4321,11 +4589,12 @@ export const searchEmployees = async (req, res, next) => {
 
     const employees = await Employee.findAll({
       where,
-      attributes: ["id", "firstName", "lastName", "middleName"],
-      order: [
-        ["lastName", "ASC"],
-        ["firstName", "ASC"],
-        ["middleName", "ASC"],
+      attributes: [
+        "id",
+        "firstName",
+        "lastNameEnc",
+        "lastNameKeyVersion",
+        "middleName",
       ],
       include: include,
     });
@@ -4335,11 +4604,12 @@ export const searchEmployees = async (req, res, next) => {
           matchesEmployeeSearch(employee, normalizedSearch),
         )
       : employees;
+    const sortedEmployees = [...searchedEmployees].sort(compareEmployeesByFullName);
 
     res.json({
       success: true,
       data: {
-        employees: searchedEmployees,
+        employees: sortedEmployees,
       },
     });
   } catch (error) {
@@ -4605,54 +4875,29 @@ export const transferEmployeeToCounterparty = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { counterpartyId } = req.body;
-    const userId = req.user.id;
-
-    // Проверяем, что сотрудник существует
-    const employee = await Employee.findByPk(id);
-    if (!employee) {
-      throw new AppError("Сотрудник не найден", 404);
-    }
-
-    // Проверяем, что контрагент существует
-    const counterparty = await Counterparty.findByPk(counterpartyId);
-    if (!counterparty) {
-      throw new AppError("Контрагент не найден", 404);
-    }
-
-    // Проверяем, нет ли уже такой связи
-    const existingMapping = await EmployeeCounterpartyMapping.findOne({
-      where: {
-        employeeId: id,
-        counterpartyId: counterpartyId,
-      },
-    });
-
-    if (existingMapping) {
-      throw new AppError("Сотрудник уже привязан к этому контрагенту", 400);
-    }
-
-    // Создаем новую запись в маппинге
-    const mapping = await EmployeeCounterpartyMapping.create({
+    const transferResult = await transferEmployeeBetweenCounterparties({
       employeeId: id,
-      counterpartyId: counterpartyId,
-      departmentId: null,
-      constructionSiteId: null,
+      targetCounterpartyId: counterpartyId,
+      userId: req.user.id,
+      req,
+      source: "transfer_endpoint",
     });
 
     console.log(
-      `✅ Сотрудник ${id} переведен в контрагента ${counterpartyId} пользователем ${userId}`,
+      `✅ Сотрудник ${id} переведен в контрагента ${counterpartyId} пользователем ${req.user.id}`,
     );
 
     res.json({
       success: true,
-      message: `Сотрудник успешно переведен в компанию "${counterparty.name}"`,
+      message: `Сотрудник успешно переведен в компанию "${transferResult.counterparty.name}"`,
       data: {
-        mapping,
+        mapping: transferResult.mapping,
         counterparty: {
-          id: counterparty.id,
-          name: counterparty.name,
-          inn: counterparty.inn,
+          id: transferResult.counterparty.id,
+          name: transferResult.counterparty.name,
+          inn: transferResult.counterparty.inn,
         },
+        fromCounterparties: transferResult.fromCounterparties,
       },
     });
   } catch (error) {

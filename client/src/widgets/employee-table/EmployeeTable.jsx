@@ -178,6 +178,8 @@ export const EmployeeTable = ({
   onConstructionSitesEdit, // Новый prop для редактирования объектов
   resetTrigger, // Триггер для сброса фильтров
   hiddenColumnKeys = EMPTY_HIDDEN_COLUMN_KEYS,
+  currentSortBy,
+  currentSortOrder,
   onSortChange,
 }) => {
   const {
@@ -204,6 +206,8 @@ export const EmployeeTable = ({
     filters, // Передаем фильтры в хук колонок
     onConstructionSitesEdit, // Передаем новый callback
     resetTrigger, // Передаем триггер сброса
+    currentSortBy,
+    currentSortOrder,
   });
 
   const visibleColumns = columns.filter(

@@ -71,6 +71,7 @@ export const getEmployeeStatusPriority = (employee) => {
 
 export const requiresEmployeeInMemorySort = (sortBy) =>
   [
+    "fullName",
     "position",
     "department",
     "counterparty",
@@ -87,6 +88,12 @@ export const getEmployeeSortValue = (
   resolveStatusCard = () => "draft",
 ) => {
   switch (sortBy) {
+    case "fullName":
+      return [
+        employee?.lastName || "",
+        employee?.firstName || "",
+        employee?.middleName || "",
+      ].join(" ");
     case "position":
       return employee?.position?.name || "";
     case "department":

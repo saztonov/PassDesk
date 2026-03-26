@@ -1,7 +1,54 @@
-import { DataTypes, Model } from 'sequelize';
+import { DataTypes, Model, Op } from 'sequelize';
 import sequelize from '../config/database.js';
 
 class EmployeeCounterpartyMapping extends Model {}
+
+const collectUniqueEmployeeIds = (items = []) => [
+  ...new Set(
+    items
+      .map((item) => item?.employeeId || item?.employee_id || null)
+      .filter(Boolean),
+  ),
+];
+
+export const touchEmployeesForMappings = async (
+  employeeIds,
+  options = {},
+) => {
+  const ids = collectUniqueEmployeeIds(employeeIds);
+  if (ids.length === 0) {
+    return;
+  }
+
+  const EmployeeModel = sequelize.models.Employee;
+  if (!EmployeeModel) {
+    return;
+  }
+
+  await EmployeeModel.update(
+    { updatedAt: new Date() },
+    {
+      where: {
+        id: {
+          [Op.in]: ids,
+        },
+      },
+      transaction: options.transaction,
+    },
+  );
+};
+
+const rememberBulkEmployeeIds = async (options = {}) => {
+  const where = options.where || {};
+  const rows = await EmployeeCounterpartyMapping.findAll({
+    where,
+    attributes: ['employeeId'],
+    transaction: options.transaction,
+    raw: true,
+  });
+
+  options._touchedEmployeeIds = collectUniqueEmployeeIds(rows);
+};
 
 EmployeeCounterpartyMapping.init(
   {
@@ -64,6 +111,32 @@ EmployeeCounterpartyMapping.init(
     tableName: 'employee_counterparty_mapping',
     timestamps: true,
     underscored: true,
+    hooks: {
+      async afterCreate(mapping, options) {
+        await touchEmployeesForMappings([mapping], options);
+      },
+      async afterUpdate(mapping, options) {
+        await touchEmployeesForMappings([mapping], options);
+      },
+      async afterDestroy(mapping, options) {
+        await touchEmployeesForMappings([mapping], options);
+      },
+      async afterBulkCreate(mappings, options) {
+        await touchEmployeesForMappings(mappings, options);
+      },
+      async beforeBulkUpdate(options) {
+        await rememberBulkEmployeeIds(options);
+      },
+      async afterBulkUpdate(options) {
+        await touchEmployeesForMappings(options._touchedEmployeeIds, options);
+      },
+      async beforeBulkDestroy(options) {
+        await rememberBulkEmployeeIds(options);
+      },
+      async afterBulkDestroy(options) {
+        await touchEmployeesForMappings(options._touchedEmployeeIds, options);
+      },
+    },
     indexes: [
       {
         fields: ['employee_id']

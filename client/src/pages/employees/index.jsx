@@ -49,11 +49,12 @@ const EmployeesPage = () => {
     handleResetColumns,
   } = useEmployeesPageStorage();
 
-  const [sortBy, setSortBy] = useState(null);
-  const [sortOrder, setSortOrder] = useState(null);
+  const [sortBy, setSortBy] = useState("updatedAt");
+  const [sortOrder, setSortOrder] = useState("DESC");
 
   const handleSortChange = useCallback((field, order) => {
-    setSortBy(field || null);
+    const normalizedField = field === "fullName" ? "updatedAt" : field;
+    setSortBy(normalizedField || null);
     setSortOrder(order || null);
     setCurrentPage(1);
   }, [setCurrentPage]);
@@ -181,7 +182,7 @@ const EmployeesPage = () => {
 
     filters.page = currentPage;
     filters.limit = pageSize;
-    if (sortBy) filters.sortBy = sortBy;
+    if (sortBy && sortBy !== "fullName") filters.sortBy = sortBy;
     if (sortOrder) filters.sortOrder = sortOrder;
 
     return filters;
@@ -399,6 +400,8 @@ const EmployeesPage = () => {
     setIsRequestModalOpen,
     refetchEmployees,
     setIsExportModalOpen,
+    sortBy,
+    sortOrder,
     handleSortChange,
   });
 
