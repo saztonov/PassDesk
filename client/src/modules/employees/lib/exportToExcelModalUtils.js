@@ -5,7 +5,7 @@ const formatDateValue = (value) =>
   value ? dayjs(value).format("DD.MM.YYYY") : "-";
 
 export const getBirthCountryName = (employee) =>
-  employee?.birthCountry?.name || employee?.citizenship?.name || "-";
+  employee?.birthCountry?.code || employee?.citizenship?.code || "-";
 
 const formatBirthPlace = (employee) => {
   const parts = [

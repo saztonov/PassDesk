@@ -8,10 +8,7 @@ import {
   CheckCircleFilled,
   CloseCircleFilled,
 } from "@ant-design/icons";
-import { getStatusPriority } from "@/entities/employee";
-import { FullNameFilterDropdown } from "./FullNameFilterDropdown";
 import { CounterpartyFilterDropdown } from "./CounterpartyFilterDropdown";
-import { CreatedAtFilterDropdown } from "./CreatedAtFilterDropdown";
 import { DocumentExpiryStatus } from "./DocumentExpiryStatus";
 import { AsyncCheckboxFilterDropdown } from "./AsyncCheckboxFilterDropdown";
 import positionService from "@/services/positionService";
@@ -158,19 +155,6 @@ export const useEmployeeColumns = ({
             )}
           </div>
         ),
-        filterDropdown: (props) => (
-          <FullNameFilterDropdown
-            key={`full-name-filter-${resetTrigger}`}
-            {...props}
-            uniqueFilterFullNames={filterOptions.fullNames}
-            resetTrigger={resetTrigger}
-            selectedCounterparties={filters.counterparty}
-          />
-        ),
-        filterIcon: (filtered) => (
-          <div style={{ color: filtered ? "#1890ff" : undefined }}>☰</div>
-        ),
-        filteredValue: filters.fullName || [],
       },
       {
         title: "Должность",
@@ -190,7 +174,6 @@ export const useEmployeeColumns = ({
             {name || "-"}
           </div>
         ),
-        ...serverSorter("position"),
         filterDropdown: (props) => (
           <AsyncCheckboxFilterDropdown
             key={`position-filter-${resetTrigger}`}
@@ -266,7 +249,6 @@ export const useEmployeeColumns = ({
                   </Select>
                 );
               },
-              ...serverSorter("department"),
               filterDropdown: (props) => (
                 <AsyncCheckboxFilterDropdown
                   key={`department-filter-${resetTrigger}`}
@@ -315,7 +297,6 @@ export const useEmployeeColumns = ({
                   dismissedValues: dismissedCounterparties,
                 });
               },
-              ...serverSorter("counterparty"),
               filterDropdown: (props) => (
                 <CounterpartyFilterDropdown
                   key={`counterparty-filter-${resetTrigger}`}
@@ -414,7 +395,6 @@ export const useEmployeeColumns = ({
             </div>
           );
         },
-        ...serverSorter("constructionSite"),
         filterDropdown: (props) => (
           <AsyncCheckboxFilterDropdown
             key={`construction-site-filter-${resetTrigger}`}
@@ -464,7 +444,6 @@ export const useEmployeeColumns = ({
         width: 150,
         ellipsis: true,
         render: (name) => name || "-",
-        ...serverSorter("citizenship"),
         filterDropdown: (props) => (
           <AsyncCheckboxFilterDropdown
             key={`citizenship-filter-${resetTrigger}`}
@@ -533,30 +512,11 @@ export const useEmployeeColumns = ({
             </Tooltip>
           );
         },
-        ...serverSorter("statusCard"),
         filters: [
           { text: "Заполнен", value: "completed" },
           { text: "Не заполнен", value: "draft" },
         ],
         filteredValue: filters.statusCard || [],
-      },
-      {
-        title: "Дата создания",
-        key: "createdAt",
-        width: 120,
-        render: (_, record) => {
-          if (!record.createdAt) return "-";
-          const date = new Date(record.createdAt);
-          return date.toLocaleDateString("ru-RU");
-        },
-        ...serverSorter("createdAt"),
-        filterDropdown: (props) => (
-          <CreatedAtFilterDropdown {...props} resetTrigger={resetTrigger} />
-        ),
-        filterIcon: (filtered) => (
-          <div style={{ color: filtered ? "#1890ff" : undefined }}>☰</div>
-        ),
-        filteredValue: filters.createdAt || [],
       },
       {
         title: "Файлы",
@@ -599,7 +559,6 @@ export const useEmployeeColumns = ({
             </Tooltip>
           );
         },
-        ...serverSorter("files"),
       },
       {
         title: "Срок действия док.",
@@ -683,7 +642,6 @@ export const useEmployeeColumns = ({
           };
           return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
         },
-        ...serverSorter("status"),
         filters: [
           { text: "Заблокирован", value: "blocked" },
           { text: "Уволен", value: "fired" },

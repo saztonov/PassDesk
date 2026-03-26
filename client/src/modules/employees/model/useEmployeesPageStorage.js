@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 const TABLE_FILTERS_STORAGE_KEY = "employee_table_filters";
 const TABLE_COLUMNS_STORAGE_KEY = "employee_table_columns";
 const EMPLOYEES_PAGE_STATE_STORAGE_KEY = "employees_page_state";
+const UNSUPPORTED_FILTER_KEYS = new Set(["fullName", "createdAt"]);
+const NON_HIDEABLE_COLUMN_KEYS = new Set(["actions"]);
 
 const getInitialFilters = () => {
   try {
@@ -17,7 +19,13 @@ const getInitialFilters = () => {
 const getInitialHiddenColumns = () => {
   try {
     const saved = localStorage.getItem(TABLE_COLUMNS_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) {
+      return [];
+    }
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed)
+      ? parsed.filter((key) => !NON_HIDEABLE_COLUMN_KEYS.has(key))
+      : [];
   } catch (error) {
     console.warn("Ошибка при загрузке колонок таблицы:", error);
     return [];
@@ -53,6 +61,9 @@ const getInitialPageState = () => {
 const normalizeTableFilters = (value) => {
   const normalized = {};
   Object.entries(value || {}).forEach(([key, item]) => {
+    if (UNSUPPORTED_FILTER_KEYS.has(key)) {
+      return;
+    }
     if (item === null || item === undefined) return;
     if (Array.isArray(item)) {
       if (item.length > 0) {
@@ -119,8 +130,9 @@ export const useEmployeesPageStorage = () => {
       const next = prev.includes(key)
         ? prev.filter((col) => col !== key)
         : [...prev, key];
-      localStorage.setItem(TABLE_COLUMNS_STORAGE_KEY, JSON.stringify(next));
-      return next;
+      const normalized = next.filter((col) => !NON_HIDEABLE_COLUMN_KEYS.has(col));
+      localStorage.setItem(TABLE_COLUMNS_STORAGE_KEY, JSON.stringify(normalized));
+      return normalized;
     });
   };
 

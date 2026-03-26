@@ -13,11 +13,9 @@ const buildAvailableColumns = ({
   { key: "citizenship", label: "Гражданство" },
   { key: "isUpload", label: "ЗУП" },
   { key: "statusCard", label: "Заполнен" },
-  { key: "createdAt", label: "Дата создания" },
   { key: "files", label: "Файлы" },
   { key: "documentExpiry", label: "Срок действия док." },
   { key: "status", label: "Статус" },
-  { key: "actions", label: "Действия" },
 ];
 
 const useEmployeesPageViewModels = ({

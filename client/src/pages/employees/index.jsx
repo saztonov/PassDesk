@@ -129,10 +129,6 @@ const EmployeesPage = () => {
       filters.search = debouncedSearchText;
     }
 
-    if (tableFilters.fullName?.length > 0) {
-      filters.fullNames = JSON.stringify(tableFilters.fullName);
-    }
-
     const effectiveStatusFilters =
       tableFilters.status?.length > 0
         ? tableFilters.status
@@ -174,12 +170,6 @@ const EmployeesPage = () => {
       filters.uploadStates = JSON.stringify(tableFilters.isUpload);
     }
 
-    const createdAtRange = tableFilters.createdAt;
-    if (Array.isArray(createdAtRange) && createdAtRange.length > 0) {
-      filters.dateFrom = createdAtRange[0];
-      filters.dateTo = createdAtRange[1] || createdAtRange[0];
-    }
-
     filters.page = currentPage;
     filters.limit = pageSize;
     if (sortBy && sortBy !== "fullName") filters.sortBy = sortBy;
@@ -196,10 +186,8 @@ const EmployeesPage = () => {
     statusFilter,
     tableFilters.citizenship,
     tableFilters.constructionSite,
-    tableFilters.createdAt,
     tableFilters.department,
     tableFilters.documentExpiry,
-    tableFilters.fullName,
     tableFilters.isUpload,
     tableFilters.position,
     tableFilters.status,
@@ -217,7 +205,6 @@ const EmployeesPage = () => {
     debouncedSearchText,
     statusFilter,
     tableFilters.counterparty,
-    tableFilters.fullName,
     tableFilters.position,
     tableFilters.department,
     tableFilters.constructionSite,
@@ -226,7 +213,6 @@ const EmployeesPage = () => {
     tableFilters.isUpload,
     tableFilters.status,
     tableFilters.statusCard,
-    tableFilters.createdAt,
     setCurrentPage,
   ]);
 

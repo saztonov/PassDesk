@@ -1,11 +1,23 @@
 import { useCallback, useState } from "react";
 
 const STORAGE_KEY = "employee_table_filters";
+const UNSUPPORTED_FILTER_KEYS = new Set(["fullName", "createdAt"]);
 
 const getInitialFilters = () => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : {};
+    if (!saved) {
+      return {};
+    }
+    const parsed = JSON.parse(saved);
+    const normalized = {};
+    Object.entries(parsed || {}).forEach(([key, value]) => {
+      if (UNSUPPORTED_FILTER_KEYS.has(key)) {
+        return;
+      }
+      normalized[key] = value;
+    });
+    return normalized;
   } catch (error) {
     console.warn("Ошибка при загрузке фильтров таблицы сотрудников:", error);
     return {};
@@ -25,6 +37,9 @@ export const useTableFilters = () => {
     // Фильтруем фильтры: оставляем только те, у которых есть значения
     const filteredFilters = {};
     Object.keys(newFilters).forEach((key) => {
+      if (UNSUPPORTED_FILTER_KEYS.has(key)) {
+        return;
+      }
       if (newFilters[key]) {
         // Для массивов проверяем длину, для остального проверяем на null/undefined
         if (Array.isArray(newFilters[key])) {
