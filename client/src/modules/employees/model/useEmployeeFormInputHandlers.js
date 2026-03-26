@@ -11,6 +11,7 @@ export const useEmployeeFormInputHandlers = ({
   scheduleValidation,
   scheduleAutoSaveDraft,
   isFormResetRef,
+  registerTouchedFields,
   filterCyrillicOnly,
   capitalizeFirstLetter,
 }) => {
@@ -23,6 +24,8 @@ export const useEmployeeFormInputHandlers = ({
       if (!dataLoaded) {
         return;
       }
+
+      registerTouchedFields(changedFields);
 
       const currentPassportType = form.getFieldValue("passportType");
       if (currentPassportType !== passportType) {
@@ -48,6 +51,7 @@ export const useEmployeeFormInputHandlers = ({
       scheduleAutoSaveDraft,
       scheduleValidation,
       setPassportType,
+      registerTouchedFields,
     ],
   );
 

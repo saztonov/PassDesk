@@ -275,6 +275,7 @@ const EmployeeFormModal = ({
     ensureEmployeeId,
     scheduleAutoSaveDraft,
     discardIfAutoCreated,
+    registerTouchedFields,
   } = useEmployeeFormSaveHandlers({
     form,
     visible,
@@ -310,6 +311,7 @@ const EmployeeFormModal = ({
     scheduleValidation,
     scheduleAutoSaveDraft,
     isFormResetRef,
+    registerTouchedFields,
     filterCyrillicOnly,
     capitalizeFirstLetter,
   });

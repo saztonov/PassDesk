@@ -26,6 +26,32 @@ export const useEmployeeFormSaveHandlers = ({
   const draftEmployeeIdRef = useRef(employee?.id || null);
   const isAutoCreatedRef = useRef(false);
   const isExplicitlySavedRef = useRef(false);
+  const explicitlyTouchedFieldsRef = useRef(new Set());
+
+  const getTouchedFieldNames = useCallback(() => {
+    if (explicitlyTouchedFieldsRef.current.size > 0) {
+      return [...explicitlyTouchedFieldsRef.current];
+    }
+
+    const values = form.getFieldsValue(true);
+    return Object.keys(values).filter((fieldName) => form.isFieldTouched(fieldName));
+  }, [form]);
+
+  const registerTouchedFields = useCallback((changedFields = []) => {
+    changedFields.forEach((field) => {
+      const fieldPath = Array.isArray(field?.name) ? field.name : [field?.name];
+      if (!field?.touched || fieldPath.length !== 1) {
+        return;
+      }
+
+      const [fieldName] = fieldPath;
+      if (!fieldName) {
+        return;
+      }
+
+      explicitlyTouchedFieldsRef.current.add(String(fieldName));
+    });
+  }, []);
 
   useEffect(() => {
     if (!visible) {
@@ -34,6 +60,7 @@ export const useEmployeeFormSaveHandlers = ({
       autoSavingRef.current = false;
       isAutoCreatedRef.current = false;
       isExplicitlySavedRef.current = false;
+      explicitlyTouchedFieldsRef.current = new Set();
       return;
     }
     draftEmployeeIdRef.current = employee?.id || null;
@@ -72,6 +99,7 @@ export const useEmployeeFormSaveHandlers = ({
         const formattedValues = formatEmployeeFormPayload(values, {
           isDraft: true,
         });
+        formattedValues.__auditTouchedFields = getTouchedFieldNames();
         const draftEmployeeId = employee?.id || draftEmployeeIdRef.current;
         if (draftEmployeeId) {
           formattedValues.__draftEmployeeId = draftEmployeeId;
@@ -193,6 +221,7 @@ export const useEmployeeFormSaveHandlers = ({
       const formattedValues = formatEmployeeFormPayload(values, {
         isDraft: false,
       });
+      formattedValues.__auditTouchedFields = getTouchedFieldNames();
 
       const payload = applyLinkingModePayload(
         formattedValues,
@@ -227,6 +256,7 @@ export const useEmployeeFormSaveHandlers = ({
     employee,
     form,
     formatEmployeeFormPayload,
+    getTouchedFieldNames,
     linkingMode,
     message,
     onCancel,
@@ -258,5 +288,6 @@ export const useEmployeeFormSaveHandlers = ({
     ensureEmployeeId,
     scheduleAutoSaveDraft,
     discardIfAutoCreated,
+    registerTouchedFields,
   };
 };

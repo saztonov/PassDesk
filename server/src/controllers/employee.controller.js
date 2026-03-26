@@ -27,7 +27,6 @@ import { AppError } from "../middleware/errorHandler.js";
 import EmployeeStatusService from "../services/employeeStatusService.js";
 import {
   isEmployeeCardComplete,
-  getMissingRequiredFields,
   DEFAULT_FORM_CONFIG,
 } from "../utils/employeeFieldsConfig.js";
 import {
@@ -261,9 +260,57 @@ const normalizeComparableEmployeeValue = (value) => {
   return value;
 };
 
-const hasComparableValueChanged = (currentValue, nextValue) =>
-  normalizeComparableEmployeeValue(currentValue) !==
-  normalizeComparableEmployeeValue(nextValue);
+const normalizeComparableEmployeeFieldValue = (fieldName, value) => {
+  const normalized = normalizeComparableEmployeeValue(value);
+
+  if (normalized === null) {
+    return null;
+  }
+
+  if (fieldName === "phone") {
+    return normalizeDigitsSearch(normalized);
+  }
+
+  if (fieldName === "passportNumber") {
+    return normalizeDocSearch(normalized);
+  }
+
+  return normalized;
+};
+
+const hasComparableFieldValueChanged = (fieldName, currentValue, nextValue) =>
+  normalizeComparableEmployeeFieldValue(fieldName, currentValue) !==
+  normalizeComparableEmployeeFieldValue(fieldName, nextValue);
+
+const shouldSuppressDerivedAuditField = ({
+  fieldName,
+  currentValue,
+  nextValue,
+  cleanedData,
+}) => {
+  if (fieldName !== "birthCountryId") {
+    return false;
+  }
+
+  const normalizedCurrent = normalizeComparableEmployeeFieldValue(
+    fieldName,
+    currentValue,
+  );
+  const normalizedNext = normalizeComparableEmployeeFieldValue(
+    fieldName,
+    nextValue,
+  );
+  const normalizedCitizenship = normalizeComparableEmployeeFieldValue(
+    "citizenshipId",
+    cleanedData?.citizenshipId,
+  );
+
+  return (
+    normalizedCurrent === null &&
+    normalizedNext !== null &&
+    normalizedNext === normalizedCitizenship
+  );
+};
 
 const normalizeDocSearch = (value = "") =>
   String(value || "")
@@ -607,6 +654,124 @@ const buildEmployeeUploadSqlPredicate = (requestedUploadFilters = []) => {
   return `(${predicates.join(" OR ")})`;
 };
 
+const getStoredEmployeeStatusCard = (employee) => {
+  const source = employee?.toJSON ? employee.toJSON() : employee;
+  const statusMappings = Array.isArray(source?.statusMappings)
+    ? source.statusMappings
+    : [];
+
+  const getStatusByGroup = (group, alternativeGroups = []) => {
+    const groupsToCheck = [group, ...alternativeGroups];
+    const mapping = statusMappings.find((item) => {
+      const mappingGroup = item?.statusGroup || item?.status_group;
+      return groupsToCheck.includes(mappingGroup) && item?.isActive !== false;
+    });
+
+    return mapping?.status?.name || mapping?.Status?.name || null;
+  };
+
+  const cardStatus = getStatusByGroup("status_card", ["card draft"]);
+  const mainStatus = getStatusByGroup("status", ["draft"]);
+
+  if (cardStatus === "status_card_draft" || mainStatus === "status_draft") {
+    return "draft";
+  }
+
+  if (cardStatus === "status_card_completed") {
+    return "completed";
+  }
+
+  return "draft";
+};
+
+const buildEmployeeStatusCardSqlPredicate = (requestedStatusCardFilters = []) => {
+  if (!requestedStatusCardFilters.length) {
+    return null;
+  }
+
+  const completedSql = buildActiveStatusExistsSql(
+    ["status_card_completed"],
+    ["status_card"],
+  );
+  const draftSql = `(
+    ${buildActiveStatusExistsSql(["status_card_draft"], ["status_card", "card draft"])}
+    OR
+    ${buildActiveStatusExistsSql(["status_draft"], ["status", "draft"])}
+  )`;
+
+  const predicates = requestedStatusCardFilters
+    .map((value) => {
+      if (value === "completed") return completedSql;
+      if (value === "draft") return draftSql;
+      return null;
+    })
+    .filter(Boolean);
+
+  if (!predicates.length) {
+    return null;
+  }
+
+  return `(${predicates.join(" OR ")})`;
+};
+
+const buildEmployeeDocumentExpirySqlPredicate = (
+  requestedDocumentExpiryFilters = [],
+) => {
+  if (!requestedDocumentExpiryFilters.length) {
+    return null;
+  }
+
+  const passportExpiryExpr = `DATE("Employee"."passport_expiry_date")`;
+  const kigExpiryExpr = `DATE("Employee"."kig_end_date")`;
+  const patentExpiryExpr = `DATE("Employee"."patent_issue_date" + INTERVAL '1 year')`;
+
+  const hasAnyDocumentSql = `(
+    "Employee"."passport_expiry_date" IS NOT NULL
+    OR "Employee"."kig_end_date" IS NOT NULL
+    OR "Employee"."patent_issue_date" IS NOT NULL
+  )`;
+
+  const hasExpiredSql = `(
+    ("Employee"."passport_expiry_date" IS NOT NULL AND ${passportExpiryExpr} < CURRENT_DATE)
+    OR ("Employee"."kig_end_date" IS NOT NULL AND ${kigExpiryExpr} < CURRENT_DATE)
+    OR ("Employee"."patent_issue_date" IS NOT NULL AND ${patentExpiryExpr} < CURRENT_DATE)
+  )`;
+
+  const hasExpiringSoonSql = `(
+    ("Employee"."passport_expiry_date" IS NOT NULL AND ${passportExpiryExpr} >= CURRENT_DATE AND ${passportExpiryExpr} <= CURRENT_DATE + INTERVAL '14 days')
+    OR ("Employee"."kig_end_date" IS NOT NULL AND ${kigExpiryExpr} >= CURRENT_DATE AND ${kigExpiryExpr} <= CURRENT_DATE + INTERVAL '14 days')
+    OR ("Employee"."patent_issue_date" IS NOT NULL AND ${patentExpiryExpr} >= CURRENT_DATE AND ${patentExpiryExpr} <= CURRENT_DATE + INTERVAL '14 days')
+  )`;
+
+  const expiredSql = hasExpiredSql;
+  const expiringSoonSql = `(
+    NOT ${hasExpiredSql}
+    AND ${hasExpiringSoonSql}
+  )`;
+  const validSql = `(
+    ${hasAnyDocumentSql}
+    AND NOT ${hasExpiredSql}
+    AND NOT ${hasExpiringSoonSql}
+  )`;
+  const noDataSql = `(NOT ${hasAnyDocumentSql})`;
+
+  const predicates = requestedDocumentExpiryFilters
+    .map((value) => {
+      if (value === "expired") return expiredSql;
+      if (value === "expiring-soon") return expiringSoonSql;
+      if (value === "valid") return validSql;
+      if (value === "no-data") return noDataSql;
+      return null;
+    })
+    .filter(Boolean);
+
+  if (!predicates.length) {
+    return null;
+  }
+
+  return `(${predicates.join(" OR ")})`;
+};
+
 const buildEmployeeDuplicateChecks = (employeeLike = {}) => {
   const duplicateChecks = [];
 
@@ -698,10 +863,6 @@ const calculateStatusCard = (
   debug = false,
 ) => {
   const isComplete = isEmployeeCardComplete(employee, formConfig, debug);
-  if (!isComplete) {
-    const missing = getMissingRequiredFields(employee, formConfig);
-    console.log(`[statusCard] DRAFT employee=${employee.lastName} ${employee.firstName} missing=[${missing.join(', ')}]`);
-  }
   return isComplete ? "completed" : "draft";
 };
 
@@ -742,8 +903,6 @@ const getEmployeeFormConfig = async (employee) => {
     if (configDefaultStr) {
       try {
         formConfigDefault = JSON.parse(configDefaultStr);
-        const requiredInDefault = Object.entries(formConfigDefault).filter(([,v]) => v.required).map(([k]) => k);
-        console.log("[formConfig] default required fields:", requiredInDefault.join(", "));
       } catch (e) {
         console.warn(
           "Failed to parse employee_form_config_default, using DEFAULT_FORM_CONFIG",
@@ -843,11 +1002,20 @@ export const getAllEmployees = async (req, res, next) => {
     const sqlUploadPredicate = buildEmployeeUploadSqlPredicate(
       requestedUploadFilters,
     );
+    const sqlStatusCardPredicate = buildEmployeeStatusCardSqlPredicate(
+      requestedStatusCardFilters,
+    );
+    const sqlDocumentExpiryPredicate = buildEmployeeDocumentExpirySqlPredicate(
+      requestedDocumentExpiryFilters,
+    );
     const canUseSqlStatusFiltering = Boolean(sqlStatusPredicate);
+    const canUseSqlStatusCardFiltering = Boolean(sqlStatusCardPredicate);
+    const canUseSqlDocumentExpiryFiltering = Boolean(sqlDocumentExpiryPredicate);
     const requiresPostFiltering =
-      requestedStatusCardFilters.length > 0 ||
+      (requestedStatusCardFilters.length > 0 && !canUseSqlStatusCardFiltering) ||
       requestedFullNames.length > 0 ||
-      requestedDocumentExpiryFilters.length > 0;
+      (requestedDocumentExpiryFilters.length > 0 &&
+        !canUseSqlDocumentExpiryFiltering);
     const searchAndConditions = [];
 
     if (hasSearchQuery) {
@@ -948,6 +1116,20 @@ export const getAllEmployees = async (req, res, next) => {
 
     if (sqlUploadPredicate) {
       where[Op.and] = [...(where[Op.and] || []), sequelize.literal(sqlUploadPredicate)];
+    }
+
+    if (sqlStatusCardPredicate) {
+      where[Op.and] = [
+        ...(where[Op.and] || []),
+        sequelize.literal(sqlStatusCardPredicate),
+      ];
+    }
+
+    if (sqlDocumentExpiryPredicate) {
+      where[Op.and] = [
+        ...(where[Op.and] || []),
+        sequelize.literal(sqlDocumentExpiryPredicate),
+      ];
     }
 
     // В режиме full encryption поиск по фамилии и ФИО делаем после чтения записей,
@@ -1221,7 +1403,20 @@ export const getAllEmployees = async (req, res, next) => {
       }
     }
 
-    const normalizedSortBy = sortBy === "fullName" ? "updatedAt" : sortBy;
+    const disabledSortFields = new Set([
+      "fullName",
+      "position",
+      "department",
+      "counterparty",
+      "constructionSite",
+      "citizenship",
+      "statusCard",
+      "files",
+      "status",
+    ]);
+    const normalizedSortBy = disabledSortFields.has(sortBy)
+      ? "updatedAt"
+      : sortBy;
     const requiresInMemorySort = requiresEmployeeInMemorySort(normalizedSortBy);
 
     // Для JOIN-фильтров (подразделение/контрагент/объект/должность/гражданство)
@@ -1235,7 +1430,6 @@ export const getAllEmployees = async (req, res, next) => {
       !requiresInMemorySort &&
       !hasSearchQuery &&
       requestedStatusFilters.length === 0 &&
-      requestedStatusCardFilters.length === 0 &&
       !dateFrom &&
       !dateTo;
 
@@ -1448,7 +1642,7 @@ export const getAllEmployees = async (req, res, next) => {
       );
     }
 
-    if (requestedDocumentExpiryFilters.length > 0) {
+    if (requestedDocumentExpiryFilters.length > 0 && !sqlDocumentExpiryPredicate) {
       filteredRows = filteredRows.filter((employee) =>
         requestedDocumentExpiryFilters.includes(
           calculateEmployeeDocumentExpiryStatus(employee),
@@ -1456,58 +1650,16 @@ export const getAllEmployees = async (req, res, next) => {
       );
     }
 
-    // Загружаем настройки полей для расчета statusCard
-    const defaultCounterpartyId = await Setting.getSetting(
-      "default_counterparty_id",
-    );
-    const configDefaultStr = await Setting.getSetting(
-      "employee_form_config_default",
-    );
-    const configExternalStr = await Setting.getSetting(
-      "employee_form_config_external",
-    );
-
-    let formConfigDefault = DEFAULT_FORM_CONFIG;
-    let formConfigExternal = DEFAULT_FORM_CONFIG;
-
-    if (configDefaultStr) {
-      try {
-        formConfigDefault = JSON.parse(configDefaultStr);
-      } catch (e) {
-        console.warn("Failed to parse employee_form_config_default");
-      }
-    }
-
-    if (configExternalStr) {
-      try {
-        formConfigExternal = JSON.parse(configExternalStr);
-      } catch (e) {
-        console.warn("Failed to parse employee_form_config_external");
-      }
-    }
-
     const statusCardCache = new Map();
 
     const resolveStatusCard = (employee) => {
-      const employeeData = employee?.toJSON ? employee.toJSON() : employee;
-      const employeeId = employeeData?.id;
+      const source = employee?.toJSON ? employee.toJSON() : employee;
+      const employeeId = source?.id;
       if (employeeId && statusCardCache.has(employeeId)) {
         return statusCardCache.get(employeeId);
       }
 
-      const counterpartyId =
-        employeeData.employeeCounterpartyMappings?.[0]?.counterpartyId;
-      const isDefaultCounterparty = counterpartyId === defaultCounterpartyId;
-      const formConfig = isDefaultCounterparty
-        ? formConfigDefault
-        : formConfigExternal;
-
-      const isComplete = isEmployeeCardComplete(
-        employeeData,
-        formConfig,
-        false,
-      );
-      const statusCard = isComplete ? "completed" : "draft";
+      const statusCard = getStoredEmployeeStatusCard(source);
 
       if (employeeId) {
         statusCardCache.set(employeeId, statusCard);
@@ -2111,6 +2263,14 @@ export const createEmployee = async (req, res, next) => {
 export const updateEmployee = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const auditTouchedFields = Array.isArray(req.body?.__auditTouchedFields)
+      ? req.body.__auditTouchedFields
+          .map((fieldName) => String(fieldName || "").trim())
+          .filter((fieldName) => EMPLOYEE_UPDATE_ALLOWED_FIELDS.has(fieldName))
+      : null;
+    const auditTouchedFieldSet = auditTouchedFields
+      ? new Set(auditTouchedFields)
+      : null;
 
     // Логируем только в development и без персональных данных
     if (process.env.NODE_ENV === "development") {
@@ -2205,10 +2365,32 @@ export const updateEmployee = async (req, res, next) => {
       currentActiveStatusBeforeUpdate?.status?.name || null;
 
     const changedEmployeeFields = Object.entries(cleanedData).filter(
-      ([key, value]) => hasComparableValueChanged(employee[key], value),
+      ([fieldName, nextValue]) =>
+        hasComparableFieldValueChanged(fieldName, employee[fieldName], nextValue),
     );
+    const auditChangedEmployeeFields =
+      auditTouchedFieldSet
+        ? changedEmployeeFields.filter(
+            ([fieldName, nextValue]) =>
+              auditTouchedFieldSet.has(fieldName) &&
+              !shouldSuppressDerivedAuditField({
+                fieldName,
+                currentValue: employee[fieldName],
+                nextValue,
+                cleanedData,
+              }),
+          )
+        : changedEmployeeFields.filter(
+            ([fieldName, nextValue]) =>
+              !shouldSuppressDerivedAuditField({
+                fieldName,
+                currentValue: employee[fieldName],
+                nextValue,
+                cleanedData,
+              }),
+          );
     const employeeFieldChangesForAudit = Object.fromEntries(
-      changedEmployeeFields.map(([fieldName, nextValue]) => [
+      auditChangedEmployeeFields.map(([fieldName, nextValue]) => [
         fieldName,
         {
           from: employee[fieldName] ?? null,
@@ -2624,7 +2806,7 @@ export const updateEmployee = async (req, res, next) => {
       // Не прерываем обновление, если ошибка со статусами
     }
 
-    if (hasEmployeeFieldChanges || hasConstructionSiteChange) {
+    if (auditChangedEmployeeFields.length > 0 || hasConstructionSiteChange) {
       await logAuditEvent({
         userId: req.user.id,
         eventType: AUDIT_EVENT_TYPES.EMPLOYEE_UPDATED,
@@ -2634,7 +2816,7 @@ export const updateEmployee = async (req, res, next) => {
           counterpartyId: activeCounterpartyForAudit?.id || null,
           counterpartyName: activeCounterpartyForAudit?.name || null,
           changedFields: [
-            ...changedEmployeeFields.map(([fieldName]) => fieldName),
+            ...auditChangedEmployeeFields.map(([fieldName]) => fieldName),
             ...(hasConstructionSiteChange ? ["constructionSiteId"] : []),
           ],
           fieldChanges: employeeFieldChangesForAudit,

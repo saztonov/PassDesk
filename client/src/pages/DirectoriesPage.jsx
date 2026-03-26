@@ -7,11 +7,9 @@ import {
   TeamOutlined,
   ShopOutlined,
   BankOutlined,
-  FileTextOutlined,
 } from "@ant-design/icons";
 import CounterpartiesPage from "./CounterpartiesPage";
 import ConstructionSitesPage from "./ConstructionSitesPage";
-import ContractsPage from "./ContractsPage";
 import DepartmentsPage from "./DepartmentsPage";
 import PositionsPage from "./PositionsPage";
 
@@ -20,7 +18,6 @@ const { Title } = Typography;
 const DIRECTORY_TAB_KEYS = [
   "counterparties",
   "construction-sites",
-  "contracts",
   "departments",
   "positions",
 ];
@@ -92,18 +89,6 @@ const DirectoriesPage = () => {
           </span>
         ),
         children: <ConstructionSitesPage />,
-      },
-      {
-        key: "contracts",
-        label: (
-          <span
-            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-          >
-            <FileTextOutlined />
-            <span>Договоры</span>
-          </span>
-        ),
-        children: <ContractsPage />,
       },
       {
         key: "departments",

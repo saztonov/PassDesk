@@ -7,7 +7,6 @@ import {
   Select,
   Space,
   Table,
-  Tag,
   Tooltip,
   Typography,
 } from "antd";
@@ -19,6 +18,9 @@ import {
 import dayjs from "dayjs";
 import auditService from "@/services/auditService";
 import { counterpartyService } from "@/services/counterpartyService";
+import { citizenshipService } from "@/services/citizenshipService";
+import positionService from "@/services/positionService";
+import { constructionSiteService } from "@/services/constructionSiteService";
 
 const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
@@ -30,7 +32,6 @@ const EVENT_CATEGORY_OPTIONS = [
   { value: "status", label: "Статусы / ЗУП", color: "gold" },
   { value: "files", label: "Файлы", color: "cyan" },
   { value: "skud", label: "СКУД", color: "green" },
-  { value: "import", label: "Импорт", color: "magenta" },
 ];
 
 const EVENT_CATEGORY_META = Object.fromEntries(
@@ -72,9 +73,6 @@ const FIELD_LABELS = {
 };
 
 const STATUS_LABELS = {
-  EMPLOYEE_IMPORT_COMPLETE: "Импорт завершён",
-  EMPLOYEE_IMPORT_FAILED: "Ошибка импорта",
-  EMPLOYEE_IMPORT_START: "Начат импорт",
   employee_transferred: "Перевод сотрудника",
   employee_updated: "Изменены данные сотрудника",
   file_deleted: "Удалён файл",
@@ -109,16 +107,33 @@ const getEmployeeName = (employee) => employee?.fullName || "—";
 
 const getUserName = (user) => user?.fullName || user?.email || "Система";
 
-const getStatusTag = (status) => {
-  if (status === "failed") {
-    return <Tag color="error">Ошибка</Tag>;
+const buildNameMap = (items = []) =>
+  new Map(
+    items
+      .filter((item) => item?.id)
+      .map((item) => [String(item.id), item.name || item.shortName || item.fullName || String(item.id)]),
+  );
+
+const resolveAuditFieldValue = (fieldName, value, lookups) => {
+  if (value === undefined || value === null || value === "") {
+    return "—";
   }
 
-  if (status === "partial") {
-    return <Tag color="warning">Частично</Tag>;
+  const stringValue = String(value);
+
+  if (fieldName === "citizenshipId" || fieldName === "birthCountryId") {
+    return lookups.citizenships.get(stringValue) || stringValue;
   }
 
-  return <Tag color="success">Успешно</Tag>;
+  if (fieldName === "positionId") {
+    return lookups.positions.get(stringValue) || stringValue;
+  }
+
+  if (fieldName === "constructionSiteId") {
+    return lookups.constructionSites.get(stringValue) || stringValue;
+  }
+
+  return stringValue;
 };
 
 const describeAuditEvent = (record) => {
@@ -194,21 +209,12 @@ const describeAuditEvent = (record) => {
         ? `Пропуск №${details.cardNumber} отвязан`
         : "Пропуск отвязан";
 
-    case "EMPLOYEE_IMPORT_START":
-      return `Подготовлено к импорту: ${details.recordsCount || 0} записей`;
-
-    case "EMPLOYEE_IMPORT_COMPLETE":
-      return `Создано: ${details.created || 0}, обновлено: ${details.updated || 0}, ошибок: ${details.errors || 0}`;
-
-    case "EMPLOYEE_IMPORT_FAILED":
-      return `Импорт завершился ошибкой, записей: ${details.recordsCount || 0}`;
-
     default:
       return STATUS_LABELS[record?.eventType] || record?.action || "Событие журнала";
   }
 };
 
-const buildEventDetails = (record) => {
+const buildEventDetails = (record, lookups) => {
   const details = record?.details || {};
 
   switch (record?.eventType) {
@@ -219,13 +225,13 @@ const buildEventDetails = (record) => {
       return [
         ...fieldChanges.map(([fieldName, value]) => ({
           label: humanizeFieldName(fieldName),
-          value: `${value?.from ?? "—"} -> ${value?.to ?? "—"}`,
+          value: `${resolveAuditFieldValue(fieldName, value?.from, lookups)} -> ${resolveAuditFieldValue(fieldName, value?.to, lookups)}`,
         })),
         ...(constructionSiteChange
           ? [
               {
                 label: "Объект",
-                value: `${constructionSiteChange.from ?? "—"} -> ${constructionSiteChange.to ?? "—"}`,
+                value: `${resolveAuditFieldValue("constructionSiteId", constructionSiteChange.from, lookups)} -> ${resolveAuditFieldValue("constructionSiteId", constructionSiteChange.to, lookups)}`,
               },
             ]
           : []),
@@ -295,16 +301,22 @@ const buildEventDetails = (record) => {
   }
 };
 
-const formatEventDetailsInline = (record) => {
-  const detailRows = buildEventDetails(record);
+const renderEventDetailsRows = (record) => {
+  const detailRows = buildEventDetails(record, record.__lookups);
 
   if (detailRows.length === 0) {
-    return "—";
+    return <Text style={{ fontSize: 13 }}>—</Text>;
   }
 
-  return detailRows
-    .map((row) => `${row.label}: ${row.value || "—"}`)
-    .join(" • ");
+  return (
+    <Space direction="vertical" size={2} style={{ width: "100%" }}>
+      {detailRows.map((row, index) => (
+        <Text key={`${record?.id || "event"}-${row.label}-${index}`} style={{ fontSize: 13 }}>
+          {row.label}: {row.value || "—"}
+        </Text>
+      ))}
+    </Space>
+  );
 };
 
 const buildAuditGroups = (logs = []) => {
@@ -355,6 +367,9 @@ const AuditLogsPage = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [counterparties, setCounterparties] = useState([]);
+  const [citizenships, setCitizenships] = useState([]);
+  const [positions, setPositions] = useState([]);
+  const [constructionSites, setConstructionSites] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedCounterpartyId, setSelectedCounterpartyId] = useState(null);
   const [dateRange, setDateRange] = useState(null);
@@ -376,6 +391,25 @@ const AuditLogsPage = () => {
       setCounterparties(response?.data?.data?.counterparties || []);
     } catch (error) {
       console.error("Error fetching counterparties for audit logs:", error);
+    }
+  }, []);
+
+  const fetchReferenceLookups = useCallback(async () => {
+    try {
+      const [citizenshipsResponse, positionsResponse, constructionSitesResponse] =
+        await Promise.all([
+          citizenshipService.getAll(),
+          positionService.getAll({ limit: 10000 }),
+          constructionSiteService.getAll({ limit: 10000 }),
+        ]);
+
+      setCitizenships(citizenshipsResponse?.data?.data?.citizenships || []);
+      setPositions(positionsResponse?.data?.data?.positions || []);
+      setConstructionSites(
+        constructionSitesResponse?.data?.data?.constructionSites || [],
+      );
+    } catch (error) {
+      console.error("Error fetching audit reference lookups:", error);
     }
   }, []);
 
@@ -418,10 +452,28 @@ const AuditLogsPage = () => {
   }, [fetchCounterparties]);
 
   useEffect(() => {
+    fetchReferenceLookups();
+  }, [fetchReferenceLookups]);
+
+  useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
 
-  const groupedLogs = useMemo(() => buildAuditGroups(logs), [logs]);
+  const auditLookups = useMemo(
+    () => ({
+      citizenships: buildNameMap(citizenships),
+      positions: buildNameMap(positions),
+      constructionSites: buildNameMap(constructionSites),
+    }),
+    [citizenships, constructionSites, positions],
+  );
+
+  const logsWithLookups = useMemo(
+    () => logs.map((log) => ({ ...log, __lookups: auditLookups })),
+    [auditLookups, logs],
+  );
+
+  const groupedLogs = useMemo(() => buildAuditGroups(logsWithLookups), [logsWithLookups]);
 
   useEffect(() => {
     setPagination((prev) => ({
@@ -439,6 +491,28 @@ const AuditLogsPage = () => {
     return groupedLogs.slice(start, start + paginationPageSize);
   }, [groupedLogs, paginationCurrent, paginationPageSize]);
 
+  const drawerCategoryFilters = useMemo(() => {
+    const uniqueCategories = [
+      ...new Set((drawerGroup?.events || []).map((event) => event.eventCategory).filter(Boolean)),
+    ];
+
+    return uniqueCategories.map((category) => ({
+      text: EVENT_CATEGORY_META[category]?.label || category,
+      value: category,
+    }));
+  }, [drawerGroup]);
+
+  const drawerUserFilters = useMemo(() => {
+    const uniqueUsers = [
+      ...new Set((drawerGroup?.events || []).map((event) => getUserName(event.user)).filter(Boolean)),
+    ];
+
+    return uniqueUsers.map((userName) => ({
+      text: userName,
+      value: userName,
+    }));
+  }, [drawerGroup]);
+
   const handleResetFilters = () => {
     setSelectedCategory(null);
     setSelectedCounterpartyId(null);
@@ -455,16 +529,7 @@ const AuditLogsPage = () => {
       title: "Сотрудник",
       key: "employee",
       width: 260,
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{getEmployeeName(record.employee)}</Text>
-          <Text type="secondary">
-            {record.employee?.id
-              ? `ID: ${record.employee.id}`
-              : "Системное событие без сотрудника"}
-          </Text>
-        </Space>
-      ),
+      render: (_, record) => <Text strong>{getEmployeeName(record.employee)}</Text>,
     },
     {
       title: "Последнее изменение",
@@ -477,23 +542,17 @@ const AuditLogsPage = () => {
       key: "latestEvent",
       render: (_, record) => {
         const latestEvent = record.latestEvent;
-        const categoryMeta = EVENT_CATEGORY_META[latestEvent?.eventCategory];
+        const eventCountLabel =
+          record.events.length === 1
+            ? "1 изменение"
+            : `${record.events.length} изменений`;
 
         return (
           <Space direction="vertical" size={2}>
-            <Space wrap>
-              {categoryMeta ? (
-                <Tag color={categoryMeta.color}>{categoryMeta.label}</Tag>
-              ) : (
-                <Tag>{latestEvent?.eventCategory || "other"}</Tag>
-              )}
-              {getStatusTag(latestEvent?.status)}
-              <Tag>{record.events.length} событий</Tag>
-            </Space>
             <Text strong>
               {STATUS_LABELS[latestEvent?.eventType] || latestEvent?.action}
             </Text>
-            <Text type="secondary">{describeAuditEvent(latestEvent)}</Text>
+            <Text type="secondary">{eventCountLabel}</Text>
           </Space>
         );
       },
@@ -536,21 +595,37 @@ const AuditLogsPage = () => {
       key: "createdAt",
       width: 160,
       render: (value) => formatDateTime(value),
+      sorter: (left, right) =>
+        dayjs(left.createdAt).valueOf() - dayjs(right.createdAt).valueOf(),
+      defaultSortOrder: "descend",
     },
     {
       title: "Событие",
       key: "event",
+      filters: drawerCategoryFilters,
+      onFilter: (value, record) => record.eventCategory === value,
+      sorter: (left, right) => {
+        const leftLabel =
+          STATUS_LABELS[left.eventType] ||
+          EVENT_CATEGORY_META[left.eventCategory]?.label ||
+          left.action ||
+          "";
+        const rightLabel =
+          STATUS_LABELS[right.eventType] ||
+          EVENT_CATEGORY_META[right.eventCategory]?.label ||
+          right.action ||
+          "";
+
+        return String(leftLabel).localeCompare(String(rightLabel), "ru");
+      },
       render: (_, record) => {
         const categoryMeta = EVENT_CATEGORY_META[record.eventCategory];
 
         return (
           <Space direction="vertical" size={2}>
-            <Space wrap>
-              {categoryMeta ? (
-                <Tag color={categoryMeta.color}>{categoryMeta.label}</Tag>
-              ) : null}
-              {getStatusTag(record.status)}
-            </Space>
+            {categoryMeta ? (
+              <Text type="secondary">{categoryMeta.label}</Text>
+            ) : null}
             <Text strong>
               {STATUS_LABELS[record.eventType] || record.action}
             </Text>
@@ -562,14 +637,16 @@ const AuditLogsPage = () => {
     {
       title: "Что изменилось",
       key: "details",
-      render: (_, record) => (
-        <Text style={{ fontSize: 13 }}>{formatEventDetailsInline(record)}</Text>
-      ),
+      render: (_, record) => renderEventDetailsRows(record),
     },
     {
       title: "Кто",
       key: "user",
       width: 140,
+      filters: drawerUserFilters,
+      onFilter: (value, record) => getUserName(record.user) === value,
+      sorter: (left, right) =>
+        getUserName(left.user).localeCompare(getUserName(right.user), "ru"),
       render: (_, record) => getUserName(record.user),
     },
   ];
@@ -662,6 +739,9 @@ const AuditLogsPage = () => {
           paddingLeft: 24,
           paddingRight: 24,
           paddingBottom: 24,
+          maxWidth: 1800,
+          width: "100%",
+          margin: "0 auto",
         }}
       >
         <Table
@@ -697,7 +777,7 @@ const AuditLogsPage = () => {
         open={Boolean(drawerGroup)}
         onCancel={() => setDrawerGroup(null)}
         footer={null}
-        width={860}
+        width={1200}
       >
         <Space
           direction="vertical"

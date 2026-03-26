@@ -16,7 +16,6 @@ const AUDIT_EVENT_CATEGORIES = Object.freeze({
   STATUS: "status",
   FILES: "files",
   SKUD: "skud",
-  IMPORT: "import",
 });
 
 const CATEGORY_ACTIONS = Object.freeze({
@@ -33,11 +32,6 @@ const CATEGORY_ACTIONS = Object.freeze({
   [AUDIT_EVENT_CATEGORIES.SKUD]: [
     AUDIT_EVENT_TYPES.PASS_ASSIGNED,
     AUDIT_EVENT_TYPES.PASS_UNBOUND,
-  ],
-  [AUDIT_EVENT_CATEGORIES.IMPORT]: [
-    "EMPLOYEE_IMPORT_START",
-    "EMPLOYEE_IMPORT_COMPLETE",
-    "EMPLOYEE_IMPORT_FAILED",
   ],
 });
 
@@ -260,6 +254,13 @@ export const getAuditLogs = async (req, res, next) => {
     });
 
     const andConditions = [];
+
+    andConditions.push({
+      entityType: "employee",
+      entityId: {
+        [Op.ne]: null,
+      },
+    });
 
     if (requestedActions.length > 0) {
       andConditions.push({
