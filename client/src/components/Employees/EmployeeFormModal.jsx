@@ -41,8 +41,8 @@ import EmployeeFilesTab from "./EmployeeFilesTab.jsx";
 
 const { useBreakpoint } = Grid;
 const { Text } = Typography;
-const PAGE_DOCS_MIN_WIDTH = 360;
-const PAGE_DOCS_MAX_WIDTH = 760;
+const PAGE_DOCS_MIN_WIDTH = 420;
+const PAGE_DOCS_MAX_WIDTH = 960;
 const PAGE_FORM_MIN_WIDTH = 560;
 const PAGE_FORM_COMPACT_WIDTH = 860;
 const OCR_APPLY_DATE_FIELDS = new Set([
@@ -87,7 +87,7 @@ const EmployeeFormModal = ({
   const [transferModalVisible, setTransferModalVisible] = useState(false); // Модальное окно перевода сотрудника
   const [availableCounterparties, setAvailableCounterparties] = useState([]); // Доступные контрагенты
   const [loadingCounterparties, setLoadingCounterparties] = useState(false); // Загрузка контрагентов
-  const [pageDocsWidth, setPageDocsWidth] = useState(460);
+  const [pageDocsWidth, setPageDocsWidth] = useState(560);
   const [isResizingPageLayout, setIsResizingPageLayout] = useState(false);
   const pageSplitContainerRef = useRef(null);
   const pageFormPanelRef = useRef(null);
@@ -635,9 +635,10 @@ const EmployeeFormModal = ({
                 onUploadComplete={handleUploadedFileForOcr}
                 ensureEmployeeId={ensureEmployeeId}
                 documentProfilesConfig={settings?.employeeDocumentProfiles || null}
-                viewerMode="modal"
+                viewerMode="inline"
                 columnsCount={1}
                 showInfoBanner={false}
+                embeddedViewerHeight={screens.xl ? 620 : 420}
                 compact
               />
             </div>

@@ -15,15 +15,10 @@ const formatGender = (gender) => {
   return gender === "male" ? "М" : gender === "female" ? "Ж" : gender;
 };
 
-const formatPassportType = (passportType) => {
-  if (!passportType) return "-";
-  if (passportType === "russian") return "Российский";
-  if (passportType === "foreign") return "Иностранного гражданина";
-  return passportType;
-};
+const formatPassportType = (passportType) => passportType || "-";
 
 const getBirthCountryName = (employee) =>
-  employee?.birthCountry?.name || employee?.citizenship?.name || "-";
+  employee?.birthCountry?.code || employee?.citizenship?.code || "-";
 
 /**
  * Модальное окно для выгрузки сотрудников в Excel.

@@ -83,11 +83,45 @@ const STATUS_LABELS = {
   zup_flag_changed: "Изменён статус выгрузки в ЗУП",
 };
 
+const STATUS_NAME_LABELS = {
+  status_new: "Новый",
+  status_draft: "Черновик",
+  status_processed: "Обработан",
+  status_tb_passed: "ТБ пройден",
+  status_card_draft: "Карточка не заполнена",
+  status_card_completed: "Карточка заполнена",
+  status_card_processed: "Карточка обработана",
+  status_active_employed: "Действующий",
+  status_active_fired: "Уволен",
+  status_active_fired_compl: "Уволен",
+  status_active_inactive: "Неактивен",
+  status_hr_new_compl: "Новый для ЗУП",
+  status_hr_edited: "Редактирован",
+  status_hr_fired_off: "Повторно принят",
+  status_secure_allow: "Доступ разрешён",
+  status_secure_block: "Доступ заблокирован",
+  status_secure_block_compl: "Доступ заблокирован",
+};
+
+const STATUS_GROUP_LABELS = {
+  status: "Основной статус",
+  draft: "Основной статус",
+  status_card: "Карточка",
+  "card draft": "Карточка",
+  status_active: "Активность",
+  status_hr: "ЗУП",
+  status_secure: "СКУД",
+};
+
 const humanizeFieldName = (fieldName) => FIELD_LABELS[fieldName] || fieldName;
 
 const humanizeStatusName = (statusName) => {
   if (!statusName) {
     return "не задан";
+  }
+
+  if (STATUS_NAME_LABELS[statusName]) {
+    return STATUS_NAME_LABELS[statusName];
   }
 
   if (!String(statusName).startsWith("status_")) {
@@ -98,6 +132,14 @@ const humanizeStatusName = (statusName) => {
     .replace(/^status_/, "")
     .split("_")
     .join(" ");
+};
+
+const humanizeStatusGroupName = (groupName) => {
+  if (!groupName) {
+    return "—";
+  }
+
+  return STATUS_GROUP_LABELS[groupName] || groupName;
 };
 
 const formatDateTime = (value) =>
@@ -166,7 +208,7 @@ const describeAuditEvent = (record) => {
     case "status_changed": {
       const fromStatus = humanizeStatusName(details.from);
       const toStatus = humanizeStatusName(details.to);
-      const groupName = details.statusGroup || "status";
+      const groupName = humanizeStatusGroupName(details.statusGroup || "status");
       return `Группа ${groupName}: ${fromStatus} -> ${toStatus}`;
     }
 
@@ -256,7 +298,7 @@ const buildEventDetails = (record, lookups) => {
       return [
         {
           label: "Группа",
-          value: details.statusGroup || "—",
+          value: humanizeStatusGroupName(details.statusGroup),
         },
         {
           label: "Статус",
