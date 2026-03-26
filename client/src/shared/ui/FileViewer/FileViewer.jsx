@@ -6,6 +6,7 @@ import {
   DownloadOutlined,
   RotateLeftOutlined,
   CloseOutlined,
+  PrinterOutlined,
 } from "@ant-design/icons";
 import styles from "./FileViewer.module.css";
 
@@ -97,6 +98,35 @@ export const FileViewer = ({
   // Обработчик ротации
   const handleRotate = () => {
     setRotation((prev) => (prev + 90) % 360);
+  };
+
+  // Печать файла
+  const handlePrint = () => {
+    if (!fileUrl) return;
+
+    if (isImage) {
+      const win = window.open("", "_blank");
+      if (!win) return;
+      win.document.write(
+        "<!DOCTYPE html><html><head><title>Печать</title>" +
+        "<style>*{margin:0;padding:0}body{display:flex;justify-content:center;align-items:center;min-height:100vh;background:#fff}" +
+        "img{max-width:100%;max-height:100vh;object-fit:contain}</style></head>" +
+        '<body><img src="' + fileUrl + '" /></body></html>'
+      );
+      win.document.close();
+      const img = win.document.querySelector("img");
+      const doPrint = () => { win.focus(); win.print(); };
+      if (img.complete) {
+        doPrint();
+      } else {
+        img.onload = doPrint;
+      }
+    } else if (isPdf) {
+      const win = window.open(fileUrl, "_blank");
+      if (win) {
+        win.addEventListener("load", () => { win.focus(); win.print(); });
+      }
+    }
   };
 
   // Обработчик скачивания
@@ -218,6 +248,15 @@ export const FileViewer = ({
               title="Повернуть на 90°"
             />
           )}
+
+          {/* Печать */}
+          <Button
+            type="text"
+            size="small"
+            icon={<PrinterOutlined />}
+            onClick={handlePrint}
+            title="Распечатать"
+          />
 
           {/* Скачивание */}
           <Button

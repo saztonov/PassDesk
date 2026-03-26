@@ -393,9 +393,7 @@ const UsersPage = () => {
       style={{
         display: "flex",
         flexDirection: "column",
-        height: "100%",
-        minHeight: 0,
-        overflow: "hidden",
+        minHeight: "100%",
       }}
     >
       {/* Тулбар */}
@@ -462,9 +460,7 @@ const UsersPage = () => {
       {/* Таблица */}
       <div
         style={{
-          flex: 1,
-          minHeight: 0,
-          overflow: "auto",
+          overflow: "visible",
           paddingLeft: 24,
           paddingRight: 24,
           paddingBottom: 24,
@@ -486,7 +482,7 @@ const UsersPage = () => {
               setPagination((prev) => ({ ...prev, current: page, pageSize }));
             },
           }}
-          scroll={{ x: "max-content", y: 510 }}
+          scroll={{ x: "max-content" }}
           style={{ width: "100%" }}
         />
       </div>
