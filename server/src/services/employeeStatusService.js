@@ -8,6 +8,11 @@ import {
   EmployeeCounterpartyMapping,
   CounterpartySubcounterpartyMapping,
 } from "../models/index.js";
+import {
+  AUDIT_EVENT_TYPES,
+  getEmployeeCounterpartyAuditDetails,
+  logAuditEvent,
+} from "./auditEventService.js";
 
 const EMPLOYEE_SAFE_ATTRIBUTES = [
   "id",
@@ -19,6 +24,23 @@ const EMPLOYEE_SAFE_ATTRIBUTES = [
   "createdAt",
   "updatedAt",
 ];
+
+const touchEmployeeRecord = async (employeeId, userId, transaction = null) => {
+  if (!employeeId || !userId) {
+    return;
+  }
+
+  await Employee.update(
+    {
+      updatedBy: userId,
+      updatedAt: new Date(),
+    },
+    {
+      where: { id: employeeId },
+      ...(transaction ? { transaction } : {}),
+    },
+  );
+};
 
 /**
  * Сервис для управления статусами сотрудников
@@ -49,7 +71,8 @@ class EmployeeStatusService {
   /**
    * Получить текущий статус сотрудника по группе
    */
-  static async getCurrentStatus(employeeId, statusGroup) {
+  static async getCurrentStatus(employeeId, statusGroup, options = {}) {
+    const { transaction = null } = options;
     const mapping = await EmployeeStatusMapping.findOne({
       where: {
         employeeId: employeeId,
@@ -62,6 +85,7 @@ class EmployeeStatusService {
           as: "status",
         },
       ],
+      ...(transaction ? { transaction } : {}),
     });
 
     return mapping;
@@ -70,7 +94,8 @@ class EmployeeStatusService {
   /**
    * Получить все текущие статусы сотрудника (по всем группам)
    */
-  static async getAllCurrentStatuses(employeeId) {
+  static async getAllCurrentStatuses(employeeId, options = {}) {
+    const { transaction = null } = options;
     return await EmployeeStatusMapping.findAll({
       where: {
         employeeId: employeeId,
@@ -83,6 +108,7 @@ class EmployeeStatusService {
         },
       ],
       order: [["statusGroup", "ASC"]],
+      ...(transaction ? { transaction } : {}),
     });
   }
 
@@ -126,18 +152,38 @@ class EmployeeStatusService {
    * Установить новый статус для сотрудника
    * Автоматически деактивирует старый статус из той же группы
    */
-  static async setStatus(employeeId, statusId, userId) {
+  static async setStatus(employeeId, statusId, userId, options = {}) {
+    const { transaction = null, auditContext = null } = options;
     // Получить статус чтобы узнать группу
-    const newStatus = await Status.findByPk(statusId);
+    const newStatus = await Status.findByPk(statusId, {
+      ...(transaction ? { transaction } : {}),
+    });
     if (!newStatus) {
       throw new Error("Статус не найден");
     }
 
     // Проверить что сотрудник существует
-    const employee = await Employee.findByPk(employeeId);
+    const employee = await Employee.findByPk(employeeId, {
+      ...(transaction ? { transaction } : {}),
+    });
     if (!employee) {
       throw new Error("Сотрудник не найден");
     }
+
+    const previousMapping = await EmployeeStatusMapping.findOne({
+      where: {
+        employeeId,
+        statusGroup: newStatus.group,
+        isActive: true,
+      },
+      include: [
+        {
+          model: Status,
+          as: "status",
+        },
+      ],
+      ...(transaction ? { transaction } : {}),
+    });
 
     // Деактивировать все статусы этой группы для этого сотрудника
     await EmployeeStatusMapping.update(
@@ -148,6 +194,7 @@ class EmployeeStatusService {
           statusGroup: newStatus.group,
           isActive: true,
         },
+        ...(transaction ? { transaction } : {}),
       },
     );
 
@@ -157,22 +204,55 @@ class EmployeeStatusService {
         employeeId: employeeId,
         statusId: statusId,
       },
+      ...(transaction ? { transaction } : {}),
     });
 
     if (mapping) {
       // Обновить существующую связь
       mapping.isActive = true;
       mapping.updatedBy = userId;
-      await mapping.save();
+      await mapping.save(transaction ? { transaction } : undefined);
     } else {
       // Создать новую связь
-      mapping = await EmployeeStatusMapping.create({
-        employeeId: employeeId,
-        statusId: statusId,
-        statusGroup: newStatus.group,
-        createdBy: userId,
-        updatedBy: userId,
-        isActive: true,
+      mapping = await EmployeeStatusMapping.create(
+        {
+          employeeId: employeeId,
+          statusId: statusId,
+          statusGroup: newStatus.group,
+          createdBy: userId,
+          updatedBy: userId,
+          isActive: true,
+        },
+        transaction ? { transaction } : undefined,
+      );
+    }
+
+    await touchEmployeeRecord(employeeId, userId, transaction);
+
+    const previousStatusName = previousMapping?.status?.name || null;
+    if (
+      auditContext &&
+      previousStatusName !== newStatus.name
+    ) {
+      const counterpartyDetails = await getEmployeeCounterpartyAuditDetails(
+        employeeId,
+        { transaction },
+      );
+      await logAuditEvent({
+        userId,
+        eventType: AUDIT_EVENT_TYPES.STATUS_CHANGED,
+        entityType: "employee",
+        entityId: employeeId,
+        details: {
+          ...counterpartyDetails,
+          statusGroup: newStatus.group,
+          from: previousStatusName,
+          to: newStatus.name,
+          reason: auditContext.reason || null,
+          metadata: auditContext.metadata || null,
+        },
+        req: auditContext.req || null,
+        transaction,
       });
     }
 
@@ -336,16 +416,17 @@ class EmployeeStatusService {
   /**
    * Изменить статус по названию (упрощённый метод)
    */
-  static async setStatusByName(employeeId, statusName, userId) {
+  static async setStatusByName(employeeId, statusName, userId, options = {}) {
     const status = await Status.findOne({
       where: { name: statusName },
+      ...(options.transaction ? { transaction: options.transaction } : {}),
     });
 
     if (!status) {
       throw new Error(`Статус ${statusName} не найден`);
     }
 
-    return await this.setStatus(employeeId, status.id, userId);
+    return await this.setStatus(employeeId, status.id, userId, options);
   }
 
   /**
@@ -357,10 +438,13 @@ class EmployeeStatusService {
     statusName,
     userId,
     setUploadFlag = false,
+    options = {},
   ) {
+    const { transaction = null, auditContext = null } = options;
     // Получить статус по названию
     const status = await Status.findOne({
       where: { name: statusName },
+      ...(transaction ? { transaction } : {}),
     });
 
     if (!status) {
@@ -371,6 +455,21 @@ class EmployeeStatusService {
       `[activateOrCreateStatus] Processing ${statusName} for employee ${employeeId}, setUploadFlag=${setUploadFlag}`,
     );
 
+    const previousActiveMapping = await EmployeeStatusMapping.findOne({
+      where: {
+        employeeId,
+        statusGroup: status.group,
+        isActive: true,
+      },
+      include: [
+        {
+          model: Status,
+          as: "status",
+        },
+      ],
+      ...(transaction ? { transaction } : {}),
+    });
+
     // Проверить есть ли уже связь с этим статусом
     let mapping = await EmployeeStatusMapping.findOne({
       where: {
@@ -378,7 +477,10 @@ class EmployeeStatusService {
         statusId: status.id,
         statusGroup: status.group,
       },
+      ...(transaction ? { transaction } : {}),
     });
+    const wasActive = mapping?.isActive === true;
+    const previousUploadFlag = mapping?.isUpload;
 
     if (mapping) {
       // Обновить существующую связь
@@ -388,20 +490,57 @@ class EmployeeStatusService {
       mapping.isActive = true;
       mapping.isUpload = setUploadFlag;
       mapping.updatedBy = userId;
-      await mapping.save();
+      await mapping.save(transaction ? { transaction } : undefined);
     } else {
       // Создать новую связь
       console.log(
         `[activateOrCreateStatus] Creating new mapping with is_active=true, is_upload=${setUploadFlag}`,
       );
-      mapping = await EmployeeStatusMapping.create({
-        employeeId: employeeId,
-        statusId: status.id,
-        statusGroup: status.group,
-        isActive: true,
-        isUpload: setUploadFlag,
-        createdBy: userId,
-        updatedBy: userId,
+      mapping = await EmployeeStatusMapping.create(
+        {
+          employeeId: employeeId,
+          statusId: status.id,
+          statusGroup: status.group,
+          isActive: true,
+          isUpload: setUploadFlag,
+          createdBy: userId,
+          updatedBy: userId,
+        },
+        transaction ? { transaction } : undefined,
+      );
+    }
+
+    await touchEmployeeRecord(employeeId, userId, transaction);
+
+    const previousActiveStatusName = previousActiveMapping?.status?.name || null;
+    if (
+      auditContext &&
+      (
+        previousActiveStatusName !== status.name ||
+        !wasActive ||
+        previousUploadFlag !== setUploadFlag
+      )
+    ) {
+      const counterpartyDetails = await getEmployeeCounterpartyAuditDetails(
+        employeeId,
+        { transaction },
+      );
+      await logAuditEvent({
+        userId,
+        eventType: AUDIT_EVENT_TYPES.STATUS_CHANGED,
+        entityType: "employee",
+        entityId: employeeId,
+        details: {
+          ...counterpartyDetails,
+          statusGroup: status.group,
+          from: previousActiveStatusName,
+          to: status.name,
+          isUpload: setUploadFlag,
+          reason: auditContext.reason || null,
+          metadata: auditContext.metadata || null,
+        },
+        req: auditContext.req || null,
+        transaction,
       });
     }
 
@@ -414,7 +553,27 @@ class EmployeeStatusService {
   /**
    * Сбросить флаг выгрузки в ЗУП для всех активных статусов сотрудника.
    */
-  static async resetActiveUploadFlags(employeeId, userId) {
+  static async resetActiveUploadFlags(employeeId, userId, options = {}) {
+    const { transaction = null, auditContext = null } = options;
+    const mappingsToReset = await EmployeeStatusMapping.findAll({
+      where: {
+        employeeId,
+        isActive: true,
+        isUpload: true,
+      },
+      include: [
+        {
+          model: Status,
+          as: "status",
+        },
+      ],
+      ...(transaction ? { transaction } : {}),
+    });
+
+    if (mappingsToReset.length === 0) {
+      return 0;
+    }
+
     const [updatedCount] = await EmployeeStatusMapping.update(
       {
         isUpload: false,
@@ -429,9 +588,41 @@ class EmployeeStatusService {
         where: {
           employeeId,
           isActive: true,
+          isUpload: true,
         },
+        ...(transaction ? { transaction } : {}),
       },
     );
+
+    await touchEmployeeRecord(employeeId, userId, transaction);
+
+    if (auditContext) {
+      const counterpartyDetails = await getEmployeeCounterpartyAuditDetails(
+        employeeId,
+        { transaction },
+      );
+      await logAuditEvent({
+        userId,
+        eventType: AUDIT_EVENT_TYPES.ZUP_FLAG_CHANGED,
+        entityType: "employee",
+        entityId: employeeId,
+        details: {
+          ...counterpartyDetails,
+          from: true,
+          to: false,
+          scope: "active_statuses",
+          changedMappings: mappingsToReset.map((mapping) => ({
+            id: mapping.id,
+            statusGroup: mapping.statusGroup,
+            statusName: mapping.status?.name || null,
+          })),
+          reason: auditContext.reason || null,
+          metadata: auditContext.metadata || null,
+        },
+        req: auditContext.req || null,
+        transaction,
+      });
+    }
 
     return updatedCount;
   }

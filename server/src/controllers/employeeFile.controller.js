@@ -16,6 +16,10 @@ import { AppError } from "../middleware/errorHandler.js";
 import { checkEmployeeAccess } from "../utils/permissionUtils.js";
 import { buildFileProxyUrl } from "../services/fileDownloadTokenService.js";
 import EmployeeStatusService from "../services/employeeStatusService.js";
+import {
+  AUDIT_EVENT_TYPES,
+  logAuditEvent,
+} from "../services/auditEventService.js";
 
 /**
  * Helper: Загрузить сотрудника с маппингами для проверки прав
@@ -274,10 +278,39 @@ export const uploadEmployeeFiles = async (req, res, next) => {
     const updatedUploadFlags = await EmployeeStatusService.resetActiveUploadFlags(
       employeeId,
       req.user.id,
+      {
+        auditContext: {
+          req,
+          reason: "file_uploaded",
+          metadata: {
+            documentType: documentType || null,
+            filesCount: uploadedFiles.length,
+          },
+        },
+      },
     );
     console.log(
       `✓ Active status upload flags reset to false after file upload: ${updatedUploadFlags}`,
     );
+
+    await logAuditEvent({
+      userId: req.user.id,
+      eventType: AUDIT_EVENT_TYPES.FILE_UPLOADED,
+      entityType: "employee",
+      entityId: employeeId,
+      details: {
+        counterpartyId: mapping?.counterpartyId || null,
+        counterpartyName: counterparty?.name || null,
+        documentType: documentType || null,
+        files: uploadedFiles.map((fileRecord) => ({
+          id: fileRecord.id,
+          fileName: fileRecord.fileName,
+          originalName: fileRecord.originalName,
+          documentType: fileRecord.documentType || null,
+        })),
+      },
+      req,
+    });
 
     res.status(201).json({
       success: true,
@@ -393,10 +426,39 @@ export const deleteEmployeeFile = async (req, res, next) => {
     const updatedUploadFlags = await EmployeeStatusService.resetActiveUploadFlags(
       employeeId,
       req.user.id,
+      {
+        auditContext: {
+          req,
+          reason: "file_deleted",
+          metadata: {
+            fileId: file.id,
+            documentType: file.documentType || null,
+          },
+        },
+      },
     );
     console.log(
       `✓ Active status upload flags reset to false after file deletion: ${updatedUploadFlags}`,
     );
+
+    await logAuditEvent({
+      userId: req.user.id,
+      eventType: AUDIT_EVENT_TYPES.FILE_DELETED,
+      entityType: "employee",
+      entityId: employeeId,
+      details: {
+        counterpartyId:
+          employee.employeeCounterpartyMappings?.find((mapping) => !mapping.dismissedAt)
+            ?.counterpartyId ||
+          employee.employeeCounterpartyMappings?.[0]?.counterpartyId ||
+          null,
+        fileId: file.id,
+        fileName: file.fileName,
+        originalName: file.originalName,
+        documentType: file.documentType || null,
+      },
+      req,
+    });
 
     res.json({
       success: true,

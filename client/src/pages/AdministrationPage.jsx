@@ -8,8 +8,10 @@ import {
   DownloadOutlined,
   DeleteOutlined,
   FileImageOutlined,
+  HistoryOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
+import AuditLogsPage from "./AuditLogsPage";
 import UsersPage from "./UsersPage";
 import MobileUsersPage from "./MobileUsersPage";
 import SettingsPage from "./SettingsPage";
@@ -41,6 +43,7 @@ const AdministrationPage = () => {
     "citizenships",
     "export",
     "trash",
+    "audit-logs",
     "document-samples",
     "ocr-conflicts",
     "settings",
@@ -92,6 +95,11 @@ const AdministrationPage = () => {
       key: "trash",
       label: renderTabLabel(DeleteOutlined, "Корзина"),
       children: <TrashPage />,
+    },
+    {
+      key: "audit-logs",
+      label: renderTabLabel(HistoryOutlined, "Журнал изменений"),
+      children: <AuditLogsPage />,
     },
     {
       key: "ocr-conflicts",

@@ -46,6 +46,10 @@ import {
 import { enqueueSkudEventsIngestJob } from "../queues/skud/queue.js";
 import { getSkudProvider } from "../integrations/skud/SkudProviderRegistry.js";
 import { sendSkudQrToEmployeeTelegram } from "../services/telegramService.js";
+import {
+  AUDIT_EVENT_TYPES,
+  logAuditEvent,
+} from "../services/auditEventService.js";
 
 const ensureSkudModuleEnabled = () => {
   if (!isSkudEnabled()) {
@@ -2019,6 +2023,25 @@ export const skudController = {
         userId: req.user.id,
       });
 
+      const activeMapping = employee.employeeCounterpartyMappings?.find(
+        (mapping) => !mapping?.dismissedAt,
+      );
+      await logAuditEvent({
+        userId: req.user.id,
+        eventType: AUDIT_EVENT_TYPES.PASS_ASSIGNED,
+        entityType: "employee",
+        entityId: employeeId,
+        details: {
+          counterpartyId: activeMapping?.counterpartyId || null,
+          counterpartyName: activeMapping?.counterparty?.name || null,
+          cardId: result?.card?.id || null,
+          cardNumber: result?.card?.cardNumber || cardNumber,
+          cardType: result?.card?.cardType || cardType || null,
+          syncJobId: result?.syncJob?.id || null,
+        },
+        req,
+      });
+
       res.status(202).json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -2055,6 +2078,28 @@ export const skudController = {
       const result = await unbindSkudCard({
         cardId,
         userId: req.user.id,
+      });
+
+      const employee =
+        result?.card?.employeeId
+          ? await fetchEmployeeForAccess(result.card.employeeId)
+          : null;
+      const activeMapping = employee?.employeeCounterpartyMappings?.find(
+        (mapping) => !mapping?.dismissedAt,
+      );
+      await logAuditEvent({
+        userId: req.user.id,
+        eventType: AUDIT_EVENT_TYPES.PASS_UNBOUND,
+        entityType: "employee",
+        entityId: result?.card?.employeeId || null,
+        details: {
+          counterpartyId: activeMapping?.counterpartyId || null,
+          counterpartyName: activeMapping?.counterparty?.name || null,
+          cardId: result?.card?.id || null,
+          cardNumber: result?.card?.cardNumber || null,
+          syncJobId: result?.syncJob?.id || null,
+        },
+        req,
       });
 
       res.status(202).json({ success: true, data: result });
