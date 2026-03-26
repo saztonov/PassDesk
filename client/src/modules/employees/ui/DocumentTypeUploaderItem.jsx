@@ -2,9 +2,7 @@ import {
   Button,
   List,
   Popconfirm,
-  Popover,
   Space,
-  Spin,
   Tooltip,
   Upload,
 } from "antd";
@@ -94,59 +92,6 @@ const validateUploadFile = (file, messageApi) => {
   return false;
 };
 
-const FileHoverPreview = ({ previewFile, loading }) => {
-  const isImage = previewFile?.mimeType?.startsWith("image/");
-  const isPdf = previewFile?.mimeType?.includes("pdf");
-
-  return (
-    <div
-      style={{
-        width: 320,
-        minHeight: 320,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {loading ? <Spin size="small" /> : null}
-
-      {!loading && previewFile && isImage ? (
-        <img
-          src={previewFile.url}
-          alt={previewFile.fileName}
-          style={{
-            display: "block",
-            maxWidth: "100%",
-            maxHeight: 720,
-            objectFit: "contain",
-            borderRadius: 8,
-          }}
-        />
-      ) : null}
-
-      {!loading && previewFile && isPdf ? (
-        <iframe
-          title={previewFile.fileName}
-          src={previewFile.url}
-          style={{
-            width: 520,
-            height: 520,
-            border: "none",
-            borderRadius: 8,
-            background: "#fff",
-          }}
-        />
-      ) : null}
-
-      {!loading && !previewFile ? (
-        <span style={{ fontSize: 12, color: "#8c8c8c", textAlign: "center" }}>
-          Предпросмотр недоступен
-        </span>
-      ) : null}
-    </div>
-  );
-};
-
 const stopRowClick = (event) => {
   event.stopPropagation();
 };
@@ -169,9 +114,6 @@ const DocumentTypeUploaderItem = ({
   onViewFile,
   onDownloadFile,
   onDeleteFile,
-  onHoverPreviewOpenChange,
-  hoverPreviewById,
-  hoverPreviewLoadingId,
   compact = false,
 }) => {
   const uploadDisabled = uploading || (!employeeId && !canEnsureEmployeeId);
@@ -259,31 +201,16 @@ const DocumentTypeUploaderItem = ({
               >
                 <List.Item.Meta
                   title={
-                    <Popover
-                      trigger="hover"
-                      placement="bottomRight"
-                      mouseEnterDelay={0.2}
-                      onOpenChange={(open) =>
-                        onHoverPreviewOpenChange?.(file, open)
-                      }
-                      content={
-                        <FileHoverPreview
-                          previewFile={hoverPreviewById?.[file.id] || null}
-                          loading={hoverPreviewLoadingId === file.id}
-                        />
-                      }
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        cursor: "pointer",
+                        textDecoration: "underline dotted",
+                        textUnderlineOffset: 2,
+                      }}
                     >
-                      <span
-                        style={{
-                          fontSize: "12px",
-                          cursor: "pointer",
-                          textDecoration: "underline dotted",
-                          textUnderlineOffset: 2,
-                        }}
-                      >
-                        {resolveDisplayName(file)}
-                      </span>
-                    </Popover>
+                      {resolveDisplayName(file)}
+                    </span>
                   }
                 />
                 <Space
