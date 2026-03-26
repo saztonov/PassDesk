@@ -2,6 +2,50 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Input, Button, Space, Checkbox, Spin } from "antd";
 import { counterpartyService } from "@/services/counterpartyService";
 
+const FILTER_OPTIONS_TTL_MS = 5 * 60 * 1000;
+const counterpartyCache = new Map();
+const inFlightRequests = new Map();
+
+const normalizeCounterpartyOptions = (options = []) =>
+  options
+    .filter((option) => option?.value && option?.label)
+    .sort((left, right) =>
+      String(left.label).localeCompare(String(right.label), "ru", {
+        sensitivity: "base",
+        numeric: true,
+      }),
+    );
+
+const loadCachedCounterparties = async (loadOptions) => {
+  const cacheKey = "employee-filter:counterparties";
+  const cached = counterpartyCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < FILTER_OPTIONS_TTL_MS) {
+    return cached.options;
+  }
+
+  if (inFlightRequests.has(cacheKey)) {
+    return inFlightRequests.get(cacheKey);
+  }
+
+  const request = Promise.resolve(loadOptions())
+    .then((result) => {
+      const options = normalizeCounterpartyOptions(result);
+      counterpartyCache.set(cacheKey, {
+        options,
+        timestamp: Date.now(),
+      });
+      inFlightRequests.delete(cacheKey);
+      return options;
+    })
+    .catch((error) => {
+      inFlightRequests.delete(cacheKey);
+      throw error;
+    });
+
+  inFlightRequests.set(cacheKey, request);
+  return request;
+};
+
 /**
  * Компонент фильтра для колонки "Контрагент"
  * Включает поле поиска и список с чекбоксами
@@ -17,7 +61,7 @@ export const CounterpartyFilterDropdown = ({
   const selectedValues = Array.isArray(selectedKeys) ? selectedKeys : [];
   const [searchText, setSearchText] = useState("");
   const [availableCounterparties, setAvailableCounterparties] = useState(
-    uniqueFilterCounterparties,
+    normalizeCounterpartyOptions(uniqueFilterCounterparties),
   );
   const [loading, setLoading] = useState(false);
   const fallbackOptionsRef = useRef(uniqueFilterCounterparties);
@@ -30,53 +74,54 @@ export const CounterpartyFilterDropdown = ({
     let cancelled = false;
 
     const loadCounterparties = async () => {
-      setLoading(true);
+      const hasFallbackOptions = fallbackOptionsRef.current.length > 0;
+      if (!hasFallbackOptions) {
+        setLoading(true);
+      }
 
       try {
-        let counterparties = [];
+        const nextOptions = await loadCachedCounterparties(async () => {
+          let counterparties = [];
 
-        try {
-          const response = await counterpartyService.getAll({
-            limit: 10000,
-            page: 1,
-          });
-          counterparties =
-            response?.data?.data?.counterparties ||
-            response?.data?.counterparties ||
-            [];
-        } catch (error) {
-          if (error?.response?.status && error.response.status !== 403) {
-            throw error;
+          try {
+            const response = await counterpartyService.getAll({
+              limit: 10000,
+              page: 1,
+            });
+            counterparties =
+              response?.data?.data?.counterparties ||
+              response?.data?.counterparties ||
+              [];
+          } catch (error) {
+            if (error?.response?.status && error.response.status !== 403) {
+              throw error;
+            }
           }
-        }
 
-        if (counterparties.length === 0) {
-          const response = await counterpartyService.getAvailable();
-          counterparties = response?.data?.data || [];
-        }
+          if (counterparties.length === 0) {
+            const response = await counterpartyService.getAvailable();
+            counterparties = response?.data?.data || [];
+          }
+
+          return counterparties
+            .filter((counterparty) => counterparty?.id && counterparty?.name)
+            .map((counterparty) => ({
+              value: counterparty.id,
+              label: counterparty.name,
+            }));
+        });
 
         if (cancelled) {
           return;
         }
 
-        const nextOptions = counterparties
-          .filter((counterparty) => counterparty?.id && counterparty?.name)
-          .map((counterparty) => ({
-            value: counterparty.id,
-            label: counterparty.name,
-          }))
-          .sort((left, right) =>
-            String(left.label).localeCompare(String(right.label), "ru", {
-              sensitivity: "base",
-              numeric: true,
-            }),
-          );
-
         setAvailableCounterparties(nextOptions);
       } catch (error) {
         if (!cancelled) {
           console.warn("Ошибка загрузки контрагентов для фильтра:", error);
-          setAvailableCounterparties(fallbackOptionsRef.current);
+          setAvailableCounterparties(
+            normalizeCounterpartyOptions(fallbackOptionsRef.current),
+          );
         }
       } finally {
         if (!cancelled) {

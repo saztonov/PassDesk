@@ -80,7 +80,10 @@ export const AsyncCheckboxFilterDropdown = ({
     let cancelled = false;
 
     const load = async () => {
-      setLoading(true);
+      const hasFallbackOptions = normalizeOptions(fallbackOptionsRef.current).length > 0;
+      if (!hasFallbackOptions) {
+        setLoading(true);
+      }
       try {
         const nextOptions = await loadCachedOptions({
           cacheKey,
