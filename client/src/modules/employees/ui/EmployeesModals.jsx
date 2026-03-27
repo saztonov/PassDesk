@@ -74,8 +74,6 @@ const EmployeesModals = memo(({ isMobile, model, actions }) => (
         actions.setIsRequestModalOpen(false);
         actions.refetchEmployees();
       }}
-      employees={model.filteredEmployees}
-      tableFilters={model.tableFilters}
       userRole={model.userRole}
       userCounterpartyId={model.userCounterpartyId}
       defaultCounterpartyId={model.defaultCounterpartyId}

@@ -56,6 +56,12 @@ import {
   sortEmployeesInMemory,
 } from "../utils/employeeSorting.js";
 
+const EMPLOYEE_CONSENT_DOCUMENT_TYPES = [
+  "consent",
+  "biometric_consent",
+  "biometric_consent_developer",
+];
+
 // Опции для загрузки сотрудника с маппингами (для проверки прав)
 const employeeAccessInclude = [
   {
@@ -347,6 +353,42 @@ const normalizeQueryArray = (value) => {
 
   return [String(value)];
 };
+
+const buildMinimalCountInclude = (includeConfig = []) =>
+  includeConfig
+    .map((include) => {
+      if (!include) {
+        return null;
+      }
+
+      const nestedIncludes = Array.isArray(include.include)
+        ? buildMinimalCountInclude(include.include)
+        : [];
+
+      const shouldKeep =
+        Boolean(include.required) ||
+        Boolean(include.where) ||
+        nestedIncludes.length > 0;
+
+      if (!shouldKeep) {
+        return null;
+      }
+
+      const nextInclude = {
+        ...include,
+      };
+
+      delete nextInclude.attributes;
+
+      if (nestedIncludes.length > 0) {
+        nextInclude.include = nestedIncludes;
+      } else {
+        delete nextInclude.include;
+      }
+
+      return nextInclude;
+    })
+    .filter(Boolean);
 
 const getEmployeeSearchSource = (employee) =>
   employee?.toJSON ? employee.toJSON() : employee || {};
@@ -1436,9 +1478,10 @@ export const getAllEmployees = async (req, res, next) => {
     // Для режима без in-memory пагинации используем SQL count с текущими include.
     let totalCount = null;
     if (!shouldUseInMemoryPagination) {
+      const countInclude = buildMinimalCountInclude(employeeInclude);
       totalCount = await Employee.count({
         where,
-        include: employeeInclude,
+        include: countInclude,
         distinct: true,
         col: "id",
       });
@@ -1451,7 +1494,9 @@ export const getAllEmployees = async (req, res, next) => {
         as: "files",
         attributes: ["id", "fileKey", "fileName", "documentType"],
         where: {
-          documentType: "biometric_consent_developer",
+          documentType: {
+            [Op.in]: EMPLOYEE_CONSENT_DOCUMENT_TYPES,
+          },
           isDeleted: false,
         },
         required: false,

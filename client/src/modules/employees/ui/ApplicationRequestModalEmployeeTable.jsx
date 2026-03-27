@@ -9,7 +9,7 @@ const ApplicationRequestModalEmployeeTable = ({
   columns,
   loading,
   pagination,
-  onPageSizeChange,
+  onPaginationChange,
 }) => (
   <>
     {availableEmployees.length > 0 && (
@@ -21,7 +21,7 @@ const ApplicationRequestModalEmployeeTable = ({
           selectedEmployees.length < availableEmployees.length
         }
       >
-        Выделить все ({availableEmployees.length})
+        Выделить страницу ({availableEmployees.length})
       </Checkbox>
     )}
 
@@ -36,9 +36,10 @@ const ApplicationRequestModalEmployeeTable = ({
         pagination={{
           current: pagination.current,
           pageSize: pagination.pageSize,
+          total: pagination.total,
           showSizeChanger: true,
-          onChange: (_page, pageSize) => {
-            onPageSizeChange(pageSize);
+          onChange: (page, pageSize) => {
+            onPaginationChange(page, pageSize);
           },
         }}
         scroll={{ x: 1200, y: 400 }}

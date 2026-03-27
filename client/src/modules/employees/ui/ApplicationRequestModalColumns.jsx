@@ -51,7 +51,7 @@ export const buildApplicationRequestModalColumns = (employeesWithConsents) => [
     render: (value) => formatInn(value),
   },
   {
-    title: "Согласие Биом.",
+    title: "Согласие Перс.д.",
     key: "biometricConsent",
     width: 130,
     render: (_, record) => {

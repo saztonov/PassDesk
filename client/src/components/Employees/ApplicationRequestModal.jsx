@@ -8,7 +8,6 @@ import { useApplicationRequestModal } from "@/modules/employees/model/useApplica
 const ApplicationRequestModal = ({
   visible,
   onCancel,
-  employees: allEmployees,
   userRole,
   userCounterpartyId,
   defaultCounterpartyId,
@@ -50,7 +49,6 @@ const ApplicationRequestModal = ({
     handleDownloadConsents,
   } = useApplicationRequestModal({
     visible,
-    allEmployees,
     userRole,
     userCounterpartyId,
     defaultCounterpartyId,
@@ -118,8 +116,8 @@ const ApplicationRequestModal = ({
           columns={columns}
           loading={tableLoading}
           pagination={pagination}
-          onPageSizeChange={(pageSize) =>
-            setPagination({ current: 1, pageSize })
+          onPaginationChange={(current, pageSize) =>
+            setPagination({ current, pageSize })
           }
         />
       </Space>

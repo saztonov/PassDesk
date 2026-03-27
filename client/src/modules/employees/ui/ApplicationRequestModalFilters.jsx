@@ -30,7 +30,7 @@ const ApplicationRequestModalFilters = ({
       flexWrap: "wrap",
     }}
   >
-    {userRole === "admin" && (
+    {(userRole === "admin" || userRole === "manager") && (
       <div style={{ width: 250 }}>
         <div style={labelStyle}>Контрагент</div>
         <Select

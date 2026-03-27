@@ -5,14 +5,12 @@ import { useExcelColumns } from "@/hooks/useExcelColumns";
 import { applicationService } from "@/services/applicationService";
 import { constructionSiteService } from "@/services/constructionSiteService";
 import { counterpartyService } from "@/services/counterpartyService";
-import { employeeApi } from "@/entities/employee";
-import { getStatusPriority } from "@/entities/employee/model/utils";
+import { useEmployees } from "@/entities/employee";
 import { buildApplicationRequestExcelData } from "@/modules/employees/lib/applicationRequestModalFormatters";
 import { buildApplicationRequestModalColumns } from "@/modules/employees/ui/ApplicationRequestModalColumns";
 
 export const useApplicationRequestModal = ({
   visible,
-  allEmployees,
   userRole,
   userCounterpartyId,
   defaultCounterpartyId,
@@ -21,21 +19,19 @@ export const useApplicationRequestModal = ({
   messageApi,
 }) => {
   const [loading, setLoading] = useState(false);
-  const [tableLoading, setTableLoading] = useState(false);
   const [sitesLoading, setSitesLoading] = useState(false);
   const [counterpartiesLoading, setCounterpartiesLoading] = useState(false);
   const [downloadingConsents, setDownloadingConsents] = useState(false);
   const [selectedEmployees, setSelectedEmployees] = useState([]);
-  const [allSelected, setAllSelected] = useState(false);
   const [selectedSite, setSelectedSite] = useState(null);
   const [selectedCounterparty, setSelectedCounterparty] = useState(null);
   const [includeFired, setIncludeFired] = useState(false);
   const [availableSites, setAvailableSites] = useState([]);
   const [availableCounterparties, setAvailableCounterparties] = useState([]);
-  const [modalEmployees, setModalEmployees] = useState(allEmployees || []);
   const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
   const [employeesWithConsents, setEmployeesWithConsents] = useState({});
+  const [loadedEmployeesById, setLoadedEmployeesById] = useState({});
 
   const {
     columns: selectedColumns,
@@ -47,56 +43,37 @@ export const useApplicationRequestModal = ({
     deselectAll,
   } = useExcelColumns();
 
-  useEffect(() => {
-    if (!visible) {
-      setModalEmployees(Array.isArray(allEmployees) ? allEmployees : []);
-      return;
+  const employeeRequestParams = useMemo(() => {
+    const params = {
+      page: pagination.current,
+      limit: pagination.pageSize,
+      statuses: JSON.stringify(
+        includeFired ? ["active", "draft", "fired"] : ["active", "draft"],
+      ),
+    };
+
+    if (selectedCounterparty) {
+      params.counterpartyIds = JSON.stringify([selectedCounterparty]);
     }
 
-    let cancelled = false;
-    const loadModalEmployees = async () => {
-      setTableLoading(true);
-      try {
-        const requestParams = {
-          activeOnly: false,
-          page: 1,
-          limit: 10000,
-          ...(selectedCounterparty ? { counterpartyId: selectedCounterparty } : {}),
-          ...(selectedSite ? { constructionSiteId: selectedSite } : {}),
-        };
-        console.info("[ApplicationRequestModal] fetch employees", requestParams);
+    if (selectedSite) {
+      params.constructionSiteId = selectedSite;
+    }
 
-        const response = await employeeApi.getAll({
-          ...requestParams,
-        });
-        const employeesFromApi = response?.data?.employees || [];
-        console.info(
-          "[ApplicationRequestModal] employees loaded",
-          employeesFromApi.length,
-        );
-        if (!cancelled) {
-          setModalEmployees(
-            Array.isArray(employeesFromApi) ? employeesFromApi : [],
-          );
-        }
-      } catch (error) {
-        console.error("Error loading employees for request modal:", error);
-        if (!cancelled) {
-          setModalEmployees(Array.isArray(allEmployees) ? allEmployees : []);
-        }
-      } finally {
-        if (!cancelled) {
-          setTableLoading(false);
-        }
-      }
-    };
+    return params;
+  }, [
+    includeFired,
+    pagination.current,
+    pagination.pageSize,
+    selectedCounterparty,
+    selectedSite,
+  ]);
 
-    loadModalEmployees();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [visible, allEmployees, selectedCounterparty, selectedSite]);
+  const {
+    employees: modalEmployees,
+    loading: employeesLoading,
+    totalCount,
+  } = useEmployees(false, employeeRequestParams, visible);
 
   useEffect(() => {
     if (!visible) {
@@ -105,57 +82,97 @@ export const useApplicationRequestModal = ({
 
     setSitesLoading(true);
 
-    const isDefaultCounterparty = userCounterpartyId === defaultCounterpartyId;
+    const loadSites = async () => {
+      try {
+        const loadAllConstructionSites = async () => {
+          const items = [];
+          let currentPage = 1;
+          let totalPages = 1;
 
-    if (isDefaultCounterparty) {
-      constructionSiteService
-        .getAll()
-        .then((response) => {
-          const rawSites =
-            response?.data?.data?.constructionSites ||
-            response?.data?.constructionSites ||
-            [];
-          setAvailableSites(Array.isArray(rawSites) ? rawSites : []);
-        })
-        .catch((error) => {
-          console.error("Error loading construction sites:", error);
-          setAvailableSites([]);
-        })
-        .finally(() => setSitesLoading(false));
-      return;
-    }
+          while (currentPage <= totalPages) {
+            const response = await constructionSiteService.getAll({
+              page: currentPage,
+              limit: 100,
+            });
+            const data = response?.data?.data || {};
+            const pageItems = Array.isArray(data.constructionSites)
+              ? data.constructionSites
+              : [];
+            const pages = Number(data?.pagination?.pages) || 1;
 
-    if (!userCounterpartyId) {
-      setAvailableSites([]);
-      setSitesLoading(false);
-      return;
-    }
+            items.push(...pageItems);
+            totalPages = pages;
+            currentPage += 1;
+          }
 
-    constructionSiteService
-      .getCounterpartyObjects(userCounterpartyId)
-      .then((response) => {
-        const rawSites = response?.data?.data || [];
-        setAvailableSites(Array.isArray(rawSites) ? rawSites : []);
-      })
-      .catch((error) => {
-        console.error("Error loading counterparty construction sites:", error);
+          return items;
+        };
+
+        const shouldScopeByUserCounterparty =
+          userRole === "user" &&
+          userCounterpartyId &&
+          userCounterpartyId !== defaultCounterpartyId;
+        const effectiveCounterpartyId = selectedCounterparty
+          || (shouldScopeByUserCounterparty ? userCounterpartyId : null);
+        const isDefaultScope =
+          !selectedCounterparty &&
+          !shouldScopeByUserCounterparty;
+
+        const nextSites =
+          effectiveCounterpartyId && !isDefaultScope
+            ? (() => {
+                const responsePromise =
+                  counterpartyService.getConstructionSites(
+                    effectiveCounterpartyId,
+                  );
+                return responsePromise.then((response) => {
+                  const scopedSites =
+                    response?.data?.data?.constructionSites ||
+                    response?.data?.constructionSites ||
+                    response?.data?.data ||
+                    [];
+                  return Array.isArray(scopedSites) ? scopedSites : [];
+                });
+              })()
+            : loadAllConstructionSites();
+
+        const resolvedSites = await nextSites;
+
+        setAvailableSites(resolvedSites);
+        setSelectedSite((current) =>
+          resolvedSites.some((site) => site.id === current) ? current : null,
+        );
+      } catch (error) {
+        console.error("Error loading construction sites:", error);
         setAvailableSites([]);
-      })
-      .finally(() => setSitesLoading(false));
-  }, [visible, userCounterpartyId, defaultCounterpartyId]);
+        setSelectedSite(null);
+      } finally {
+        setSitesLoading(false);
+      }
+    };
+
+    loadSites();
+  }, [
+    visible,
+    userRole,
+    selectedCounterparty,
+    userCounterpartyId,
+    defaultCounterpartyId,
+  ]);
 
   useEffect(() => {
-    if (!(visible && userRole === "admin")) {
+    if (!(visible && userRole !== "user")) {
       return;
     }
 
     setCounterpartiesLoading(true);
     counterpartyService
-      .getAll({ limit: 10000, page: 1 })
+      .getAvailable()
       .then((response) => {
         const rawCounterparties =
           response?.data?.data?.counterparties ||
           response?.data?.counterparties ||
+          response?.data?.data ||
           [];
         setAvailableCounterparties(
           Array.isArray(rawCounterparties) ? rawCounterparties : [],
@@ -173,116 +190,75 @@ export const useApplicationRequestModal = ({
       return;
     }
 
-    const consentsMap = {};
-    modalEmployees.forEach((employee) => {
-      consentsMap[employee.id] = employee.files && employee.files.length > 0;
+    setEmployeesWithConsents((prev) => {
+      const next = { ...prev };
+      modalEmployees.forEach((employee) => {
+        next[employee.id] =
+          Array.isArray(employee.files) && employee.files.length > 0;
+      });
+      return next;
     });
-    setEmployeesWithConsents(consentsMap);
   }, [visible, modalEmployees]);
 
-  const availableEmployees = useMemo(() => {
-    let filtered = modalEmployees;
-
-    if (userRole === "user") {
-      const isDefaultCounterparty =
-        userCounterpartyId === defaultCounterpartyId;
-      if (isDefaultCounterparty) {
-        filtered = filtered.filter((employee) => employee.createdBy === userId);
-      }
-    } else if (userRole === "admin" && selectedCounterparty) {
-      filtered = filtered.filter((employee) => {
-        const counterpartyIds =
-          employee.employeeCounterpartyMappings?.map(
-            (mapping) => mapping.counterpartyId,
-          ) || [];
-        return counterpartyIds.includes(selectedCounterparty);
-      });
+  useEffect(() => {
+    if (!visible) {
+      return;
     }
 
-    filtered = filtered.filter((employee) => {
-      const priority = getStatusPriority(employee);
-      if (priority === 1 || priority === 3) return false;
-      if (!includeFired && priority === 2) return false;
-      return true;
+    setLoadedEmployeesById((prev) => {
+      const next = { ...prev };
+      modalEmployees.forEach((employee) => {
+        next[employee.id] = employee;
+      });
+      return next;
     });
+  }, [visible, modalEmployees]);
 
-    if (selectedSite) {
-      filtered = filtered.filter((employee) => {
-        const siteIds =
-          employee.employeeCounterpartyMappings
-            ?.map(
-              (mapping) =>
-                mapping.constructionSite?.id || mapping.constructionSiteId,
-            )
-            .filter(Boolean) || [];
-        return siteIds.includes(selectedSite);
-      });
-    }
-
-    return filtered;
-  }, [
-    modalEmployees,
-    selectedSite,
-    includeFired,
-    selectedCounterparty,
-    userRole,
-    userCounterpartyId,
-    userId,
-    defaultCounterpartyId,
-  ]);
+  const availableEmployees = modalEmployees;
 
   useEffect(() => {
     if (!visible) {
       return;
     }
 
-    console.info("[ApplicationRequestModal] filter state", {
-      selectedCounterparty,
-      selectedSite,
-      includeFired,
-      modalEmployees: modalEmployees.length,
-      availableEmployees: availableEmployees.length,
-    });
-  }, [
-    visible,
-    selectedCounterparty,
-    selectedSite,
-    includeFired,
-    modalEmployees.length,
-    availableEmployees.length,
-  ]);
-
-  useEffect(() => {
-    if (!visible) {
-      return;
-    }
-
-    if (availableEmployees.length > 0) {
-      setSelectedEmployees(availableEmployees.map((employee) => employee.id));
-      setAllSelected(true);
-      return;
-    }
-
+    setPagination((prev) => ({
+      ...prev,
+      current: 1,
+    }));
     setSelectedEmployees([]);
-    setAllSelected(false);
-  }, [visible, availableEmployees]);
+    setLoadedEmployeesById({});
+    setEmployeesWithConsents({});
+  }, [visible, selectedCounterparty, selectedSite, includeFired]);
+
+  const currentPageEmployeeIds = useMemo(
+    () => availableEmployees.map((employee) => employee.id),
+    [availableEmployees],
+  );
+
+  const allSelected =
+    currentPageEmployeeIds.length > 0 &&
+    currentPageEmployeeIds.every((employeeId) =>
+      selectedEmployees.includes(employeeId),
+    );
 
   const handleSelectAll = (event) => {
     if (event.target.checked) {
-      setSelectedEmployees(availableEmployees.map((employee) => employee.id));
-      setAllSelected(true);
+      setSelectedEmployees((prev) =>
+        Array.from(new Set([...prev, ...currentPageEmployeeIds])),
+      );
       return;
     }
 
-    setSelectedEmployees([]);
-    setAllSelected(false);
+    setSelectedEmployees((prev) =>
+      prev.filter((employeeId) => !currentPageEmployeeIds.includes(employeeId)),
+    );
   };
 
   const rowSelection = {
+    preserveSelectedRowKeys: true,
     selectedRowKeys: selectedEmployees,
     onChange: (selectedRowKeys) => {
       setSelectedEmployees(selectedRowKeys);
-      setAllSelected(selectedRowKeys.length === availableEmployees.length);
     },
   };
 
@@ -301,8 +277,8 @@ export const useApplicationRequestModal = ({
       setLoading(true);
       await applicationService.create({ employeeIds: selectedEmployees });
 
-      const employeesToExport = availableEmployees.filter((employee) =>
-        selectedEmployees.includes(employee.id),
+      const employeesToExport = Object.values(loadedEmployeesById).filter(
+        (employee) => selectedEmployees.includes(employee.id),
       );
 
       const { rows, hasNumberColumn, activeColumnCount } =
@@ -343,17 +319,29 @@ export const useApplicationRequestModal = ({
         return;
       }
 
+      const employeeIdsWithConsents = selectedEmployees.filter((employeeId) =>
+        Array.isArray(loadedEmployeesById[employeeId]?.files) &&
+        loadedEmployeesById[employeeId].files.length > 0,
+      );
+
+      if (employeeIdsWithConsents.length === 0) {
+        messageApi.warning(
+          "У выбранных сотрудников нет согласий на обработку перс. данных",
+        );
+        return;
+      }
+
       setDownloadingConsents(true);
 
       const createResponse = await applicationService.create({
-        employeeIds: selectedEmployees,
+        employeeIds: employeeIdsWithConsents,
       });
       const applicationId = createResponse.data.data.id;
 
       const response =
         await applicationService.downloadDeveloperBiometricConsents(
           applicationId,
-          selectedEmployees,
+          employeeIdsWithConsents,
         );
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -388,7 +376,7 @@ export const useApplicationRequestModal = ({
 
   return {
     loading,
-    tableLoading,
+    tableLoading: employeesLoading,
     sitesLoading,
     counterpartiesLoading,
     downloadingConsents,
@@ -404,7 +392,10 @@ export const useApplicationRequestModal = ({
     availableCounterparties,
     isColumnsModalOpen,
     setIsColumnsModalOpen,
-    pagination,
+    pagination: {
+      ...pagination,
+      total: totalCount,
+    },
     setPagination,
     availableEmployees,
     handleSelectAll,

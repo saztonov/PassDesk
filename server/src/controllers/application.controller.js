@@ -22,13 +22,40 @@ import { generateApplicationDocument } from "../services/documentService.js";
 import EmployeeStatusService from "../services/employeeStatusService.js";
 import { getAccessibleEmployeeIds } from "../utils/permissionUtils.js";
 import { AppError } from "../middleware/errorHandler.js";
+import { sanitizeFileName } from "../utils/transliterate.js";
 
 const STATUS_GROUP = "status";
 const PROCESSABLE_STATUSES = new Set(["status_new", "status_tb_passed"]);
+const CONSENT_DOCUMENT_TYPES = [
+  "consent",
+  "biometric_consent",
+  "biometric_consent_developer",
+];
 
 const getUniqueIds = (ids = []) => [
   ...new Set((ids || []).map((id) => String(id)).filter(Boolean)),
 ];
+
+const sanitizeZipPathSegment = (value, fallback = "employee") => {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "_")
+    .replace(/\s+/g, " ")
+    .replace(/_+/g, "_")
+    .replace(/^[_.\s]+|[_.\s]+$/g, "");
+
+  return normalized || fallback;
+};
+
+const buildEmployeeConsentFolderName = (employee) => {
+  const source = employee?.toJSON ? employee.toJSON() : employee || {};
+  const fullName = [source.lastName, source.firstName, source.middleName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return sanitizeZipPathSegment(fullName, `employee_${source.id || "unknown"}`);
+};
 
 const transitionEmployeesToProcessedStatus = async ({
   employeeIds,
@@ -1560,10 +1587,12 @@ export const downloadDeveloperBiometricConsents = async (req, res, next) => {
       );
     }
 
-    // Получаем согласия на перс. данные Застройщика для выбранных сотрудников
+    // Получаем все согласия на перс. данные для выбранных сотрудников
     const consentFiles = await File.findAll({
       where: {
-        documentType: "biometric_consent_developer",
+        documentType: {
+          [Op.in]: CONSENT_DOCUMENT_TYPES,
+        },
         employeeId: {
           [Op.in]: employeeIds,
         },
@@ -1588,8 +1617,7 @@ export const downloadDeveloperBiometricConsents = async (req, res, next) => {
     if (consentFiles.length === 0) {
       return res.status(400).json({
         success: false,
-        message:
-          "Нет согласий на обработку перс. данных Застройщика для выбранных сотрудников",
+        message: "Нет согласий на обработку перс. данных для выбранных сотрудников",
       });
     }
 
@@ -1619,9 +1647,27 @@ export const downloadDeveloperBiometricConsents = async (req, res, next) => {
     // Пайпим архив в response
     archive.pipe(res);
 
+    const usedArchivePaths = new Set();
+
     // Добавляем файлы в архив
     for (const file of consentFiles) {
       try {
+        const employeeFolder = buildEmployeeConsentFolderName(file.employee);
+        const safeFileName = sanitizeFileName(file.fileName || "consent");
+        let archivePath = `${employeeFolder}/${safeFileName}`;
+        let duplicateIndex = 1;
+
+        while (usedArchivePaths.has(archivePath)) {
+          const dotIndex = safeFileName.lastIndexOf(".");
+          const baseName =
+            dotIndex >= 0 ? safeFileName.slice(0, dotIndex) : safeFileName;
+          const extension = dotIndex >= 0 ? safeFileName.slice(dotIndex) : "";
+          archivePath = `${employeeFolder}/${baseName}_${duplicateIndex}${extension}`;
+          duplicateIndex += 1;
+        }
+
+        usedArchivePaths.add(archivePath);
+
         // Получаем подписанный URL для файла
         const downloadData = await storageProvider.getDownloadUrl(
           file.filePath,
@@ -1637,8 +1683,7 @@ export const downloadDeveloperBiometricConsents = async (req, res, next) => {
           timeout: 30000,
         });
 
-        // Используем оригинальное имя файла из S3 (как указано в задании)
-        archive.append(fileResponse.data, { name: file.fileName });
+        archive.append(fileResponse.data, { name: archivePath });
       } catch (error) {
         console.error(`Error downloading file ${file.fileKey}:`, error.message);
         // Продолжаем со следующего файла, не прерываем весь процесс
