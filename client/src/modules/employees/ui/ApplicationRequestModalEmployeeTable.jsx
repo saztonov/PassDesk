@@ -1,4 +1,4 @@
-import { Checkbox, Table } from "antd";
+import { Checkbox, Empty, Spin, Table } from "antd";
 
 const ApplicationRequestModalEmployeeTable = ({
   availableEmployees,
@@ -12,6 +12,22 @@ const ApplicationRequestModalEmployeeTable = ({
   onPaginationChange,
 }) => (
   <>
+    {loading && availableEmployees.length === 0 && (
+      <div
+        style={{
+          minHeight: 280,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "1px solid #f0f0f0",
+          borderRadius: 8,
+          background: "#fff",
+        }}
+      >
+        <Spin size="large" tip="Загружаем сотрудников..." />
+      </div>
+    )}
+
     {availableEmployees.length > 0 && (
       <Checkbox
         checked={allSelected}
@@ -47,8 +63,18 @@ const ApplicationRequestModalEmployeeTable = ({
     )}
 
     {availableEmployees.length === 0 && !loading && (
-      <div style={{ textAlign: "center", padding: "20px", color: "#999" }}>
-        Нет доступных сотрудников по выбранным фильтрам
+      <div
+        style={{
+          minHeight: 280,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "1px solid #f0f0f0",
+          borderRadius: 8,
+          background: "#fff",
+        }}
+      >
+        <Empty description="Нет доступных сотрудников по выбранным фильтрам" />
       </div>
     )}
   </>

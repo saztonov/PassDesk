@@ -31,6 +31,9 @@ const applicationService = {
       params: { counterpartyId }
     }),
 
+  getRequestEmployees: (params) =>
+    api.get('/applications/helpers/request-employees', { params }),
+
   // Работа с файлами заявки
   uploadFiles: (applicationId, formData) =>
     api.post(`/applications/${applicationId}/files`, formData, {
@@ -65,4 +68,3 @@ const applicationService = {
 };
 
 export { applicationService };
-

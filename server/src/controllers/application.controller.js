@@ -12,6 +12,7 @@ import {
   EmployeeCounterpartyMapping,
   CounterpartyConstructionSiteMapping,
   Position,
+  Department,
   sequelize,
   Status,
   EmployeeStatusMapping,
@@ -55,6 +56,168 @@ const buildEmployeeConsentFolderName = (employee) => {
     .trim();
 
   return sanitizeZipPathSegment(fullName, `employee_${source.id || "unknown"}`);
+};
+
+const buildApplicationRequestStatusWhere = (requestedStatuses = []) => {
+  const normalized = Array.isArray(requestedStatuses)
+    ? requestedStatuses
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter(Boolean)
+    : [];
+
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const predicates = [];
+
+  if (normalized.includes("active")) {
+    predicates.push(`(
+      EXISTS (
+        SELECT 1
+        FROM employees_statuses_mapping esm
+        JOIN statuses s ON s.id = esm.status_id
+        WHERE esm.employee_id = "Employee"."id"
+          AND esm.is_active IS NOT FALSE
+          AND esm.status_group = 'status'
+          AND s.name IN ('status_new', 'status_tb_passed', 'status_processed')
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM employees_statuses_mapping esm
+        JOIN statuses s ON s.id = esm.status_id
+        WHERE esm.employee_id = "Employee"."id"
+          AND esm.is_active IS NOT FALSE
+          AND esm.status_group = 'status_active'
+          AND s.name IN ('status_active_fired', 'status_active_fired_compl', 'status_active_inactive')
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM employees_statuses_mapping esm
+        JOIN statuses s ON s.id = esm.status_id
+        WHERE esm.employee_id = "Employee"."id"
+          AND esm.is_active IS NOT FALSE
+          AND esm.status_group = 'status_secure'
+          AND s.name IN ('status_secure_block', 'status_secure_block_compl')
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM employees_statuses_mapping esm
+        JOIN statuses s ON s.id = esm.status_id
+        WHERE esm.employee_id = "Employee"."id"
+          AND esm.is_active IS NOT FALSE
+          AND (
+            (esm.status_group IN ('status_card', 'card draft') AND s.name = 'status_card_draft')
+            OR
+            (esm.status_group IN ('status', 'draft') AND s.name = 'status_draft')
+          )
+      )
+    )`);
+  }
+
+  if (normalized.includes("draft")) {
+    predicates.push(`(
+      EXISTS (
+        SELECT 1
+        FROM employees_statuses_mapping esm
+        JOIN statuses s ON s.id = esm.status_id
+        WHERE esm.employee_id = "Employee"."id"
+          AND esm.is_active IS NOT FALSE
+          AND (
+            (esm.status_group IN ('status_card', 'card draft') AND s.name = 'status_card_draft')
+            OR
+            (esm.status_group IN ('status', 'draft') AND s.name = 'status_draft')
+          )
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM employees_statuses_mapping esm
+        JOIN statuses s ON s.id = esm.status_id
+        WHERE esm.employee_id = "Employee"."id"
+          AND esm.is_active IS NOT FALSE
+          AND esm.status_group = 'status_active'
+          AND s.name IN ('status_active_fired', 'status_active_fired_compl', 'status_active_inactive')
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM employees_statuses_mapping esm
+        JOIN statuses s ON s.id = esm.status_id
+        WHERE esm.employee_id = "Employee"."id"
+          AND esm.is_active IS NOT FALSE
+          AND esm.status_group = 'status_secure'
+          AND s.name IN ('status_secure_block', 'status_secure_block_compl')
+      )
+    )`);
+  }
+
+  if (normalized.includes("fired")) {
+    predicates.push(`EXISTS (
+      SELECT 1
+      FROM employees_statuses_mapping esm
+      JOIN statuses s ON s.id = esm.status_id
+      WHERE esm.employee_id = "Employee"."id"
+        AND esm.is_active IS NOT FALSE
+        AND esm.status_group = 'status_active'
+        AND s.name IN ('status_active_fired', 'status_active_fired_compl')
+    )`);
+  }
+
+  if (predicates.length === 0) {
+    return null;
+  }
+
+  return {
+    [Op.and]: [sequelize.literal(`(${predicates.join(" OR ")})`)],
+  };
+};
+
+const buildApplicationRequestEmployeeWhere = ({
+  requestedStatuses = [],
+  counterpartyId = null,
+  constructionSiteId = null,
+  scopedCounterpartyId = null,
+}) => {
+  const conditions = [];
+  const statusWhere = buildApplicationRequestStatusWhere(requestedStatuses);
+
+  if (statusWhere?.[Op.and]?.length) {
+    conditions.push(...statusWhere[Op.and]);
+  }
+
+  const effectiveCounterpartyId = scopedCounterpartyId || counterpartyId;
+  if (effectiveCounterpartyId || constructionSiteId) {
+    const mappingPredicates = [`ecm.employee_id = "Employee"."id"`];
+
+    if (effectiveCounterpartyId) {
+      mappingPredicates.push(
+        `ecm.counterparty_id = ${sequelize.escape(effectiveCounterpartyId)}`,
+      );
+    }
+
+    if (constructionSiteId) {
+      mappingPredicates.push(
+        `ecm.construction_site_id = ${sequelize.escape(constructionSiteId)}`,
+      );
+    }
+
+    conditions.push(
+      sequelize.literal(
+        `EXISTS (
+          SELECT 1
+          FROM employee_counterparty_mapping ecm
+          WHERE ${mappingPredicates.join(" AND ")}
+        )`,
+      ),
+    );
+  }
+
+  if (conditions.length === 0) {
+    return {};
+  }
+
+  return {
+    [Op.and]: conditions,
+  };
 };
 
 const transitionEmployeesToProcessedStatus = async ({
@@ -1468,6 +1631,226 @@ export const getEmployeesForApplication = async (req, res, next) => {
     });
   } catch (error) {
     console.error("Error fetching employees:", error);
+    if (error.statusCode) {
+      return next(error);
+    }
+    next(error);
+  }
+};
+
+export const getRequestEmployeesForApplication = async (req, res, next) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      counterpartyId = null,
+      constructionSiteId = null,
+      statuses = null,
+    } = req.query;
+
+    const safePage = Math.max(parseInt(page, 10) || 1, 1);
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
+    const offset = (safePage - 1) * safeLimit;
+    const requestedStatuses = Array.isArray(statuses)
+      ? statuses
+      : typeof statuses === "string" && statuses.trim().startsWith("[")
+        ? JSON.parse(statuses)
+        : statuses
+          ? [statuses]
+          : [];
+
+    const mappingWhere = {};
+    let mappingRequired = false;
+    let scopedCounterpartyId = null;
+
+    if (constructionSiteId) {
+      mappingWhere.constructionSiteId = constructionSiteId;
+      mappingRequired = true;
+    }
+
+    if (counterpartyId) {
+      mappingWhere.counterpartyId = counterpartyId;
+      mappingRequired = true;
+    }
+
+    if (req.user.role === "user") {
+      if (!req.user.counterpartyId) {
+        return next(new AppError("Контрагент пользователя не найден", 403));
+      }
+
+      scopedCounterpartyId = req.user.counterpartyId;
+      mappingWhere.counterpartyId = req.user.counterpartyId;
+      mappingRequired = true;
+    }
+
+    const where = buildApplicationRequestEmployeeWhere({
+      requestedStatuses,
+      counterpartyId,
+      constructionSiteId,
+      scopedCounterpartyId,
+    });
+
+    const mappingInclude = {
+      model: EmployeeCounterpartyMapping,
+      as: "employeeCounterpartyMappings",
+      attributes: ["id", "counterpartyId", "departmentId", "constructionSiteId"],
+      required: mappingRequired,
+      ...(Object.keys(mappingWhere).length > 0 ? { where: mappingWhere } : {}),
+      include: [
+        {
+          model: Counterparty,
+          as: "counterparty",
+          attributes: ["id", "name", "inn", "kpp"],
+        },
+        {
+          model: Department,
+          as: "department",
+          attributes: ["id", "name"],
+        },
+        {
+          model: ConstructionSite,
+          as: "constructionSite",
+          attributes: ["id", "shortName", "fullName"],
+        },
+      ],
+    };
+
+    const count = await Employee.count({ where });
+
+    const pageEmployeeRows = await Employee.findAll({
+      where,
+      attributes: ["id"],
+      order: [
+        ["updatedAt", "DESC"],
+        ["id", "DESC"],
+      ],
+      limit: safeLimit,
+      offset,
+      raw: true,
+    });
+
+    const pageEmployeeIds = pageEmployeeRows.map((employee) => employee.id);
+
+    if (pageEmployeeIds.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          employees: [],
+          pagination: {
+            total: count,
+            page: safePage,
+            limit: safeLimit,
+            pages: Math.ceil(count / safeLimit),
+          },
+        },
+      });
+    }
+
+    const employees = await Employee.findAll({
+      where: {
+        id: {
+          [Op.in]: pageEmployeeIds,
+        },
+      },
+      include: [
+        {
+          model: Citizenship,
+          as: "citizenship",
+          attributes: ["id", "name", "code"],
+        },
+        {
+          model: Citizenship,
+          as: "birthCountry",
+          attributes: ["id", "name", "code"],
+          required: false,
+        },
+        {
+          model: Position,
+          as: "position",
+          attributes: ["id", "name"],
+          required: false,
+        },
+        mappingInclude,
+        {
+          model: File,
+          as: "files",
+          attributes: ["id", "fileKey", "fileName", "documentType"],
+          where: {
+            documentType: {
+              [Op.in]: CONSENT_DOCUMENT_TYPES,
+            },
+            isDeleted: false,
+          },
+          required: false,
+        },
+      ],
+      attributes: [
+        "id",
+        "firstName",
+        "lastName",
+        "lastNameEnc",
+        "lastNameHash",
+        "lastNameKeyVersion",
+        "middleName",
+        "gender",
+        "birthDate",
+        "birthRegion",
+        "birthCity",
+        "snils",
+        "positionId",
+        "inn",
+        "kig",
+        "kigEnc",
+        "kigHash",
+        "kigKeyVersion",
+        "kigEndDate",
+        "phone",
+        "passportType",
+        "passportNumber",
+        "passportNumberEnc",
+        "passportNumberHash",
+        "passportNumberKeyVersion",
+        "passportDate",
+        "passportIssuer",
+        "passportExpiryDate",
+        "registrationAddress",
+        "patentNumber",
+        "patentNumberEnc",
+        "patentNumberHash",
+        "patentNumberKeyVersion",
+        "patentIssueDate",
+        "blankNumber",
+        "bankAccountNumber",
+        "bankBik",
+        "idAll",
+      ],
+      order: [["updatedAt", "DESC"]],
+    });
+
+    const employeesById = new Map(
+      employees.map((employee) => [
+        String(employee.id),
+        employee?.toJSON ? employee.toJSON() : employee,
+      ]),
+    );
+    const orderedEmployees = pageEmployeeIds
+      .map((employeeId) => employeesById.get(String(employeeId)))
+      .filter(Boolean);
+
+    res.json({
+      success: true,
+      data: {
+        employees: orderedEmployees,
+        pagination: {
+          total: count,
+          page: safePage,
+          limit: safeLimit,
+          pages: Math.ceil(count / safeLimit),
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching request employees:", error);
     if (error.statusCode) {
       return next(error);
     }

@@ -9,6 +9,7 @@ import {
   copyApplication,
   getContractsForApplication,
   getEmployeesForApplication,
+  getRequestEmployeesForApplication,
   exportApplicationToWord,
   downloadDeveloperBiometricConsents,
 } from "../controllers/application.controller.js";
@@ -78,6 +79,7 @@ router.post(
 // Вспомогательные endpoints для формы создания заявки
 router.get("/helpers/contracts", getContractsForApplication);
 router.get("/helpers/employees", getEmployeesForApplication);
+router.get("/helpers/request-employees", getRequestEmployeesForApplication);
 
 // Работа с файлами заявки
 router.post(

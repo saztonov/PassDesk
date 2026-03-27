@@ -5,7 +5,6 @@ import { useExcelColumns } from "@/hooks/useExcelColumns";
 import { applicationService } from "@/services/applicationService";
 import { constructionSiteService } from "@/services/constructionSiteService";
 import { counterpartyService } from "@/services/counterpartyService";
-import { useEmployees } from "@/entities/employee";
 import { buildApplicationRequestExcelData } from "@/modules/employees/lib/applicationRequestModalFormatters";
 import { buildApplicationRequestModalColumns } from "@/modules/employees/ui/ApplicationRequestModalColumns";
 
@@ -32,6 +31,10 @@ export const useApplicationRequestModal = ({
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
   const [employeesWithConsents, setEmployeesWithConsents] = useState({});
   const [loadedEmployeesById, setLoadedEmployeesById] = useState({});
+  const [modalEmployees, setModalEmployees] = useState([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [hasLoadedEmployees, setHasLoadedEmployees] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
 
   const {
     columns: selectedColumns,
@@ -53,7 +56,7 @@ export const useApplicationRequestModal = ({
     };
 
     if (selectedCounterparty) {
-      params.counterpartyIds = JSON.stringify([selectedCounterparty]);
+      params.counterpartyId = selectedCounterparty;
     }
 
     if (selectedSite) {
@@ -69,11 +72,54 @@ export const useApplicationRequestModal = ({
     selectedSite,
   ]);
 
-  const {
-    employees: modalEmployees,
-    loading: employeesLoading,
-    totalCount,
-  } = useEmployees(false, employeeRequestParams, visible);
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadEmployees = async () => {
+      setEmployeesLoading(true);
+      setHasLoadedEmployees(false);
+      try {
+        const response = await applicationService.getRequestEmployees(
+          employeeRequestParams,
+        );
+        const responseData = response?.data?.data || {};
+        const nextEmployees = Array.isArray(responseData.employees)
+          ? responseData.employees
+          : [];
+        const total = Number(responseData?.pagination?.total) || 0;
+
+        if (cancelled) {
+          return;
+        }
+
+        setModalEmployees(nextEmployees);
+        setTotalCount(total);
+        setHasLoadedEmployees(true);
+      } catch (error) {
+        console.error("Error loading employees for application request:", error);
+        if (!cancelled) {
+          setModalEmployees([]);
+          setTotalCount(0);
+          setHasLoadedEmployees(true);
+          messageApi.error("Ошибка загрузки сотрудников");
+        }
+      } finally {
+        if (!cancelled) {
+          setEmployeesLoading(false);
+        }
+      }
+    };
+
+    loadEmployees();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, employeeRequestParams, messageApi]);
 
   useEffect(() => {
     if (!visible) {
@@ -228,6 +274,7 @@ export const useApplicationRequestModal = ({
     setSelectedEmployees([]);
     setLoadedEmployeesById({});
     setEmployeesWithConsents({});
+    setHasLoadedEmployees(false);
   }, [visible, selectedCounterparty, selectedSite, includeFired]);
 
   const currentPageEmployeeIds = useMemo(
@@ -376,7 +423,7 @@ export const useApplicationRequestModal = ({
 
   return {
     loading,
-    tableLoading: employeesLoading,
+    tableLoading: employeesLoading || (visible && !hasLoadedEmployees),
     sitesLoading,
     counterpartiesLoading,
     downloadingConsents,
