@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import * as XLSX from "xlsx";
-import { employeeService } from "@/services/employeeService";
+import { useEmployees } from "@/entities/employee";
 import { employeeStatusService } from "@/services/employeeStatusService";
 import { constructionSiteService } from "@/services/constructionSiteService";
 import { counterpartyService } from "@/services/counterpartyService";
 import {
   buildExportExcelRows,
   buildStatusUpdatesForExport,
-  filterEmployeesForExport,
 } from "@/modules/employees/lib/exportToExcelModalUtils";
 
 export const useExportToExcelModal = ({
@@ -16,14 +15,54 @@ export const useExportToExcelModal = ({
   onCancel,
   messageApi,
 }) => {
-  const [loading, setLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   const [constructionSites, setConstructionSites] = useState([]);
   const [counterparties, setCounterparties] = useState([]);
-  const [employees, setEmployees] = useState([]);
   const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [filterType, setFilterType] = useState("all");
   const [constructionSiteId, setConstructionSiteId] = useState(null);
   const [counterpartyId, setCounterpartyId] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [loadedEmployeesById, setLoadedEmployeesById] = useState({});
+
+  const employeeQueryParams = useMemo(() => {
+    if (!constructionSiteId || !counterpartyId) {
+      return {};
+    }
+
+    const params = {
+      page: currentPage,
+      limit: pageSize,
+      constructionSiteId,
+      counterpartyIds: JSON.stringify([counterpartyId]),
+    };
+
+    if (filterType === "all" || filterType === "tb_passed") {
+      params.statuses = JSON.stringify(["tb_passed"]);
+    } else if (filterType === "blocked") {
+      params.statuses = JSON.stringify(["blocked", "fired", "inactive"]);
+    }
+
+    return params;
+  }, [
+    constructionSiteId,
+    counterpartyId,
+    currentPage,
+    pageSize,
+    filterType,
+  ]);
+
+  const {
+    employees,
+    loading: employeesLoading,
+    backgroundLoading,
+    totalCount,
+  } = useEmployees(
+    false,
+    employeeQueryParams,
+    visible && Boolean(constructionSiteId && counterpartyId),
+  );
 
   useEffect(() => {
     if (!visible) {
@@ -50,46 +89,50 @@ export const useExportToExcelModal = ({
     setFilterType("all");
     setConstructionSiteId(null);
     setCounterpartyId(null);
-    setEmployees([]);
+    setCurrentPage(1);
+    setPageSize(10);
     setSelectedEmployees([]);
+    setLoadedEmployeesById({});
   }, [visible]);
 
   useEffect(() => {
-    const loadEmployees = async () => {
-      if (!constructionSiteId || !counterpartyId) {
-        setEmployees([]);
-        setSelectedEmployees([]);
-        return;
+    setCurrentPage(1);
+    setSelectedEmployees([]);
+    setLoadedEmployeesById({});
+  }, [constructionSiteId, counterpartyId, filterType]);
+
+  useEffect(() => {
+    if (!constructionSiteId || !counterpartyId) {
+      return;
+    }
+
+    setLoadedEmployeesById((prev) => {
+      const next = { ...prev };
+      employees.forEach((employee) => {
+        next[employee.id] = employee;
+      });
+      return next;
+    });
+  }, [constructionSiteId, counterpartyId, employees]);
+
+  useEffect(() => {
+    if (employees.length === 0) {
+      return;
+    }
+
+    setSelectedEmployees((prev) => {
+      if (prev.length > 0) {
+        return prev;
       }
 
-      try {
-        setLoading(true);
-        const response = await employeeService.getAll();
-        const allEmployees = response.data.employees || [];
-
-        const filtered = filterEmployeesForExport({
-          allEmployees,
-          constructionSiteId,
-          counterpartyId,
-          filterType,
-        });
-
-        setEmployees(filtered);
-        setSelectedEmployees(filtered.map((employee) => employee.id));
-      } catch (error) {
-        console.error("Error filtering employees:", error);
-        messageApi.error("Ошибка при загрузке списка сотрудников");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadEmployees();
-  }, [constructionSiteId, counterpartyId, filterType, messageApi]);
+      return employees.map((employee) => employee.id);
+    });
+  }, [employees]);
 
   const rowSelection = useMemo(
     () => ({
       selectedRowKeys: selectedEmployees,
+      preserveSelectedRowKeys: true,
       onChange: (selectedRowKeys) => {
         setSelectedEmployees(selectedRowKeys);
       },
@@ -104,10 +147,10 @@ export const useExportToExcelModal = ({
     }
 
     try {
-      setLoading(true);
+      setExportLoading(true);
 
-      const employeesToExport = employees.filter((employee) =>
-        selectedEmployees.includes(employee.id),
+      const employeesToExport = Object.values(loadedEmployeesById).filter(
+        (employee) => selectedEmployees.includes(employee.id),
       );
 
       const rows = buildExportExcelRows({
@@ -144,15 +187,18 @@ export const useExportToExcelModal = ({
       console.error("Export error:", error);
       messageApi.error("Ошибка при экспорте в Excel");
     } finally {
-      setLoading(false);
+      setExportLoading(false);
     }
   };
 
   return {
-    loading,
+    loading: exportLoading || employeesLoading || backgroundLoading,
     constructionSites,
     counterparties,
     employees,
+    totalCount,
+    currentPage,
+    pageSize,
     selectedEmployees,
     filterType,
     setFilterType,
@@ -160,6 +206,8 @@ export const useExportToExcelModal = ({
     setConstructionSiteId,
     counterpartyId,
     setCounterpartyId,
+    setCurrentPage,
+    setPageSize,
     rowSelection,
     handleExport,
   };

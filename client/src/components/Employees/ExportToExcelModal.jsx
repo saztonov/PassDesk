@@ -13,6 +13,9 @@ const ExportToExcelModal = ({ visible, onCancel }) => {
     constructionSites,
     counterparties,
     employees,
+    totalCount,
+    currentPage,
+    pageSize,
     selectedEmployees,
     filterType,
     setFilterType,
@@ -20,6 +23,8 @@ const ExportToExcelModal = ({ visible, onCancel }) => {
     setConstructionSiteId,
     counterpartyId,
     setCounterpartyId,
+    setCurrentPage,
+    setPageSize,
     rowSelection,
     handleExport,
   } = useExportToExcelModal({
@@ -123,7 +128,21 @@ const ExportToExcelModal = ({ visible, onCancel }) => {
             rowKey="id"
             loading={loading}
             size="small"
-            pagination={{ pageSize: 10, showSizeChanger: true }}
+            pagination={{
+              current: currentPage,
+              pageSize,
+              total: totalCount,
+              showSizeChanger: true,
+              onChange: (page, nextPageSize) => {
+                if (nextPageSize !== pageSize) {
+                  setPageSize(nextPageSize);
+                  setCurrentPage(1);
+                  return;
+                }
+
+                setCurrentPage(page);
+              },
+            }}
             scroll={{ x: 1600 }}
           />
         )}
