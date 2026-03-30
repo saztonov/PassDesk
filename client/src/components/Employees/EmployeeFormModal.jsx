@@ -603,44 +603,44 @@ const EmployeeFormModal = ({
                 padding: 16,
                 background: "#fff",
                 height: "100%",
-                overflowY: "auto",
+                overflow: "hidden",
                 boxSizing: "border-box",
+                display: "flex",
+                flexDirection: "column",
               }}
             >
               <div
                 style={{
                   display: "flex",
-                  alignItems: "flex-start",
+                  alignItems: "center",
                   justifyContent: "space-between",
-                  gap: 12,
+                  gap: 8,
                   marginBottom: 8,
+                  flexShrink: 0,
                 }}
               >
-                <div>
-                  <div style={{ fontSize: 16, fontWeight: 600 }}>Документы</div>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    Просмотр и загрузка сканов
-                  </Text>
-                </div>
+                <Text style={{ fontSize: 13, fontWeight: 600, color: "#595959" }}>Документы</Text>
                 {employee ? <EmployeeAuditInfoTooltip employee={employee} /> : null}
               </div>
-              <EmployeeFilesTab
-                employee={employee}
-                selectedCitizenship={selectedCitizenship}
-                selectedCitizenshipId={watchedCitizenshipId}
-                selectedCounterpartyId={watchedCounterpartyId}
-                defaultCounterpartyId={defaultCounterpartyId}
-                userCounterpartyId={user?.counterpartyId || null}
-                onFilesUpdated={handleFilesChange}
-                onUploadComplete={handleUploadedFileForOcr}
-                ensureEmployeeId={ensureEmployeeId}
-                documentProfilesConfig={settings?.employeeDocumentProfiles || null}
-                viewerMode="inline"
-                columnsCount={1}
-                showInfoBanner={false}
-                embeddedViewerHeight={screens.xl ? 620 : 420}
-                compact
-              />
+              <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+                <EmployeeFilesTab
+                  employee={employee}
+                  selectedCitizenship={selectedCitizenship}
+                  selectedCitizenshipId={watchedCitizenshipId}
+                  selectedCounterpartyId={watchedCounterpartyId}
+                  defaultCounterpartyId={defaultCounterpartyId}
+                  userCounterpartyId={user?.counterpartyId || null}
+                  onFilesUpdated={handleFilesChange}
+                  onUploadComplete={handleUploadedFileForOcr}
+                  ensureEmployeeId={ensureEmployeeId}
+                  documentProfilesConfig={settings?.employeeDocumentProfiles || null}
+                  viewerMode="inline"
+                  columnsCount={1}
+                  showInfoBanner={false}
+                  embeddedViewerHeight="fill"
+                  compact
+                />
+              </div>
             </div>
           </div>
         </div>

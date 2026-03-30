@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { App, Col, Row, Spin } from "antd";
+import { App, Col, Row, Spin, Typography } from "antd";
+
+const { Text } = Typography;
 import { FileViewer } from "../../shared/ui/FileViewer";
 import { employeeService } from "../../services/employeeService";
 import DocumentTypeUploaderItem from "@/modules/employees/ui/DocumentTypeUploaderItem";
@@ -413,26 +415,77 @@ const DocumentTypeUploader = ({
     return { xs: 24, sm: 12, lg: 8 };
   }, [columnsCount]);
 
+  const documentTypeList = (
+    <Row gutter={[16, 16]}>
+      {documentTypeColumns.map((column) => (
+        <Col
+          key={`doc-column-${column.map((docType) => docType.value).join("|")}`}
+          {...colSpan}
+        >
+          <div className="document-uploader-column">
+            {column.map((docType) => (
+              <DocumentTypeUploaderItem
+                key={docType.value}
+                docType={docType}
+                filesOfType={getFilesForType(docType.value)}
+                readonly={readonly}
+                employeeId={effectiveEmployeeId}
+                canEnsureEmployeeId={typeof ensureEmployeeId === "function"}
+                uploading={uploadingTypes[docType.value]}
+                messageApi={message}
+                onOpenSample={handleOpenSample}
+                onUploadChange={handleChange}
+                onViewFile={handleViewFile}
+                onDownloadFile={handleDownloadFile}
+                onDeleteFile={handleDeleteFile}
+                compact={compact}
+              />
+            ))}
+          </div>
+        </Col>
+      ))}
+    </Row>
+  );
+
+  if (viewerMode === "inline") {
+    const closeViewer = () =>
+      setUiState((prev) => ({ ...prev, viewingFile: null, viewerVisible: false }));
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        <style>{DOCUMENT_TYPE_UPLOADER_STYLES}</style>
+
+        {/* Список документов — скрываем через display:none чтобы сохранить скролл */}
+        <div style={{ overflowY: "auto", height: "100%", display: viewingFile ? "none" : "block" }}>
+          {documentTypeList}
+        </div>
+
+        {/* Viewer — занимает всю высоту когда открыт */}
+        {viewingFile ? (
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <EmployeeDocumentPreviewPane
+              viewingFile={viewingFile}
+              fill
+              onBack={closeViewer}
+              onDownload={handleDownloadViewingFile}
+            />
+          </div>
+        ) : null}
+
+        <DocumentTypeUploaderSampleModal
+          visible={sampleModalVisible}
+          docType={selectedSampleDocType}
+          onClose={() =>
+            setUiState((prev) => ({ ...prev, sampleModalVisible: false }))
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: "16px 0" }}>
       <style>{DOCUMENT_TYPE_UPLOADER_STYLES}</style>
-
-      {viewerMode === "inline" ? (
-        <div style={{ marginBottom: 16 }}>
-          <EmployeeDocumentPreviewPane
-            viewingFile={viewingFile}
-            height={embeddedViewerHeight}
-            onClose={() =>
-              setUiState((prev) => ({
-                ...prev,
-                viewingFile: null,
-                viewerVisible: false,
-              }))
-            }
-            onDownload={handleDownloadViewingFile}
-          />
-        </div>
-      ) : null}
 
       {showInfoBanner ? (
         <div
@@ -456,35 +509,7 @@ const DocumentTypeUploader = ({
         </div>
       ) : null}
 
-      <Row gutter={[16, 16]}>
-        {documentTypeColumns.map((column) => (
-          <Col
-            key={`doc-column-${column.map((docType) => docType.value).join("|")}`}
-            {...colSpan}
-          >
-            <div className="document-uploader-column">
-              {column.map((docType) => (
-                <DocumentTypeUploaderItem
-                  key={docType.value}
-                  docType={docType}
-                  filesOfType={getFilesForType(docType.value)}
-                  readonly={readonly}
-                  employeeId={effectiveEmployeeId}
-                  canEnsureEmployeeId={typeof ensureEmployeeId === "function"}
-                  uploading={uploadingTypes[docType.value]}
-                  messageApi={message}
-                  onOpenSample={handleOpenSample}
-                  onUploadChange={handleChange}
-                  onViewFile={handleViewFile}
-                  onDownloadFile={handleDownloadFile}
-                  onDeleteFile={handleDeleteFile}
-                  compact={compact}
-                />
-              ))}
-            </div>
-          </Col>
-        ))}
-      </Row>
+      {documentTypeList}
 
       {viewerMode === "modal" && viewingFile && (
         <FileViewer
