@@ -148,6 +148,14 @@ const EVENTS_RESPONSE_CACHE_TTL_MS = 10 * 1000;
 const eventsResponseCache = new Map();
 const PROVIDER_EMPLOYEE_FALLBACK_TTL_MS = 5 * 60 * 1000;
 const providerEmployeeFallbackCache = new Map();
+const PROVIDER_EMPLOYEE_FALLBACK_SCHEMA_VERSION = 2;
+const PROVIDER_DEPARTMENTS_CATALOG_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_CONTRACTORS_ROOT_NAME = "Подрядные организации";
+let providerDepartmentsCatalogCache = {
+  expiresAt: 0,
+  value: null,
+  promise: null,
+};
 
 const buildEventsCacheKey = (query = {}) =>
   JSON.stringify({
@@ -204,6 +212,14 @@ const getCachedProviderEmployeeFallback = (externalEmpId) => {
     providerEmployeeFallbackCache.delete(key);
     return { hit: false, value: null };
   }
+  if (
+    cached.value &&
+    typeof cached.value === "object" &&
+    cached.value.__v !== PROVIDER_EMPLOYEE_FALLBACK_SCHEMA_VERSION
+  ) {
+    providerEmployeeFallbackCache.delete(key);
+    return { hit: false, value: null };
+  }
   return { hit: true, value: cached.value };
 };
 
@@ -212,8 +228,12 @@ const setCachedProviderEmployeeFallback = (externalEmpId, value) => {
   if (!key) {
     return;
   }
+  const normalizedValue =
+    value && typeof value === "object"
+      ? { ...value, __v: PROVIDER_EMPLOYEE_FALLBACK_SCHEMA_VERSION }
+      : value || null;
   providerEmployeeFallbackCache.set(key, {
-    value: value || null,
+    value: normalizedValue,
     expiresAt: Date.now() + PROVIDER_EMPLOYEE_FALLBACK_TTL_MS,
   });
 };
@@ -239,6 +259,47 @@ const getAllProviderDepartments = async (provider) => {
   }
 
   return items;
+};
+
+const getProviderDepartmentsCatalog = async (provider) => {
+  const now = Date.now();
+  if (
+    providerDepartmentsCatalogCache.value &&
+    providerDepartmentsCatalogCache.expiresAt > now
+  ) {
+    return providerDepartmentsCatalogCache.value;
+  }
+
+  if (providerDepartmentsCatalogCache.promise) {
+    return providerDepartmentsCatalogCache.promise;
+  }
+
+  providerDepartmentsCatalogCache.promise = (async () => {
+    try {
+      const departments = await getAllProviderDepartments(provider);
+      const departmentsById = new Map(
+        departments
+          .filter((item) => item?.id !== undefined && item?.id !== null)
+          .map((item) => [String(item.id), item]),
+      );
+      const value = { departments, departmentsById };
+      providerDepartmentsCatalogCache = {
+        expiresAt: Date.now() + PROVIDER_DEPARTMENTS_CATALOG_TTL_MS,
+        value,
+        promise: null,
+      };
+      return value;
+    } catch (error) {
+      providerDepartmentsCatalogCache = {
+        expiresAt: 0,
+        value: null,
+        promise: null,
+      };
+      throw error;
+    }
+  })();
+
+  return providerDepartmentsCatalogCache.promise;
 };
 
 const getAllProviderAccessPoints = async (provider) => {
@@ -535,6 +596,66 @@ const mapEmployeeMeta = (employee, fallbackEmployeeId = null) => ({
 const normalizeDepartmentNameToken = (value) =>
   String(value || "").trim().toLowerCase();
 
+const normalizeCounterpartyFolderToken = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/\s+/g, " ");
+
+const resolveCounterpartyFolderNameByDepartmentId = ({
+  departmentId,
+  departmentsById,
+}) => {
+  const normalizedDepartmentId = String(departmentId || "").trim();
+  if (!normalizedDepartmentId || !departmentsById?.has(normalizedDepartmentId)) {
+    return null;
+  }
+
+  const department = departmentsById.get(normalizedDepartmentId);
+  const path = buildDepartmentPath(department, departmentsById);
+  if (!Array.isArray(path) || path.length === 0) {
+    return null;
+  }
+
+  const contractorsRoot = String(
+    skudConfig?.sigur?.departmentRootContractors || "",
+  ).trim();
+  const ownRoot = String(skudConfig?.sigur?.departmentRoot || "").trim();
+  const normalizedContractorsRoot = normalizeCounterpartyFolderToken(contractorsRoot);
+  const normalizedDefaultContractorsRoot = normalizeCounterpartyFolderToken(
+    DEFAULT_CONTRACTORS_ROOT_NAME,
+  );
+  const normalizedOwnRoot = normalizeCounterpartyFolderToken(ownRoot);
+
+  const normalizedPath = path.map((segment) =>
+    normalizeCounterpartyFolderToken(segment),
+  );
+  const contractorsRootIdx = normalizedPath.findIndex(
+    (segment) =>
+      segment &&
+      (
+        (normalizedContractorsRoot && segment === normalizedContractorsRoot)
+        || segment === normalizedDefaultContractorsRoot
+      ),
+  );
+  if (contractorsRootIdx >= 0) {
+    const contractorFolderName = String(path[contractorsRootIdx + 1] || "").trim();
+    return contractorFolderName || null;
+  }
+
+  const ownRootIdx = normalizedPath.findIndex(
+    (segment) => normalizedOwnRoot && segment === normalizedOwnRoot,
+  );
+  if (ownRootIdx >= 0) {
+    const ownRootName = String(path[ownRootIdx] || "").trim();
+    return ownRootName || null;
+  }
+
+  const topLevelFolderName = String(path[0] || "").trim();
+  return topLevelFolderName || null;
+};
+
 const enrichProviderEvents = async ({ items, provider, providerFallbackMode = "none" }) => {
   const normalizedItems = Array.isArray(items) ? items : [];
   if (!normalizedItems.length) {
@@ -657,6 +778,11 @@ const enrichProviderEvents = async ({ items, provider, providerFallbackMode = "n
           providerExternalEmpId,
           employeeName: employeeName || null,
           departmentName: departmentName || null,
+          departmentId:
+            providerEmployee?.departmentId === undefined
+            || providerEmployee?.departmentId === null
+              ? null
+              : String(providerEmployee.departmentId),
         };
       }),
     );
@@ -703,6 +829,59 @@ const enrichProviderEvents = async ({ items, provider, providerFallbackMode = "n
         })
       : [];
 
+    let folderCounterpartyNameByExternalEmpId = new Map();
+    let localCounterpartyByFolderNameToken = new Map();
+    if (providerFallbackMode === "full") {
+      try {
+        const { departmentsById } = await getProviderDepartmentsCatalog(provider);
+        folderCounterpartyNameByExternalEmpId = new Map();
+        const folderCounterpartyNames = new Set();
+
+        providerMetaByExternalId.forEach((providerMeta, externalEmpId) => {
+          const folderCounterpartyName = resolveCounterpartyFolderNameByDepartmentId({
+            departmentId: providerMeta?.departmentId,
+            departmentsById,
+          });
+          if (!folderCounterpartyName) {
+            return;
+          }
+          folderCounterpartyNameByExternalEmpId.set(
+            String(externalEmpId),
+            folderCounterpartyName,
+          );
+          folderCounterpartyNames.add(folderCounterpartyName);
+        });
+
+        const folderCounterpartyNameList = Array.from(folderCounterpartyNames);
+        const localCounterparties = folderCounterpartyNameList.length > 0
+          ? await Counterparty.findAll({
+              where: {
+                [Op.or]: folderCounterpartyNameList.map((name) => ({
+                  name: {
+                    [Op.iLike]: name,
+                  },
+                })),
+              },
+              attributes: ["id", "name"],
+            })
+          : [];
+
+        localCounterpartyByFolderNameToken = new Map();
+        localCounterparties.forEach((counterparty) => {
+          const token = normalizeCounterpartyFolderToken(counterparty?.name);
+          if (!token || localCounterpartyByFolderNameToken.has(token)) {
+            return;
+          }
+          localCounterpartyByFolderNameToken.set(token, counterparty);
+        });
+      } catch (error) {
+        console.warn(
+          "Failed to resolve counterparty from Sigur department folder path:",
+          error?.message || error,
+        );
+      }
+    }
+
     const uniqueDepartmentMetaByNameToken = new Map();
     if (providerFallbackMode === "full") {
       const localDepartmentsByNameToken = new Map();
@@ -746,23 +925,35 @@ const enrichProviderEvents = async ({ items, provider, providerFallbackMode = "n
       const localDepartmentMeta = token
         ? uniqueDepartmentMetaByNameToken.get(token) || null
         : null;
+      const folderCounterpartyName = folderCounterpartyNameByExternalEmpId.get(
+        String(externalEmpId),
+      ) || null;
+      const matchedLocalCounterparty = folderCounterpartyName
+        ? localCounterpartyByFolderNameToken.get(
+            normalizeCounterpartyFolderToken(folderCounterpartyName),
+          ) || null
+        : null;
+      const resolvedCounterpartyName = String(
+        matchedLocalCounterparty?.name || folderCounterpartyName || "",
+      ).trim() || null;
+      const resolvedCounterpartyId = matchedLocalCounterparty?.id || null;
 
       providerFallbackByExternalId.set(String(externalEmpId), {
         employeeId: null,
         employeeName: providerMeta?.employeeName || null,
         departmentId: localDepartmentMeta?.departmentId || null,
         departmentName: providerMeta?.departmentName || localDepartmentMeta?.departmentName || null,
-        counterpartyId: localDepartmentMeta?.counterpartyId || null,
-        counterpartyName: localDepartmentMeta?.counterpartyName || null,
+        counterpartyId: resolvedCounterpartyId,
+        counterpartyName: resolvedCounterpartyName,
         constructionSiteId: localDepartmentMeta?.constructionSiteId || null,
         constructionSiteName: localDepartmentMeta?.constructionSiteName || null,
         departmentIds: localDepartmentMeta?.departmentId ? [localDepartmentMeta.departmentId] : [],
-        counterpartyIds: localDepartmentMeta?.counterpartyId ? [localDepartmentMeta.counterpartyId] : [],
+        counterpartyIds: resolvedCounterpartyId ? [resolvedCounterpartyId] : [],
         constructionSiteIds: localDepartmentMeta?.constructionSiteId
           ? [localDepartmentMeta.constructionSiteId]
           : [],
-        counterpartyNames: localDepartmentMeta?.counterpartyName
-          ? [localDepartmentMeta.counterpartyName]
+        counterpartyNames: resolvedCounterpartyName
+          ? [resolvedCounterpartyName]
           : [],
         constructionSiteNames: localDepartmentMeta?.constructionSiteName
           ? [localDepartmentMeta.constructionSiteName]
