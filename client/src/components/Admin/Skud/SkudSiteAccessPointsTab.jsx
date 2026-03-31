@@ -27,10 +27,31 @@ const SkudSiteAccessPointsTab = ({ providerAccessPoints = [], accessPointsLoadin
   const fetchSites = useCallback(async () => {
     setSitesLoading(true);
     try {
-      const res = await constructionSiteService.getAll();
-      const list = res?.data?.data?.constructionSites || res?.data?.data || [];
-      setSites(list);
-      return list;
+      const limit = 100;
+      let page = 1;
+      let pages = 1;
+      let allSites = [];
+
+      while (page <= pages) {
+        const res = await constructionSiteService.getAll({ page, limit });
+        const data = res?.data?.data || {};
+        const list = Array.isArray(data?.constructionSites)
+          ? data.constructionSites
+          : Array.isArray(data)
+            ? data
+            : [];
+        const pagination = data?.pagination || {};
+        pages = Number(pagination.pages || 1);
+
+        allSites = allSites.concat(list);
+        if (list.length < limit) {
+          break;
+        }
+        page += 1;
+      }
+
+      setSites(allSites);
+      return allSites;
     } catch {
       message.error("Не удалось загрузить объекты");
       return [];

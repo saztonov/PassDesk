@@ -61,8 +61,10 @@ const EmployeeFormModal = ({
   onSuccess,
   onCheckInn,
   mode = "modal",
+  externalCloseRequestToken = 0,
+  isExistingSession = Boolean(employee?.id),
 }) => {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const screens = useBreakpoint();
   const [form] = Form.useForm();
   const watchedCitizenshipId = Form.useWatch("citizenshipId", form);
@@ -275,11 +277,15 @@ const EmployeeFormModal = ({
     ensureEmployeeId,
     scheduleAutoSaveDraft,
     discardIfAutoCreated,
+    shouldPromptDraftOnClose,
+    saveDraftBeforeClose,
+    discardDraftOnClose,
     registerTouchedFields,
   } = useEmployeeFormSaveHandlers({
     form,
     visible,
     employee,
+    isExistingSession,
     onSuccess,
     onCancel,
     message,
@@ -318,9 +324,58 @@ const EmployeeFormModal = ({
 
   // Обработчик закрытия модального окна
   const handleModalCancel = useCallback(async () => {
-    await discardIfAutoCreated();
-    onCancel();
-  }, [discardIfAutoCreated, onCancel]);
+    if (!shouldPromptDraftOnClose()) {
+      await discardIfAutoCreated();
+      onCancel();
+      return;
+    }
+
+    modal.confirm({
+      title: "Сохранить введенные значения?",
+      content:
+        "Да — сохранить черновик и продолжить позже. Нет — удалить черновик и временные файлы.",
+      okText: "Да",
+      cancelText: "Нет",
+      closable: false,
+      keyboard: false,
+      maskClosable: false,
+      centered: true,
+      onOk: async () => {
+        const savedDraft = await saveDraftBeforeClose();
+        if (!savedDraft?.id && !employee?.id) {
+          message.error("Не удалось сохранить черновик сотрудника");
+          throw new Error("close-aborted");
+        }
+        onCancel({ skipDraftCleanup: true, preserveDraft: true });
+      },
+      onCancel: async () => {
+        try {
+          await discardDraftOnClose();
+          await discardIfAutoCreated();
+          onCancel({ skipDraftCleanup: true });
+        } catch (error) {
+          console.error("Failed to discard draft employee on close:", error);
+          message.error("Не удалось удалить черновик сотрудника");
+        }
+      },
+    });
+  }, [
+    discardDraftOnClose,
+    discardIfAutoCreated,
+    employee?.id,
+    message,
+    modal,
+    onCancel,
+    saveDraftBeforeClose,
+    shouldPromptDraftOnClose,
+  ]);
+
+  useEffect(() => {
+    if (mode !== "page" || externalCloseRequestToken <= 0) {
+      return;
+    }
+    void handleModalCancel();
+  }, [externalCloseRequestToken, handleModalCancel, mode]);
 
   const tabsItems = useEmployeeFormModalTabs({
     form,

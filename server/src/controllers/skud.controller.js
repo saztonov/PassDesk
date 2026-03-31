@@ -4,6 +4,7 @@ import {
   EmployeeCounterpartyMapping,
   Counterparty,
   Department,
+  ConstructionSite,
   Pass,
   SkudCard,
   SkudPersonBinding,
@@ -145,13 +146,18 @@ let accessPointCatalogCache = {
 
 const EVENTS_RESPONSE_CACHE_TTL_MS = 10 * 1000;
 const eventsResponseCache = new Map();
+const PROVIDER_EMPLOYEE_FALLBACK_TTL_MS = 5 * 60 * 1000;
+const providerEmployeeFallbackCache = new Map();
 
 const buildEventsCacheKey = (query = {}) =>
   JSON.stringify({
     from: query.from || null,
     to: query.to || null,
     employeeId: query.employeeId || null,
+    employeeName: query.employeeName || null,
     externalEmpId: query.externalEmpId || null,
+    counterpartyId: query.counterpartyId || null,
+    constructionSiteId: query.constructionSiteId || null,
     accessPoint: query.accessPoint || null,
     direction: query.direction || null,
     eventType: query.eventType || null,
@@ -181,6 +187,34 @@ const setCachedEventsResponse = (key, data) => {
   eventsResponseCache.set(key, {
     data,
     expiresAt: Date.now() + EVENTS_RESPONSE_CACHE_TTL_MS,
+  });
+};
+
+const getCachedProviderEmployeeFallback = (externalEmpId) => {
+  const key = String(externalEmpId || "").trim();
+  if (!key) {
+    return { hit: false, value: null };
+  }
+
+  const cached = providerEmployeeFallbackCache.get(key);
+  if (!cached) {
+    return { hit: false, value: null };
+  }
+  if (cached.expiresAt <= Date.now()) {
+    providerEmployeeFallbackCache.delete(key);
+    return { hit: false, value: null };
+  }
+  return { hit: true, value: cached.value };
+};
+
+const setCachedProviderEmployeeFallback = (externalEmpId, value) => {
+  const key = String(externalEmpId || "").trim();
+  if (!key) {
+    return;
+  }
+  providerEmployeeFallbackCache.set(key, {
+    value: value || null,
+    expiresAt: Date.now() + PROVIDER_EMPLOYEE_FALLBACK_TTL_MS,
   });
 };
 
@@ -391,6 +425,48 @@ const buildEmployeeDepartmentId = (employee) => {
   return value || null;
 };
 
+const buildEmployeeCounterpartyId = (employee) => {
+  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+    ? employee.employeeCounterpartyMappings
+    : [];
+  const value = mappings.find((item) => item?.counterpartyId)?.counterpartyId;
+  return value || null;
+};
+
+const buildEmployeeCounterpartyName = (employee) => {
+  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+    ? employee.employeeCounterpartyMappings
+    : [];
+  return (
+    mappings.find((item) => item?.counterparty?.name)?.counterparty?.name
+    || null
+  );
+};
+
+const buildEmployeeConstructionSiteId = (employee) => {
+  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+    ? employee.employeeCounterpartyMappings
+    : [];
+  const value = mappings.find((item) => item?.constructionSiteId)?.constructionSiteId;
+  return value || null;
+};
+
+const buildEmployeeConstructionSiteName = (employee) => {
+  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+    ? employee.employeeCounterpartyMappings
+    : [];
+  const mappingWithSite = mappings.find(
+    (item) =>
+      item?.constructionSite?.shortName ||
+      item?.constructionSite?.fullName,
+  );
+  return (
+    mappingWithSite?.constructionSite?.shortName
+    || mappingWithSite?.constructionSite?.fullName
+    || null
+  );
+};
+
 const normalizeCardToken = (value) =>
   String(value || "")
     .trim()
@@ -398,14 +474,68 @@ const normalizeCardToken = (value) =>
     .replace(/\s+/g, "");
 
 const mapEmployeeMeta = (employee, fallbackEmployeeId = null) => ({
-  employeeId: employee?.id || fallbackEmployeeId || null,
-  employeeName: buildEmployeeDisplayName(employee) || null,
-  departmentId: buildEmployeeDepartmentId(employee),
-  departmentName: buildEmployeeDepartmentName(employee),
-  employee: employee || null,
+  ...(function buildMeta() {
+    const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+      ? employee.employeeCounterpartyMappings
+      : [];
+    const activeMappings = mappings.filter((item) => !item?.dismissedAt);
+    const effectiveMappings = activeMappings.length > 0 ? activeMappings : mappings;
+
+    const departmentIds = Array.from(
+      new Set(effectiveMappings.map((item) => item?.departmentId).filter(Boolean)),
+    );
+    const counterpartyIds = Array.from(
+      new Set(effectiveMappings.map((item) => item?.counterpartyId).filter(Boolean)),
+    );
+    const constructionSiteIds = Array.from(
+      new Set(effectiveMappings.map((item) => item?.constructionSiteId).filter(Boolean)),
+    );
+
+    const counterpartyNames = Array.from(
+      new Set(
+        effectiveMappings
+          .map((item) => String(item?.counterparty?.name || "").trim())
+          .filter(Boolean),
+      ),
+    );
+
+    const constructionSiteNames = Array.from(
+      new Set(
+        effectiveMappings
+          .map((item) =>
+            String(
+              item?.constructionSite?.shortName ||
+                item?.constructionSite?.fullName ||
+                "",
+            ).trim(),
+          )
+          .filter(Boolean),
+      ),
+    );
+
+    return {
+      employeeId: employee?.id || fallbackEmployeeId || null,
+      employeeName: buildEmployeeDisplayName(employee) || null,
+      departmentId: buildEmployeeDepartmentId(employee),
+      departmentName: buildEmployeeDepartmentName(employee),
+      counterpartyId: buildEmployeeCounterpartyId(employee),
+      counterpartyName: buildEmployeeCounterpartyName(employee),
+      constructionSiteId: buildEmployeeConstructionSiteId(employee),
+      constructionSiteName: buildEmployeeConstructionSiteName(employee),
+      departmentIds,
+      counterpartyIds,
+      constructionSiteIds,
+      counterpartyNames,
+      constructionSiteNames,
+      employee: employee || null,
+    };
+  })(),
 });
 
-const enrichProviderEvents = async ({ items, provider }) => {
+const normalizeDepartmentNameToken = (value) =>
+  String(value || "").trim().toLowerCase();
+
+const enrichProviderEvents = async ({ items, provider, providerFallbackMode = "none" }) => {
   const normalizedItems = Array.isArray(items) ? items : [];
   if (!normalizedItems.length) {
     return normalizedItems;
@@ -440,13 +570,31 @@ const enrichProviderEvents = async ({ items, provider }) => {
                 model: EmployeeCounterpartyMapping,
                 as: "employeeCounterpartyMappings",
                 required: false,
-                attributes: ["id", "departmentId"],
+                attributes: [
+                  "id",
+                  "departmentId",
+                  "counterpartyId",
+                  "constructionSiteId",
+                  "dismissedAt",
+                ],
                 include: [
                   {
                     model: Department,
                     as: "department",
                     required: false,
                     attributes: ["id", "name"],
+                  },
+                  {
+                    model: Counterparty,
+                    as: "counterparty",
+                    required: false,
+                    attributes: ["id", "name"],
+                  },
+                  {
+                    model: ConstructionSite,
+                    as: "constructionSite",
+                    required: false,
+                    attributes: ["id", "shortName", "fullName"],
                   },
                 ],
               },
@@ -462,6 +610,167 @@ const enrichProviderEvents = async ({ items, provider }) => {
       mapEmployeeMeta(binding.employee, binding.employeeId),
     ]),
   );
+
+  const unresolvedExternalEmpIds = externalEmpIds.filter(
+    (externalEmpId) => !employeeByExternalId.has(String(externalEmpId)),
+  );
+  const providerFallbackByExternalId = new Map();
+
+  if (providerFallbackMode !== "none" && unresolvedExternalEmpIds.length > 0) {
+    const unresolvedLookupLimit = 20;
+    const unresolvedLookupIds = [];
+    const providerMetaByExternalId = new Map();
+    const unresolvedDepartmentNames = new Set();
+
+    for (const unresolvedExternalEmpId of unresolvedExternalEmpIds) {
+      const { hit, value } = getCachedProviderEmployeeFallback(unresolvedExternalEmpId);
+      if (hit) {
+        if (value) {
+          providerMetaByExternalId.set(String(unresolvedExternalEmpId), value);
+          if (value.providerExternalEmpId) {
+            providerMetaByExternalId.set(String(value.providerExternalEmpId), value);
+          }
+          if (value.departmentName) {
+            unresolvedDepartmentNames.add(value.departmentName);
+          }
+        }
+        continue;
+      }
+      unresolvedLookupIds.push(String(unresolvedExternalEmpId));
+    }
+
+    const lookupIdsToRequest = unresolvedLookupIds.slice(0, unresolvedLookupLimit);
+    const providerLookups = await Promise.allSettled(
+      lookupIdsToRequest.map(async (externalEmpId) => {
+        const providerEmployee = await provider.getEmployeeById(externalEmpId);
+        const departmentName = String(
+          providerEmployee?.departmentName || providerEmployee?.department_name || "",
+        ).trim();
+        const employeeName = String(providerEmployee?.name || "").trim();
+        const providerExternalEmpId =
+          providerEmployee?.id === undefined || providerEmployee?.id === null
+            ? String(externalEmpId)
+            : String(providerEmployee.id);
+
+        return {
+          externalEmpId: String(externalEmpId),
+          providerExternalEmpId,
+          employeeName: employeeName || null,
+          departmentName: departmentName || null,
+        };
+      }),
+    );
+
+    for (const lookup of providerLookups) {
+      if (lookup.status !== "fulfilled") {
+        continue;
+      }
+
+      const resolved = lookup.value;
+      setCachedProviderEmployeeFallback(resolved.externalEmpId, resolved);
+      providerMetaByExternalId.set(String(resolved.externalEmpId), resolved);
+      if (resolved.providerExternalEmpId) {
+        setCachedProviderEmployeeFallback(resolved.providerExternalEmpId, resolved);
+        providerMetaByExternalId.set(String(resolved.providerExternalEmpId), resolved);
+      }
+      if (resolved.departmentName) {
+        unresolvedDepartmentNames.add(resolved.departmentName);
+      }
+    }
+
+    const localDepartments = providerFallbackMode === "full" && unresolvedDepartmentNames.size > 0
+      ? await Department.findAll({
+          where: {
+            name: {
+              [Op.in]: Array.from(unresolvedDepartmentNames),
+            },
+          },
+          attributes: ["id", "name", "counterpartyId", "constructionSiteId"],
+          include: [
+            {
+              model: Counterparty,
+              as: "counterparty",
+              required: false,
+              attributes: ["id", "name"],
+            },
+            {
+              model: ConstructionSite,
+              as: "constructionSite",
+              required: false,
+              attributes: ["id", "shortName", "fullName"],
+            },
+          ],
+        })
+      : [];
+
+    const uniqueDepartmentMetaByNameToken = new Map();
+    if (providerFallbackMode === "full") {
+      const localDepartmentsByNameToken = new Map();
+      localDepartments.forEach((department) => {
+        const token = normalizeDepartmentNameToken(department?.name);
+        if (!token) {
+          return;
+        }
+        if (!localDepartmentsByNameToken.has(token)) {
+          localDepartmentsByNameToken.set(token, []);
+        }
+        localDepartmentsByNameToken.get(token).push(department);
+      });
+
+      localDepartmentsByNameToken.forEach((departments, token) => {
+        if (!Array.isArray(departments) || departments.length !== 1) {
+          return;
+        }
+
+        const department = departments[0];
+        const counterpartyName = String(department?.counterparty?.name || "").trim();
+        const constructionSiteName = String(
+          department?.constructionSite?.shortName
+          || department?.constructionSite?.fullName
+          || "",
+        ).trim();
+
+        uniqueDepartmentMetaByNameToken.set(token, {
+          departmentId: department?.id || null,
+          departmentName: String(department?.name || "").trim() || null,
+          counterpartyId: department?.counterpartyId || null,
+          counterpartyName: counterpartyName || null,
+          constructionSiteId: department?.constructionSiteId || null,
+          constructionSiteName: constructionSiteName || null,
+        });
+      });
+    }
+
+    providerMetaByExternalId.forEach((providerMeta, externalEmpId) => {
+      const token = normalizeDepartmentNameToken(providerMeta?.departmentName);
+      const localDepartmentMeta = token
+        ? uniqueDepartmentMetaByNameToken.get(token) || null
+        : null;
+
+      providerFallbackByExternalId.set(String(externalEmpId), {
+        employeeId: null,
+        employeeName: providerMeta?.employeeName || null,
+        departmentId: localDepartmentMeta?.departmentId || null,
+        departmentName: providerMeta?.departmentName || localDepartmentMeta?.departmentName || null,
+        counterpartyId: localDepartmentMeta?.counterpartyId || null,
+        counterpartyName: localDepartmentMeta?.counterpartyName || null,
+        constructionSiteId: localDepartmentMeta?.constructionSiteId || null,
+        constructionSiteName: localDepartmentMeta?.constructionSiteName || null,
+        departmentIds: localDepartmentMeta?.departmentId ? [localDepartmentMeta.departmentId] : [],
+        counterpartyIds: localDepartmentMeta?.counterpartyId ? [localDepartmentMeta.counterpartyId] : [],
+        constructionSiteIds: localDepartmentMeta?.constructionSiteId
+          ? [localDepartmentMeta.constructionSiteId]
+          : [],
+        counterpartyNames: localDepartmentMeta?.counterpartyName
+          ? [localDepartmentMeta.counterpartyName]
+          : [],
+        constructionSiteNames: localDepartmentMeta?.constructionSiteName
+          ? [localDepartmentMeta.constructionSiteName]
+          : [],
+        employee: null,
+      });
+    });
+  }
 
   const keyTokens = Array.from(
     new Set(
@@ -494,13 +803,31 @@ const enrichProviderEvents = async ({ items, provider }) => {
               model: EmployeeCounterpartyMapping,
               as: "employeeCounterpartyMappings",
               required: false,
-              attributes: ["id", "departmentId"],
+              attributes: [
+                "id",
+                "departmentId",
+                "counterpartyId",
+                "constructionSiteId",
+                "dismissedAt",
+              ],
               include: [
                 {
                   model: Department,
                   as: "department",
                   required: false,
                   attributes: ["id", "name"],
+                },
+                {
+                  model: Counterparty,
+                  as: "counterparty",
+                  required: false,
+                  attributes: ["id", "name"],
+                },
+                {
+                  model: ConstructionSite,
+                  as: "constructionSite",
+                  required: false,
+                  attributes: ["id", "shortName", "fullName"],
                 },
               ],
             },
@@ -541,13 +868,31 @@ const enrichProviderEvents = async ({ items, provider }) => {
               model: EmployeeCounterpartyMapping,
               as: "employeeCounterpartyMappings",
               required: false,
-              attributes: ["id", "departmentId"],
+              attributes: [
+                "id",
+                "departmentId",
+                "counterpartyId",
+                "constructionSiteId",
+                "dismissedAt",
+              ],
               include: [
                 {
                   model: Department,
                   as: "department",
                   required: false,
                   attributes: ["id", "name"],
+                },
+                {
+                  model: Counterparty,
+                  as: "counterparty",
+                  required: false,
+                  attributes: ["id", "name"],
+                },
+                {
+                  model: ConstructionSite,
+                  as: "constructionSite",
+                  required: false,
+                  attributes: ["id", "shortName", "fullName"],
                 },
               ],
             },
@@ -588,6 +933,63 @@ const enrichProviderEvents = async ({ items, provider }) => {
     }
   }
 
+  const accessPointIds = Array.from(
+    new Set(
+      normalizedItems
+        .map((item) =>
+          item?.accessPoint === undefined || item?.accessPoint === null
+            ? null
+            : Number.parseInt(String(item.accessPoint), 10),
+        )
+        .filter((item) => Number.isFinite(item)),
+    ),
+  );
+  const siteAccessPointRows = accessPointIds.length
+    ? await SkudSiteAccessPoint.findAll({
+        where: {
+          sigurAccessPointId: {
+            [Op.in]: accessPointIds,
+          },
+        },
+        attributes: ["sigurAccessPointId", "constructionSiteId"],
+        include: [
+          {
+            model: ConstructionSite,
+            as: "constructionSite",
+            required: false,
+            attributes: ["id", "shortName", "fullName"],
+          },
+        ],
+      })
+    : [];
+  const siteInfoByAccessPointId = new Map();
+  siteAccessPointRows.forEach((item) => {
+    const accessPointId = Number.parseInt(String(item?.sigurAccessPointId), 10);
+    if (!Number.isFinite(accessPointId)) {
+      return;
+    }
+    if (!siteInfoByAccessPointId.has(accessPointId)) {
+      siteInfoByAccessPointId.set(accessPointId, {
+        siteIds: new Set(),
+        siteNames: new Set(),
+      });
+    }
+
+    const meta = siteInfoByAccessPointId.get(accessPointId);
+    const siteId = item?.constructionSiteId || item?.constructionSite?.id || null;
+    if (siteId) {
+      meta.siteIds.add(String(siteId));
+    }
+    const siteName = String(
+      item?.constructionSite?.shortName ||
+      item?.constructionSite?.fullName ||
+      "",
+    ).trim();
+    if (siteName) {
+      meta.siteNames.add(siteName);
+    }
+  });
+
   return normalizedItems.map((item) => {
     const externalEmpId = String(item?.externalEmpId || "").trim();
     const accessPointId =
@@ -598,8 +1000,15 @@ const enrichProviderEvents = async ({ items, provider }) => {
     const keyHexToken = normalizeCardToken(item?.keyHex);
     const employeeMetaByCard = keyHexToken ? cardsByKeyToken.get(keyHexToken) : null;
     const employeeMetaByPass = keyHexToken ? passesByKeyToken.get(keyHexToken) : null;
+    const employeeMetaByProviderFallback = externalEmpId
+      ? providerFallbackByExternalId.get(externalEmpId) || null
+      : null;
     const resolvedEmployeeMeta =
-      employeeMeta || employeeMetaByCard || employeeMetaByPass || null;
+      employeeMeta
+      || employeeMetaByCard
+      || employeeMetaByPass
+      || employeeMetaByProviderFallback
+      || null;
     const accessPointMeta =
       accessPointCatalog && accessPointId
         ? accessPointCatalog.pointsById.get(accessPointId) || null
@@ -610,13 +1019,32 @@ const enrichProviderEvents = async ({ items, provider }) => {
           hierarchyById: accessPointCatalog.hierarchyById,
         })
       : null;
+    const eventAccessPointId = item?.accessPoint;
+    const eventSiteMeta = Number.isFinite(Number(eventAccessPointId))
+      ? siteInfoByAccessPointId.get(Number(eventAccessPointId)) || null
+      : null;
+    const eventSiteIds = eventSiteMeta
+      ? Array.from(eventSiteMeta.siteIds)
+      : [];
+    const eventSiteNames = eventSiteMeta
+      ? Array.from(eventSiteMeta.siteNames)
+      : [];
 
     return {
       ...item,
       employeeId: item?.employeeId || resolvedEmployeeMeta?.employeeId || null,
       employeeName: item?.employeeName || resolvedEmployeeMeta?.employeeName || null,
       departmentId: item?.departmentId || resolvedEmployeeMeta?.departmentId || null,
-      departmentName: resolvedEmployeeMeta?.departmentName || null,
+      departmentName: item?.departmentName || resolvedEmployeeMeta?.departmentName || null,
+      counterpartyId: item?.counterpartyId || resolvedEmployeeMeta?.counterpartyId || null,
+      counterpartyName: item?.counterpartyName || resolvedEmployeeMeta?.counterpartyName || null,
+      constructionSiteId: item?.constructionSiteId || resolvedEmployeeMeta?.constructionSiteId || null,
+      constructionSiteName: item?.constructionSiteName || resolvedEmployeeMeta?.constructionSiteName || null,
+      counterpartyIds: resolvedEmployeeMeta?.counterpartyIds || [],
+      constructionSiteIds: resolvedEmployeeMeta?.constructionSiteIds || [],
+      departmentIds: resolvedEmployeeMeta?.departmentIds || [],
+      eventConstructionSiteIds: eventSiteIds,
+      eventConstructionSiteNames: eventSiteNames,
       accessPointLabel: accessPointLabel || null,
       accessPointName:
         String(accessPointMeta?.name || "").trim() || item?.accessPointName || null,
@@ -685,18 +1113,24 @@ const getLiveEventWindows = () => [
 const getLiveEventRawLimit = ({
   limit,
   employeeId,
+  employeeName,
   externalEmpId,
   direction,
   allow,
   departmentId,
+  counterpartyId,
+  constructionSiteId,
   passageOnly,
 }) => {
   if (
     employeeId ||
+    employeeName ||
     externalEmpId ||
     direction !== undefined ||
     allow !== undefined ||
     departmentId ||
+    counterpartyId ||
+    constructionSiteId ||
     passageOnly
   ) {
     return Math.max(limit * 5, 500);
@@ -801,7 +1235,10 @@ const buildProviderEventView = async ({
   from,
   to,
   employeeId,
+  employeeName,
   externalEmpId,
+  counterpartyId,
+  constructionSiteId,
   accessPoint,
   direction,
   eventType,
@@ -815,6 +1252,25 @@ const buildProviderEventView = async ({
   offset = 0,
 }) => {
   const provider = getSkudProvider();
+  const shouldForceRawEventLog =
+    Boolean(from) &&
+    allow === undefined &&
+    !employeeId &&
+    !employeeName &&
+    !externalEmpId &&
+    !counterpartyId &&
+    !constructionSiteId &&
+    !departmentId &&
+    passageOnly &&
+    (!eventType || eventType === "PASS_DETECTED") &&
+    sortBy === "eventTime" &&
+    String(sortOrder || "desc").toLowerCase() === "desc";
+  const providerFallbackMode =
+    employeeId || externalEmpId || String(employeeName || "").trim()
+      ? "full"
+      : shouldForceRawEventLog
+        ? "name"
+        : "none";
   const endTime = to || new Date().toISOString();
   const requiredCount = offset + limit;
   const accessPointId =
@@ -829,6 +1285,9 @@ const buildProviderEventView = async ({
     useRawLog &&
     allow === undefined &&
     !employeeId &&
+    !employeeName &&
+    !counterpartyId &&
+    !constructionSiteId &&
     !departmentId &&
     passageOnly &&
     (!eventType || eventType === "PASS_DETECTED");
@@ -882,22 +1341,67 @@ const buildProviderEventView = async ({
   };
 
   const finalizeItems = async (items, { hasMore = false } = {}) => {
-    const enrichedItems = await enrichProviderEvents({ items, provider });
+    const enrichedItems = await enrichProviderEvents({
+      items,
+      provider,
+      providerFallbackMode,
+    });
+    const employeeNameSearch = String(employeeName || "").trim().toLowerCase();
+    const employeeNameFiltered = employeeNameSearch
+      ? enrichedItems.filter((item) => {
+          const rawEmployeeName = String(
+            item?.rawItem?.additionalData?.accessObject?.data?.name ||
+            item?.rawItem?.data?.employeeName ||
+            item?.rawItem?.data?.personName ||
+            item?.rawItem?.data?.name ||
+            "",
+          )
+            .trim()
+            .toLowerCase();
+          return (
+            String(item?.employeeName || "").trim().toLowerCase().includes(employeeNameSearch) ||
+            rawEmployeeName.includes(employeeNameSearch) ||
+            String(item?.externalEmpId || "").trim().toLowerCase().includes(employeeNameSearch)
+          );
+        })
+      : enrichedItems;
     const employeeFiltered = employeeId
-      ? enrichedItems.filter(
+      ? employeeNameFiltered.filter(
           (item) => String(item?.employeeId || "") === String(employeeId),
         )
-      : enrichedItems;
+      : employeeNameFiltered;
     const externalFiltered = externalEmpId
       ? employeeFiltered.filter(
           (item) => String(item?.externalEmpId || "") === String(externalEmpId),
         )
       : employeeFiltered;
+    const counterpartyFiltered = counterpartyId
+      ? externalFiltered.filter((item) => {
+          const ids = Array.isArray(item?.counterpartyIds)
+            ? item.counterpartyIds
+            : [];
+          return ids.some((id) => String(id) === String(counterpartyId));
+        })
+      : externalFiltered;
+    const constructionSiteFiltered = constructionSiteId
+      ? counterpartyFiltered.filter((item) => {
+          const eventSiteIds = Array.isArray(item?.eventConstructionSiteIds)
+            ? item.eventConstructionSiteIds
+            : [];
+          if (eventSiteIds.some((id) => String(id) === String(constructionSiteId))) {
+            return true;
+          }
+          const employeeSiteIds = Array.isArray(item?.constructionSiteIds)
+            ? item.constructionSiteIds
+            : [];
+          return employeeSiteIds.some((id) => String(id) === String(constructionSiteId));
+        })
+      : counterpartyFiltered;
     const departmentFiltered = departmentId
-      ? externalFiltered.filter(
+      ? constructionSiteFiltered.filter(
           (item) => String(item?.departmentId || "") === String(departmentId),
         )
-      : externalFiltered;
+      : constructionSiteFiltered;
     const visibleItems = departmentFiltered.slice(offset, offset + limit);
 
     return {
@@ -908,7 +1412,7 @@ const buildProviderEventView = async ({
     };
   };
 
-  if (canUseRawEventLog) {
+  if (canUseRawEventLog || shouldForceRawEventLog) {
     const rawLimit = Math.min(limit + 1, 201);
     const rawResult = await provider.getRawEvents({
       startTime: from || undefined,
@@ -928,6 +1432,7 @@ const buildProviderEventView = async ({
     const enrichedItems = await enrichProviderEvents({
       items: items.slice(0, limit),
       provider,
+      providerFallbackMode,
     });
 
     return {
@@ -941,19 +1446,35 @@ const buildProviderEventView = async ({
   }
 
   if (from) {
+    const hasPostFilters = Boolean(
+      employeeId ||
+      employeeName ||
+      externalEmpId ||
+      counterpartyId ||
+      constructionSiteId ||
+      departmentId,
+    );
+    const minimumRetainLimit = hasPostFilters
+      ? 3000
+      : Math.max(requiredCount * 2, 500);
     const retainLimit = Math.max(
       getLiveEventRawLimit({
         limit: requiredCount,
         employeeId,
+        employeeName,
         externalEmpId,
         direction,
         allow,
         departmentId,
+        counterpartyId,
+        constructionSiteId,
         passageOnly,
       }),
-      3000,
+      minimumRetainLimit,
     );
-    const batchLimit = 3000;
+    const batchLimit = hasPostFilters
+      ? 3000
+      : Math.min(Math.max(requiredCount, 500), 1000);
     let rawOffset = 0;
     let rawItems = [];
     let hasMore = false;
@@ -994,10 +1515,13 @@ const buildProviderEventView = async ({
       getLiveEventRawLimit({
         limit: requiredCount,
         employeeId,
+        employeeName,
         externalEmpId,
         direction,
         allow,
         departmentId,
+        counterpartyId,
+        constructionSiteId,
         passageOnly,
       }),
       requiredCount * 2,
@@ -1131,7 +1655,10 @@ export const skudController = {
         from: req.query.from,
         to: req.query.to,
         employeeId: req.query.employeeId,
+        employeeName: req.query.employeeName,
         externalEmpId: req.query.externalEmpId,
+        counterpartyId: req.query.counterpartyId,
+        constructionSiteId: req.query.constructionSiteId,
         accessPoint: req.query.accessPoint,
         direction: req.query.direction,
         eventType: req.query.eventType,

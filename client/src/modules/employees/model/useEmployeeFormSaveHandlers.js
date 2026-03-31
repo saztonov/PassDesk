@@ -5,6 +5,7 @@ export const useEmployeeFormSaveHandlers = ({
   form,
   visible,
   employee,
+  isExistingSession,
   onSuccess,
   onCancel,
   message,
@@ -24,6 +25,8 @@ export const useEmployeeFormSaveHandlers = ({
   const autoSavingRef = useRef(false);
   const lastAutoSavedHashRef = useRef(null);
   const draftEmployeeIdRef = useRef(employee?.id || null);
+  const startedWithExistingEmployeeRef = useRef(Boolean(isExistingSession));
+  const wasVisibleRef = useRef(Boolean(visible));
   const isAutoCreatedRef = useRef(false);
   const isExplicitlySavedRef = useRef(false);
   const explicitlyTouchedFieldsRef = useRef(new Set());
@@ -54,17 +57,28 @@ export const useEmployeeFormSaveHandlers = ({
   }, []);
 
   useEffect(() => {
+    const wasVisible = wasVisibleRef.current;
+    wasVisibleRef.current = Boolean(visible);
+
     if (!visible) {
       draftEmployeeIdRef.current = null;
       lastAutoSavedHashRef.current = null;
       autoSavingRef.current = false;
+      startedWithExistingEmployeeRef.current = false;
       isAutoCreatedRef.current = false;
       isExplicitlySavedRef.current = false;
       explicitlyTouchedFieldsRef.current = new Set();
       return;
     }
-    draftEmployeeIdRef.current = employee?.id || null;
-  }, [employee?.id, visible]);
+
+    if (!wasVisible) {
+      startedWithExistingEmployeeRef.current = Boolean(isExistingSession);
+    }
+
+    if (!draftEmployeeIdRef.current && employee?.id) {
+      draftEmployeeIdRef.current = employee.id;
+    }
+  }, [employee?.id, isExistingSession, visible]);
 
   const resetFormStateAfterSave = useCallback(
     ({ resetLinkingMode = false } = {}) => {
@@ -276,9 +290,43 @@ export const useEmployeeFormSaveHandlers = ({
     }
     try {
       await employeeApi.discardDraft(idToDiscard);
+      draftEmployeeIdRef.current = null;
+      isAutoCreatedRef.current = false;
+      lastAutoSavedHashRef.current = null;
     } catch (error) {
       console.error("Failed to discard auto-created draft employee:", error);
     }
+  }, []);
+
+  const shouldPromptDraftOnClose = useCallback(() => {
+    if (startedWithExistingEmployeeRef.current) {
+      return false;
+    }
+
+    const hasTouchedFields = getTouchedFieldNames().length > 0;
+    return hasTouchedFields || Boolean(draftEmployeeIdRef.current);
+  }, [getTouchedFieldNames]);
+
+  const saveDraftBeforeClose = useCallback(async () => {
+    isExplicitlySavedRef.current = true;
+    return saveDraft({ silent: false, preserveForm: true });
+  }, [saveDraft]);
+
+  const discardDraftOnClose = useCallback(async () => {
+    if (startedWithExistingEmployeeRef.current) {
+      return false;
+    }
+
+    const idToDiscard = draftEmployeeIdRef.current;
+    if (!idToDiscard) {
+      return false;
+    }
+
+    await employeeApi.discardDraft(idToDiscard);
+    draftEmployeeIdRef.current = null;
+    isAutoCreatedRef.current = false;
+    lastAutoSavedHashRef.current = null;
+    return true;
   }, []);
 
   return {
@@ -288,6 +336,9 @@ export const useEmployeeFormSaveHandlers = ({
     ensureEmployeeId,
     scheduleAutoSaveDraft,
     discardIfAutoCreated,
+    shouldPromptDraftOnClose,
+    saveDraftBeforeClose,
+    discardDraftOnClose,
     registerTouchedFields,
   };
 };

@@ -172,15 +172,67 @@ const EmployeeSkudTab = ({ employee }) => {
   // загрузка всех объектов
   useEffect(() => {
     if (!employeeId) return;
+    let cancelled = false;
+
     setSitesLoading(true);
-    constructionSiteService
-      .getAll()
-      .then((res) => {
-        const list = res?.data?.data?.constructionSites || res?.data?.data || [];
-        setAllSites(list);
-      })
-      .catch(() => {})
-      .finally(() => setSitesLoading(false));
+
+    const loadAllSites = async () => {
+      try {
+        const pageSize = 100;
+        let page = 1;
+        let totalPages = 1;
+        const collected = [];
+
+        while (page <= totalPages) {
+          const res = await constructionSiteService.getAll({
+            page,
+            limit: pageSize,
+          });
+
+          const data = res?.data?.data || {};
+          const rows = Array.isArray(data?.constructionSites)
+            ? data.constructionSites
+            : [];
+
+          collected.push(...rows);
+
+          const pagesFromResponse = Number.parseInt(
+            String(data?.pagination?.pages || 1),
+            10,
+          );
+          totalPages = Number.isFinite(pagesFromResponse)
+            ? Math.max(pagesFromResponse, 1)
+            : 1;
+          page += 1;
+        }
+
+        const uniqueSites = [
+          ...new Map(
+            collected
+              .filter((site) => site?.id)
+              .map((site) => [String(site.id), site]),
+          ).values(),
+        ];
+
+        if (!cancelled) {
+          setAllSites(uniqueSites);
+        }
+      } catch (_error) {
+        if (!cancelled) {
+          setAllSites([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setSitesLoading(false);
+        }
+      }
+    };
+
+    loadAllSites();
+
+    return () => {
+      cancelled = true;
+    };
   }, [employeeId]);
 
   const loadCards = useCallback(async ({ silent = false } = {}) => {
@@ -423,6 +475,7 @@ const EmployeeSkudTab = ({ employee }) => {
       await employeeApi.updateConstructionSites(employeeId, selectedSiteIds);
       setOriginalSiteIds(selectedSiteIds);
       message.success("Объекты сохранены");
+      scheduleAutoRefresh();
     } catch (err) {
       message.error(
         err?.response?.data?.message || "Не удалось сохранить объекты",
@@ -436,7 +489,9 @@ const EmployeeSkudTab = ({ employee }) => {
     setSavingDept(true);
     try {
       await skudService.updateBindingMeta(employeeId, { sigurDepartmentId: selectedDeptId || null });
-      message.success("Подразделение СКУД сохранено");
+      await skudService.syncEmployee(employeeId);
+      message.success("Подразделение СКУД сохранено, синхронизация поставлена в очередь");
+      scheduleAutoRefresh();
     } catch (err) {
       message.error(err?.response?.data?.message || "Не удалось сохранить подразделение");
     } finally {
@@ -449,6 +504,7 @@ const EmployeeSkudTab = ({ employee }) => {
     try {
       await employeeApi.updateDepartment(employeeId, selectedInternalDeptId);
       message.success("Подразделение обновлено");
+      scheduleAutoRefresh();
     } catch (err) {
       message.error(err?.response?.data?.message || "Не удалось обновить подразделение");
     } finally {
@@ -459,10 +515,18 @@ const EmployeeSkudTab = ({ employee }) => {
   const handleSaveCardExpirationDate = async () => {
     setSavingCardExpirationDate(true);
     try {
+      const resolvedAccessEndTime = cardExpirationDate
+        ? cardExpirationDate.format("YYYY-MM-DD 00:00:00")
+        : null;
       await skudService.updateBindingMeta(employeeId, {
-        cardExpirationDate: cardExpirationDate ? cardExpirationDate.format("YYYY-MM-DD 00:00:00") : null,
+        cardExpirationDate: resolvedAccessEndTime,
+        accessEndTime: resolvedAccessEndTime,
       });
-      message.success("Срок действия карты сохранён");
+      await skudService.syncEmployee(employeeId, {
+        accessEndTime: resolvedAccessEndTime,
+      });
+      message.success("Срок действия карты сохранён, синхронизация поставлена в очередь");
+      scheduleAutoRefresh();
     } catch (err) {
       message.error(err?.response?.data?.message || "Не удалось сохранить срок действия карты");
     } finally {

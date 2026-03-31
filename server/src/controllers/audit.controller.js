@@ -67,6 +67,20 @@ const parseDateValue = (value, fieldName) => {
   return parsed;
 };
 
+const normalizeQueryValues = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return [];
+  }
+
+  const rawItems = Array.isArray(value) ? value : [value];
+  return [...new Set(
+    rawItems
+      .flatMap((item) => String(item).split(","))
+      .map((item) => item.trim())
+      .filter(Boolean),
+  )];
+};
+
 const resolveCategoryByAction = (action) => {
   const match = Object.entries(CATEGORY_ACTIONS).find(([, actions]) =>
     actions.includes(action),
@@ -75,18 +89,31 @@ const resolveCategoryByAction = (action) => {
 };
 
 const getRequestedActions = ({ eventType, eventCategory }) => {
-  if (eventType) {
-    return String(eventType)
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
+  const requestedEventTypes = normalizeQueryValues(eventType);
+  const requestedCategories = normalizeQueryValues(eventCategory).filter(
+    (category) => Boolean(CATEGORY_ACTIONS[category]),
+  );
+
+  if (requestedEventTypes.length === 0 && requestedCategories.length === 0) {
+    return [];
   }
 
-  if (eventCategory && CATEGORY_ACTIONS[eventCategory]) {
-    return CATEGORY_ACTIONS[eventCategory];
+  const categoryActions = [
+    ...new Set(
+      requestedCategories.flatMap((category) => CATEGORY_ACTIONS[category] || []),
+    ),
+  ];
+
+  if (requestedEventTypes.length === 0) {
+    return categoryActions;
   }
 
-  return [];
+  if (categoryActions.length === 0) {
+    return requestedEventTypes;
+  }
+
+  const categoryActionSet = new Set(categoryActions);
+  return requestedEventTypes.filter((event) => categoryActionSet.has(event));
 };
 
 const extractCounterpartyIds = (details = {}) => {
@@ -132,7 +159,14 @@ const enrichLogs = async (logs) => {
     employeeIds.length > 0
       ? Employee.findAll({
           where: { id: { [Op.in]: employeeIds } },
-          attributes: ["id", "firstName", "lastName", "middleName"],
+          attributes: [
+            "id",
+            "firstName",
+            "lastName",
+            "lastNameEnc",
+            "lastNameKeyVersion",
+            "middleName",
+          ],
           include: [
             {
               model: EmployeeCounterpartyMapping,
@@ -241,6 +275,7 @@ export const getAuditLogs = async (req, res, next) => {
     const eventType = req.query.eventType || null;
     const eventCategory = req.query.eventCategory || null;
     const counterpartyId = req.query.counterpartyId || null;
+    const userIds = normalizeQueryValues(req.query.userId);
     const dateFrom = parseDateValue(req.query.dateFrom, "dateFrom");
     const dateTo = parseDateValue(req.query.dateTo, "dateTo");
 
@@ -298,6 +333,16 @@ export const getAuditLogs = async (req, res, next) => {
           )
         )`),
       );
+    }
+
+    if (userIds.length === 1) {
+      andConditions.push({ userId: userIds[0] });
+    } else if (userIds.length > 1) {
+      andConditions.push({
+        userId: {
+          [Op.in]: userIds,
+        },
+      });
     }
 
     const where =

@@ -6,8 +6,6 @@ import {
   Card,
   Col,
   DatePicker,
-  Descriptions,
-  Drawer,
   Input,
   Modal,
   Popconfirm,
@@ -21,7 +19,6 @@ import {
   Tabs,
   Tag,
   Tree,
-  TreeSelect,
   Typography,
   Upload,
 } from "antd";
@@ -31,18 +28,22 @@ import {
   FolderOpenOutlined,
   QrcodeOutlined,
   ReloadOutlined,
+  SearchOutlined,
   SyncOutlined,
   UploadOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
-import PassesPage from "@/pages/PassesPage";
+import * as XLSX from "xlsx";
 import { employeeService } from "@/services/employeeService";
+import { passService } from "@/services/passService";
+import { counterpartyService } from "@/services/counterpartyService";
+import { constructionSiteService } from "@/services/constructionSiteService";
+import { departmentService } from "@/services/departmentService";
 import { readSkudBindingImportExcel } from "@/modules/skud/lib/readSkudBindingImportExcel";
 import skudService from "@/services/skudService";
 import SkudSiteAccessPointsTab from "./SkudSiteAccessPointsTab";
-import SkudPassIssuanceTab from "./SkudPassIssuanceTab";
 import { useAuthStore } from "@/store/authStore";
 
 const { Text } = Typography;
@@ -112,16 +113,6 @@ const getCardKey = (record) => {
   return value ? String(value).trim() : "";
 };
 
-const getZoneName = (record) => {
-  const rawItem = getRawEventItem(record);
-  const value =
-    rawItem?.additionalData?.zone?.name ||
-    rawItem?.data?.zoneName ||
-    rawItem?.data?.zone_name ||
-    null;
-  return value ? String(value).trim() : "";
-};
-
 const getEventTypeLabel = (value) => EVENT_TYPE_LABELS[value] || value || "—";
 
 const getEventRowKey = (record) =>
@@ -137,24 +128,23 @@ const buildEmployeeName = (employee) =>
     .join(" ")
     .trim();
 
+const normalizePassSearchToken = (value) =>
+  String(value || "")
+    .toUpperCase()
+    .replace(/\s+/g, "");
+
+const matchesPassNumber = (passNumber, query) => {
+  const normalizedQuery = normalizePassSearchToken(query);
+  if (!normalizedQuery) {
+    return false;
+  }
+
+  return normalizePassSearchToken(passNumber).includes(normalizedQuery);
+};
+
 const getLocalEmployeeName = (record) => String(record?.employeeName || "").trim();
 
 const getEmployeeDepartmentName = (record) => String(record?.departmentName || "").trim();
-
-const normalizePersonNameForCompare = (value) =>
-  String(value || "")
-    .toLowerCase()
-    .replace(/ё/g, "е")
-    .replace(/[^a-zа-я0-9]/gi, "");
-
-const arePersonNamesMatching = (left, right) => {
-  const normalizedLeft = normalizePersonNameForCompare(left);
-  const normalizedRight = normalizePersonNameForCompare(right);
-  if (!normalizedLeft || !normalizedRight) {
-    return null;
-  }
-  return normalizedLeft === normalizedRight;
-};
 
 const renderHierarchyFolderTitle = (label, { loading = false, loadedCount = null } = {}) => (
   <Space size={8}>
@@ -186,14 +176,18 @@ const getRequestErrorMessage = (error, fallback) =>
   || error?.message
   || fallback;
 
-const normalizeSigurPathSegments = (value) =>
-  String(value || "")
-    .split(/[\\/|>]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-
 const getTodayEventRange = () => [dayjs().startOf("day"), dayjs().endOf("day")];
 const EVENT_LOAD_LIMIT = 200;
+const SKUD_TAB_KEYS = new Set(["events", "employees", "qr", "site-access-points"]);
+
+const resolveSkudTab = (value) => {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "events";
+  }
+
+  return SKUD_TAB_KEYS.has(normalized) ? normalized : "employees";
+};
 
 const buildEventRangeParams = (eventDateRange) =>
   Array.isArray(eventDateRange) && eventDateRange[0] && eventDateRange[1]
@@ -205,16 +199,12 @@ const buildEventRangeParams = (eventDateRange) =>
 
 const SkudAdminSection = () => {
   const { message } = App.useApp();
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [pullingEvents, setPullingEvents] = useState(false);
-  const [employeeIdInput, setEmployeeIdInput] = useState("");
-  const [employeeOptions, setEmployeeOptions] = useState([]);
-  const [employeeSearch, setEmployeeSearch] = useState("");
-  const [employeeOptionsLoading, setEmployeeOptionsLoading] = useState(false);
-  const [employeeReasonInput, setEmployeeReasonInput] = useState("");
   const [providerDepartments, setProviderDepartments] = useState([]);
   const [providerDepartmentsLoading, setProviderDepartmentsLoading] = useState(false);
   const [providerAccessPoints, setProviderAccessPoints] = useState([]);
@@ -236,9 +226,6 @@ const SkudAdminSection = () => {
   const [providerHierarchyModalName, setProviderHierarchyModalName] = useState("");
   const [providerHierarchyModalSubmitting, setProviderHierarchyModalSubmitting] = useState(false);
   const [providerHierarchyDeleting, setProviderHierarchyDeleting] = useState(false);
-  const [selectedSigurDepartmentId, setSelectedSigurDepartmentId] = useState(null);
-  const [sigurSubfolderInput, setSigurSubfolderInput] = useState("");
-  const [employeeActionLoading, setEmployeeActionLoading] = useState(false);
   const [assigningCard, setAssigningCard] = useState(false);
   const [cardActionLoadingId, setCardActionLoadingId] = useState(null);
   const [cardEmployeeIdInput, setCardEmployeeIdInput] = useState("");
@@ -249,7 +236,13 @@ const SkudAdminSection = () => {
   const [cardTypeInput, setCardTypeInput] = useState("rfid");
   const [cardNotesInput, setCardNotesInput] = useState("");
   const [cardReaderArmed, setCardReaderArmed] = useState(false);
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "events");
+  const [activeTab, setActiveTab] = useState(() =>
+    resolveSkudTab(searchParams.get("tab")),
+  );
+  const [passLookupQuery, setPassLookupQuery] = useState("");
+  const [passLookupLoading, setPassLookupLoading] = useState(false);
+  const [passLookupResults, setPassLookupResults] = useState([]);
+  const [passLookupSearched, setPassLookupSearched] = useState(false);
   const [bindingImportRows, setBindingImportRows] = useState([]);
   const [bindingImportFileName, setBindingImportFileName] = useState("");
   const [bindingImportPreview, setBindingImportPreview] = useState(null);
@@ -271,14 +264,18 @@ const SkudAdminSection = () => {
   const [decisionFilter, setDecisionFilter] = useState("all");
   const [directionFilter, setDirectionFilter] = useState("all");
   const [accessPointFilter, setAccessPointFilter] = useState(undefined);
+  const [employeeNameFilter, setEmployeeNameFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState(undefined);
+  const [counterpartyFilter, setCounterpartyFilter] = useState(undefined);
+  const [constructionSiteFilter, setConstructionSiteFilter] = useState(undefined);
+  const [counterpartyOptions, setCounterpartyOptions] = useState([]);
+  const [constructionSiteOptions, setConstructionSiteOptions] = useState([]);
+  const [departmentOptions, setDepartmentOptions] = useState([]);
+  const [eventsFiltersLoading, setEventsFiltersLoading] = useState(false);
   const [eventDateRange, setEventDateRange] = useState(getTodayEventRange);
   const [eventsPage, setEventsPage] = useState(1);
   const [eventsPageSize, setEventsPageSize] = useState(20);
   const [eventsSortOrder, setEventsSortOrder] = useState("descend");
-  const [eventDetailsOpen, setEventDetailsOpen] = useState(false);
-  const [eventDetailsLoading, setEventDetailsLoading] = useState(false);
-  const [eventDetailsRecord, setEventDetailsRecord] = useState(null);
-  const [eventDetailsProviderEmployee, setEventDetailsProviderEmployee] = useState(null);
   const [bindingsAuditLoading, setBindingsAuditLoading] = useState(false);
   const [bindingsAuditItems, setBindingsAuditItems] = useState([]);
   const [bindingsAuditMismatchOnly, setBindingsAuditMismatchOnly] = useState(true);
@@ -315,6 +312,12 @@ const SkudAdminSection = () => {
           limit: EVENT_LOAD_LIMIT,
           offset: 0,
           passageOnly: showOnlyPassages,
+          ...(employeeNameFilter.trim()
+            ? { employeeName: employeeNameFilter.trim() }
+            : {}),
+          ...(departmentFilter ? { departmentId: departmentFilter } : {}),
+          ...(counterpartyFilter ? { counterpartyId: counterpartyFilter } : {}),
+          ...(constructionSiteFilter ? { constructionSiteId: constructionSiteFilter } : {}),
           ...(eventTypeFilter !== "all" ? { eventType: eventTypeFilter } : {}),
           ...(directionFilter !== "all" ? { direction: directionFilter } : {}),
           ...(accessPointFilter ? { accessPoint: accessPointFilter } : {}),
@@ -346,8 +349,12 @@ const SkudAdminSection = () => {
     }
   }, [
     accessPointFilter,
+    constructionSiteFilter,
+    counterpartyFilter,
+    departmentFilter,
     decisionFilter,
     directionFilter,
+    employeeNameFilter,
     eventDateRange,
     eventTypeFilter,
     eventsSortOrder,
@@ -360,9 +367,18 @@ const SkudAdminSection = () => {
   }, [loadData]);
 
   useEffect(() => {
-    const nextTab = searchParams.get("tab") || "events";
+    const requestedTab = searchParams.get("tab");
+    const nextTab = resolveSkudTab(requestedTab);
+    if (requestedTab !== nextTab) {
+      setSearchParams((prev) => {
+        const nextParams = new URLSearchParams(prev);
+        nextParams.set("tab", nextTab);
+        return nextParams;
+      });
+      return;
+    }
     setActiveTab((currentTab) => (currentTab === nextTab ? currentTab : nextTab));
-  }, [searchParams]);
+  }, [searchParams, setSearchParams]);
 
   const handleShowOnlyPassagesChange = useCallback((checked) => {
     setEventsPage(1);
@@ -387,6 +403,26 @@ const SkudAdminSection = () => {
   const handleAccessPointFilterChange = useCallback((value) => {
     setEventsPage(1);
     setAccessPointFilter(value || undefined);
+  }, []);
+
+  const handleEmployeeNameFilterChange = useCallback((event) => {
+    setEventsPage(1);
+    setEmployeeNameFilter(String(event?.target?.value || ""));
+  }, []);
+
+  const handleDepartmentFilterChange = useCallback((value) => {
+    setEventsPage(1);
+    setDepartmentFilter(value || undefined);
+  }, []);
+
+  const handleCounterpartyFilterChange = useCallback((value) => {
+    setEventsPage(1);
+    setCounterpartyFilter(value || undefined);
+  }, []);
+
+  const handleConstructionSiteFilterChange = useCallback((value) => {
+    setEventsPage(1);
+    setConstructionSiteFilter(value || undefined);
   }, []);
 
   const handleEventDateRangeChange = useCallback((value) => {
@@ -420,117 +456,36 @@ const SkudAdminSection = () => {
     setEventsPage(nextPage);
   }, [eventsPageSize, eventsSortOrder]);
 
-  const handleCloseEventDetails = useCallback(() => {
-    setEventDetailsOpen(false);
-    setEventDetailsLoading(false);
-    setEventDetailsRecord(null);
-    setEventDetailsProviderEmployee(null);
-  }, []);
-
-  const handleOpenEventDetails = useCallback(async (record) => {
-    setEventDetailsRecord(record || null);
-    setEventDetailsProviderEmployee(null);
-    setEventDetailsOpen(true);
-
+  const handleOpenEmployeeEventsPage = useCallback((record = {}) => {
+    const employeeId = String(record?.employeeId || "").trim();
     const externalEmpId = String(record?.externalEmpId || "").trim();
-    if (!externalEmpId) {
-      setEventDetailsLoading(false);
+    const employeeName =
+      getLocalEmployeeName(record) ||
+      getSigurPersonName(record) ||
+      "";
+
+    if (!employeeId && !externalEmpId && !employeeName) {
+      message.warning("Недостаточно данных, чтобы открыть страницу сотрудника");
       return;
     }
 
-    setEventDetailsLoading(true);
-    try {
-      const data = await skudService.getProviderEmployee(externalEmpId);
-      setEventDetailsProviderEmployee(data || null);
-    } catch (error) {
-      console.error("Failed to load Sigur employee details:", error);
-      message.error("Не удалось догрузить сотрудника из Sigur");
-    } finally {
-      setEventDetailsLoading(false);
+    const params = new URLSearchParams();
+    if (employeeId) {
+      params.set("employeeId", employeeId);
     }
-  }, [message]);
-
-  const handleSyncEmployee = useCallback(async () => {
-    const employeeId = String(employeeIdInput || "").trim();
-    if (!employeeId) {
-      message.warning("Выберите сотрудника");
-      return;
+    if (externalEmpId) {
+      params.set("externalEmpId", externalEmpId);
+    }
+    if (employeeName) {
+      params.set("employeeName", employeeName);
+    }
+    if (Array.isArray(eventDateRange) && eventDateRange[0] && eventDateRange[1]) {
+      params.set("from", eventDateRange[0].startOf("day").toISOString());
+      params.set("to", eventDateRange[1].endOf("day").toISOString());
     }
 
-    const selectedDepartment = providerDepartments.find(
-      (item) => String(item?.id || "") === String(selectedSigurDepartmentId || ""),
-    );
-    const additionalSegments = normalizeSigurPathSegments(sigurSubfolderInput);
-    const sigurDepartmentPath = [
-      ...(Array.isArray(selectedDepartment?.path) ? selectedDepartment.path : []),
-      ...additionalSegments,
-    ];
-
-    setEmployeeActionLoading(true);
-    try {
-      await skudService.syncEmployee(employeeId, {
-        ...(sigurDepartmentPath.length > 0 ? { sigurDepartmentPath } : {}),
-      });
-      message.success("Задача синхронизации поставлена в очередь");
-      await loadData();
-    } catch (error) {
-      console.error("Failed to enqueue employee sync:", error);
-      message.error("Не удалось поставить синхронизацию в очередь");
-    } finally {
-      setEmployeeActionLoading(false);
-    }
-  }, [
-    employeeIdInput,
-    loadData,
-    message,
-    providerDepartments,
-    selectedSigurDepartmentId,
-    sigurSubfolderInput,
-  ]);
-
-  const handleBlockEmployee = useCallback(async () => {
-    const employeeId = String(employeeIdInput || "").trim();
-    if (!employeeId) {
-      message.warning("Выберите сотрудника");
-      return;
-    }
-
-    setEmployeeActionLoading(true);
-    try {
-      await skudService.blockEmployee(employeeId, {
-        statusReason: employeeReasonInput || "Ручная блокировка",
-      });
-      message.success("Задача блокировки поставлена в очередь");
-      await loadData();
-    } catch (error) {
-      console.error("Failed to enqueue employee block:", error);
-      message.error("Не удалось поставить блокировку в очередь");
-    } finally {
-      setEmployeeActionLoading(false);
-    }
-  }, [employeeIdInput, employeeReasonInput, loadData, message]);
-
-  const handleUnblockEmployee = useCallback(async () => {
-    const employeeId = String(employeeIdInput || "").trim();
-    if (!employeeId) {
-      message.warning("Выберите сотрудника");
-      return;
-    }
-
-    setEmployeeActionLoading(true);
-    try {
-      await skudService.unblockEmployee(employeeId, {
-        statusReason: employeeReasonInput || "Ручная разблокировка",
-      });
-      message.success("Задача разблокировки поставлена в очередь");
-      await loadData();
-    } catch (error) {
-      console.error("Failed to enqueue employee unblock:", error);
-      message.error("Не удалось поставить разблокировку в очередь");
-    } finally {
-      setEmployeeActionLoading(false);
-    }
-  }, [employeeIdInput, employeeReasonInput, loadData, message]);
+    navigate(`/skud/employee-events?${params.toString()}`);
+  }, [eventDateRange, message, navigate]);
 
   const focusCardReaderInput = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -752,21 +707,70 @@ const SkudAdminSection = () => {
     }));
   }, []);
 
-  const loadSyncEmployees = useCallback(
-    async (search = "") => {
-      setEmployeeOptionsLoading(true);
-      try {
-        const options = await fetchEmployeeOptions(search);
-        setEmployeeOptions(options);
-      } catch (error) {
-        console.error("Failed to load sync employee options:", error);
-        message.error("Не удалось загрузить сотрудников");
-      } finally {
-        setEmployeeOptionsLoading(false);
+  const handleSearchPassLookup = useCallback(async () => {
+    const normalizedQuery = normalizePassSearchToken(passLookupQuery);
+    if (normalizedQuery.length < 2) {
+      message.warning("Введите минимум 2 символа номера пропуска");
+      return;
+    }
+
+    setPassLookupLoading(true);
+    setPassLookupSearched(true);
+    try {
+      const limit = 100;
+      const maxPages = 20;
+      let page = 1;
+      let pages = 1;
+      const matches = [];
+
+      while (page <= pages && page <= maxPages) {
+        const response = await passService.getAll({
+          page,
+          limit,
+        });
+        const rows = Array.isArray(response?.passes) ? response.passes : [];
+        const pagination = response?.pagination || {};
+        pages = Number(pagination.pages || 1);
+
+        rows.forEach((pass) => {
+          if (matchesPassNumber(pass?.passNumber, normalizedQuery)) {
+            matches.push(pass);
+          }
+        });
+
+        if (rows.length < limit) {
+          break;
+        }
+
+        page += 1;
       }
-    },
-    [fetchEmployeeOptions, message],
-  );
+
+      setPassLookupResults(matches);
+    } catch (error) {
+      console.error("Failed to search passes in SKUD employees tab:", error);
+      message.error(getRequestErrorMessage(error, "Не удалось выполнить поиск по пропуску"));
+    } finally {
+      setPassLookupLoading(false);
+    }
+  }, [message, passLookupQuery]);
+
+  const handleSelectEmployeeFromPass = useCallback((pass) => {
+    const employeeId = pass?.employeeId || pass?.employee?.id || null;
+    if (!employeeId) {
+      message.warning("У пропуска не найден сотрудник");
+      return;
+    }
+
+    const employeeLabel =
+      buildEmployeeName(pass?.employee)
+      || pass?.employee?.fullName
+      || String(employeeId);
+    const params = new URLSearchParams({
+      employeeId: String(employeeId),
+      employeeName: employeeLabel,
+    });
+    navigate(`/skud/employee-events?${params.toString()}`);
+  }, [message, navigate]);
 
   const loadProviderDepartments = useCallback(async () => {
     setProviderDepartmentsLoading(true);
@@ -791,6 +795,59 @@ const SkudAdminSection = () => {
       message.error("Не удалось загрузить точки доступа Sigur");
     } finally {
       setProviderAccessPointsLoading(false);
+    }
+  }, [message]);
+
+  const loadEventsFilterReferences = useCallback(async () => {
+    setEventsFiltersLoading(true);
+    try {
+      const [counterpartiesResponse, constructionSitesResponse, departmentsResponse] =
+        await Promise.all([
+          counterpartyService.getAll({
+            page: 1,
+            limit: 10000,
+          }),
+          constructionSiteService.getAll({
+            limit: 10000,
+          }),
+          departmentService.getAll(),
+        ]);
+
+      const counterparties =
+        counterpartiesResponse?.data?.data?.counterparties
+        || [];
+      const constructionSites =
+        constructionSitesResponse?.data?.data?.constructionSites
+        || constructionSitesResponse?.data?.data
+        || [];
+      const departments =
+        departmentsResponse?.data?.data?.departments
+        || departmentsResponse?.data?.data
+        || [];
+
+      setCounterpartyOptions(
+        counterparties.map((item) => ({
+          value: item.id,
+          label: item.name || String(item.id),
+        })),
+      );
+      setConstructionSiteOptions(
+        constructionSites.map((item) => ({
+          value: item.id,
+          label: item.shortName || item.fullName || String(item.id),
+        })),
+      );
+      setDepartmentOptions(
+        departments.map((item) => ({
+          value: item.id,
+          label: item.name || String(item.id),
+        })),
+      );
+    } catch (error) {
+      console.error("Failed to load SKUD events filter references:", error);
+      message.error("Не удалось загрузить справочники для фильтров");
+    } finally {
+      setEventsFiltersLoading(false);
     }
   }, [message]);
 
@@ -958,13 +1015,6 @@ const SkudAdminSection = () => {
     if (activeTab !== "employees") {
       return;
     }
-    loadSyncEmployees(employeeSearch);
-  }, [activeTab, employeeSearch, loadSyncEmployees]);
-
-  useEffect(() => {
-    if (activeTab !== "employees") {
-      return;
-    }
     loadProviderDepartments();
   }, [activeTab, loadProviderDepartments]);
 
@@ -974,6 +1024,13 @@ const SkudAdminSection = () => {
     }
     loadProviderAccessPoints();
   }, [activeTab, loadProviderAccessPoints]);
+
+  useEffect(() => {
+    if (activeTab !== "events") {
+      return;
+    }
+    void loadEventsFilterReferences();
+  }, [activeTab, loadEventsFilterReferences]);
 
   useEffect(() => {
     if (activeTab !== "employees") {
@@ -1232,7 +1289,7 @@ const SkudAdminSection = () => {
                   overflow: "hidden",
                 }}
                 onClick={() => {
-                  void handleOpenEventDetails(record);
+                  handleOpenEmployeeEventsPage(record);
                 }}
               >
                 <span
@@ -1330,6 +1387,24 @@ const SkudAdminSection = () => {
         },
       },
       {
+        title: "Подрядчик",
+        dataIndex: "counterpartyName",
+        key: "counterpartyName",
+        width: 220,
+        render: (value) => value || "—",
+      },
+      {
+        title: "Объект",
+        key: "constructionSite",
+        width: 260,
+        render: (_, record) => {
+          if (Array.isArray(record?.eventConstructionSiteNames) && record.eventConstructionSiteNames.length) {
+            return record.eventConstructionSiteNames.join(", ");
+          }
+          return record?.constructionSiteName || "—";
+        },
+      },
+      {
         title: "Тип события",
         dataIndex: "eventType",
         key: "eventType",
@@ -1348,7 +1423,7 @@ const SkudAdminSection = () => {
         },
       },
     ],
-    [eventsSortOrder, handleOpenEventDetails],
+    [eventsSortOrder, handleOpenEmployeeEventsPage],
   );
 
   const eventTypeOptions = useMemo(() => {
@@ -1381,6 +1456,69 @@ const SkudAdminSection = () => {
         label: item.label || item.name || String(item.id),
       })),
     [providerAccessPoints],
+  );
+
+  const passLookupColumns = useMemo(
+    () => [
+      {
+        title: "Номер пропуска",
+        dataIndex: "passNumber",
+        key: "passNumber",
+        width: 220,
+        render: (value) => value || "—",
+      },
+      {
+        title: "Сотрудник",
+        key: "employee",
+        render: (_, record) => {
+          const employeeName =
+            buildEmployeeName(record?.employee)
+            || record?.employee?.fullName
+            || "—";
+          const employeeId = record?.employeeId || record?.employee?.id || null;
+          return (
+            <Space direction="vertical" size={0}>
+              <Text>{employeeName}</Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {employeeId ? `ID: ${employeeId}` : "ID: —"}
+              </Text>
+            </Space>
+          );
+        },
+      },
+      {
+        title: "Статус",
+        dataIndex: "status",
+        key: "status",
+        width: 140,
+        render: (value) => {
+          if (value === "active") return <Tag color="green">Активен</Tag>;
+          if (value === "revoked") return <Tag color="red">Отозван</Tag>;
+          if (value === "expired") return <Tag color="default">Истек</Tag>;
+          if (value === "pending") return <Tag color="gold">Ожидание</Tag>;
+          return <Tag>{value || "—"}</Tag>;
+        },
+      },
+      {
+        title: "Действует до",
+        dataIndex: "validUntil",
+        key: "validUntil",
+        width: 170,
+        render: (value) =>
+          value ? dayjs(value).format("DD.MM.YYYY HH:mm") : "—",
+      },
+      {
+        title: "Действие",
+        key: "action",
+        width: 210,
+        render: (_, record) => (
+          <Button size="small" onClick={() => handleSelectEmployeeFromPass(record)}>
+            Открыть проходы
+          </Button>
+        ),
+      },
+    ],
+    [handleSelectEmployeeFromPass],
   );
 
   const bindingImportColumns = useMemo(
@@ -1597,48 +1735,6 @@ const SkudAdminSection = () => {
     [cardActionLoadingId, handleBlockCard, handleUnbindCard],
   );
 
-  const providerDepartmentTreeData = useMemo(() => {
-    const nodeMap = new Map();
-    const roots = [];
-
-    for (const item of providerDepartments || []) {
-      if (!item?.id) {
-        continue;
-      }
-
-      nodeMap.set(String(item.id), {
-        key: String(item.id),
-        value: String(item.id),
-        title: String(item.name || "—"),
-        searchLabel: String(item.pathLabel || item.name || "").toLowerCase(),
-        selectable: true,
-        children: [],
-      });
-    }
-
-    for (const item of providerDepartments || []) {
-      if (!item?.id) {
-        continue;
-      }
-
-      const node = nodeMap.get(String(item.id));
-      const parentId = item?.parentId ? String(item.parentId) : null;
-      if (parentId && nodeMap.has(parentId)) {
-        nodeMap.get(parentId).children.push(node);
-      } else {
-        roots.push(node);
-      }
-    }
-
-    const sortNodes = (nodes) => {
-      nodes.sort((left, right) => String(left.title).localeCompare(String(right.title), "ru"));
-      nodes.forEach((node) => sortNodes(node.children));
-      return nodes;
-    };
-
-    return sortNodes(roots);
-  }, [providerDepartments]);
-
   const providerHierarchyTreeData = useMemo(() => {
     const folderNodeMap = new Map();
     const roots = [];
@@ -1705,8 +1801,10 @@ const SkudAdminSection = () => {
           ]
             .join(" ")
             .toLowerCase(),
-          selectable: false,
+          selectable: true,
           isLeaf: true,
+          employeeExternalEmpId: employee.id ? String(employee.id) : null,
+          employeeDisplayName: employee.name || "—",
         });
       }
     }
@@ -1828,8 +1926,10 @@ const SkudAdminSection = () => {
         ]
           .join(" ")
           .toLowerCase(),
-        selectable: false,
+        selectable: true,
         isLeaf: true,
+        employeeExternalEmpId: employee.id ? String(employee.id) : null,
+        employeeDisplayName: employee.name || "—",
       };
 
       if (department) {
@@ -1890,13 +1990,27 @@ const SkudAdminSection = () => {
   );
 
   const handleProviderHierarchySelect = useCallback((selectedKeys, info) => {
+    if (info?.node?.employeeExternalEmpId) {
+      const params = new URLSearchParams();
+      params.set("externalEmpId", String(info.node.employeeExternalEmpId));
+      if (info?.node?.employeeDisplayName) {
+        params.set("employeeName", String(info.node.employeeDisplayName));
+      }
+      if (Array.isArray(eventDateRange) && eventDateRange[0] && eventDateRange[1]) {
+        params.set("from", eventDateRange[0].startOf("day").toISOString());
+        params.set("to", eventDateRange[1].endOf("day").toISOString());
+      }
+      navigate(`/skud/employee-events?${params.toString()}`);
+      return;
+    }
+
     if (info?.node?.departmentId) {
       setProviderHierarchySelectedDepartmentId(String(info.node.departmentId));
       return;
     }
 
     setProviderHierarchySelectedDepartmentId(null);
-  }, []);
+  }, [eventDateRange, navigate]);
 
   const selectedProviderHierarchyDepartment = useMemo(() => {
     if (!providerHierarchySelectedDepartmentId) {
@@ -2011,20 +2125,59 @@ const SkudAdminSection = () => {
   const latestVisibleEventTime = state.events?.items?.[0]?.eventTime || null;
   const hasSkudAuthError = state.health?.authOk === false;
   const lastSyncAt = state.health?.lastSyncAt || null;
-  const eventDetailsProviderEmployeeName = eventDetailsProviderEmployee?.name || null;
-  const eventDetailsProviderZone = eventDetailsProviderEmployee?.location?.zoneName || null;
-  const eventDetailsExternalEmpId = eventDetailsRecord?.externalEmpId || null;
-  const eventDetailsLocalEmployeeName = getLocalEmployeeName(eventDetailsRecord) || null;
-  const eventDetailsNameMatch = arePersonNamesMatching(
-    eventDetailsProviderEmployeeName,
-    eventDetailsLocalEmployeeName,
-  );
   const totalEventsCount = Number(state.events?.pagination?.total || 0);
   const loadedEventsCount = Array.isArray(state.events?.items) ? state.events.items.length : 0;
   const displayedEventItems = useMemo(() => {
     const start = Math.max(eventsPage - 1, 0) * eventsPageSize;
     return (state.events?.items || []).slice(start, start + eventsPageSize);
   }, [eventsPage, eventsPageSize, state.events?.items]);
+  const handleExportEventsToExcel = useCallback(() => {
+    const items = Array.isArray(state.events?.items) ? state.events.items : [];
+    if (items.length === 0) {
+      message.warning("Нет данных для экспорта");
+      return;
+    }
+
+    const rows = items.map((record) => ({
+      "Время события": record?.eventTime
+        ? dayjs(record.eventTime).format("DD.MM.YYYY HH:mm:ss")
+        : "—",
+      "ФИО сотрудника": getLocalEmployeeName(record) || getSigurPersonName(record) || "—",
+      "ID сотрудника PassDesk": record?.employeeId || "—",
+      "ID сотрудника Sigur": record?.externalEmpId || "—",
+      Контрагент: record?.counterpartyName || "—",
+      "Подразделение / бригада": getEmployeeDepartmentName(record) || "—",
+      "Объект (по точке доступа)":
+        Array.isArray(record?.eventConstructionSiteNames) && record.eventConstructionSiteNames.length
+          ? record.eventConstructionSiteNames.join(", ")
+          : record?.constructionSiteName || "—",
+      "Точка доступа": getAccessPointName(record) || (record?.accessPoint ? `#${record.accessPoint}` : "—"),
+      "Тип события": getEventTypeLabel(record?.eventType),
+      Направление:
+        record?.direction === 1
+          ? "Вход"
+          : record?.direction === 2
+            ? "Выход"
+            : "—",
+      Решение:
+        record?.allow === true
+          ? "Разрешено"
+          : record?.allow === false
+            ? "Отказ"
+            : "—",
+      Карта: getCardKey(record) || "—",
+      Причина: getPassReason(record) || "—",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "СКУД события");
+    XLSX.writeFile(
+      workbook,
+      `SKUD_Events_${dayjs().format("DD-MM-YYYY_HH-mm")}.xlsx`,
+    );
+    message.success("Экспорт событий сформирован");
+  }, [message, state.events?.items]);
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%", padding: 16 }}>
@@ -2066,11 +2219,6 @@ const SkudAdminSection = () => {
           });
         }}
         items={[
-          {
-            key: "issuance",
-            label: "Выдача пропуска",
-            children: <SkudPassIssuanceTab />,
-          },
           isAdmin && {
             key: "events",
             label: "События",
@@ -2081,12 +2229,52 @@ const SkudAdminSection = () => {
                     <Text type="secondary">
                       Журнал читается напрямую из Sigur. По умолчанию экран показывает только сегодняшние проходы.
                     </Text>
-                    <Space wrap>
+                    <Space wrap style={{ width: "100%" }}>
                       <RangePicker
                         value={eventDateRange}
                         onChange={handleEventDateRangeChange}
                         format="DD.MM.YYYY"
                         allowEmpty={[false, false]}
+                      />
+                      <Input
+                        placeholder="ФИО / ID сотрудника"
+                        value={employeeNameFilter}
+                        onChange={handleEmployeeNameFilterChange}
+                        allowClear
+                        style={{ width: 280 }}
+                      />
+                      <Select
+                        showSearch
+                        allowClear
+                        style={{ width: 240 }}
+                        placeholder="Подразделение / бригада"
+                        options={departmentOptions}
+                        value={departmentFilter}
+                        loading={eventsFiltersLoading}
+                        onChange={handleDepartmentFilterChange}
+                        optionFilterProp="label"
+                      />
+                      <Select
+                        showSearch
+                        allowClear
+                        style={{ width: 240 }}
+                        placeholder="Подрядчик"
+                        options={counterpartyOptions}
+                        value={counterpartyFilter}
+                        loading={eventsFiltersLoading}
+                        onChange={handleCounterpartyFilterChange}
+                        optionFilterProp="label"
+                      />
+                      <Select
+                        showSearch
+                        allowClear
+                        style={{ width: 260 }}
+                        placeholder="Объект"
+                        options={constructionSiteOptions}
+                        value={constructionSiteFilter}
+                        loading={eventsFiltersLoading}
+                        onChange={handleConstructionSiteFilterChange}
+                        optionFilterProp="label"
                       />
                       <Select
                         style={{ width: 220 }}
@@ -2143,6 +2331,30 @@ const SkudAdminSection = () => {
                       >
                         Обновить
                       </Button>
+                      <Button
+                        icon={<DownloadOutlined />}
+                        onClick={handleExportEventsToExcel}
+                        disabled={!loadedEventsCount}
+                      >
+                        Экспорт в Excel
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setEmployeeNameFilter("");
+                          setDepartmentFilter(undefined);
+                          setCounterpartyFilter(undefined);
+                          setConstructionSiteFilter(undefined);
+                          setEventTypeFilter("all");
+                          setDecisionFilter("all");
+                          setDirectionFilter("all");
+                          setAccessPointFilter(undefined);
+                          setShowOnlyPassages(true);
+                          setEventDateRange(getTodayEventRange());
+                          setEventsPage(1);
+                        }}
+                      >
+                        Сбросить фильтры
+                      </Button>
                     </Space>
                   </Space>
                 </Card>
@@ -2169,7 +2381,7 @@ const SkudAdminSection = () => {
                       pageSizeOptions: ["20", "50", "100", "200"],
                       showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} загруженных`,
                     }}
-                    scroll={{ x: 1200 }}
+                    scroll={{ x: 1650 }}
                   />
                 </Card>
               </Space>
@@ -2180,189 +2392,169 @@ const SkudAdminSection = () => {
             label: "Сотрудники",
             children: (
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                <Row gutter={[24, 24]} align="top">
-                  <Col xs={24} lg={9} xl={8}>
-                    <Card title="1. Действия по сотруднику">
-                      <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                        <Text type="secondary">
-                          Выберите сотрудника, укажите папку Sigur и выполните нужное действие. Новая подпапка при необходимости создастся во время `sync`.
-                        </Text>
-                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                          <Text strong>Сотрудник PassDesk</Text>
-                          <Select
-                            showSearch
-                            allowClear
-                            placeholder="Выберите сотрудника"
-                            value={employeeIdInput || undefined}
-                            options={employeeOptions}
-                            loading={employeeOptionsLoading}
-                            onSearch={setEmployeeSearch}
-                            onChange={(value) => setEmployeeIdInput(value || "")}
-                            optionFilterProp="label"
-                            filterOption={false}
-                            style={{ width: "100%" }}
-                          />
-                        </Space>
+                <Card title="0. Поиск по пропуску">
+                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                    <Text type="secondary">
+                      Поиск по номеру пропуска перенесён из удаленной вкладки. Из результата можно сразу открыть страницу сотрудника со всеми проходами.
+                    </Text>
+                    <Space wrap style={{ width: "100%" }}>
+                      <Input
+                        placeholder="Введите номер пропуска/карты"
+                        value={passLookupQuery}
+                        onChange={(event) => setPassLookupQuery(event.target.value)}
+                        onPressEnter={() => {
+                          void handleSearchPassLookup();
+                        }}
+                        allowClear
+                        style={{ minWidth: 280 }}
+                      />
+                      <Button
+                        type="primary"
+                        icon={<SearchOutlined />}
+                        onClick={() => {
+                          void handleSearchPassLookup();
+                        }}
+                        loading={passLookupLoading}
+                      >
+                        Найти
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setPassLookupQuery("");
+                          setPassLookupResults([]);
+                          setPassLookupSearched(false);
+                        }}
+                        disabled={passLookupLoading}
+                      >
+                        Очистить
+                      </Button>
+                    </Space>
 
-                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                          <Text strong>Папка Sigur</Text>
-                          <TreeSelect
-                            allowClear
-                            showSearch
-                            treeDefaultExpandAll
-                            placeholder="Выберите папку Sigur"
-                            value={selectedSigurDepartmentId || undefined}
-                            treeData={providerDepartmentTreeData}
-                            onChange={(value) => setSelectedSigurDepartmentId(value || null)}
-                            loading={providerDepartmentsLoading}
-                            style={{ width: "100%" }}
-                            treeNodeFilterProp="title"
-                            dropdownStyle={{ maxHeight: 360, overflow: "auto" }}
-                          />
-                          <Input
-                            placeholder="Новая подпапка внутри выбранной папки (опционально)"
-                            value={sigurSubfolderInput}
-                            onChange={(event) => setSigurSubfolderInput(event.target.value)}
-                          />
-                        </Space>
+                    {passLookupSearched ? (
+                      <Text type="secondary">
+                        Найдено пропусков: {passLookupResults.length}
+                      </Text>
+                    ) : null}
 
-                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                          <Text strong>Комментарий</Text>
-                          <Input
-                            placeholder="Причина (опционально)"
-                            value={employeeReasonInput}
-                            onChange={(event) => setEmployeeReasonInput(event.target.value)}
-                          />
-                        </Space>
+                    {passLookupSearched ? (
+                      <Table
+                        size="small"
+                        rowKey={(record) =>
+                          record?.id
+                          || `${record?.employeeId || "unknown"}:${record?.passNumber || "pass"}`
+                        }
+                        columns={passLookupColumns}
+                        dataSource={passLookupResults}
+                        loading={passLookupLoading}
+                        pagination={{
+                          pageSize: 10,
+                          showSizeChanger: true,
+                          pageSizeOptions: ["10", "20", "50"],
+                        }}
+                        scroll={{ x: 900 }}
+                      />
+                    ) : null}
+                  </Space>
+                </Card>
 
-                        <Space wrap size={12}>
-                          <Button
-                            type="primary"
-                            icon={<SyncOutlined />}
-                            onClick={handleSyncEmployee}
-                            loading={employeeActionLoading}
-                          >
-                            Синхронизировать
-                          </Button>
-                          <Button
-                            danger
-                            onClick={handleBlockEmployee}
-                            loading={employeeActionLoading}
-                          >
-                            Блокировать
-                          </Button>
-                          <Button
-                            onClick={handleUnblockEmployee}
-                            loading={employeeActionLoading}
-                          >
-                            Разблокировать
-                          </Button>
-                        </Space>
-                      </Space>
-                    </Card>
-                  </Col>
-
-                  <Col xs={24} lg={15} xl={16}>
-                    <Card
-                      title="2. Иерархия Sigur"
-                      extra={
-                        <Button
-                          icon={<ReloadOutlined />}
-                          onClick={() => {
-                            resetProviderHierarchyView();
-                            void loadProviderDepartments();
-                          }}
-                          loading={providerDepartmentsLoading}
-                        >
-                          Обновить
-                        </Button>
-                      }
+                <Card
+                  title="1. Иерархия Sigur"
+                  extra={
+                    <Button
+                      icon={<ReloadOutlined />}
+                      onClick={() => {
+                        resetProviderHierarchyView();
+                        void loadProviderDepartments();
+                      }}
+                      loading={providerDepartmentsLoading}
                     >
-                      <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                        <Text type="secondary">
-                          Полная структура папок Sigur. Сотрудники подгружаются только при раскрытии нужной папки.
-                        </Text>
-                        <Space wrap size={12}>
-                          <Button onClick={() => openProviderHierarchyModal("create_root")}>
-                            Создать папку
-                          </Button>
-                          <Button
-                            onClick={() => openProviderHierarchyModal("create_child")}
-                            disabled={!selectedProviderHierarchyDepartment}
-                          >
-                            Создать подпапку
-                          </Button>
-                          <Button
-                            onClick={() => openProviderHierarchyModal("rename")}
-                            disabled={!selectedProviderHierarchyDepartment}
-                          >
-                            Переименовать
-                          </Button>
-                          <Popconfirm
-                            title="Удалить выбранную папку Sigur?"
-                            description="Удаление сработает только для пустой папки без сотрудников и вложенных папок."
-                            okText="Удалить"
-                            cancelText="Отмена"
-                            onConfirm={() => {
-                              void handleDeleteProviderHierarchyDepartment();
-                            }}
-                            disabled={!selectedProviderHierarchyDepartment}
-                          >
-                            <Button
-                              danger
-                              disabled={!selectedProviderHierarchyDepartment}
-                              loading={providerHierarchyDeleting}
-                            >
-                              Удалить пустую
-                            </Button>
-                          </Popconfirm>
-                        </Space>
-                        {selectedProviderHierarchyDepartment ? (
-                          <Text type="secondary">
-                            Выбрана папка: {selectedProviderHierarchyDepartment.pathLabel || selectedProviderHierarchyDepartment.name}
-                          </Text>
-                        ) : (
-                          <Text type="secondary">
-                            Выберите папку в дереве, чтобы управлять ей.
-                          </Text>
-                        )}
-                        <Input
-                          placeholder="Поиск по ФИО в Sigur (с начала имени)"
-                          value={providerHierarchySearch}
-                          onChange={(event) => setProviderHierarchySearch(event.target.value)}
-                          suffix={providerHierarchySearchLoading ? <SyncOutlined spin /> : null}
-                        />
-                        <div
-                          style={{
-                            border: "1px solid #f0f0f0",
-                            borderRadius: 12,
-                            padding: 16,
-                            background: "#fff",
-                          }}
+                      Обновить
+                    </Button>
+                  }
+                >
+                  <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                    <Text type="secondary">
+                      Полная структура папок Sigur. Сотрудники подгружаются только при раскрытии нужной папки. Клик по сотруднику открывает отдельную страницу его проходов.
+                    </Text>
+                    <Space wrap size={12}>
+                      <Button onClick={() => openProviderHierarchyModal("create_root")}>
+                        Создать папку
+                      </Button>
+                      <Button
+                        onClick={() => openProviderHierarchyModal("create_child")}
+                        disabled={!selectedProviderHierarchyDepartment}
+                      >
+                        Создать подпапку
+                      </Button>
+                      <Button
+                        onClick={() => openProviderHierarchyModal("rename")}
+                        disabled={!selectedProviderHierarchyDepartment}
+                      >
+                        Переименовать
+                      </Button>
+                      <Popconfirm
+                        title="Удалить выбранную папку Sigur?"
+                        description="Удаление сработает только для пустой папки без сотрудников и вложенных папок."
+                        okText="Удалить"
+                        cancelText="Отмена"
+                        onConfirm={() => {
+                          void handleDeleteProviderHierarchyDepartment();
+                        }}
+                        disabled={!selectedProviderHierarchyDepartment}
+                      >
+                        <Button
+                          danger
+                          disabled={!selectedProviderHierarchyDepartment}
+                          loading={providerHierarchyDeleting}
                         >
-                          <Tree
-                            treeData={
-                              providerHierarchySearch
-                                ? providerHierarchySearchTreeData
-                                : filteredProviderHierarchyTreeData
-                            }
-                            selectedKeys={providerHierarchySelectedKeys}
-                            expandedKeys={
-                              providerHierarchySearch
-                                ? providerHierarchySearchExpandedKeys
-                                : providerHierarchyExpandedKeys
-                            }
-                            onSelect={handleProviderHierarchySelect}
-                            onExpand={handleProviderHierarchyExpand}
-                            height={640}
-                            showIcon={false}
-                            showLine
-                          />
-                        </div>
-                      </Space>
-                    </Card>
-                  </Col>
-                </Row>
+                          Удалить пустую
+                        </Button>
+                      </Popconfirm>
+                    </Space>
+                    {selectedProviderHierarchyDepartment ? (
+                      <Text type="secondary">
+                        Выбрана папка: {selectedProviderHierarchyDepartment.pathLabel || selectedProviderHierarchyDepartment.name}
+                      </Text>
+                    ) : (
+                      <Text type="secondary">
+                        Выберите папку в дереве, чтобы управлять ей.
+                      </Text>
+                    )}
+                    <Input
+                      placeholder="Поиск по ФИО в Sigur (с начала имени)"
+                      value={providerHierarchySearch}
+                      onChange={(event) => setProviderHierarchySearch(event.target.value)}
+                      suffix={providerHierarchySearchLoading ? <SyncOutlined spin /> : null}
+                    />
+                    <div
+                      style={{
+                        border: "1px solid #f0f0f0",
+                        borderRadius: 12,
+                        padding: 16,
+                        background: "#fff",
+                      }}
+                    >
+                      <Tree
+                        treeData={
+                          providerHierarchySearch
+                            ? providerHierarchySearchTreeData
+                            : filteredProviderHierarchyTreeData
+                        }
+                        selectedKeys={providerHierarchySelectedKeys}
+                        expandedKeys={
+                          providerHierarchySearch
+                            ? providerHierarchySearchExpandedKeys
+                            : providerHierarchyExpandedKeys
+                        }
+                        onSelect={handleProviderHierarchySelect}
+                        onExpand={handleProviderHierarchyExpand}
+                        height={640}
+                        showIcon={false}
+                        showLine
+                      />
+                    </div>
+                  </Space>
+                </Card>
 
                 <Modal
                   title={
@@ -2606,115 +2798,6 @@ const SkudAdminSection = () => {
             ),
           },
           isAdmin && {
-            key: "cards",
-            label: "Карты",
-            children: (
-              <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                <Space wrap>
-                  <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
-                    Обновить
-                  </Button>
-                </Space>
-
-                <Card title="Привязка карты">
-                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                    <Select
-                      showSearch
-                      allowClear
-                      placeholder="Выберите сотрудника"
-                      value={cardEmployeeIdInput || undefined}
-                      options={cardEmployeeOptions}
-                      loading={cardEmployeeOptionsLoading}
-                      onSearch={setCardEmployeeSearch}
-                      onChange={(value) => setCardEmployeeIdInput(value || "")}
-                      optionFilterProp="label"
-                      filterOption={false}
-                      style={{ width: "100%" }}
-                      popupMatchSelectWidth
-                    />
-                    <Text type="secondary">
-                      Выберите сотрудника, нажмите «Ожидать карту» и приложите карту к считывателю. Требуется запущенный агент{" "}
-                      <Text code>server/skud-agent/start.bat</Text>.
-                    </Text>
-                    <Input
-                      ref={cardNumberInputRef}
-                      placeholder="Номер карты"
-                      value={cardNumberInput}
-                      onChange={(event) => setCardNumberInput(event.target.value)}
-                      onPressEnter={(event) => {
-                        if (!cardReaderArmed) {
-                          return;
-                        }
-                        void handleAssignCard({
-                          cardNumber: event.currentTarget.value,
-                        });
-                      }}
-                    />
-                    <Space wrap>
-                      <Select
-                        value={cardTypeInput}
-                        onChange={setCardTypeInput}
-                        options={[
-                          { value: "rfid", label: "RFID" },
-                          { value: "nfc", label: "NFC" },
-                          { value: "other", label: "Другое" },
-                        ]}
-                      />
-                      <Select
-                        value={uidFormat}
-                        onChange={setUidFormat}
-                        title="Формат UID карты"
-                        options={[
-                          { value: "w26", label: "W26 (рекомендован)" },
-                          { value: "sigurCard", label: "Sigur" },
-                          { value: "decBe", label: "Decimal (BE)" },
-                          { value: "decLe", label: "Decimal (LE)" },
-                          { value: "hexUid", label: "HEX" },
-                        ]}
-                      />
-                    </Space>
-                    <Input
-                      placeholder="Комментарий (опционально)"
-                      value={cardNotesInput}
-                      onChange={(event) => setCardNotesInput(event.target.value)}
-                    />
-                    <Space wrap>
-                      <Button
-                        onClick={handleArmCardReader}
-                        type={cardReaderArmed ? "default" : "default"}
-                        danger={cardReaderArmed}
-                      >
-                        {cardReaderArmed
-                          ? wsConnected
-                            ? "Считыватель активен (остановить)"
-                            : "Режим ввода активен (остановить)"
-                          : "Ожидать карту"}
-                      </Button>
-                      <Button
-                        type="primary"
-                        onClick={() => void handleAssignCard()}
-                        loading={assigningCard}
-                      >
-                        Привязать карту
-                      </Button>
-                    </Space>
-                  </Space>
-                </Card>
-
-                <Card title="Физические карты">
-                  <Table
-                    rowKey="id"
-                    columns={cardColumns}
-                    dataSource={state.cards?.items || []}
-                    loading={loading}
-                    pagination={false}
-                    scroll={{ x: 900 }}
-                  />
-                </Card>
-              </Space>
-            ),
-          },
-          isAdmin && {
             key: "qr",
             label: "QR",
             children: (
@@ -2853,11 +2936,6 @@ const SkudAdminSection = () => {
             ),
           },
           isAdmin && {
-            key: "passes",
-            label: "Пропуска",
-            children: <PassesPage embedded />,
-          },
-          isAdmin && {
             key: "site-access-points",
             label: "Объекты → Sigur",
             children: (
@@ -2871,90 +2949,6 @@ const SkudAdminSection = () => {
         ].filter(Boolean)}
       />
 
-      <Drawer
-        title="Детали события"
-        open={eventDetailsOpen}
-        onClose={handleCloseEventDetails}
-        width={560}
-        destroyOnClose
-      >
-        {eventDetailsRecord ? (
-          <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            <Spin spinning={eventDetailsLoading}>
-              <Descriptions bordered column={1} size="small">
-                <Descriptions.Item label="Время">
-                  {eventDetailsRecord?.eventTime
-                    ? dayjs(eventDetailsRecord.eventTime).format("DD.MM.YYYY HH:mm:ss")
-                    : "—"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Сотрудник Sigur">
-                  {eventDetailsProviderEmployeeName ? (
-                    <Space direction="vertical" size={0}>
-                      <Text>{eventDetailsProviderEmployeeName}</Text>
-                      {eventDetailsProviderZone ? (
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                          Текущая зона: {eventDetailsProviderZone}
-                        </Text>
-                      ) : null}
-                    </Space>
-                  ) : (
-                    "Не удалось загрузить карточку из Sigur"
-                  )}
-                </Descriptions.Item>
-                <Descriptions.Item label="Сотрудник PassDesk">
-                  {eventDetailsLocalEmployeeName || "—"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Сверка ФИО">
-                  {eventDetailsNameMatch === null ? (
-                    <Text type="secondary">Недостаточно данных для сравнения</Text>
-                  ) : (
-                    <Tag color={eventDetailsNameMatch ? "green" : "red"}>
-                      {eventDetailsNameMatch ? "Совпадает" : "Несовпадение"}
-                    </Tag>
-                  )}
-                </Descriptions.Item>
-                <Descriptions.Item label="Sigur ID сотрудника">
-                  {eventDetailsExternalEmpId || "—"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Отдел сотрудника">
-                  {getEmployeeDepartmentName(eventDetailsRecord) || "—"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Точка прохода">
-                  {getAccessPointName(eventDetailsRecord)
-                    || (eventDetailsRecord?.accessPoint
-                      ? `#${eventDetailsRecord.accessPoint}`
-                      : "—")}
-                </Descriptions.Item>
-                <Descriptions.Item label="Зона">
-                  {getZoneName(eventDetailsRecord) || eventDetailsProviderZone || "—"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Тип события">
-                  {getEventTypeLabel(eventDetailsRecord?.eventType)}
-                </Descriptions.Item>
-                <Descriptions.Item label="Направление">
-                  {eventDetailsRecord?.direction === 1
-                    ? "Вход"
-                    : eventDetailsRecord?.direction === 2
-                      ? "Выход"
-                      : "—"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Причина">
-                  {getPassReason(eventDetailsRecord) || "—"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Карта">
-                  {getCardKey(eventDetailsRecord) || "—"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Сообщение">
-                  {eventDetailsRecord?.decisionMessage || "—"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Источник">
-                  {eventDetailsRecord?.source || "—"}
-                </Descriptions.Item>
-              </Descriptions>
-            </Spin>
-          </Space>
-        ) : null}
-      </Drawer>
     </Space>
   );
 };

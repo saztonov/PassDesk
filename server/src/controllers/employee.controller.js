@@ -3087,6 +3087,22 @@ export const updateEmployeeConstructionSites = async (req, res, next) => {
       console.log(
         `✓ Active status upload flags reset to false after construction site changes: ${updatedUploadFlags}`,
       );
+
+      if (isSkudEnabled()) {
+        try {
+          await enqueueSkudSyncForEmployee({
+            employeeId: id,
+            operation: "sync_employee",
+            userId: req.user.id,
+            source: "employee_sites_updated",
+          });
+        } catch (syncError) {
+          console.warn(
+            "[updateEmployeeConstructionSites] Failed to enqueue SKUD sync:",
+            syncError?.message || syncError,
+          );
+        }
+      }
     }
 
     // Просто возвращаем успех без лишней загрузки данных
@@ -3168,6 +3184,22 @@ export const updateEmployeeDepartment = async (req, res, next) => {
       console.log(
         `✓ Active status upload flags reset to false after department changes: ${updatedUploadFlags}`,
       );
+
+      if (isSkudEnabled()) {
+        try {
+          await enqueueSkudSyncForEmployee({
+            employeeId: id,
+            operation: "sync_employee",
+            userId: req.user.id,
+            source: "employee_department_updated",
+          });
+        } catch (syncError) {
+          console.warn(
+            "[updateEmployeeDepartment] Failed to enqueue SKUD sync:",
+            syncError?.message || syncError,
+          );
+        }
+      }
     }
 
     res.json({
@@ -3323,7 +3355,7 @@ export const permanentlyDeleteEmployee = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    if (req.user.role !== "admin") {
+    if (req.user.role !== "admin" && req.user.role !== "manager") {
       return next(new AppError("Недостаточно прав", 403));
     }
 
@@ -3448,7 +3480,7 @@ export const unmarkEmployeeForDeletion = async (req, res, next) => {
       });
     }
 
-    if (req.user.role !== "admin") {
+    if (req.user.role !== "admin" && req.user.role !== "manager") {
       return next(new AppError("Недостаточно прав", 403));
     }
 
@@ -3687,7 +3719,7 @@ export const restoreEmployee = async (req, res, next) => {
       });
     }
 
-    if (req.user.role !== "admin") {
+    if (req.user.role !== "admin" && req.user.role !== "manager") {
       return next(new AppError("Недостаточно прав", 403));
     }
 

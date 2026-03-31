@@ -473,10 +473,13 @@ export const deleteCounterparty = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Проверка прав доступа - только admin может удалять
-    if (req.user.role !== "admin") {
+    // Проверка прав доступа - admin и manager могут удалять
+    if (req.user.role !== "admin" && req.user.role !== "manager") {
       return next(
-        new AppError("Только администратор может удалять контрагентов", 403),
+        new AppError(
+          "Только администратор или менеджер может удалять контрагентов",
+          403,
+        ),
       );
     }
 

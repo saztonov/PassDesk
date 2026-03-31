@@ -323,6 +323,27 @@ const normalizeConflictValueForEmployeeField = (fieldName, value) => {
     return null;
   }
 
+  if (fieldName === "phone") {
+    const normalized = normalizeString(value);
+    if (!normalized) {
+      return null;
+    }
+
+    const digits = normalized.replace(/[^\d]/g, "");
+    if (digits.length === 10) {
+      return `+7${digits}`;
+    }
+
+    if (
+      digits.length === 11 &&
+      (digits.startsWith("7") || digits.startsWith("8"))
+    ) {
+      return `+7${digits.slice(1)}`;
+    }
+
+    return normalized;
+  }
+
   if (DATE_FIELDS.has(fieldName)) {
     return parseDateValue(value);
   }

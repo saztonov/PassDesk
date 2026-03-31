@@ -17,6 +17,7 @@ import CounterpartyDocumentsPage from "./pages/CounterpartyDocumentsPage";
 import UserProfilePage from "./pages/UserProfilePage";
 import AdministrationPage from "./pages/AdministrationPage";
 import SkudPage from "./pages/SkudPage";
+import SkudEmployeeEventsPage from "./pages/SkudEmployeeEventsPage";
 import DirectoriesPage from "./pages/DirectoriesPage";
 import DebugPage from "./pages/DebugPage";
 import NotFoundPage from "./pages/NotFoundPage";
@@ -169,7 +170,7 @@ function App() {
               path="passes"
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
-                  <Navigate to="/skud?tab=passes" replace />
+                  <Navigate to="/skud?tab=employees" replace />
                 </ProtectedRoute>
               }
             />
@@ -233,6 +234,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
                   <SkudPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="skud/employee-events"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <SkudEmployeeEventsPage />
                 </ProtectedRoute>
               }
             />

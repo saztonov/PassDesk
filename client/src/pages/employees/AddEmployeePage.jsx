@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { Button, Typography, Grid, App } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
+import { useState } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useAddEmployeePage } from "@/modules/employees/model/useAddEmployeePage";
 import MobileEmployeeForm from "@/modules/employees/ui/MobileEmployeeForm";
@@ -20,6 +21,7 @@ const AddEmployeePage = () => {
   const { message, modal } = App.useApp();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const [closeRequestToken, setCloseRequestToken] = useState(0);
 
   const { editingEmployee, handleCheckInn, handleFormSuccess, handleCancel } =
     useAddEmployeePage({
@@ -29,8 +31,8 @@ const AddEmployeePage = () => {
       modal,
     });
 
-  const handleClose = () => {
-    void handleCancel();
+  const handleClose = (options = {}) => {
+    void handleCancel(options);
   };
 
   usePageTitle(id ? "Редактирование" : "Добавление", isMobile);
@@ -59,7 +61,7 @@ const AddEmployeePage = () => {
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <Button
               icon={<ArrowLeftOutlined />}
-              onClick={() => navigate("/employees")}
+              onClick={() => setCloseRequestToken((value) => value + 1)}
             >
               Назад
             </Button>
@@ -77,6 +79,7 @@ const AddEmployeePage = () => {
             onSuccess={handleFormSuccess}
             onCancel={handleCancel}
             onCheckInn={handleCheckInn}
+            isExistingSession={Boolean(id)}
           />
         ) : (
           <EmployeeFormModal
@@ -85,6 +88,8 @@ const AddEmployeePage = () => {
             onCancel={handleClose}
             onSuccess={handleFormSuccess}
             onCheckInn={handleCheckInn}
+            externalCloseRequestToken={closeRequestToken}
+            isExistingSession={Boolean(id)}
             mode="page"
           />
         )}

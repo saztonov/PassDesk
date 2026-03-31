@@ -167,9 +167,11 @@ export const useAddEmployeePage = ({ id, navigate, message, modal }) => {
     }
   };
 
-  const handleCancel = async () => {
+  const handleCancel = async (options = {}) => {
+    const { skipDraftCleanup = false } = options;
     const currentEmployeeId = savedEmployeeIdRef.current || editingEmployee?.id || null;
-    const shouldDiscardDraft = !initialEmployeeIdRef.current && currentEmployeeId;
+    const shouldDiscardDraft =
+      !skipDraftCleanup && !initialEmployeeIdRef.current && currentEmployeeId;
 
     if (shouldDiscardDraft) {
       try {

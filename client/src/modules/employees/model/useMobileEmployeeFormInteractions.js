@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { employeeApi } from "@/entities/employee/api/employeeApi";
 
 export const useMobileEmployeeFormInteractions = ({
   form,
   employee,
+  isExistingSession,
   onCheckInn,
   messageApi,
   handleSave,
@@ -17,6 +19,7 @@ export const useMobileEmployeeFormInteractions = ({
   const autoSavingRef = useRef(false);
   const lastAutoSavedHashRef = useRef(null);
   const draftEmployeeIdRef = useRef(employee?.id || null);
+  const startedWithExistingEmployeeRef = useRef(Boolean(isExistingSession));
   const canSaveTimeoutRef = useRef(null);
   const latinErrorTimeoutRef = useRef(null);
   const [canSave, setCanSave] = useState(false);
@@ -28,6 +31,12 @@ export const useMobileEmployeeFormInteractions = ({
       lastAutoSavedHashRef.current = null;
     }
   }, [employee?.id]);
+
+  useEffect(() => {
+    if (isExistingSession) {
+      startedWithExistingEmployeeRef.current = true;
+    }
+  }, [isExistingSession]);
 
   const handleSaveWithReset = useCallback(async () => {
     if (innCheckTimeoutRef.current) {
@@ -188,6 +197,39 @@ export const useMobileEmployeeFormInteractions = ({
     }, 200);
   }, [form]);
 
+  const shouldPromptDraftOnClose = useCallback(() => {
+    if (startedWithExistingEmployeeRef.current) {
+      return false;
+    }
+
+    const currentSnapshot = JSON.stringify(form.getFieldsValue(true));
+    const isDirty =
+      form.isFieldsTouched(true) &&
+      currentSnapshot !== lastSavedSnapshotRef.current;
+
+    return isDirty || Boolean(draftEmployeeIdRef.current);
+  }, [form, lastSavedSnapshotRef]);
+
+  const saveDraftBeforeClose = useCallback(async () => {
+    return handleSaveDraftWithReset();
+  }, [handleSaveDraftWithReset]);
+
+  const discardDraftOnClose = useCallback(async () => {
+    if (startedWithExistingEmployeeRef.current) {
+      return false;
+    }
+
+    const draftEmployeeId = draftEmployeeIdRef.current;
+    if (!draftEmployeeId) {
+      return false;
+    }
+
+    await employeeApi.discardDraft(draftEmployeeId);
+    draftEmployeeIdRef.current = null;
+    lastAutoSavedHashRef.current = null;
+    return true;
+  }, []);
+
   useEffect(() => {
     return () => {
       if (autoSaveTimeoutRef.current) {
@@ -212,5 +254,8 @@ export const useMobileEmployeeFormInteractions = ({
     handleLastNameBlur,
     handleFullNameChange,
     handleFormFieldsChange,
+    shouldPromptDraftOnClose,
+    saveDraftBeforeClose,
+    discardDraftOnClose,
   };
 };

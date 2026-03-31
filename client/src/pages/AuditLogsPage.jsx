@@ -83,6 +83,24 @@ const STATUS_LABELS = {
   zup_flag_changed: "Изменён статус выгрузки в ЗУП",
 };
 
+const EVENT_TYPE_OPTIONS = [
+  { value: "employee_updated", category: "employee_data" },
+  { value: "employee_transferred", category: "transfer" },
+  { value: "status_changed", category: "status" },
+  { value: "zup_flag_changed", category: "status" },
+  { value: "file_uploaded", category: "files" },
+  { value: "file_deleted", category: "files" },
+  { value: "pass_assigned", category: "skud" },
+  { value: "pass_unbound", category: "skud" },
+].map((option) => ({
+  ...option,
+  label: STATUS_LABELS[option.value] || option.value,
+}));
+
+const EVENT_TYPE_META = Object.fromEntries(
+  EVENT_TYPE_OPTIONS.map((option) => [option.value, option]),
+);
+
 const STATUS_NAME_LABELS = {
   status_new: "Новый",
   status_draft: "Черновик",
@@ -156,6 +174,73 @@ const buildNameMap = (items = []) =>
       .map((item) => [String(item.id), item.name || item.shortName || item.fullName || String(item.id)]),
   );
 
+const hasOwn = (value, key) =>
+  Boolean(value) &&
+  typeof value === "object" &&
+  Object.prototype.hasOwnProperty.call(value, key);
+
+const resolveChangePair = (value = {}) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {
+      from: null,
+      to: null,
+    };
+  }
+
+  const from =
+    (hasOwn(value, "from") ? value.from : undefined) ??
+    (hasOwn(value, "old") ? value.old : undefined) ??
+    (hasOwn(value, "previous") ? value.previous : undefined) ??
+    (hasOwn(value, "oldValue") ? value.oldValue : undefined) ??
+    null;
+  const to =
+    (hasOwn(value, "to") ? value.to : undefined) ??
+    (hasOwn(value, "new") ? value.new : undefined) ??
+    (hasOwn(value, "next") ? value.next : undefined) ??
+    (hasOwn(value, "newValue") ? value.newValue : undefined) ??
+    null;
+
+  return { from, to };
+};
+
+const collectEmployeeFieldChanges = (details = {}) => {
+  const normalizedFieldChanges = new Map();
+
+  Object.entries(details.fieldChanges || {}).forEach(([fieldName, change]) => {
+    normalizedFieldChanges.set(fieldName, resolveChangePair(change));
+  });
+
+  const oldValues =
+    details.oldValues && typeof details.oldValues === "object"
+      ? details.oldValues
+      : {};
+  const newValues =
+    details.newValues && typeof details.newValues === "object"
+      ? details.newValues
+      : {};
+  Object.keys({ ...oldValues, ...newValues }).forEach((fieldName) => {
+    if (!normalizedFieldChanges.has(fieldName)) {
+      normalizedFieldChanges.set(fieldName, {
+        from: oldValues[fieldName] ?? null,
+        to: newValues[fieldName] ?? null,
+      });
+    }
+  });
+
+  if (Array.isArray(details.changes)) {
+    details.changes.forEach((change) => {
+      const fieldName = change?.fieldName || change?.field || change?.name;
+      if (!fieldName || normalizedFieldChanges.has(fieldName)) {
+        return;
+      }
+
+      normalizedFieldChanges.set(fieldName, resolveChangePair(change));
+    });
+  }
+
+  return normalizedFieldChanges;
+};
+
 const resolveAuditFieldValue = (fieldName, value, lookups) => {
   if (value === undefined || value === null || value === "") {
     return "—";
@@ -184,11 +269,14 @@ const describeAuditEvent = (record) => {
   switch (record?.eventType) {
     case "employee_updated": {
       const changedFields = Array.isArray(details.changedFields)
-        ? details.changedFields.map(humanizeFieldName)
-        : [];
+        ? details.changedFields
+        : [...collectEmployeeFieldChanges(details).keys()];
+      const normalizedChangedFields = [...new Set(changedFields)].map(
+        humanizeFieldName,
+      );
 
-      return changedFields.length > 0
-        ? `Изменены поля: ${changedFields.join(", ")}`
+      return normalizedChangedFields.length > 0
+        ? `Изменены поля: ${normalizedChangedFields.join(", ")}`
         : "Изменены данные карточки сотрудника";
     }
 
@@ -196,7 +284,10 @@ const describeAuditEvent = (record) => {
       const fromNames = Array.isArray(details.fromCounterparties)
         ? details.fromCounterparties.map((item) => item?.name).filter(Boolean)
         : [];
-      const toName = details.toCounterparty?.name || details.counterpartyName;
+      const toName =
+        details.toCounterparty?.name ||
+        details.to?.name ||
+        details.counterpartyName;
 
       if (fromNames.length > 0 && toName) {
         return `Перевод: ${fromNames.join(", ")} -> ${toName}`;
@@ -206,18 +297,20 @@ const describeAuditEvent = (record) => {
     }
 
     case "status_changed": {
-      const fromStatus = humanizeStatusName(details.from);
-      const toStatus = humanizeStatusName(details.to);
+      const statusChange = resolveChangePair(details);
+      const fromStatus = humanizeStatusName(statusChange.from);
+      const toStatus = humanizeStatusName(statusChange.to);
       const groupName = humanizeStatusGroupName(details.statusGroup || "status");
       return `Группа ${groupName}: ${fromStatus} -> ${toStatus}`;
     }
 
     case "zup_flag_changed": {
+      const zupChange = resolveChangePair(details);
       const scope =
         details.scope === "single_status"
           ? "по одному статусу"
           : "по активным статусам";
-      return details.to
+      return zupChange.to
         ? `Сотрудник выгружен в ЗУП (${scope})`
         : `Сброшен флаг выгрузки в ЗУП (${scope})`;
     }
@@ -261,15 +354,15 @@ const buildEventDetails = (record, lookups) => {
 
   switch (record?.eventType) {
     case "employee_updated": {
-      const fieldChanges = Object.entries(details.fieldChanges || {});
-      const constructionSiteChange = details.constructionSiteChange;
+      const fieldChanges = [...collectEmployeeFieldChanges(details).entries()];
+      const constructionSiteChange = resolveChangePair(details.constructionSiteChange);
 
       return [
         ...fieldChanges.map(([fieldName, value]) => ({
           label: humanizeFieldName(fieldName),
           value: `${resolveAuditFieldValue(fieldName, value?.from, lookups)} -> ${resolveAuditFieldValue(fieldName, value?.to, lookups)}`,
         })),
-        ...(constructionSiteChange
+        ...(details.constructionSiteChange
           ? [
               {
                 label: "Объект",
@@ -290,11 +383,16 @@ const buildEventDetails = (record, lookups) => {
         },
         {
           label: "Куда",
-          value: details.toCounterparty?.name || details.counterpartyName || "—",
+          value:
+            details.toCounterparty?.name ||
+            details.to?.name ||
+            details.counterpartyName ||
+            "—",
         },
       ];
 
-    case "status_changed":
+    case "status_changed": {
+      const statusChange = resolveChangePair(details);
       return [
         {
           label: "Группа",
@@ -302,17 +400,20 @@ const buildEventDetails = (record, lookups) => {
         },
         {
           label: "Статус",
-          value: `${humanizeStatusName(details.from)} -> ${humanizeStatusName(details.to)}`,
+          value: `${humanizeStatusName(statusChange.from)} -> ${humanizeStatusName(statusChange.to)}`,
         },
       ];
+    }
 
-    case "zup_flag_changed":
+    case "zup_flag_changed": {
+      const zupChange = resolveChangePair(details);
       return [
         {
           label: "Выгрузка в ЗУП",
-          value: `${details.from ? "Да" : "Нет"} -> ${details.to ? "Да" : "Нет"}`,
+          value: `${zupChange.from ? "Да" : "Нет"} -> ${zupChange.to ? "Да" : "Нет"}`,
         },
       ];
+    }
 
     case "file_uploaded":
       return (details.files || []).map((file) => ({
@@ -413,7 +514,9 @@ const AuditLogsPage = () => {
   const [positions, setPositions] = useState([]);
   const [constructionSites, setConstructionSites] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedEventTypes, setSelectedEventTypes] = useState([]);
   const [selectedCounterpartyId, setSelectedCounterpartyId] = useState(null);
+  const [selectedChangedByUserId, setSelectedChangedByUserId] = useState(null);
   const [dateRange, setDateRange] = useState(null);
   const [drawerGroup, setDrawerGroup] = useState(null);
   const [pagination, setPagination] = useState({
@@ -468,8 +571,16 @@ const AuditLogsPage = () => {
         params.eventCategory = selectedCategory;
       }
 
+      if (selectedEventTypes.length > 0) {
+        params.eventType = selectedEventTypes.join(",");
+      }
+
       if (selectedCounterpartyId) {
         params.counterpartyId = selectedCounterpartyId;
+      }
+
+      if (selectedChangedByUserId) {
+        params.userId = selectedChangedByUserId;
       }
 
       if (Array.isArray(dateRange) && dateRange.length === 2) {
@@ -487,7 +598,14 @@ const AuditLogsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [dateRange, message, selectedCategory, selectedCounterpartyId]);
+  }, [
+    dateRange,
+    message,
+    selectedCategory,
+    selectedCounterpartyId,
+    selectedChangedByUserId,
+    selectedEventTypes,
+  ]);
 
   useEffect(() => {
     fetchCounterparties();
@@ -516,6 +634,45 @@ const AuditLogsPage = () => {
   );
 
   const groupedLogs = useMemo(() => buildAuditGroups(logsWithLookups), [logsWithLookups]);
+
+  const changedByOptions = useMemo(() => {
+    const uniqueUsers = new Map();
+
+    logsWithLookups.forEach((log) => {
+      if (!log?.user?.id) {
+        return;
+      }
+
+      uniqueUsers.set(log.user.id, {
+        value: log.user.id,
+        label: getUserName(log.user),
+      });
+    });
+
+    return [...uniqueUsers.values()].sort((left, right) =>
+      String(left.label).localeCompare(String(right.label), "ru"),
+    );
+  }, [logsWithLookups]);
+
+  const availableEventTypeOptions = useMemo(
+    () =>
+      EVENT_TYPE_OPTIONS.filter(
+        (option) => !selectedCategory || option.category === selectedCategory,
+      ),
+    [selectedCategory],
+  );
+
+  useEffect(() => {
+    if (!selectedCategory) {
+      return;
+    }
+
+    setSelectedEventTypes((prev) =>
+      prev.filter(
+        (eventType) => EVENT_TYPE_META[eventType]?.category === selectedCategory,
+      ),
+    );
+  }, [selectedCategory]);
 
   useEffect(() => {
     setPagination((prev) => ({
@@ -557,7 +714,9 @@ const AuditLogsPage = () => {
 
   const handleResetFilters = () => {
     setSelectedCategory(null);
+    setSelectedEventTypes([]);
     setSelectedCounterpartyId(null);
+    setSelectedChangedByUserId(null);
     setDateRange(null);
     setDrawerGroup(null);
     setPagination((prev) => ({
@@ -722,15 +881,15 @@ const AuditLogsPage = () => {
 
         <div
           style={{
-            display: "flex",
+            display: "grid",
             gap: 8,
             alignItems: "center",
-            flex: 1,
-            flexWrap: "wrap",
-            justifyContent: "flex-end",
+            width: "100%",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
           }}
         >
           <RangePicker
+            style={{ width: "100%" }}
             value={dateRange}
             onChange={(value) => {
               setDateRange(value);
@@ -740,8 +899,8 @@ const AuditLogsPage = () => {
             allowEmpty={[true, true]}
           />
           <Select
-            placeholder="Тип изменения"
-            style={{ width: 220 }}
+            placeholder="Категория"
+            style={{ width: "100%" }}
             value={selectedCategory}
             onChange={(value) => {
               setSelectedCategory(value);
@@ -754,8 +913,25 @@ const AuditLogsPage = () => {
             }))}
           />
           <Select
+            mode="multiple"
+            placeholder="Тип изменения"
+            style={{ width: "100%" }}
+            value={selectedEventTypes}
+            onChange={(value) => {
+              setSelectedEventTypes(value || []);
+              setPagination((prev) => ({ ...prev, current: 1 }));
+            }}
+            allowClear
+            maxTagCount="responsive"
+            optionFilterProp="label"
+            options={availableEventTypeOptions.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+          />
+          <Select
             placeholder="Контрагент"
-            style={{ width: 260 }}
+            style={{ width: "100%" }}
             value={selectedCounterpartyId}
             onChange={(value) => {
               setSelectedCounterpartyId(value);
@@ -769,9 +945,24 @@ const AuditLogsPage = () => {
               label: counterparty.name,
             }))}
           />
-          <Button icon={<ReloadOutlined />} onClick={handleResetFilters}>
-            Сбросить
-          </Button>
+          <Select
+            placeholder="Кто изменил"
+            style={{ width: "100%" }}
+            value={selectedChangedByUserId}
+            onChange={(value) => {
+              setSelectedChangedByUserId(value);
+              setPagination((prev) => ({ ...prev, current: 1 }));
+            }}
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            options={changedByOptions}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button icon={<ReloadOutlined />} onClick={handleResetFilters}>
+              Сбросить
+            </Button>
+          </div>
         </div>
       </div>
 

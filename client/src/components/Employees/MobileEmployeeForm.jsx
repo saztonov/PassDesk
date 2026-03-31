@@ -53,7 +53,13 @@ const createAntiAutofillIds = () => ({
  * Мобильная форма сотрудника
  * Все поля в один столбец, блоки вместо вкладок
  */
-const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
+const MobileEmployeeForm = ({
+  employee,
+  onSuccess,
+  onCancel,
+  onCheckInn,
+  isExistingSession = Boolean(employee?.id),
+}) => {
   const { modal, message: messageApi } = App.useApp();
   const {
     form,
@@ -163,9 +169,13 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     handleLastNameBlur,
     handleFullNameChange,
     handleFormFieldsChange,
+    shouldPromptDraftOnClose,
+    saveDraftBeforeClose,
+    discardDraftOnClose,
   } = useMobileEmployeeFormInteractions({
     form,
     employee,
+    isExistingSession,
     onCheckInn,
     messageApi,
     handleSave,
@@ -180,6 +190,9 @@ const MobileEmployeeForm = ({ employee, onSuccess, onCancel, onCheckInn }) => {
     modal,
     onCancel,
     lastSavedSnapshotRef,
+    shouldPromptDraftOnClose,
+    saveDraftBeforeClose,
+    discardDraftOnClose,
   });
 
   const collapseItems = useMobileEmployeeFormSections({

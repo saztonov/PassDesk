@@ -151,6 +151,10 @@ export const EmployeeSearchFilter = ({
         prefix={<SearchOutlined />}
         value={searchText}
         onChange={(e) => handleSearchChange(e.target.value)}
+        autoComplete="off"
+        name="employee_search"
+        data-lpignore="true"
+        data-form-type="other"
         style={{
           width: useCompactLayout ? "100%" : 350,
           flex: useCompactLayout ? 1 : "auto",

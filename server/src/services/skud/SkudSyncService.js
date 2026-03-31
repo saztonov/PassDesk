@@ -458,10 +458,14 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
   })();
 
   // Ограничение срока доступа сотрудника в Sigur задаём только явно.
+  // Если значение не передано, используем сохранённое в metadata биндинга (если есть),
+  // иначе не отправляем поле вовсе, чтобы не затирать текущее значение в Sigur.
   const resolvedAccessEndTime =
     payload.accessEndTime !== undefined
       ? payload.accessEndTime
-      : null;
+      : existingBinding?.metadata?.accessEndTime !== undefined
+        ? existingBinding.metadata.accessEndTime
+        : undefined;
 
   const resolvedPositionName = String(employee?.position?.name || "").trim() || null;
   const resolvedPositionId = resolvedPositionName
@@ -478,7 +482,8 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
     departmentId,
     positionId: resolvedPositionId,
     positionName: resolvedPositionName,
-    accessStartTime: payload.accessStartTime || null,
+    accessStartTime:
+      payload.accessStartTime !== undefined ? payload.accessStartTime : undefined,
     accessEndTime: resolvedAccessEndTime,
   });
 
