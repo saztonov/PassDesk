@@ -149,6 +149,8 @@ const eventsResponseCache = new Map();
 const PROVIDER_EMPLOYEE_FALLBACK_TTL_MS = 5 * 60 * 1000;
 const providerEmployeeFallbackCache = new Map();
 const PROVIDER_EMPLOYEE_FALLBACK_SCHEMA_VERSION = 2;
+const PROVIDER_EMPLOYEE_SEARCH_TTL_MS = 60 * 1000;
+const providerEmployeeSearchCache = new Map();
 const PROVIDER_DEPARTMENTS_CATALOG_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_CONTRACTORS_ROOT_NAME = "Подрядные организации";
 let providerDepartmentsCatalogCache = {
@@ -236,6 +238,113 @@ const setCachedProviderEmployeeFallback = (externalEmpId, value) => {
     value: normalizedValue,
     expiresAt: Date.now() + PROVIDER_EMPLOYEE_FALLBACK_TTL_MS,
   });
+};
+
+const normalizeEmployeeSearchToken = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+const getCachedProviderEmployeeSearch = (searchToken) => {
+  const key = normalizeEmployeeSearchToken(searchToken);
+  if (!key) {
+    return { hit: false, value: null };
+  }
+
+  const cached = providerEmployeeSearchCache.get(key);
+  if (!cached) {
+    return { hit: false, value: null };
+  }
+  if (cached.expiresAt <= Date.now()) {
+    providerEmployeeSearchCache.delete(key);
+    return { hit: false, value: null };
+  }
+  return { hit: true, value: cached.value ?? null };
+};
+
+const setCachedProviderEmployeeSearch = (searchToken, externalEmpId) => {
+  const key = normalizeEmployeeSearchToken(searchToken);
+  if (!key) {
+    return;
+  }
+
+  providerEmployeeSearchCache.set(key, {
+    value: externalEmpId ? String(externalEmpId) : null,
+    expiresAt: Date.now() + PROVIDER_EMPLOYEE_SEARCH_TTL_MS,
+  });
+};
+
+const extractExternalEmpIdFromSearchText = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return null;
+  }
+
+  // "Sigur: ID 12345" / "ID 12345" / "12345"
+  const explicitIdMatch = raw.match(/(?:^|[\s:])id\s*(\d{3,})/i);
+  if (explicitIdMatch?.[1]) {
+    return explicitIdMatch[1];
+  }
+  if (/^\d{3,}$/.test(raw)) {
+    return raw;
+  }
+  return null;
+};
+
+const resolveExternalEmpIdByEmployeeSearch = async ({ provider, employeeName }) => {
+  const normalizedQuery = normalizeEmployeeSearchToken(employeeName);
+  if (!normalizedQuery) {
+    return null;
+  }
+
+  const directId = extractExternalEmpIdFromSearchText(employeeName);
+  if (directId) {
+    return String(directId);
+  }
+
+  const cached = getCachedProviderEmployeeSearch(normalizedQuery);
+  if (cached.hit) {
+    return cached.value;
+  }
+
+  try {
+    const response = await provider.getEmployees({
+      limit: 20,
+      offset: 0,
+      filters: { name: employeeName },
+    });
+    const rows = toProviderItems(response);
+    const candidates = rows
+      .map((item) => ({
+        id: item?.id === undefined || item?.id === null ? null : String(item.id),
+        name: normalizeEmployeeSearchToken(item?.name),
+      }))
+      .filter((item) => item.id);
+
+    if (!candidates.length) {
+      setCachedProviderEmployeeSearch(normalizedQuery, null);
+      return null;
+    }
+
+    const exactCandidates = candidates.filter((item) => item.name === normalizedQuery);
+    const resolvedExternalEmpId =
+      exactCandidates.length === 1
+        ? exactCandidates[0].id
+        : candidates.length === 1
+          ? candidates[0].id
+          : null;
+
+    setCachedProviderEmployeeSearch(normalizedQuery, resolvedExternalEmpId);
+    return resolvedExternalEmpId;
+  } catch (error) {
+    console.warn(
+      "Failed to resolve externalEmpId by provider employee search:",
+      error?.message || error,
+    );
+    setCachedProviderEmployeeSearch(normalizedQuery, null);
+    return null;
+  }
 };
 
 const getAllProviderDepartments = async (provider) => {
@@ -1422,6 +1531,15 @@ const normalizeRawProviderEvent = (item) => ({
   rawItem: item,
 });
 
+const getProviderEventTimestampMs = (item) => {
+  const rawValue = item?.timestamp || item?.receivedTime || item?.time || null;
+  if (!rawValue) {
+    return 0;
+  }
+  const parsed = new Date(rawValue).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const buildProviderEventView = async ({
   from,
   to,
@@ -1443,12 +1561,24 @@ const buildProviderEventView = async ({
   offset = 0,
 }) => {
   const provider = getSkudProvider();
+  const normalizedEmployeeName = String(employeeName || "").trim();
+  const resolvedSearchExternalEmpId =
+    !externalEmpId && !employeeId && normalizedEmployeeName
+      ? await resolveExternalEmpIdByEmployeeSearch({
+          provider,
+          employeeName: normalizedEmployeeName,
+        })
+      : null;
+  const effectiveExternalEmpId = String(
+    externalEmpId || resolvedSearchExternalEmpId || "",
+  ).trim() || null;
+  const effectiveEmployeeName = resolvedSearchExternalEmpId ? "" : normalizedEmployeeName;
   const shouldForceRawEventLog =
     Boolean(from) &&
     allow === undefined &&
     !employeeId &&
-    !employeeName &&
-    !externalEmpId &&
+    !effectiveEmployeeName &&
+    !effectiveExternalEmpId &&
     !counterpartyId &&
     !constructionSiteId &&
     !departmentId &&
@@ -1457,7 +1587,7 @@ const buildProviderEventView = async ({
     sortBy === "eventTime" &&
     String(sortOrder || "desc").toLowerCase() === "desc";
   const providerFallbackMode =
-    employeeId || externalEmpId || String(employeeName || "").trim()
+    employeeId || effectiveExternalEmpId || effectiveEmployeeName
       ? "full"
       : shouldForceRawEventLog
         ? "name"
@@ -1469,14 +1599,16 @@ const buildProviderEventView = async ({
       ? undefined
       : Number.parseInt(String(accessPoint), 10);
   const accessObjectId =
-    externalEmpId === undefined || externalEmpId === null || externalEmpId === ""
+    effectiveExternalEmpId === undefined
+      || effectiveExternalEmpId === null
+      || effectiveExternalEmpId === ""
       ? undefined
-      : Number.parseInt(String(externalEmpId), 10) || String(externalEmpId);
+      : Number.parseInt(String(effectiveExternalEmpId), 10) || String(effectiveExternalEmpId);
   const canUseRawEventLog =
     useRawLog &&
     allow === undefined &&
     !employeeId &&
-    !employeeName &&
+    !effectiveEmployeeName &&
     !counterpartyId &&
     !constructionSiteId &&
     !departmentId &&
@@ -1537,7 +1669,10 @@ const buildProviderEventView = async ({
       provider,
       providerFallbackMode,
     });
-    const employeeNameSearch = String(employeeName || "").trim().toLowerCase();
+    const employeeNameSearchRaw = String(effectiveEmployeeName || "").trim();
+    const employeeNameSearch = employeeNameSearchRaw.toLowerCase();
+    const employeeIdDigitsSearch = employeeNameSearchRaw.replace(/\D+/g, "");
+    const hasEmployeeIdDigitsSearch = employeeIdDigitsSearch.length >= 3;
     const employeeNameFiltered = employeeNameSearch
       ? enrichedItems.filter((item) => {
           const rawEmployeeName = String(
@@ -1549,10 +1684,30 @@ const buildProviderEventView = async ({
           )
             .trim()
             .toLowerCase();
+          const externalId = String(item?.externalEmpId || "").trim().toLowerCase();
+          const localEmployeeId = String(item?.employeeId || "").trim().toLowerCase();
+          const rawAccessObjectId = String(
+            item?.rawItem?.additionalData?.accessObject?.id ||
+            item?.rawItem?.data?.employeeId ||
+            item?.rawItem?.accessObjectId ||
+            "",
+          )
+            .trim()
+            .toLowerCase();
+          const matchesDigitsId = hasEmployeeIdDigitsSearch
+            ? [externalId, localEmployeeId, rawAccessObjectId].some((value) =>
+                String(value || "")
+                  .replace(/\D+/g, "")
+                  .includes(employeeIdDigitsSearch),
+              )
+            : false;
           return (
             String(item?.employeeName || "").trim().toLowerCase().includes(employeeNameSearch) ||
             rawEmployeeName.includes(employeeNameSearch) ||
-            String(item?.externalEmpId || "").trim().toLowerCase().includes(employeeNameSearch)
+            externalId.includes(employeeNameSearch) ||
+            localEmployeeId.includes(employeeNameSearch) ||
+            rawAccessObjectId.includes(employeeNameSearch) ||
+            matchesDigitsId
           );
         })
       : enrichedItems;
@@ -1561,9 +1716,9 @@ const buildProviderEventView = async ({
           (item) => String(item?.employeeId || "") === String(employeeId),
         )
       : employeeNameFiltered;
-    const externalFiltered = externalEmpId
+    const externalFiltered = effectiveExternalEmpId
       ? employeeFiltered.filter(
-          (item) => String(item?.externalEmpId || "") === String(externalEmpId),
+          (item) => String(item?.externalEmpId || "") === String(effectiveExternalEmpId),
         )
       : employeeFiltered;
     const counterpartyFiltered = counterpartyId
@@ -1637,23 +1792,28 @@ const buildProviderEventView = async ({
   }
 
   if (from) {
+    const hasEmployeeFilters = Boolean(
+      employeeId || effectiveExternalEmpId || effectiveEmployeeName,
+    );
     const hasPostFilters = Boolean(
       employeeId ||
-      employeeName ||
-      externalEmpId ||
+      effectiveEmployeeName ||
+      effectiveExternalEmpId ||
       counterpartyId ||
       constructionSiteId ||
       departmentId,
     );
-    const minimumRetainLimit = hasPostFilters
-      ? 3000
-      : Math.max(requiredCount * 2, 500);
+    const minimumRetainLimit = hasEmployeeFilters
+      ? 12000
+      : hasPostFilters
+        ? 5000
+        : Math.max(requiredCount * 2, 500);
     const retainLimit = Math.max(
       getLiveEventRawLimit({
         limit: requiredCount,
         employeeId,
-        employeeName,
-        externalEmpId,
+        employeeName: effectiveEmployeeName,
+        externalEmpId: effectiveExternalEmpId,
         direction,
         allow,
         departmentId,
@@ -1663,9 +1823,11 @@ const buildProviderEventView = async ({
       }),
       minimumRetainLimit,
     );
-    const batchLimit = hasPostFilters
-      ? 3000
-      : Math.min(Math.max(requiredCount, 500), 1000);
+    const batchLimit = hasEmployeeFilters
+      ? 2000
+      : hasPostFilters
+        ? 3000
+        : Math.min(Math.max(requiredCount, 500), 1000);
     let rawOffset = 0;
     let rawItems = [];
     let hasMore = false;
@@ -1676,7 +1838,16 @@ const buildProviderEventView = async ({
         break;
       }
 
-      rawItems = rawItems.concat(batch).slice(-retainLimit);
+      rawItems = rawItems.concat(batch);
+      if (rawItems.length > retainLimit) {
+        rawItems = rawItems
+          .slice()
+          .sort(
+            (left, right) =>
+              getProviderEventTimestampMs(right) - getProviderEventTimestampMs(left),
+          )
+          .slice(0, retainLimit);
+      }
       rawOffset += batch.length;
 
       if (batch.length < batchLimit) {
@@ -1706,8 +1877,8 @@ const buildProviderEventView = async ({
       getLiveEventRawLimit({
         limit: requiredCount,
         employeeId,
-        employeeName,
-        externalEmpId,
+        employeeName: effectiveEmployeeName,
+        externalEmpId: effectiveExternalEmpId,
         direction,
         allow,
         departmentId,

@@ -2,6 +2,7 @@ import { useCallback, useState, useMemo } from "react";
 import { Modal, Table, Button, Space, App, Empty, Segmented } from "antd";
 import { FileExcelOutlined } from "@ant-design/icons";
 import { employeeApi } from "@/entities/employee";
+import { formatPassportDepartmentCode } from "@/modules/employees/lib/employeeFormFormatters";
 import dayjs from "dayjs";
 import * as XLSX from "xlsx";
 
@@ -96,6 +97,9 @@ const ExcelExportModal = ({
           "Номер паспорта": emp.passportNumber || "-",
           "Дата выдачи паспорта": formatDateValue(emp.passportDate),
           "Кем выдан паспорт": emp.passportIssuer || "-",
+          "Код подразделения": formatPassportDepartmentCode(
+            emp.passportDepartmentCode,
+          ) || "-",
           "Адрес регистрации": emp.registrationAddress || "-",
           Патент: emp.patentNumber || "-",
           "Дата выдачи патента": formatDateValue(emp.patentIssueDate),

@@ -20,7 +20,8 @@ const DEFAULT_COLUMNS = [
   { key: "passport", label: "Паспорт" },
   { key: "passportDate", label: "Дата выдачи паспорта" },
   { key: "passportExpiryDate", label: "Дата окончания паспорта" },
-  { key: "passportIssuer", label: "Орган выдачи паспорта" },
+  { key: "passportIssuer", label: "Кем выдан паспорт" },
+  { key: "passportDepartmentCode", label: "Код подразделения" },
   { key: "registrationAddress", label: "Адрес регистрации" },
   { key: "phone", label: "Телефон" },
   { key: "patentNumber", label: "Патент" },
@@ -35,6 +36,9 @@ const DEFAULT_COLUMNS = [
 ];
 
 const STORAGE_KEY = "passdesk_excel_columns_selection";
+const DEFAULT_COLUMNS_BY_KEY = new Map(
+  DEFAULT_COLUMNS.map((column) => [column.key, column]),
+);
 
 // Получить дефолтное состояние (все столбцы активны в стандартном порядке)
 const getDefaultSelection = () => {
@@ -42,6 +46,93 @@ const getDefaultSelection = () => {
     key: col.key,
     label: col.label,
     enabled: true,
+    order: index,
+  }));
+};
+
+const normalizeColumnsSelection = (rawColumns) => {
+  if (!Array.isArray(rawColumns) || rawColumns.length === 0) {
+    return getDefaultSelection();
+  }
+
+  const seenKeys = new Set();
+  const normalized = [];
+
+  rawColumns.forEach((column) => {
+    const key = typeof column?.key === "string" ? column.key.trim() : "";
+    if (!key || seenKeys.has(key)) {
+      return;
+    }
+
+    seenKeys.add(key);
+    const defaultColumn = DEFAULT_COLUMNS_BY_KEY.get(key);
+
+    normalized.push({
+      key,
+      label: defaultColumn?.label || column?.label || key,
+      enabled: typeof column?.enabled === "boolean" ? column.enabled : true,
+      order: normalized.length,
+    });
+  });
+
+  const getKeyIndex = (key) => normalized.findIndex((column) => column.key === key);
+
+  DEFAULT_COLUMNS.forEach((defaultColumn, defaultIndex) => {
+    if (seenKeys.has(defaultColumn.key)) {
+      return;
+    }
+
+    const missingColumn = {
+      key: defaultColumn.key,
+      label: defaultColumn.label,
+      enabled: true,
+      order: normalized.length,
+    };
+
+    let insertIndex = normalized.length;
+
+    for (let i = defaultIndex - 1; i >= 0; i -= 1) {
+      const previousKey = DEFAULT_COLUMNS[i]?.key;
+      const previousIndex = getKeyIndex(previousKey);
+      if (previousIndex !== -1) {
+        insertIndex = previousIndex + 1;
+        break;
+      }
+    }
+
+    if (insertIndex === normalized.length) {
+      for (let i = defaultIndex + 1; i < DEFAULT_COLUMNS.length; i += 1) {
+        const nextKey = DEFAULT_COLUMNS[i]?.key;
+        const nextIndex = getKeyIndex(nextKey);
+        if (nextIndex !== -1) {
+          insertIndex = nextIndex;
+          break;
+        }
+      }
+    }
+
+    normalized.splice(insertIndex, 0, missingColumn);
+    seenKeys.add(defaultColumn.key);
+  });
+
+  const issuerIndex = normalized.findIndex(
+    (column) => column.key === "passportIssuer",
+  );
+  const departmentCodeIndex = normalized.findIndex(
+    (column) => column.key === "passportDepartmentCode",
+  );
+
+  if (issuerIndex !== -1 && departmentCodeIndex !== -1) {
+    const [departmentCodeColumn] = normalized.splice(departmentCodeIndex, 1);
+    const nextIssuerIndex = normalized.findIndex(
+      (column) => column.key === "passportIssuer",
+    );
+    const targetIndex = nextIssuerIndex + 1;
+    normalized.splice(targetIndex, 0, departmentCodeColumn);
+  }
+
+  return normalized.map((column, index) => ({
+    ...column,
     order: index,
   }));
 };
@@ -60,33 +151,12 @@ export const useExcelColumns = () => {
       const savedSelection = localStorage.getItem(STORAGE_KEY);
       if (savedSelection) {
         const parsed = JSON.parse(savedSelection);
-        // Проверяем что это массив и есть все нужные поля
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Синхронизируем с DEFAULT_COLUMNS - добавляем новые столбцы
-          const savedKeys = parsed.map((col) => col.key);
+          const normalized = normalizeColumnsSelection(parsed);
+          setColumns(normalized);
 
-          // Находим новые столбцы, которых нет в сохраненных
-          const newColumns = DEFAULT_COLUMNS.filter(
-            (col) => !savedKeys.includes(col.key),
-          );
-
-          if (newColumns.length > 0) {
-            // Добавляем новые столбцы в конец с enabled: true
-            const maxOrder = Math.max(...parsed.map((col) => col.order || 0));
-            const updatedColumns = [
-              ...parsed,
-              ...newColumns.map((col, index) => ({
-                key: col.key,
-                label: col.label,
-                enabled: true,
-                order: maxOrder + index + 1,
-              })),
-            ];
-            setColumns(updatedColumns);
-            // Сохраняем обновленный список
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedColumns));
-          } else {
-            setColumns(parsed);
+          if (JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
           }
         }
       }
@@ -99,9 +169,10 @@ export const useExcelColumns = () => {
 
   // Сохраняем состояние в localStorage при изменении
   const updateColumns = (newColumns) => {
-    setColumns(newColumns);
+    const normalized = normalizeColumnsSelection(newColumns);
+    setColumns(normalized);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newColumns));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
     } catch (error) {
       console.error("Error saving Excel columns selection:", error);
     }

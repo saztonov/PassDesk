@@ -62,6 +62,7 @@ const FIELD_LABELS = {
   passportDate: "Дата паспорта",
   passportExpiryDate: "Срок паспорта",
   passportIssuer: "Кем выдан паспорт",
+  passportDepartmentCode: "Код подразделения паспорта",
   passportNumber: "Номер паспорта",
   passportType: "Тип паспорта",
   patentIssueDate: "Дата патента",

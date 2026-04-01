@@ -1,5 +1,6 @@
 import {
   normalizeKig,
+  normalizePassportDepartmentCode,
   normalizePatentNumber,
   normalizePhoneNumber,
   normalizeRussianPassportNumber,
@@ -81,6 +82,11 @@ export const formatEmployeeFormPayload = (
         values.passportType === "russian"
           ? normalizeRussianPassportNumber(value)
           : value;
+      return;
+    }
+
+    if (key === "passportDepartmentCode") {
+      formatted[key] = normalizePassportDepartmentCode(value);
       return;
     }
 

@@ -165,6 +165,7 @@ export const useEmployeeActions = (onSuccess) => {
               passportNumber: "Паспорт",
               passportDate: "Дата выдачи паспорта",
               passportIssuer: "Орган выдачи паспорта",
+              passportDepartmentCode: "Код подразделения",
               registrationAddress: "Адрес регистрации",
             };
             return fieldNames[e.field] || e.field;
@@ -255,6 +256,7 @@ export const useEmployeeActions = (onSuccess) => {
               passportNumber: "Паспорт",
               passportDate: "Дата выдачи паспорта",
               passportIssuer: "Орган выдачи паспорта",
+              passportDepartmentCode: "Код подразделения",
               registrationAddress: "Адрес регистрации",
             };
             return fieldNames[e.field] || e.field;

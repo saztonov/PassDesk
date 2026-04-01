@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import { Col, Form, Input, Row, Select } from "antd";
 import {
   formatPhoneNumber,
+  formatPassportDepartmentCode,
   formatRussianPassportNumber,
   noAutoFillProps,
 } from "./employeeFormUtils";
@@ -339,6 +340,26 @@ const EmployeeBasicInfoPrimaryRows = ({
           </Form.Item>
         </Col>
       )}
+      {passportType === "russian" &&
+        !getFieldProps("passportDepartmentCode").hidden && (
+          <Col {...getQuarterColProps(compactLayout)}>
+            <Form.Item
+              name="passportDepartmentCode"
+              label="Код подразделения"
+              required={getFieldProps("passportDepartmentCode").required}
+              rules={getFieldProps("passportDepartmentCode").rules}
+              getValueFromEvent={(e) =>
+                formatPassportDepartmentCode(e.target.value)
+              }
+            >
+              <Input
+                placeholder="111-222"
+                maxLength={7}
+                {...noAutoFillProps}
+              />
+            </Form.Item>
+          </Col>
+        )}
     </Row>
   </>
 );

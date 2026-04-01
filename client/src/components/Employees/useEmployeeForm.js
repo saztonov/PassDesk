@@ -11,6 +11,7 @@ import {
   formatInn,
   formatKig,
   formatPatentNumber,
+  formatPassportDepartmentCode,
   formatPhoneNumber,
   formatRussianPassportNumber,
   formatSnils,
@@ -18,6 +19,7 @@ import {
   normalizeBankBik,
   normalizeKig,
   normalizePatentNumber,
+  normalizePassportDepartmentCode,
   normalizePhoneNumber,
   normalizeRussianPassportNumber,
 } from "./employeeFormUtils";
@@ -254,6 +256,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
       formatPatentNumber,
       formatBlankNumber,
       formatRussianPassportNumber,
+      formatPassportDepartmentCode,
     });
 
   // Обработка изменения гражданства
@@ -283,6 +286,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
             normalizeKig,
             normalizePatentNumber,
             normalizeRussianPassportNumber,
+            normalizePassportDepartmentCode,
           },
         }),
       );
@@ -322,6 +326,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
             normalizeKig,
             normalizePatentNumber,
             normalizeRussianPassportNumber,
+            normalizePassportDepartmentCode,
           },
         }),
       );
@@ -372,6 +377,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
     formatInn,
     formatPatentNumber,
     formatBlankNumber,
+    formatPassportDepartmentCode,
     getFieldProps,
   };
 };

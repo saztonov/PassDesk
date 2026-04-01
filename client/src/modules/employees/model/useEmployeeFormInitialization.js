@@ -27,6 +27,7 @@ export const useEmployeeFormInitialization = ({
   formatKig,
   formatPatentNumber,
   formatBlankNumber,
+  formatPassportDepartmentCode,
 }) => {
   const isVisibleSessionInitializedRef = useRef(false);
 
@@ -148,6 +149,11 @@ export const useEmployeeFormInitialization = ({
             blankNumber: employee.blankNumber
               ? formatBlankNumber(employee.blankNumber)
               : null,
+            passportDepartmentCode:
+              employee.passportType === "russian" &&
+              employee.passportDepartmentCode
+                ? formatPassportDepartmentCode(employee.passportDepartmentCode)
+                : employee.passportDepartmentCode || null,
           };
 
           form.setFieldsValue(formData);
@@ -210,6 +216,7 @@ export const useEmployeeFormInitialization = ({
     formatBlankNumber,
     formatInn,
     formatKig,
+    formatPassportDepartmentCode,
     formatPatentNumber,
     formatPhoneNumber,
     formatSnils,

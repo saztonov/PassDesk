@@ -45,6 +45,16 @@ const formatPassportType = (passportType) => {
   return "-";
 };
 
+const formatPassportDepartmentCode = (value) => {
+  const digits = String(value || "")
+    .replace(/[^\d]/g, "")
+    .slice(0, 6);
+
+  if (!digits) return "-";
+  if (digits.length <= 3) return digits;
+  return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+};
+
 const formatBirthPlace = (employee) => {
   const parts = [
     employee?.birthCountry?.name,
@@ -234,6 +244,12 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
               {employee.passportIssuer || "-"}
             </Descriptions.Item>
           )}
+          {employee.passportType === "russian" &&
+            !getFieldProps("passportDepartmentCode").hidden && (
+              <Descriptions.Item label="Код подразделения" span={1}>
+                {formatPassportDepartmentCode(employee.passportDepartmentCode)}
+              </Descriptions.Item>
+            )}
           {!getFieldProps("inn").hidden && (
             <Descriptions.Item label="ИНН" span={1}>
               {formatInn(employee.inn)}

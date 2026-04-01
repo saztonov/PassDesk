@@ -1812,6 +1812,7 @@ export const getRequestEmployeesForApplication = async (req, res, next) => {
         "passportNumberKeyVersion",
         "passportDate",
         "passportIssuer",
+        "passportDepartmentCode",
         "passportExpiryDate",
         "registrationAddress",
         "patentNumber",

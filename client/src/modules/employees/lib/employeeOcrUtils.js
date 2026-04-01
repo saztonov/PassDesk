@@ -13,6 +13,7 @@ export const OCR_FIELD_LABELS = {
   passportNumber: "№ паспорта",
   passportDate: "Дата выдачи паспорта",
   passportIssuer: "Кем выдан паспорт",
+  passportDepartmentCode: "Код подразделения",
   passportExpiryDate: "Дата окончания паспорта",
   registrationAddress: "Адрес регистрации",
   phone: "Телефон",
@@ -161,9 +162,11 @@ const normalizeCitizenshipLookup = (value) =>
     .trim();
 
 const COUNTRY_NAME_TO_CODES = {
-  russia: ["RU", "RUS"],
-  russian: ["RU", "RUS"],
-  россия: ["RU", "RUS"],
+  russia: ["RU", "RUS", "643"],
+  russian: ["RU", "RUS", "643"],
+  "russian federation": ["RU", "RUS", "643"],
+  россия: ["RU", "RUS", "643"],
+  "российская федерация": ["RU", "RUS", "643"],
   tajikistan: ["TJ", "TJK"],
   точикистон: ["TJ", "TJK"],
   таджикистан: ["TJ", "TJK"],
@@ -211,7 +214,7 @@ const COUNTRY_CODE_ALIASES = Object.entries(COUNTRY_NAME_TO_CODES).reduce(
     });
     return accumulator;
   },
-  { RU: ["RU", "RUS"], RUS: ["RU", "RUS"] },
+  { RU: ["RU", "RUS", "643"], RUS: ["RU", "RUS", "643"], "643": ["RU", "RUS", "643"] },
 );
 
 const getCitizenshipCandidateCodes = (value = "") => {
@@ -438,6 +441,13 @@ const formatPassportNumber = ({ series, number }) => {
   return `${seriesDigits} №${numberDigits.slice(0, 6)}`;
 };
 
+const formatPassportDepartmentCode = (value) => {
+  const digits = toDigits(value, 6);
+  if (!digits) return null;
+  if (digits.length <= 3) return digits;
+  return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+};
+
 const normalizeKig = (value) => {
   const raw = normalizeString(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (!raw) return null;
@@ -546,6 +556,13 @@ export const buildFormPatchFromOcr = ({
     patch.passportIssuer = normalizeString(normalized.passportIssuedBy);
   }
 
+  const passportDepartmentCode = formatPassportDepartmentCode(
+    normalized.passportDepartmentCode,
+  );
+  if (passportDepartmentCode) {
+    patch.passportDepartmentCode = passportDepartmentCode;
+  }
+
   if (normalizeString(normalized.registrationAddress)) {
     patch.registrationAddress = normalizeString(normalized.registrationAddress);
   }
@@ -651,6 +668,10 @@ export const normalizeFormValueForCompare = (fieldName, value) => {
   if (fieldName === "passportNumber") {
     const normalizedPassport = normalizePassportIdentifier(value, 32);
     return normalizedPassport || toDigits(value, 16);
+  }
+
+  if (fieldName === "passportDepartmentCode") {
+    return toDigits(value, 6);
   }
 
   if (fieldName === "phone") {

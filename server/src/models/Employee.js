@@ -293,6 +293,12 @@ Employee.init(
       field: "passport_issuer",
       comment: "Кем выдан паспорт",
     },
+    passportDepartmentCode: {
+      type: DataTypes.STRING(7),
+      allowNull: true,
+      field: "passport_department_code",
+      comment: "Код подразделения паспорта РФ (111-222)",
+    },
     passportType: {
       type: DataTypes.STRING(20),
       allowNull: true,

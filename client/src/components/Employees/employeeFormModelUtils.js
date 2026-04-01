@@ -60,6 +60,7 @@ export const buildEmployeeInitialFormData = ({
   formatPatentNumber,
   formatBlankNumber,
   formatRussianPassportNumber,
+  formatPassportDepartmentCode,
 }) => {
   if (!employee) {
     return null;
@@ -137,6 +138,10 @@ export const buildEmployeeInitialFormData = ({
       employee.passportNumber
         ? formatRussianPassportNumber(employee.passportNumber)
         : employee.passportNumber,
+    passportDepartmentCode:
+      employee.passportType === "russian" && employee.passportDepartmentCode
+        ? formatPassportDepartmentCode(employee.passportDepartmentCode)
+        : employee.passportDepartmentCode,
   };
 };
 
@@ -160,6 +165,10 @@ export const buildSaveNormalizedValues = ({ values, normalizers }) => ({
     values.passportType === "russian"
       ? normalizers.normalizeRussianPassportNumber(values.passportNumber)
       : values.passportNumber,
+  passportDepartmentCode:
+    values.passportType === "russian"
+      ? normalizers.normalizePassportDepartmentCode(values.passportDepartmentCode)
+      : null,
 });
 
 export const buildDraftNormalizedValues = ({ values, normalizers }) => ({
@@ -186,6 +195,11 @@ export const buildDraftNormalizedValues = ({ values, normalizers }) => ({
     ? values.passportType === "russian"
       ? normalizers.normalizeRussianPassportNumber(values.passportNumber)
       : values.passportNumber
+    : null,
+  passportDepartmentCode: values.passportDepartmentCode
+    ? values.passportType === "russian"
+      ? normalizers.normalizePassportDepartmentCode(values.passportDepartmentCode)
+      : null
     : null,
 });
 

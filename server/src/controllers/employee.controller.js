@@ -94,6 +94,7 @@ const EMPLOYEE_UPDATE_ALLOWED_FIELDS = new Set([
   "passportNumber",
   "passportDate",
   "passportIssuer",
+  "passportDepartmentCode",
   "passportType",
   "passportExpiryDate",
   "kigEndDate",
@@ -134,6 +135,11 @@ const filterEmployeeMutableFields = (
       return;
     }
 
+    if (key === "passportDepartmentCode") {
+      sanitized[key] = normalizePassportDepartmentCode(value);
+      return;
+    }
+
     sanitized[key] = value;
   });
 
@@ -151,6 +157,22 @@ const applyEmployeeSensitiveFieldEncryption = (payload = {}) => {
 
 const normalizeDigitsSearch = (value = "") =>
   String(value || "").replace(/[^\d]/g, "");
+
+const normalizePassportDepartmentCode = (value) => {
+  const digits = String(value || "")
+    .replace(/[^\d]/g, "")
+    .slice(0, 6);
+
+  if (!digits) {
+    return null;
+  }
+
+  if (digits.length <= 3) {
+    return digits;
+  }
+
+  return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+};
 
 const getEmployeeDocumentExpiryDates = (employee) => {
   const dates = [
@@ -2369,6 +2391,8 @@ export const updateEmployee = async (req, res, next) => {
       // Преобразуем пустые строки в null
       if (value === "" || value === undefined) {
         cleanedData[key] = null;
+      } else if (key === "passportDepartmentCode") {
+        cleanedData[key] = normalizePassportDepartmentCode(value);
       } else {
         cleanedData[key] = value;
       }
@@ -5049,6 +5073,7 @@ export const updateMyProfile = async (req, res, next) => {
       "passportNumber",
       "passportDate",
       "passportIssuer",
+      "passportDepartmentCode",
       "registrationAddress",
       "patentNumber",
       "patentIssueDate",
@@ -5065,6 +5090,9 @@ export const updateMyProfile = async (req, res, next) => {
       }
 
       filteredData[field] = updateData[field] === "" ? null : updateData[field];
+      if (field === "passportDepartmentCode") {
+        filteredData[field] = normalizePassportDepartmentCode(updateData[field]);
+      }
     });
 
     console.log("✅ Filtered data:", filteredData);

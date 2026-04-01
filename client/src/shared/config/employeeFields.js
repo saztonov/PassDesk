@@ -26,6 +26,7 @@ export const EMPLOYEE_FIELDS = [
   { key: 'passportNumber', label: 'Серия и номер паспорта', group: 'documents', defaultRequired: true, defaultVisible: true },
   { key: 'passportDate', label: 'Дата выдачи паспорта', group: 'documents', defaultRequired: true, defaultVisible: true },
   { key: 'passportIssuer', label: 'Кем выдан паспорт', group: 'documents', defaultRequired: true, defaultVisible: true },
+  { key: 'passportDepartmentCode', label: 'Код подразделения', group: 'documents', defaultRequired: false, defaultVisible: true },
   { key: 'passportExpiryDate', label: 'Дата окончания паспорта', group: 'documents', defaultRequired: false, defaultVisible: true }, // Только для иностранцев
   { key: 'bankAccountNumber', label: 'Номер банковского счета', group: 'documents', defaultRequired: false, defaultVisible: true },
   { key: 'bankBik', label: 'БИК', group: 'documents', defaultRequired: false, defaultVisible: true },

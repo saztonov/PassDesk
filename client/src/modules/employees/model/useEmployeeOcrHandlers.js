@@ -21,10 +21,58 @@ const toFileId = (responseData = {}, fallbackFileId = null) =>
   normalizeString(responseData.fileId || responseData?.data?.fileId) ||
   fallbackFileId;
 
+const toDigits = (value = "") => String(value || "").replace(/[^\d]/g, "");
+
+const shouldRetryPassportAsRussian = (normalized = {}) => {
+  const passportNumberDigits = toDigits(normalized?.passportNumber);
+  const citizenship = normalizeString(normalized?.citizenship).toUpperCase();
+  const hasDepartmentCode = Boolean(
+    normalizeString(normalized?.passportDepartmentCode),
+  );
+  const hasRussianSeries = toDigits(normalized?.passportSeries).length === 4;
+
+  if (hasDepartmentCode || hasRussianSeries) {
+    return false;
+  }
+
+  return (
+    passportNumberDigits.length >= 9 &&
+    (citizenship === "RUS" || citizenship === "RU")
+  );
+};
+
+const scoreRussianPassportNormalized = (normalized = {}) => {
+  const passportSeriesDigits = toDigits(normalized?.passportSeries);
+  const passportNumberDigits = toDigits(normalized?.passportNumber);
+  const departmentCode = normalizeString(normalized?.passportDepartmentCode);
+  const issuedAt = normalizeString(normalized?.passportIssuedAt);
+  const issuedBy = normalizeString(normalized?.passportIssuedBy);
+  const lastName = normalizeString(normalized?.lastName);
+  const firstName = normalizeString(normalized?.firstName);
+  const birthDate = normalizeString(normalized?.birthDate);
+
+  let score = 0;
+
+  if (/^\d{3}-\d{3}$/.test(departmentCode)) score += 8;
+  if (passportSeriesDigits.length === 4) score += 4;
+  if (passportNumberDigits.length === 6) score += 4;
+  if (passportSeriesDigits.length === 4 && passportNumberDigits.length === 6) {
+    score += 3;
+  }
+  if (issuedAt) score += 2;
+  if (issuedBy) score += 2;
+  if (lastName) score += 1;
+  if (firstName) score += 1;
+  if (birthDate) score += 1;
+
+  return score;
+};
+
 export const useEmployeeOcrHandlers = ({
   form,
   citizenships = [],
   getPassportType,
+  onAutofillApplied,
   messageApi,
   dateOutputMode = "dayjs",
   employeeId = null,
@@ -100,14 +148,52 @@ export const useEmployeeOcrHandlers = ({
       setProcessingMap((prev) => ({ ...prev, [fileId]: true }));
 
       try {
-        const response = await ocrService.recognizeDocument({
+        let effectiveOcrDocumentType = ocrDocumentType;
+
+        let response = await ocrService.recognizeDocument({
           fileId,
           employeeId,
-          documentType: ocrDocumentType,
+          documentType: effectiveOcrDocumentType,
         });
 
-        const responseData = toResponseData(response);
-        const normalized = toNormalizedPayload(responseData);
+        let responseData = toResponseData(response);
+        let normalized = toNormalizedPayload(responseData);
+
+        if (
+          docType === "passport" &&
+          effectiveOcrDocumentType === "foreign_passport" &&
+          normalized &&
+          shouldRetryPassportAsRussian(normalized)
+        ) {
+          try {
+            const russianResponse = await ocrService.recognizeDocument({
+              fileId,
+              employeeId,
+              documentType: "passport_rf",
+            });
+
+            const russianResponseData = toResponseData(russianResponse);
+            const russianNormalized = toNormalizedPayload(russianResponseData);
+
+            if (russianNormalized) {
+              const currentScore = scoreRussianPassportNormalized(normalized);
+              const russianScore =
+                scoreRussianPassportNormalized(russianNormalized);
+
+              if (russianScore >= currentScore) {
+                responseData = russianResponseData;
+                normalized = russianNormalized;
+                effectiveOcrDocumentType = "passport_rf";
+              }
+            }
+          } catch (fallbackError) {
+            console.warn(
+              "[OCR] passport fallback to passport_rf failed:",
+              fallbackError,
+            );
+          }
+        }
+
         if (!normalized || typeof normalized !== "object") {
           messageApi?.warning?.("OCR не вернул распознанные поля");
           return;
@@ -119,8 +205,13 @@ export const useEmployeeOcrHandlers = ({
           dateOutputMode,
         });
 
-        if (ocrDocumentType === "foreign_passport") {
+        if (effectiveOcrDocumentType === "foreign_passport") {
           formPatch.passportType = "foreign";
+        } else if (
+          docType === "passport" &&
+          effectiveOcrDocumentType === "passport_rf"
+        ) {
+          formPatch.passportType = "russian";
         }
 
         // Fallback: если citizenshipId не заполнился — ищем вручную по имени/коду
@@ -150,8 +241,14 @@ export const useEmployeeOcrHandlers = ({
           overwriteFields: docType === "passport_translation" ? Object.keys(formPatch) : [],
         });
 
-        if (ocrDocumentType === "foreign_passport") {
+        if (effectiveOcrDocumentType === "foreign_passport") {
           autoFillPatch.passportType = "foreign";
+          delete conflicts.passportType;
+        } else if (
+          docType === "passport" &&
+          effectiveOcrDocumentType === "passport_rf"
+        ) {
+          autoFillPatch.passportType = "russian";
           delete conflicts.passportType;
         }
 
@@ -161,6 +258,13 @@ export const useEmployeeOcrHandlers = ({
 
         if (Object.keys(autoFillPatch).length > 0) {
           form.setFieldsValue(autoFillPatch);
+          if (typeof onAutofillApplied === "function") {
+            try {
+              onAutofillApplied(autoFillPatch, form.getFieldsValue(true));
+            } catch (callbackError) {
+              console.warn("[OCR] onAutofillApplied callback failed:", callbackError);
+            }
+          }
         }
 
         const autoFillCount = Object.keys(autoFillPatch).length;
@@ -182,7 +286,7 @@ export const useEmployeeOcrHandlers = ({
             fileId: resultFileId,
             provider,
             result: {
-              documentType: ocrDocumentType,
+              documentType: effectiveOcrDocumentType,
               normalized,
             },
             conflicts: Object.values(conflicts || {}),
@@ -220,6 +324,7 @@ export const useEmployeeOcrHandlers = ({
       form,
       getPassportType,
       messageApi,
+      onAutofillApplied,
       refreshConflictSummary,
     ],
   );

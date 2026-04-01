@@ -10,6 +10,7 @@ import {
   formatBlankNumber,
   formatInn,
   formatKig,
+  formatPassportDepartmentCode,
   formatPatentNumber,
   formatPhoneNumber,
   formatSnils,
@@ -104,6 +105,19 @@ const EmployeeFormModal = ({
     citizenships,
     getPassportType: () =>
       form.getFieldValue("passportType") || passportType || employee?.passportType,
+    onAutofillApplied: (autoFillPatch, nextValues) => {
+      const hasPassportType = Object.prototype.hasOwnProperty.call(
+        autoFillPatch || {},
+        "passportType",
+      );
+      if (!hasPassportType) {
+        return;
+      }
+
+      const nextPassportType =
+        nextValues?.passportType ?? autoFillPatch?.passportType ?? null;
+      setPassportType(nextPassportType || null);
+    },
     messageApi: message,
     employeeId: employee?.id || null,
     visible,
@@ -179,6 +193,7 @@ const EmployeeFormModal = ({
     formatKig,
     formatPatentNumber,
     formatBlankNumber,
+    formatPassportDepartmentCode,
   });
 
   const updateSelectedCitizenship = useCallback(

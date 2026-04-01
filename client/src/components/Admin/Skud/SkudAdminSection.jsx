@@ -265,6 +265,7 @@ const SkudAdminSection = () => {
   const [directionFilter, setDirectionFilter] = useState("all");
   const [accessPointFilter, setAccessPointFilter] = useState(undefined);
   const [employeeNameFilter, setEmployeeNameFilter] = useState("");
+  const [debouncedEmployeeNameFilter, setDebouncedEmployeeNameFilter] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState(undefined);
   const [counterpartyFilter, setCounterpartyFilter] = useState(undefined);
   const [constructionSiteFilter, setConstructionSiteFilter] = useState(undefined);
@@ -281,6 +282,7 @@ const SkudAdminSection = () => {
   const [bindingsAuditMismatchOnly, setBindingsAuditMismatchOnly] = useState(true);
   const cardNumberInputRef = useRef(null);
   const eventsAutoRefreshRef = useRef(false);
+  const loadDataRequestIdRef = useRef(0);
   const wsRef = useRef(null);
   const handleAssignCardRef = useRef(null);
   const [wsConnected, setWsConnected] = useState(false);
@@ -302,7 +304,17 @@ const SkudAdminSection = () => {
     },
   });
 
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedEmployeeNameFilter(String(employeeNameFilter || "").trim());
+    }, 350);
+
+    return () => clearTimeout(timeoutId);
+  }, [employeeNameFilter]);
+
   const loadData = useCallback(async () => {
+    const requestId = loadDataRequestIdRef.current + 1;
+    loadDataRequestIdRef.current = requestId;
     setLoading(true);
     try {
       const [health, stats, events, syncJobs, cards] = await Promise.all([
@@ -312,8 +324,8 @@ const SkudAdminSection = () => {
           limit: EVENT_LOAD_LIMIT,
           offset: 0,
           passageOnly: showOnlyPassages,
-          ...(employeeNameFilter.trim()
-            ? { employeeName: employeeNameFilter.trim() }
+          ...(debouncedEmployeeNameFilter
+            ? { employeeName: debouncedEmployeeNameFilter }
             : {}),
           ...(departmentFilter ? { departmentId: departmentFilter } : {}),
           ...(counterpartyFilter ? { counterpartyId: counterpartyFilter } : {}),
@@ -334,6 +346,10 @@ const SkudAdminSection = () => {
         skudService.getCards({ limit: 20, offset: 0 }),
       ]);
 
+      if (requestId !== loadDataRequestIdRef.current) {
+        return;
+      }
+
       setState({
         health,
         stats,
@@ -342,10 +358,15 @@ const SkudAdminSection = () => {
         cards,
       });
     } catch (error) {
+      if (requestId !== loadDataRequestIdRef.current) {
+        return;
+      }
       console.error("Failed to load SKUD admin data:", error);
       message.error(getRequestErrorMessage(error, "Не удалось загрузить данные СКУД"));
     } finally {
-      setLoading(false);
+      if (requestId === loadDataRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [
     accessPointFilter,
@@ -354,7 +375,7 @@ const SkudAdminSection = () => {
     departmentFilter,
     decisionFilter,
     directionFilter,
-    employeeNameFilter,
+    debouncedEmployeeNameFilter,
     eventDateRange,
     eventTypeFilter,
     eventsSortOrder,
@@ -2341,6 +2362,7 @@ const SkudAdminSection = () => {
                       <Button
                         onClick={() => {
                           setEmployeeNameFilter("");
+                          setDebouncedEmployeeNameFilter("");
                           setDepartmentFilter(undefined);
                           setCounterpartyFilter(undefined);
                           setConstructionSiteFilter(undefined);

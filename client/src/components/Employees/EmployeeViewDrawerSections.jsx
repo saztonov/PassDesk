@@ -1,6 +1,7 @@
 import { Form, Input, Select, Typography } from "antd";
 import dayjs from "dayjs";
 import EmployeeDocumentUpload from "./EmployeeDocumentUpload";
+import { formatPassportDepartmentCode } from "@/modules/employees/lib/employeeFormFormatters";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -32,6 +33,10 @@ export const buildEmployeeViewDrawerFormData = (employee) => {
       ? dayjs(employee.passportDate).format(DATE_FORMAT)
       : null,
     passportIssuer: employee.passportIssuer,
+    passportDepartmentCode:
+      employee.passportType === "russian"
+        ? formatPassportDepartmentCode(employee.passportDepartmentCode)
+        : employee.passportDepartmentCode,
     kig: employee.kig,
     kigEndDate: employee.kigEndDate
       ? dayjs(employee.kigEndDate).format(DATE_FORMAT)
@@ -254,6 +259,22 @@ export const buildEmployeeViewDrawerItems = ({
               />
             </Form.Item>
           )}
+
+          {employee?.passportType === "russian" &&
+            !getFieldProps("passportDepartmentCode").hidden && (
+              <Form.Item
+                label="Код подразделения"
+                name="passportDepartmentCode"
+              >
+                <Input
+                  placeholder={
+                    employee?.passportDepartmentCode ? undefined : ""
+                  }
+                  size="large"
+                  disabled
+                />
+              </Form.Item>
+            )}
 
         </>
       ),

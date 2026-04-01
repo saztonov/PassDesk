@@ -318,6 +318,17 @@ const parseDateValue = (value) => {
   return parsed.toISOString().slice(0, 10);
 };
 
+const normalizePassportDepartmentCode = (value) => {
+  const digits = normalizeString(value).replace(/[^\d]/g, "").slice(0, 6);
+  if (!digits) {
+    return null;
+  }
+  if (digits.length <= 3) {
+    return digits;
+  }
+  return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+};
+
 const normalizeConflictValueForEmployeeField = (fieldName, value) => {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -362,6 +373,10 @@ const normalizeConflictValueForEmployeeField = (fieldName, value) => {
   if (fieldName === "gender") {
     const normalized = normalizeString(value).toLowerCase();
     return normalized === "male" || normalized === "female" ? normalized : null;
+  }
+
+  if (fieldName === "passportDepartmentCode") {
+    return normalizePassportDepartmentCode(value);
   }
 
   const normalized = normalizeString(value);

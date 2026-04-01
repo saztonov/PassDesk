@@ -29,6 +29,7 @@ export const EMPLOYEE_FIELDS = [
   { key: 'passportNumber', defaultRequired: true, defaultVisible: true },
   { key: 'passportDate', defaultRequired: true, defaultVisible: true },
   { key: 'passportIssuer', defaultRequired: true, defaultVisible: true },
+  { key: 'passportDepartmentCode', defaultRequired: false, defaultVisible: true },
   { key: 'passportExpiryDate', defaultRequired: false, defaultVisible: true },
   { key: 'bankAccountNumber', defaultRequired: false, defaultVisible: true },
   { key: 'bankBik', defaultRequired: false, defaultVisible: true },

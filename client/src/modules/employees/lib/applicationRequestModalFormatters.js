@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 import { formatInn, formatKig, formatSnils } from "@/utils/formatters";
+import { formatPassportDepartmentCode } from "@/modules/employees/lib/employeeFormFormatters";
 
 const formatDateValue = (value) =>
   value ? dayjs(value).format("DD.MM.YYYY") : "-";
@@ -50,6 +51,8 @@ const formatApplicationRequestCellValue = (employee, columnKey) => {
       return formatDateValue(employee.passportExpiryDate);
     case "passportIssuer":
       return employee.passportIssuer || "-";
+    case "passportDepartmentCode":
+      return formatPassportDepartmentCode(employee.passportDepartmentCode) || "-";
     case "registrationAddress":
       return employee.registrationAddress || "-";
     case "phone":

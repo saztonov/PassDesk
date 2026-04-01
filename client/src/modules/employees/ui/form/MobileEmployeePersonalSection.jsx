@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import MaskedDateInput from "@/shared/ui/MaskedDateInput";
 import EmployeeDocumentUpload from "@/components/Employees/EmployeeDocumentUpload";
 import { profileDocumentTypeLabels } from "@/modules/employees/lib/documentTypeProfiles";
+import { formatPassportDepartmentCode } from "@/modules/employees/lib/employeeFormFormatters";
 import {
   createDateInputRules,
   formatDateInputValue,
@@ -379,6 +380,32 @@ export const buildMobileEmployeePersonalSection = ({
             size="large"
             {...noAutoFillProps}
           />
+        </Form.Item>
+      )}
+
+      {!getFieldProps("passportDepartmentCode").hidden && (
+        <Form.Item
+          shouldUpdate={(prev, cur) => prev.passportType !== cur.passportType}
+          noStyle
+        >
+          {({ getFieldValue }) =>
+            getFieldValue("passportType") === "russian" ? (
+              <Form.Item
+                label={renderRequiredLabel(
+                  "Код подразделения",
+                  getFieldProps("passportDepartmentCode").required,
+                )}
+                name="passportDepartmentCode"
+                required={getFieldProps("passportDepartmentCode").required}
+                rules={getFieldProps("passportDepartmentCode").rules}
+                getValueFromEvent={(e) =>
+                  formatPassportDepartmentCode(e.target.value)
+                }
+              >
+                <Input placeholder="111-222" size="large" maxLength={7} />
+              </Form.Item>
+            ) : null
+          }
         </Form.Item>
       )}
 

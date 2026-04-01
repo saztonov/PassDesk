@@ -66,3 +66,17 @@ export const normalizeRussianPassportNumber = (value) => {
   if (!value) return value;
   return value.replace(/[\s№]/g, "");
 };
+
+export const formatPassportDepartmentCode = (value) => {
+  if (!value) return value;
+
+  const digits = String(value).replace(/[^\d]/g, "").slice(0, 6);
+  if (!digits) return "";
+  if (digits.length <= 3) return digits;
+  return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+};
+
+export const normalizePassportDepartmentCode = (value) => {
+  if (!value) return value;
+  return formatPassportDepartmentCode(value);
+};
