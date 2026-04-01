@@ -17,8 +17,10 @@ const EmployeeBasicInfoHeader = ({
   const isDefaultCounterpartyUser =
     user?.counterpartyId === defaultCounterpartyId;
   const isAdmin = user?.role === "admin";
+  const isManager = user?.role === "manager";
   const canManageStatuses = canManageEmployeeStatuses(user?.role);
-  const canTransfer = isDefaultCounterpartyUser && (isAdmin || employee.isContractor);
+  const canTransfer =
+    isDefaultCounterpartyUser && (isAdmin || isManager || employee.isContractor);
 
   if (!canManageStatuses && !canTransfer) {
     return null;

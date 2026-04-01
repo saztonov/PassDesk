@@ -548,11 +548,17 @@ const UsersPage = () => {
           <Form.Item
             name="counterpartyId"
             label="Контрагент"
-            tooltip="Контрагент, к которому привязан пользователь"
+            tooltip="Компания, к которой привязан пользователь"
+            rules={[
+              {
+                required: !editingUser,
+                message: "Выберите компанию",
+              },
+            ]}
           >
             <Select
-              placeholder="Не выбрано"
-              allowClear
+              placeholder="Выберите компанию"
+              allowClear={Boolean(editingUser)}
               showSearch
               optionFilterProp="label"
               filterOption={(input, option) => {

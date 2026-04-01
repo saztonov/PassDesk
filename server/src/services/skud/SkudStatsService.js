@@ -41,6 +41,14 @@ export const getSkudHealth = async () => {
     order: [["updatedAt", "DESC"]],
     attributes: ["id", "status", "updatedAt", "processedAt"],
   });
+  const latestPulledEvent = await SkudAccessEvent.findOne({
+    where: {
+      externalSystem: "sigur",
+      source: "sigur_pull",
+    },
+    order: [["eventTime", "DESC"]],
+    attributes: ["eventTime", "createdAt", "logId"],
+  });
 
   return {
     provider: "sigur",
@@ -48,6 +56,9 @@ export const getSkudHealth = async () => {
     authExpiresAt: auth?.expiresAt || null,
     authError,
     lastSyncAt: latestSyncJob?.processedAt || latestSyncJob?.updatedAt || null,
+    lastPulledEventAt: latestPulledEvent?.eventTime || null,
+    lastPulledAt: latestPulledEvent?.createdAt || null,
+    lastPulledLogId: latestPulledEvent?.logId || null,
   };
 };
 

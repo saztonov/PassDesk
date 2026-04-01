@@ -1,5 +1,5 @@
 import { AppError } from "../middleware/errorHandler.js";
-import { User, RefreshToken } from "../models/index.js";
+import { User, RefreshToken, Counterparty, AuditLog } from "../models/index.js";
 import { Op } from "sequelize";
 import {
   isPasswordAllowed,
@@ -124,6 +124,18 @@ export const createUser = async (req, res, next) => {
       role = "user",
       counterpartyId,
     } = req.body;
+    const normalizedCounterpartyId = String(counterpartyId || "").trim();
+
+    if (!normalizedCounterpartyId) {
+      throw new AppError("Необходимо выбрать компанию для пользователя", 400);
+    }
+
+    const counterparty = await Counterparty.findByPk(normalizedCounterpartyId, {
+      attributes: ["id", "name"],
+    });
+    if (!counterparty) {
+      throw new AppError("Компания не найдена", 404);
+    }
 
     // Проверяем, существует ли пользователь
     const existingUser = await User.findOne({ where: { email } });
@@ -138,8 +150,36 @@ export const createUser = async (req, res, next) => {
       firstName,
       lastName,
       role,
-      counterpartyId,
+      counterpartyId: normalizedCounterpartyId,
     });
+
+    try {
+      await AuditLog.create({
+        userId: req.user.id,
+        action: "USER_CREATE",
+        entityType: "user",
+        entityId: user.id,
+        details: {
+          createdUser: {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            counterpartyId: counterparty.id,
+            counterpartyName: counterparty.name,
+          },
+          author: {
+            id: req.user.id,
+            email: req.user.email || null,
+            role: req.user.role || null,
+          },
+        },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+        status: "success",
+      });
+    } catch (auditError) {
+      console.error("Failed to write USER_CREATE audit log:", auditError);
+    }
 
     res.status(201).json({
       success: true,

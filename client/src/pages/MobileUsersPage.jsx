@@ -403,11 +403,17 @@ const MobileUsersPage = () => {
           <Form.Item
             name="counterpartyId"
             label="Контрагент"
-            tooltip="Необязательно. Если указан, пользователь привязан к конкретному контрагенту"
+            tooltip="Компания, к которой привязан пользователь"
+            rules={[
+              {
+                required: !editingUser,
+                message: "Выберите компанию",
+              },
+            ]}
           >
             <Select
-              placeholder="Не выбрано"
-              allowClear
+              placeholder="Выберите компанию"
+              allowClear={Boolean(editingUser)}
               showSearch
               optionFilterProp="label"
               filterOption={(input, option) => {

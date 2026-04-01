@@ -38,8 +38,6 @@ import dayjs from "dayjs";
 import * as XLSX from "xlsx";
 import { employeeService } from "@/services/employeeService";
 import { passService } from "@/services/passService";
-import { counterpartyService } from "@/services/counterpartyService";
-import { constructionSiteService } from "@/services/constructionSiteService";
 import { departmentService } from "@/services/departmentService";
 import { readSkudBindingImportExcel } from "@/modules/skud/lib/readSkudBindingImportExcel";
 import skudService from "@/services/skudService";
@@ -97,6 +95,144 @@ const getAccessPointName = (record) => {
   return value ? String(value).trim() : "";
 };
 
+const splitHierarchySegments = (value) =>
+  String(value || "")
+    .split("/")
+    .map((part) => String(part || "").trim())
+    .filter(Boolean);
+
+const extractSigurCounterpartyFromDepartmentPath = (pathValue) => {
+  const segments = Array.isArray(pathValue)
+    ? pathValue
+        .map((part) => String(part || "").trim())
+        .filter(Boolean)
+    : splitHierarchySegments(pathValue);
+  if (!segments.length) {
+    return "";
+  }
+  const contractorsRootIndex = segments.findIndex((segment) =>
+    /^подрядн/i.test(String(segment || "").trim()),
+  );
+  if (contractorsRootIndex >= 0 && segments[contractorsRootIndex + 1]) {
+    return String(segments[contractorsRootIndex + 1] || "").trim();
+  }
+  return "";
+};
+
+const buildSigurCounterpartyOptionsFromDepartments = (departments) => {
+  const unique = new Map();
+  for (const department of departments || []) {
+    const label = extractSigurCounterpartyFromDepartmentPath(
+      Array.isArray(department?.path) ? department.path : department?.pathLabel,
+    );
+    if (!label) {
+      continue;
+    }
+    const token = String(label).toLowerCase().replace(/\s+/g, " ").trim();
+    if (!token || unique.has(token)) {
+      continue;
+    }
+    unique.set(token, {
+      value: label,
+      label,
+    });
+  }
+  return Array.from(unique.values()).sort((left, right) =>
+    String(left.label || "").localeCompare(String(right.label || ""), "ru"),
+  );
+};
+
+const extractSigurConstructionSiteNameFromPath = (pathValue) => {
+  const segments = Array.isArray(pathValue)
+    ? pathValue
+        .map((part) => String(part || "").trim())
+        .filter(Boolean)
+    : splitHierarchySegments(pathValue);
+  if (!segments.length) {
+    return "";
+  }
+
+  const ignorePatterns = [
+    /^\d+\s*структур/i,
+    /подрядн/i,
+    /^отдел\b/i,
+    /^офис$/i,
+    /^охрана/i,
+    /^автопарк/i,
+    /^медперсонал/i,
+    /^допуск/i,
+    /^гостев/i,
+  ];
+
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const candidate = String(segments[index] || "").trim();
+    if (!candidate) {
+      continue;
+    }
+    if (!ignorePatterns.some((pattern) => pattern.test(candidate))) {
+      return candidate;
+    }
+  }
+
+  return String(segments[segments.length - 1] || "").trim();
+};
+
+const buildSigurConstructionSiteOptionsFromAccessPoints = (accessPoints) => {
+  const unique = new Map();
+  for (const item of accessPoints || []) {
+    const label = extractSigurConstructionSiteNameFromPath(item?.pathLabel);
+    if (!label) {
+      continue;
+    }
+    const token = String(label).toLowerCase().replace(/\s+/g, " ").trim();
+    if (!token || unique.has(token)) {
+      continue;
+    }
+    unique.set(token, {
+      value: label,
+      label,
+    });
+  }
+  return Array.from(unique.values()).sort((left, right) =>
+    String(left.label || "").localeCompare(String(right.label || ""), "ru"),
+  );
+};
+
+const getAccessPointHierarchyLabel = (record) => {
+  const fromPathLabel = splitHierarchySegments(record?.accessPointPathLabel);
+  if (fromPathLabel.length > 0) {
+    return fromPathLabel.join(" / ");
+  }
+
+  const fromAccessPointLabel = splitHierarchySegments(record?.accessPointLabel);
+  if (fromAccessPointLabel.length >= 2) {
+    return fromAccessPointLabel.slice(0, -1).join(" / ");
+  }
+
+  return "";
+};
+
+const getConstructionSiteFallbackFromAccessPoint = (record) => {
+  const fromPathLabel = splitHierarchySegments(record?.accessPointPathLabel);
+  if (fromPathLabel.length > 0) {
+    return fromPathLabel[fromPathLabel.length - 1];
+  }
+
+  const fromAccessPointLabel = splitHierarchySegments(record?.accessPointLabel);
+  if (fromAccessPointLabel.length >= 2) {
+    return fromAccessPointLabel[fromAccessPointLabel.length - 2];
+  }
+
+  return "";
+};
+
+const getConstructionSiteDisplayLabel = (record) => {
+  if (Array.isArray(record?.eventConstructionSiteNames) && record.eventConstructionSiteNames.length) {
+    return record.eventConstructionSiteNames.join(", ");
+  }
+  return record?.constructionSiteName || getConstructionSiteFallbackFromAccessPoint(record) || "";
+};
+
 const getPassReason = (record) => {
   const rawItem = getRawEventItem(record);
   const value =
@@ -146,6 +282,55 @@ const getLocalEmployeeName = (record) => String(record?.employeeName || "").trim
 
 const getEmployeeDepartmentName = (record) => String(record?.departmentName || "").trim();
 
+const isLikelyCounterpartyLabel = (value) =>
+  /\b(ооо|ао|зао|пао|ип)\b/i.test(String(value || "").trim());
+
+const getCounterpartyFallbackFromHierarchy = (record) => {
+  const segments = splitHierarchySegments(record?.accessPointPathLabel).length
+    ? splitHierarchySegments(record?.accessPointPathLabel)
+    : splitHierarchySegments(record?.accessPointLabel);
+  if (!segments.length) {
+    return "";
+  }
+  const rootIndex = segments.findIndex((segment) =>
+    /^подрядн/i.test(String(segment || "").trim()),
+  );
+  if (rootIndex >= 0 && segments[rootIndex + 1]) {
+    return String(segments[rootIndex + 1]).trim();
+  }
+  if (/^\d+\s*структур/i.test(String(segments[0] || "")) && segments[1]) {
+    return String(segments[1]).trim();
+  }
+  if (segments[0]) {
+    return String(segments[0]).trim();
+  }
+  return "";
+};
+
+const getCounterpartyDisplayName = (record) => {
+  const explicitCounterparty = String(record?.counterpartyName || "").trim();
+  if (explicitCounterparty) {
+    return explicitCounterparty;
+  }
+
+  const providerFolderCounterparty = String(record?.providerCounterpartyFolderName || "").trim();
+  if (providerFolderCounterparty) {
+    return providerFolderCounterparty;
+  }
+
+  const fromHierarchy = getCounterpartyFallbackFromHierarchy(record);
+  if (fromHierarchy) {
+    return fromHierarchy;
+  }
+
+  const departmentName = getEmployeeDepartmentName(record);
+  if (departmentName && isLikelyCounterpartyLabel(departmentName)) {
+    return departmentName;
+  }
+
+  return "";
+};
+
 const renderHierarchyFolderTitle = (label, { loading = false, loadedCount = null } = {}) => (
   <Space size={8}>
     {loading ? <SyncOutlined spin /> : <FolderOpenOutlined />}
@@ -177,7 +362,9 @@ const getRequestErrorMessage = (error, fallback) =>
   || fallback;
 
 const getTodayEventRange = () => [dayjs().startOf("day"), dayjs().endOf("day")];
-const EVENT_LOAD_LIMIT = 200;
+const DEFAULT_EVENT_LOAD_LIMIT = 20;
+const MIN_EVENT_LOAD_LIMIT = 20;
+const MAX_EVENT_LOAD_LIMIT = 200;
 const SKUD_TAB_KEYS = new Set(["events", "employees", "qr", "site-access-points"]);
 
 const resolveSkudTab = (value) => {
@@ -265,7 +452,6 @@ const SkudAdminSection = () => {
   const [directionFilter, setDirectionFilter] = useState("all");
   const [accessPointFilter, setAccessPointFilter] = useState(undefined);
   const [employeeNameFilter, setEmployeeNameFilter] = useState("");
-  const [debouncedEmployeeNameFilter, setDebouncedEmployeeNameFilter] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState(undefined);
   const [counterpartyFilter, setCounterpartyFilter] = useState(undefined);
   const [constructionSiteFilter, setConstructionSiteFilter] = useState(undefined);
@@ -274,9 +460,20 @@ const SkudAdminSection = () => {
   const [departmentOptions, setDepartmentOptions] = useState([]);
   const [eventsFiltersLoading, setEventsFiltersLoading] = useState(false);
   const [eventDateRange, setEventDateRange] = useState(getTodayEventRange);
+  const [appliedShowOnlyPassages, setAppliedShowOnlyPassages] = useState(true);
+  const [appliedEventTypeFilter, setAppliedEventTypeFilter] = useState("all");
+  const [appliedDecisionFilter, setAppliedDecisionFilter] = useState("all");
+  const [appliedDirectionFilter, setAppliedDirectionFilter] = useState("all");
+  const [appliedAccessPointFilter, setAppliedAccessPointFilter] = useState(undefined);
+  const [appliedEmployeeNameFilter, setAppliedEmployeeNameFilter] = useState("");
+  const [appliedDepartmentFilter, setAppliedDepartmentFilter] = useState(undefined);
+  const [appliedCounterpartyFilter, setAppliedCounterpartyFilter] = useState(undefined);
+  const [appliedConstructionSiteFilter, setAppliedConstructionSiteFilter] = useState(undefined);
+  const [appliedEventDateRange, setAppliedEventDateRange] = useState(getTodayEventRange);
   const [eventsPage, setEventsPage] = useState(1);
   const [eventsPageSize, setEventsPageSize] = useState(20);
   const [eventsSortOrder, setEventsSortOrder] = useState("descend");
+  const [eventsMetaLoading, setEventsMetaLoading] = useState(false);
   const [bindingsAuditLoading, setBindingsAuditLoading] = useState(false);
   const [bindingsAuditItems, setBindingsAuditItems] = useState([]);
   const [bindingsAuditMismatchOnly, setBindingsAuditMismatchOnly] = useState(true);
@@ -292,7 +489,7 @@ const SkudAdminSection = () => {
     stats: null,
     events: {
       items: [],
-      pagination: { total: 0, limit: EVENT_LOAD_LIMIT, offset: 0 },
+      pagination: { total: 0, limit: DEFAULT_EVENT_LOAD_LIMIT, offset: 0 },
     },
     syncJobs: {
       items: [],
@@ -304,44 +501,108 @@ const SkudAdminSection = () => {
     },
   });
 
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setDebouncedEmployeeNameFilter(String(employeeNameFilter || "").trim());
-    }, 350);
-
-    return () => clearTimeout(timeoutId);
-  }, [employeeNameFilter]);
-
   const loadData = useCallback(async () => {
     const requestId = loadDataRequestIdRef.current + 1;
     loadDataRequestIdRef.current = requestId;
     setLoading(true);
+    setEventsMetaLoading(false);
     try {
-      const [health, stats, events, syncJobs, cards] = await Promise.all([
-        skudService.getHealth(),
-        skudService.getStats(),
-        skudService.getEvents({
-          limit: EVENT_LOAD_LIMIT,
-          offset: 0,
-          passageOnly: showOnlyPassages,
-          ...(debouncedEmployeeNameFilter
-            ? { employeeName: debouncedEmployeeNameFilter }
+      if (activeTab === "events") {
+        const eventsLoadLimit = Math.min(
+          MAX_EVENT_LOAD_LIMIT,
+          Math.max(MIN_EVENT_LOAD_LIMIT, Number(eventsPageSize) || DEFAULT_EVENT_LOAD_LIMIT),
+        );
+        const eventsQuickParams = {
+          limit: eventsLoadLimit,
+          offset: Math.max(eventsPage - 1, 0) * eventsLoadLimit,
+          passageOnly: appliedShowOnlyPassages,
+          ...(appliedEmployeeNameFilter
+            ? { employeeName: appliedEmployeeNameFilter }
             : {}),
-          ...(departmentFilter ? { departmentId: departmentFilter } : {}),
-          ...(counterpartyFilter ? { counterpartyId: counterpartyFilter } : {}),
-          ...(constructionSiteFilter ? { constructionSiteId: constructionSiteFilter } : {}),
-          ...(eventTypeFilter !== "all" ? { eventType: eventTypeFilter } : {}),
-          ...(directionFilter !== "all" ? { direction: directionFilter } : {}),
-          ...(accessPointFilter ? { accessPoint: accessPointFilter } : {}),
-          ...(decisionFilter === "allowed"
+          ...(appliedDepartmentFilter ? { departmentId: appliedDepartmentFilter } : {}),
+          ...(appliedCounterpartyFilter
+            ? { counterpartyName: appliedCounterpartyFilter }
+            : {}),
+          ...(appliedConstructionSiteFilter
+            ? { constructionSiteName: appliedConstructionSiteFilter }
+            : {}),
+          ...(appliedEventTypeFilter !== "all" ? { eventType: appliedEventTypeFilter } : {}),
+          ...(appliedDirectionFilter !== "all" ? { direction: appliedDirectionFilter } : {}),
+          ...(appliedAccessPointFilter ? { accessPoint: appliedAccessPointFilter } : {}),
+          ...(appliedDecisionFilter === "allowed"
             ? { allow: true }
-            : decisionFilter === "denied"
+            : appliedDecisionFilter === "denied"
               ? { allow: false }
               : {}),
           sortBy: "eventTime",
           sortOrder: eventsSortOrder === "ascend" ? "asc" : "desc",
-          ...buildEventRangeParams(eventDateRange),
-        }),
+          ...buildEventRangeParams(appliedEventDateRange),
+        };
+        const eventsFullParams = {
+          ...eventsQuickParams,
+        };
+        const [health, stats, baseEvents] = await Promise.all([
+          skudService.getHealth(),
+          skudService.getStats(),
+          skudService.getEvents({
+            ...eventsQuickParams,
+            enrich: "base",
+          }),
+        ]);
+
+        if (requestId !== loadDataRequestIdRef.current) {
+          return;
+        }
+
+        setState((prev) => ({
+          ...prev,
+          health,
+          stats,
+          events: {
+            ...baseEvents,
+            items: (Array.isArray(baseEvents?.items) ? baseEvents.items : []).map((item) => ({
+              ...item,
+              __metaPending: true,
+            })),
+          },
+        }));
+        setLoading(false);
+        setEventsMetaLoading(true);
+        try {
+          const enrichedEvents = await skudService.getEvents({
+            ...eventsFullParams,
+            enrich: "full",
+          });
+
+          if (requestId !== loadDataRequestIdRef.current) {
+            return;
+          }
+
+          setState((prev) => ({
+            ...prev,
+            health,
+            stats,
+            events: enrichedEvents,
+          }));
+        } finally {
+          if (requestId === loadDataRequestIdRef.current) {
+            setEventsMetaLoading(false);
+          }
+        }
+
+        return;
+      }
+
+      const [health, stats] = await Promise.all([
+        skudService.getHealth(),
+        skudService.getStats(),
+      ]);
+
+      if (requestId !== loadDataRequestIdRef.current) {
+        return;
+      }
+
+      const [syncJobs, cards] = await Promise.all([
         skudService.getSyncJobs({ limit: 20, offset: 0 }),
         skudService.getCards({ limit: 20, offset: 0 }),
       ]);
@@ -350,13 +611,13 @@ const SkudAdminSection = () => {
         return;
       }
 
-      setState({
+      setState((prev) => ({
+        ...prev,
         health,
         stats,
-        events,
         syncJobs,
         cards,
-      });
+      }));
     } catch (error) {
       if (requestId !== loadDataRequestIdRef.current) {
         return;
@@ -369,18 +630,21 @@ const SkudAdminSection = () => {
       }
     }
   }, [
-    accessPointFilter,
-    constructionSiteFilter,
-    counterpartyFilter,
-    departmentFilter,
-    decisionFilter,
-    directionFilter,
-    debouncedEmployeeNameFilter,
-    eventDateRange,
-    eventTypeFilter,
+    appliedAccessPointFilter,
+    appliedConstructionSiteFilter,
+    appliedCounterpartyFilter,
+    appliedDepartmentFilter,
+    appliedDecisionFilter,
+    appliedDirectionFilter,
+    appliedEmployeeNameFilter,
+    appliedEventDateRange,
+    appliedEventTypeFilter,
+    appliedShowOnlyPassages,
+    activeTab,
+    eventsPage,
+    eventsPageSize,
     eventsSortOrder,
     message,
-    showOnlyPassages,
   ]);
 
   useEffect(() => {
@@ -451,6 +715,48 @@ const SkudAdminSection = () => {
     setEventDateRange(value);
   }, []);
 
+  const handleApplyEventsFilters = useCallback(() => {
+    const normalizedEmployeeSearch = String(employeeNameFilter || "").trim();
+    const employeeSearchDigits = normalizedEmployeeSearch.replace(/\D+/g, "");
+    const explicitIdMatch = normalizedEmployeeSearch.match(/(?:^|[\s:])id\s*(\d{3,})/i);
+    const isDirectIdSearch =
+      Boolean(explicitIdMatch?.[1]) || /^\d{3,}$/.test(normalizedEmployeeSearch);
+
+    if (
+      normalizedEmployeeSearch
+      && !isDirectIdSearch
+      && normalizedEmployeeSearch.length < 3
+      && employeeSearchDigits.length < 3
+    ) {
+      message.warning("Для поиска по ФИО введите минимум 3 символа или ID сотрудника");
+      return;
+    }
+
+    setEventsPage(1);
+    setAppliedShowOnlyPassages(showOnlyPassages);
+    setAppliedEventTypeFilter(eventTypeFilter);
+    setAppliedDecisionFilter(decisionFilter);
+    setAppliedDirectionFilter(directionFilter);
+    setAppliedAccessPointFilter(accessPointFilter);
+    setAppliedEmployeeNameFilter(normalizedEmployeeSearch);
+    setAppliedDepartmentFilter(departmentFilter);
+    setAppliedCounterpartyFilter(counterpartyFilter);
+    setAppliedConstructionSiteFilter(constructionSiteFilter);
+    setAppliedEventDateRange(eventDateRange);
+  }, [
+    accessPointFilter,
+    constructionSiteFilter,
+    counterpartyFilter,
+    decisionFilter,
+    departmentFilter,
+    employeeNameFilter,
+    eventDateRange,
+    eventTypeFilter,
+    directionFilter,
+    message,
+    showOnlyPassages,
+  ]);
+
   const handleEventsTableChange = useCallback((pagination, _filters, sorter) => {
     const nextPageSize = Number(pagination?.pageSize || 20);
     const nextPage = Number(pagination?.current || 1);
@@ -500,13 +806,17 @@ const SkudAdminSection = () => {
     if (employeeName) {
       params.set("employeeName", employeeName);
     }
-    if (Array.isArray(eventDateRange) && eventDateRange[0] && eventDateRange[1]) {
-      params.set("from", eventDateRange[0].startOf("day").toISOString());
-      params.set("to", eventDateRange[1].endOf("day").toISOString());
+    if (
+      Array.isArray(appliedEventDateRange)
+      && appliedEventDateRange[0]
+      && appliedEventDateRange[1]
+    ) {
+      params.set("from", appliedEventDateRange[0].startOf("day").toISOString());
+      params.set("to", appliedEventDateRange[1].endOf("day").toISOString());
     }
 
     navigate(`/skud/employee-events?${params.toString()}`);
-  }, [eventDateRange, message, navigate]);
+  }, [appliedEventDateRange, message, navigate]);
 
   const focusCardReaderInput = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -700,12 +1010,12 @@ const SkudAdminSection = () => {
   }, [activeTab, refreshEvents]);
 
   useEffect(() => {
-    const total = Array.isArray(state.events?.items) ? state.events.items.length : 0;
-    const maxPage = Math.max(1, Math.ceil(total / eventsPageSize));
+    const total = Number(state.events?.pagination?.total || 0);
+    const maxPage = Math.max(1, Math.ceil(total / Math.max(eventsPageSize, 1)));
     if (eventsPage > maxPage) {
       setEventsPage(maxPage);
     }
-  }, [eventsPage, eventsPageSize, state.events?.items]);
+  }, [eventsPage, eventsPageSize, state.events?.pagination?.total]);
 
   const fetchEmployeeOptions = useCallback(async (search = "") => {
     const response = await employeeService.getAll({
@@ -819,58 +1129,72 @@ const SkudAdminSection = () => {
     }
   }, [message]);
 
-  const loadEventsFilterReferences = useCallback(async () => {
+  const loadEventsFilterReferences = useCallback(async ({ force = false } = {}) => {
+    if (
+      !force &&
+      counterpartyOptions.length > 0 &&
+      constructionSiteOptions.length > 0 &&
+      departmentOptions.length > 0
+    ) {
+      return;
+    }
     setEventsFiltersLoading(true);
     try {
-      const [counterpartiesResponse, constructionSitesResponse, departmentsResponse] =
-        await Promise.all([
-          counterpartyService.getAll({
-            page: 1,
-            limit: 10000,
-          }),
-          constructionSiteService.getAll({
-            limit: 10000,
-          }),
+      const [providerDepartmentsResult, providerAccessPointsResult, departmentsResult] =
+        await Promise.allSettled([
+          skudService.getProviderDepartments(),
+          skudService.getProviderAccessPoints(),
           departmentService.getAll(),
         ]);
 
-      const counterparties =
-        counterpartiesResponse?.data?.data?.counterparties
-        || [];
-      const constructionSites =
-        constructionSitesResponse?.data?.data?.constructionSites
-        || constructionSitesResponse?.data?.data
-        || [];
-      const departments =
-        departmentsResponse?.data?.data?.departments
-        || departmentsResponse?.data?.data
-        || [];
+      if (providerDepartmentsResult.status === "fulfilled") {
+        const providerDepartments = Array.isArray(providerDepartmentsResult.value?.items)
+          ? providerDepartmentsResult.value.items
+          : [];
+        setCounterpartyOptions(buildSigurCounterpartyOptionsFromDepartments(providerDepartments));
+      }
 
-      setCounterpartyOptions(
-        counterparties.map((item) => ({
-          value: item.id,
-          label: item.name || String(item.id),
-        })),
-      );
-      setConstructionSiteOptions(
-        constructionSites.map((item) => ({
-          value: item.id,
-          label: item.shortName || item.fullName || String(item.id),
-        })),
-      );
-      setDepartmentOptions(
-        departments.map((item) => ({
-          value: item.id,
-          label: item.name || String(item.id),
-        })),
-      );
+      if (providerAccessPointsResult.status === "fulfilled") {
+        const providerAccessPoints = Array.isArray(providerAccessPointsResult.value?.items)
+          ? providerAccessPointsResult.value.items
+          : [];
+        setConstructionSiteOptions(
+          buildSigurConstructionSiteOptionsFromAccessPoints(providerAccessPoints),
+        );
+      }
+
+      if (departmentsResult.status === "fulfilled") {
+        const departments =
+          departmentsResult.value?.data?.data?.departments
+          || departmentsResult.value?.data?.data
+          || [];
+        setDepartmentOptions(
+          departments.map((item) => ({
+            value: item.id,
+            label: item.name || String(item.id),
+          })),
+        );
+      }
+
+      if (
+        providerDepartmentsResult.status !== "fulfilled" ||
+        providerAccessPointsResult.status !== "fulfilled" ||
+        departmentsResult.status !== "fulfilled"
+      ) {
+        message.warning("Часть справочников фильтров не загрузилась, попробуйте обновить");
+      }
     } catch (error) {
       console.error("Failed to load SKUD events filter references:", error);
       message.error("Не удалось загрузить справочники для фильтров");
     } finally {
       setEventsFiltersLoading(false);
     }
-  }, [message]);
+  }, [
+    constructionSiteOptions.length,
+    counterpartyOptions.length,
+    departmentOptions.length,
+    message,
+  ]);
 
   const loadBindingsAudit = useCallback(async () => {
     setBindingsAuditLoading(true);
@@ -1412,17 +1736,55 @@ const SkudAdminSection = () => {
         dataIndex: "counterpartyName",
         key: "counterpartyName",
         width: 220,
-        render: (value) => value || "—",
+        render: (_, record) => {
+          const label = getCounterpartyDisplayName(record);
+          if (label) {
+            return label;
+          }
+          return record?.__metaPending ? <Spin size="small" /> : "—";
+        },
       },
       {
         title: "Объект",
         key: "constructionSite",
-        width: 260,
+        width: 320,
         render: (_, record) => {
-          if (Array.isArray(record?.eventConstructionSiteNames) && record.eventConstructionSiteNames.length) {
-            return record.eventConstructionSiteNames.join(", ");
+          const constructionSiteLabel = getConstructionSiteDisplayLabel(record);
+          const hierarchyLabel = getAccessPointHierarchyLabel(record);
+          const primaryLabel = constructionSiteLabel || hierarchyLabel;
+
+          if (!primaryLabel) {
+            return record?.__metaPending ? <Spin size="small" /> : "—";
           }
-          return record?.constructionSiteName || "—";
+
+          return (
+            <Space direction="vertical" size={0} style={{ width: "100%", minWidth: 0 }}>
+              <Text
+                style={{
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+                title={primaryLabel}
+              >
+                {primaryLabel}
+              </Text>
+              {hierarchyLabel && hierarchyLabel !== primaryLabel ? (
+                <Text
+                  type="secondary"
+                  style={{
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                  title={`Иерархия: ${hierarchyLabel}`}
+                >
+                  Иерархия: {hierarchyLabel}
+                </Text>
+              ) : null}
+            </Space>
+          );
         },
       },
       {
@@ -2017,9 +2379,13 @@ const SkudAdminSection = () => {
       if (info?.node?.employeeDisplayName) {
         params.set("employeeName", String(info.node.employeeDisplayName));
       }
-      if (Array.isArray(eventDateRange) && eventDateRange[0] && eventDateRange[1]) {
-        params.set("from", eventDateRange[0].startOf("day").toISOString());
-        params.set("to", eventDateRange[1].endOf("day").toISOString());
+      if (
+        Array.isArray(appliedEventDateRange)
+        && appliedEventDateRange[0]
+        && appliedEventDateRange[1]
+      ) {
+        params.set("from", appliedEventDateRange[0].startOf("day").toISOString());
+        params.set("to", appliedEventDateRange[1].endOf("day").toISOString());
       }
       navigate(`/skud/employee-events?${params.toString()}`);
       return;
@@ -2031,7 +2397,7 @@ const SkudAdminSection = () => {
     }
 
     setProviderHierarchySelectedDepartmentId(null);
-  }, [eventDateRange, navigate]);
+  }, [appliedEventDateRange, navigate]);
 
   const selectedProviderHierarchyDepartment = useMemo(() => {
     if (!providerHierarchySelectedDepartmentId) {
@@ -2146,12 +2512,11 @@ const SkudAdminSection = () => {
   const latestVisibleEventTime = state.events?.items?.[0]?.eventTime || null;
   const hasSkudAuthError = state.health?.authOk === false;
   const lastSyncAt = state.health?.lastSyncAt || null;
+  const lastPulledEventAt = state.health?.lastPulledEventAt || null;
+  const lastPulledAt = state.health?.lastPulledAt || null;
   const totalEventsCount = Number(state.events?.pagination?.total || 0);
   const loadedEventsCount = Array.isArray(state.events?.items) ? state.events.items.length : 0;
-  const displayedEventItems = useMemo(() => {
-    const start = Math.max(eventsPage - 1, 0) * eventsPageSize;
-    return (state.events?.items || []).slice(start, start + eventsPageSize);
-  }, [eventsPage, eventsPageSize, state.events?.items]);
+  const displayedEventItems = Array.isArray(state.events?.items) ? state.events.items : [];
   const handleExportEventsToExcel = useCallback(() => {
     const items = Array.isArray(state.events?.items) ? state.events.items : [];
     if (items.length === 0) {
@@ -2166,12 +2531,10 @@ const SkudAdminSection = () => {
       "ФИО сотрудника": getLocalEmployeeName(record) || getSigurPersonName(record) || "—",
       "ID сотрудника PassDesk": record?.employeeId || "—",
       "ID сотрудника Sigur": record?.externalEmpId || "—",
-      Контрагент: record?.counterpartyName || "—",
+      Контрагент: getCounterpartyDisplayName(record) || "—",
       "Подразделение / бригада": getEmployeeDepartmentName(record) || "—",
-      "Объект (по точке доступа)":
-        Array.isArray(record?.eventConstructionSiteNames) && record.eventConstructionSiteNames.length
-          ? record.eventConstructionSiteNames.join(", ")
-          : record?.constructionSiteName || "—",
+      "Объект (по точке доступа)": getConstructionSiteDisplayLabel(record) || "—",
+      "Иерархия точки доступа": getAccessPointHierarchyLabel(record) || "—",
       "Точка доступа": getAccessPointName(record) || (record?.accessPoint ? `#${record.accessPoint}` : "—"),
       "Тип события": getEventTypeLabel(record?.eventType),
       Направление:
@@ -2222,7 +2585,7 @@ const SkudAdminSection = () => {
             lastSyncAt
               ? `Последняя успешная синхронизация: ${dayjs(lastSyncAt).format("DD.MM.YYYY HH:mm:ss")}`
               : null,
-            "Live-журнал Sigur сейчас недоступен.",
+            "Импорт событий из Sigur сейчас недоступен.",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -2247,9 +2610,32 @@ const SkudAdminSection = () => {
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
                 <Card title="Фильтры журнала">
                   <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                    <Text type="secondary">
-                      Журнал читается напрямую из Sigur. По умолчанию экран показывает только сегодняшние проходы.
-                    </Text>
+                    {!loading && totalEventsCount === 0 ? (
+                      <Alert
+                        type="info"
+                        showIcon
+                        message="Локальный журнал пока пуст"
+                        description={[
+                          lastPulledAt
+                            ? `Последний импорт в БД: ${dayjs(lastPulledAt).format("DD.MM.YYYY HH:mm:ss")}`
+                            : "Импорт событий еще не выполнен или Sigur не ответил.",
+                          lastPulledEventAt
+                            ? `Последнее импортированное событие: ${dayjs(lastPulledEventAt).format("DD.MM.YYYY HH:mm:ss")}`
+                            : null,
+                          "Подождите следующий автопулл или запустите ручной pull.",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                      />
+                    ) : null}
+                    {eventsMetaLoading ? (
+                      <Space size={8}>
+                        <Spin size="small" />
+                        <Text type="secondary">
+                          Догружаем подрядчика и объект...
+                        </Text>
+                      </Space>
+                    ) : null}
                     <Space wrap style={{ width: "100%" }}>
                       <RangePicker
                         value={eventDateRange}
@@ -2261,6 +2647,7 @@ const SkudAdminSection = () => {
                         placeholder="ФИО / ID сотрудника"
                         value={employeeNameFilter}
                         onChange={handleEmployeeNameFilterChange}
+                        onPressEnter={handleApplyEventsFilters}
                         allowClear
                         style={{ width: 280 }}
                       />
@@ -2279,7 +2666,7 @@ const SkudAdminSection = () => {
                         showSearch
                         allowClear
                         style={{ width: 240 }}
-                        placeholder="Подрядчик"
+                        placeholder="Подрядчик (Sigur)"
                         options={counterpartyOptions}
                         value={counterpartyFilter}
                         loading={eventsFiltersLoading}
@@ -2290,7 +2677,7 @@ const SkudAdminSection = () => {
                         showSearch
                         allowClear
                         style={{ width: 260 }}
-                        placeholder="Объект"
+                        placeholder="Объект (Sigur)"
                         options={constructionSiteOptions}
                         value={constructionSiteFilter}
                         loading={eventsFiltersLoading}
@@ -2346,6 +2733,14 @@ const SkudAdminSection = () => {
                     </Space>
                     <Space wrap>
                       <Button
+                        type="primary"
+                        icon={<SearchOutlined />}
+                        onClick={handleApplyEventsFilters}
+                        loading={loading}
+                      >
+                        Применить фильтры
+                      </Button>
+                      <Button
                         icon={<ReloadOutlined />}
                         onClick={handleRefreshEvents}
                         loading={loading || pullingEvents}
@@ -2361,8 +2756,8 @@ const SkudAdminSection = () => {
                       </Button>
                       <Button
                         onClick={() => {
+                          const nextEventDateRange = getTodayEventRange();
                           setEmployeeNameFilter("");
-                          setDebouncedEmployeeNameFilter("");
                           setDepartmentFilter(undefined);
                           setCounterpartyFilter(undefined);
                           setConstructionSiteFilter(undefined);
@@ -2371,7 +2766,17 @@ const SkudAdminSection = () => {
                           setDirectionFilter("all");
                           setAccessPointFilter(undefined);
                           setShowOnlyPassages(true);
-                          setEventDateRange(getTodayEventRange());
+                          setEventDateRange(nextEventDateRange);
+                          setAppliedEmployeeNameFilter("");
+                          setAppliedDepartmentFilter(undefined);
+                          setAppliedCounterpartyFilter(undefined);
+                          setAppliedConstructionSiteFilter(undefined);
+                          setAppliedEventTypeFilter("all");
+                          setAppliedDecisionFilter("all");
+                          setAppliedDirectionFilter("all");
+                          setAppliedAccessPointFilter(undefined);
+                          setAppliedShowOnlyPassages(true);
+                          setAppliedEventDateRange(nextEventDateRange);
                           setEventsPage(1);
                         }}
                       >
@@ -2398,10 +2803,10 @@ const SkudAdminSection = () => {
                     pagination={{
                       current: eventsPage,
                       pageSize: eventsPageSize,
-                      total: loadedEventsCount,
+                      total: totalEventsCount,
                       showSizeChanger: true,
                       pageSizeOptions: ["20", "50", "100", "200"],
-                      showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} загруженных`,
+                      showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
                     }}
                     scroll={{ x: 1650 }}
                   />

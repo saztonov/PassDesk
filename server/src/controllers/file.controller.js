@@ -141,7 +141,7 @@ export const proxyFile = async (req, res, next) => {
       });
     }
 
-    const fileName = file.originalName || file.fileName || "file";
+    const fileName = file.fileName || file.originalName || "file";
     res.setHeader("Content-Type", file.mimeType || "application/octet-stream");
     res.setHeader(
       "Content-Disposition",
@@ -288,21 +288,21 @@ export const getFileById = async (req, res, next) => {
         success: true,
         data: {
           url: buildFileProxyUrl(req, file.id, "attachment"),
-          fileName: file.originalName || file.fileName,
+          fileName: file.fileName || file.originalName,
         },
       });
     }
 
     const downloadData = await storageProvider.getDownloadUrl(file.filePath, {
       expiresIn: 3600,
-      fileName: file.originalName || file.fileName,
+      fileName: file.fileName || file.originalName,
     });
 
     res.json({
       success: true,
       data: {
         url: downloadData.url,
-        fileName: file.originalName || file.fileName,
+        fileName: file.fileName || file.originalName,
       },
     });
   } catch (error) {
@@ -338,7 +338,7 @@ export const getFile = async (req, res, next) => {
           success: true,
           data: {
             url: buildFileProxyUrl(req, file.id, "attachment"),
-            fileName: file.originalName || file.fileName || fileKey,
+            fileName: file.fileName || file.originalName || fileKey,
           },
         });
       }
@@ -395,7 +395,7 @@ export const getPublicLink = async (req, res, next) => {
           success: true,
           data: {
             publicUrl: buildFileProxyUrl(req, file.id, "inline"),
-            fileName: file.originalName || file.fileName || fileKey,
+            fileName: file.fileName || file.originalName || fileKey,
           },
         });
       }

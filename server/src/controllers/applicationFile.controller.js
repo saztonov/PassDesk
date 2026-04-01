@@ -310,21 +310,21 @@ export const getApplicationFileDownloadLink = async (req, res, next) => {
         success: true,
         data: {
           downloadUrl: buildFileProxyUrl(req, file.id, "attachment"),
-          fileName: file.originalName,
+          fileName: file.fileName || file.originalName,
         },
       });
     }
 
     const downloadData = await storageProvider.getDownloadUrl(file.filePath, {
       expiresIn: 3600,
-      fileName: file.originalName, // Передаём имя файла для заголовка Content-Disposition
+      fileName: file.fileName || file.originalName, // Передаём имя файла для заголовка Content-Disposition
     });
 
     res.json({
       success: true,
       data: {
         downloadUrl: downloadData.url,
-        fileName: file.originalName,
+        fileName: file.fileName || file.originalName,
       },
     });
   } catch (error) {
@@ -370,7 +370,7 @@ export const getApplicationFileViewLink = async (req, res, next) => {
         success: true,
         data: {
           viewUrl: buildFileProxyUrl(req, file.id, "inline"),
-          fileName: file.originalName,
+          fileName: file.fileName || file.originalName,
           mimeType: file.mimeType,
         },
       });
@@ -384,7 +384,7 @@ export const getApplicationFileViewLink = async (req, res, next) => {
       success: true,
       data: {
         viewUrl: viewData.url,
-        fileName: file.originalName,
+        fileName: file.fileName || file.originalName,
         mimeType: file.mimeType,
       },
     });

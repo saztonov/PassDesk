@@ -22,8 +22,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import * as XLSX from "xlsx";
 import skudService from "@/services/skudService";
-import { counterpartyService } from "@/services/counterpartyService";
-import { constructionSiteService } from "@/services/constructionSiteService";
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -60,6 +58,10 @@ const getSigurPersonName = (record) => {
 };
 
 const getLocalEmployeeName = (record) => String(record?.employeeName || "").trim();
+const getEmployeeDepartmentName = (record) => String(record?.departmentName || "").trim();
+
+const isLikelyCounterpartyLabel = (value) =>
+  /\b(ооо|ао|зао|пао|ип)\b/i.test(String(value || "").trim());
 
 const getAccessPointName = (record) => {
   const explicitLabel = String(record?.accessPointLabel || "").trim();
@@ -76,6 +78,190 @@ const getAccessPointName = (record) => {
     rawItem?.data?.access_point_name ||
     null;
   return value ? String(value).trim() : "";
+};
+
+const splitHierarchySegments = (value) =>
+  String(value || "")
+    .split("/")
+    .map((part) => String(part || "").trim())
+    .filter(Boolean);
+
+const extractSigurCounterpartyFromDepartmentPath = (pathValue) => {
+  const segments = Array.isArray(pathValue)
+    ? pathValue
+        .map((part) => String(part || "").trim())
+        .filter(Boolean)
+    : splitHierarchySegments(pathValue);
+  if (!segments.length) {
+    return "";
+  }
+  const contractorsRootIndex = segments.findIndex((segment) =>
+    /^подрядн/i.test(String(segment || "").trim()),
+  );
+  if (contractorsRootIndex >= 0 && segments[contractorsRootIndex + 1]) {
+    return String(segments[contractorsRootIndex + 1] || "").trim();
+  }
+  return "";
+};
+
+const buildSigurCounterpartyOptionsFromDepartments = (departments) => {
+  const unique = new Map();
+  for (const department of departments || []) {
+    const label = extractSigurCounterpartyFromDepartmentPath(
+      Array.isArray(department?.path) ? department.path : department?.pathLabel,
+    );
+    if (!label) {
+      continue;
+    }
+    const token = String(label).toLowerCase().replace(/\s+/g, " ").trim();
+    if (!token || unique.has(token)) {
+      continue;
+    }
+    unique.set(token, {
+      value: label,
+      label,
+    });
+  }
+  return Array.from(unique.values()).sort((left, right) =>
+    String(left.label || "").localeCompare(String(right.label || ""), "ru"),
+  );
+};
+
+const extractSigurConstructionSiteNameFromPath = (pathValue) => {
+  const segments = Array.isArray(pathValue)
+    ? pathValue
+        .map((part) => String(part || "").trim())
+        .filter(Boolean)
+    : splitHierarchySegments(pathValue);
+  if (!segments.length) {
+    return "";
+  }
+
+  const ignorePatterns = [
+    /^\d+\s*структур/i,
+    /подрядн/i,
+    /^отдел\b/i,
+    /^офис$/i,
+    /^охрана/i,
+    /^автопарк/i,
+    /^медперсонал/i,
+    /^допуск/i,
+    /^гостев/i,
+  ];
+
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const candidate = String(segments[index] || "").trim();
+    if (!candidate) {
+      continue;
+    }
+    if (!ignorePatterns.some((pattern) => pattern.test(candidate))) {
+      return candidate;
+    }
+  }
+
+  return String(segments[segments.length - 1] || "").trim();
+};
+
+const buildSigurConstructionSiteOptionsFromAccessPoints = (accessPoints) => {
+  const unique = new Map();
+  for (const item of accessPoints || []) {
+    const label = extractSigurConstructionSiteNameFromPath(item?.pathLabel);
+    if (!label) {
+      continue;
+    }
+    const token = String(label).toLowerCase().replace(/\s+/g, " ").trim();
+    if (!token || unique.has(token)) {
+      continue;
+    }
+    unique.set(token, {
+      value: label,
+      label,
+    });
+  }
+  return Array.from(unique.values()).sort((left, right) =>
+    String(left.label || "").localeCompare(String(right.label || ""), "ru"),
+  );
+};
+
+const getAccessPointHierarchyLabel = (record) => {
+  const fromPathLabel = splitHierarchySegments(record?.accessPointPathLabel);
+  if (fromPathLabel.length > 0) {
+    return fromPathLabel.join(" / ");
+  }
+
+  const fromAccessPointLabel = splitHierarchySegments(record?.accessPointLabel);
+  if (fromAccessPointLabel.length >= 2) {
+    return fromAccessPointLabel.slice(0, -1).join(" / ");
+  }
+
+  return "";
+};
+
+const getConstructionSiteFallbackFromAccessPoint = (record) => {
+  const fromPathLabel = splitHierarchySegments(record?.accessPointPathLabel);
+  if (fromPathLabel.length > 0) {
+    return fromPathLabel[fromPathLabel.length - 1];
+  }
+
+  const fromAccessPointLabel = splitHierarchySegments(record?.accessPointLabel);
+  if (fromAccessPointLabel.length >= 2) {
+    return fromAccessPointLabel[fromAccessPointLabel.length - 2];
+  }
+
+  return "";
+};
+
+const getConstructionSiteDisplayLabel = (record) => {
+  if (Array.isArray(record?.eventConstructionSiteNames) && record.eventConstructionSiteNames.length) {
+    return record.eventConstructionSiteNames.join(", ");
+  }
+  return record?.constructionSiteName || getConstructionSiteFallbackFromAccessPoint(record) || "";
+};
+
+const getCounterpartyFallbackFromHierarchy = (record) => {
+  const segments = splitHierarchySegments(record?.accessPointPathLabel).length
+    ? splitHierarchySegments(record?.accessPointPathLabel)
+    : splitHierarchySegments(record?.accessPointLabel);
+  if (!segments.length) {
+    return "";
+  }
+  const rootIndex = segments.findIndex((segment) =>
+    /^подрядн/i.test(String(segment || "").trim()),
+  );
+  if (rootIndex >= 0 && segments[rootIndex + 1]) {
+    return String(segments[rootIndex + 1]).trim();
+  }
+  if (/^\d+\s*структур/i.test(String(segments[0] || "")) && segments[1]) {
+    return String(segments[1]).trim();
+  }
+  if (segments[0]) {
+    return String(segments[0]).trim();
+  }
+  return "";
+};
+
+const getCounterpartyDisplayName = (record) => {
+  const explicitCounterparty = String(record?.counterpartyName || "").trim();
+  if (explicitCounterparty) {
+    return explicitCounterparty;
+  }
+
+  const providerFolderCounterparty = String(record?.providerCounterpartyFolderName || "").trim();
+  if (providerFolderCounterparty) {
+    return providerFolderCounterparty;
+  }
+
+  const fromHierarchy = getCounterpartyFallbackFromHierarchy(record);
+  if (fromHierarchy) {
+    return fromHierarchy;
+  }
+
+  const departmentName = getEmployeeDepartmentName(record);
+  if (departmentName && isLikelyCounterpartyLabel(departmentName)) {
+    return departmentName;
+  }
+
+  return "";
 };
 
 const getPassReason = (record) => {
@@ -147,35 +333,46 @@ const SkudEmployeeEventsPage = () => {
   const [constructionSiteFilter, setConstructionSiteFilter] = useState(undefined);
   const [employeeNameFilter, setEmployeeNameFilter] = useState("");
 
-  const loadFilterReferences = useCallback(async () => {
+  const loadFilterReferences = useCallback(async ({ force = false } = {}) => {
+    if (
+      !force &&
+      counterpartyOptions.length > 0 &&
+      constructionSiteOptions.length > 0 &&
+      providerAccessPoints.length > 0
+    ) {
+      return;
+    }
     setFiltersLoading(true);
     setProviderAccessPointsLoading(true);
     try {
-      const [accessPointsResponse, counterpartiesResponse, constructionSitesResponse] =
-        await Promise.all([
-          skudService.getProviderAccessPoints(),
-          counterpartyService.getAll({
-            page: 1,
-            limit: 10000,
-          }),
-          constructionSiteService.getAll({
-            limit: 10000,
-          }),
-        ]);
+      const [accessPointsResult, providerDepartmentsResult] = await Promise.allSettled([
+        skudService.getProviderAccessPoints(),
+        skudService.getProviderDepartments(),
+      ]);
 
-      setProviderAccessPoints(Array.isArray(accessPointsResponse?.items) ? accessPointsResponse.items : []);
-      setCounterpartyOptions(
-        (counterpartiesResponse?.data?.data?.counterparties || []).map((item) => ({
-          value: item.id,
-          label: item.name || String(item.id),
-        })),
-      );
-      setConstructionSiteOptions(
-        (constructionSitesResponse?.data?.data?.constructionSites || []).map((item) => ({
-          value: item.id,
-          label: item.shortName || item.fullName || String(item.id),
-        })),
-      );
+      if (accessPointsResult.status === "fulfilled") {
+        const providerAccessPoints = Array.isArray(accessPointsResult.value?.items)
+          ? accessPointsResult.value.items
+          : [];
+        setProviderAccessPoints(providerAccessPoints);
+        setConstructionSiteOptions(
+          buildSigurConstructionSiteOptionsFromAccessPoints(providerAccessPoints),
+        );
+      }
+
+      if (providerDepartmentsResult.status === "fulfilled") {
+        const providerDepartments = Array.isArray(providerDepartmentsResult.value?.items)
+          ? providerDepartmentsResult.value.items
+          : [];
+        setCounterpartyOptions(buildSigurCounterpartyOptionsFromDepartments(providerDepartments));
+      }
+
+      if (
+        accessPointsResult.status !== "fulfilled" ||
+        providerDepartmentsResult.status !== "fulfilled"
+      ) {
+        message.warning("Часть справочников фильтров не загрузилась, попробуйте обновить");
+      }
     } catch (error) {
       console.error("Failed to load employee events filter references:", error);
       message.error("Не удалось загрузить справочники фильтров");
@@ -183,7 +380,12 @@ const SkudEmployeeEventsPage = () => {
       setProviderAccessPointsLoading(false);
       setFiltersLoading(false);
     }
-  }, [message]);
+  }, [
+    constructionSiteOptions.length,
+    counterpartyOptions.length,
+    message,
+    providerAccessPoints.length,
+  ]);
 
   const loadEmployeeEvents = useCallback(async () => {
     if (!employeeId && !externalEmpId && !employeeNameHint) {
@@ -211,8 +413,8 @@ const SkudEmployeeEventsPage = () => {
             : employeeNameHint
               ? { employeeName: employeeNameHint }
               : {}),
-          ...(counterpartyFilter ? { counterpartyId: counterpartyFilter } : {}),
-          ...(constructionSiteFilter ? { constructionSiteId: constructionSiteFilter } : {}),
+          ...(counterpartyFilter ? { counterpartyName: counterpartyFilter } : {}),
+          ...(constructionSiteFilter ? { constructionSiteName: constructionSiteFilter } : {}),
           ...(eventTypeFilter !== "all" ? { eventType: eventTypeFilter } : {}),
           ...(directionFilter !== "all" ? { direction: directionFilter } : {}),
           ...(accessPointFilter ? { accessPoint: accessPointFilter } : {}),
@@ -317,12 +519,10 @@ const SkudEmployeeEventsPage = () => {
       "ФИО сотрудника": getLocalEmployeeName(record) || getSigurPersonName(record) || "—",
       "ID сотрудника PassDesk": record?.employeeId || "—",
       "ID сотрудника Sigur": record?.externalEmpId || "—",
-      Контрагент: record?.counterpartyName || "—",
-      "Подразделение / бригада": record?.departmentName || "—",
-      "Объект (по точке доступа)":
-        Array.isArray(record?.eventConstructionSiteNames) && record.eventConstructionSiteNames.length
-          ? record.eventConstructionSiteNames.join(", ")
-          : record?.constructionSiteName || "—",
+      Контрагент: getCounterpartyDisplayName(record) || "—",
+      "Подразделение / бригада": getEmployeeDepartmentName(record) || "—",
+      "Объект (по точке доступа)": getConstructionSiteDisplayLabel(record) || "—",
+      "Иерархия точки доступа": getAccessPointHierarchyLabel(record) || "—",
       "Точка доступа": getAccessPointName(record) || (record?.accessPoint ? `#${record.accessPoint}` : "—"),
       "Тип события": getEventTypeLabel(record?.eventType),
       Направление:
@@ -385,24 +585,56 @@ const SkudEmployeeEventsPage = () => {
         dataIndex: "counterpartyName",
         key: "counterpartyName",
         width: 220,
-        render: (value) => value || "—",
+        render: (_, record) => getCounterpartyDisplayName(record) || "—",
       },
       {
         title: "Подразделение / бригада",
         dataIndex: "departmentName",
         key: "departmentName",
         width: 220,
-        render: (value) => value || "—",
+        render: (_, record) => getEmployeeDepartmentName(record) || "—",
       },
       {
         title: "Объект",
         key: "site",
-        width: 260,
+        width: 320,
         render: (_, record) => {
-          if (Array.isArray(record?.eventConstructionSiteNames) && record.eventConstructionSiteNames.length) {
-            return record.eventConstructionSiteNames.join(", ");
+          const constructionSiteLabel = getConstructionSiteDisplayLabel(record);
+          const hierarchyLabel = getAccessPointHierarchyLabel(record);
+          const primaryLabel = constructionSiteLabel || hierarchyLabel;
+
+          if (!primaryLabel) {
+            return "—";
           }
-          return record?.constructionSiteName || "—";
+
+          return (
+            <Space direction="vertical" size={0} style={{ width: "100%", minWidth: 0 }}>
+              <Text
+                style={{
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+                title={primaryLabel}
+              >
+                {primaryLabel}
+              </Text>
+              {hierarchyLabel && hierarchyLabel !== primaryLabel ? (
+                <Text
+                  type="secondary"
+                  style={{
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                  title={`Иерархия: ${hierarchyLabel}`}
+                >
+                  Иерархия: {hierarchyLabel}
+                </Text>
+              ) : null}
+            </Space>
+          );
         },
       },
       {
@@ -530,7 +762,7 @@ const SkudEmployeeEventsPage = () => {
                   showSearch
                   allowClear
                   style={{ width: 220 }}
-                  placeholder="Подрядчик"
+                  placeholder="Подрядчик (Sigur)"
                   options={counterpartyOptions}
                   value={counterpartyFilter}
                   loading={filtersLoading}
@@ -541,7 +773,7 @@ const SkudEmployeeEventsPage = () => {
                   showSearch
                   allowClear
                   style={{ width: 220 }}
-                  placeholder="Объект"
+                  placeholder="Объект (Sigur)"
                   options={constructionSiteOptions}
                   value={constructionSiteFilter}
                   loading={filtersLoading}

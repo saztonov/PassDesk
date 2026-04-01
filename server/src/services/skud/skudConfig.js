@@ -29,6 +29,24 @@ export const skudConfig = {
     concurrency: Math.max(1, toInt(process.env.SKUD_SYNC_CONCURRENCY, 2)),
     retryLimit: Math.max(1, toInt(process.env.SKUD_SYNC_RETRY_LIMIT, 5)),
   },
+  events: {
+    pullIntervalMs: Math.max(
+      60_000,
+      toInt(process.env.SKUD_EVENTS_PULL_INTERVAL_MS, 300_000),
+    ),
+    pullWindowMinutes: Math.max(
+      1,
+      toInt(process.env.SKUD_EVENTS_PULL_WINDOW_MINUTES, 60),
+    ),
+    pullOverlapMinutes: Math.max(
+      0,
+      toInt(process.env.SKUD_EVENTS_PULL_OVERLAP_MINUTES, 2),
+    ),
+    pullMaxPages: Math.max(
+      1,
+      toInt(process.env.SKUD_EVENTS_PULL_MAX_PAGES, 5),
+    ),
+  },
   qr: {
     hmacSecret: String(process.env.SKUD_QR_HMAC_SECRET || "").trim(),
     persistentTtlSeconds: Math.max(

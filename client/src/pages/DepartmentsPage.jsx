@@ -1,31 +1,53 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
+  Card,
   Table,
   Button,
   Modal,
   Form,
   Input,
   Space,
-  message,
+  App,
   Popconfirm,
   Select,
+  Typography,
 } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
 import { departmentService } from "../services/departmentService";
 import { constructionSiteService } from "../services/constructionSiteService";
 import settingsService from "../services/settingsService";
 import { useAuthStore } from "../store/authStore";
+import { canManageAdministrativeData } from "@/shared/lib/accessControl";
+
+const { Title } = Typography;
 
 const DepartmentsPage = () => {
+  const { message } = App.useApp();
   const [departments, setDepartments] = useState([]);
   const [constructionSites, setConstructionSites] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [uiState, setUiState] = useState({
+    loading: false,
+    searchText: "",
+    debouncedSearch: "",
+  });
+  const debounceTimerRef = useRef(null);
   const [modalState, setModalState] = useState({
     visible: false,
     editingDepartment: null,
   });
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 20,
+  });
   const [form] = Form.useForm();
   const { user } = useAuthStore();
+  const { loading, searchText, debouncedSearch } = uiState;
+  const canEditAndDelete = canManageAdministrativeData(user?.role);
 
   const fetchDepartments = useCallback(async () => {
     if (!user?.counterpartyId) {
@@ -34,16 +56,18 @@ const DepartmentsPage = () => {
     }
 
     try {
-      setLoading(true);
-      const response = await departmentService.getAll(user.counterpartyId);
+      setUiState((prev) => ({ ...prev, loading: true }));
+      const response = await departmentService.getAll({
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      });
       setDepartments(response.data.data.departments || []);
     } catch (error) {
       console.error("Error fetching departments:", error);
       message.error("Ошибка при загрузке подразделений");
     } finally {
-      setLoading(false);
+      setUiState((prev) => ({ ...prev, loading: false }));
     }
-  }, [user?.counterpartyId]);
+  }, [debouncedSearch, message, user?.counterpartyId]);
 
   // Загрузка объектов (для default контрагента - все, для остальных - только привязанные)
   const fetchConstructionSites = useCallback(async () => {
@@ -85,7 +109,29 @@ const DepartmentsPage = () => {
     fetchConstructionSites();
   }, [fetchDepartments, fetchConstructionSites]);
 
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      setUiState((prev) => ({
+        ...prev,
+        debouncedSearch: searchText.trim(),
+      }));
+      setPagination((prev) => ({ ...prev, current: 1 }));
+    }, 350);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [searchText]);
+
   const handleOpenModal = (department = null) => {
+    if (!canEditAndDelete) {
+      return;
+    }
     setModalState({
       visible: true,
       editingDepartment: department,
@@ -109,6 +155,9 @@ const DepartmentsPage = () => {
   };
 
   const handleSave = async () => {
+    if (!canEditAndDelete) {
+      return;
+    }
     try {
       const values = await form.validateFields();
       const payload = {
@@ -138,6 +187,9 @@ const DepartmentsPage = () => {
   };
 
   const handleDelete = async (id) => {
+    if (!canEditAndDelete) {
+      return;
+    }
     try {
       await departmentService.delete(id);
       message.success("Подразделение удалено");
@@ -149,6 +201,14 @@ const DepartmentsPage = () => {
   };
 
   const columns = [
+    {
+      title: "№",
+      key: "index",
+      width: 70,
+      align: "center",
+      render: (_, __, index) =>
+        (pagination.current - 1) * pagination.pageSize + index + 1,
+    },
     {
       title: "Название",
       dataIndex: "name",
@@ -164,61 +224,137 @@ const DepartmentsPage = () => {
     {
       title: "Действия",
       key: "actions",
-      width: 120,
+      width: 140,
       align: "center",
       render: (_, record) => (
         <Space size={4}>
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleOpenModal(record)}
-          />
-          <Popconfirm
-            title="Удалить подразделение?"
-            description="Это действие нельзя отменить"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Да"
-            cancelText="Нет"
-          >
-            <Button type="link" size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
+          {canEditAndDelete ? (
+            <>
+              <Button
+                type="link"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => handleOpenModal(record)}
+              />
+              <Popconfirm
+                title="Удалить подразделение?"
+                description="Это действие нельзя отменить"
+                onConfirm={() => handleDelete(record.id)}
+                okText="Да"
+                cancelText="Нет"
+              >
+                <Button type="link" size="small" danger icon={<DeleteOutlined />} />
+              </Popconfirm>
+            </>
+          ) : (
+            <span style={{ color: "#999", fontSize: 12 }}>Нет прав</span>
+          )}
         </Space>
       ),
     },
   ];
 
   return (
-    <div>
-      <div
+    <div
+      style={{
+        padding: 0,
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        minHeight: 0,
+        overflow: "hidden",
+      }}
+    >
+      <Card
         style={{
-          marginBottom: 16,
+          flex: 1,
+          minHeight: 0,
           display: "flex",
-          justifyContent: "flex-end",
-          paddingRight: 10,
+          flexDirection: "column",
+          overflow: "hidden",
+          margin: 0,
+        }}
+        styles={{
+          body: {
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            overflow: "hidden",
+            minHeight: 0,
+            padding: 0,
+          },
         }}
       >
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => handleOpenModal()}
+        <div
+          style={{
+            flexShrink: 0,
+            padding: "16px 24px",
+            display: "flex",
+            gap: 12,
+            alignItems: "center",
+            borderBottom: "1px solid #f0f0f0",
+          }}
         >
-          Добавить подразделение
-        </Button>
-      </div>
+          <Title level={3} style={{ margin: 0, whiteSpace: "nowrap" }}>
+            Подразделения
+          </Title>
+          <Input
+            placeholder="Поиск по названию подразделения"
+            prefix={<SearchOutlined />}
+            value={searchText}
+            onChange={(event) =>
+              setUiState((prev) => ({
+                ...prev,
+                searchText: event.target.value,
+              }))
+            }
+            style={{ width: 320 }}
+            allowClear
+          />
+          {canEditAndDelete && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => handleOpenModal()}
+              style={{ marginLeft: "auto" }}
+            >
+              Добавить
+            </Button>
+          )}
+        </div>
 
-      <Table
-        columns={columns}
-        dataSource={departments}
-        rowKey="id"
-        loading={loading}
-        size="small"
-        pagination={{
-          pageSize: 20,
-          showSizeChanger: true,
-          showTotal: (total) => `Всего: ${total}`,
-        }}
-      />
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: "auto",
+            padding: "0 24px 24px 24px",
+          }}
+        >
+          <Table
+            columns={columns}
+            dataSource={departments}
+            rowKey="id"
+            loading={loading}
+            size="small"
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              total: departments.length,
+              onChange: (current, pageSize) => {
+                setPagination((prev) => ({
+                  ...prev,
+                  current,
+                  pageSize: pageSize || prev.pageSize,
+                }));
+              },
+              showSizeChanger: true,
+              pageSizeOptions: ["10", "20", "50", "100"],
+              showTotal: (total) => `Всего: ${total} записей`,
+            }}
+          />
+        </div>
+      </Card>
 
       <Modal
         title={
@@ -261,13 +397,19 @@ const DepartmentsPage = () => {
                 placeholder="Выберите объект (необязательно)"
                 allowClear
                 showSearch
-                optionFilterProp="children"
-                filterOption={(input, option) =>
-                  option.children.toLowerCase().includes(input.toLowerCase())
-                }
+                optionFilterProp="label"
+                filterOption={(input, option) => {
+                  const label = option?.label;
+                  const text = typeof label === "string" ? label : String(label || "");
+                  return text.toLowerCase().includes(input.toLowerCase());
+                }}
               >
                 {constructionSites.map((site) => (
-                  <Select.Option key={site.id} value={site.id}>
+                  <Select.Option
+                    key={site.id}
+                    value={site.id}
+                    label={site.shortName || site.fullName || String(site.id)}
+                  >
                     {site.shortName}
                   </Select.Option>
                 ))}

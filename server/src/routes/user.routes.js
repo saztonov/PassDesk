@@ -57,6 +57,12 @@ const createUserValidation = [
     .isLength({ min: PASSWORD_MIN_LENGTH })
     .withMessage(getPasswordMinLengthMessage("Пароль")),
   body("firstName").notEmpty().trim(),
+  body("counterpartyId")
+    .notEmpty()
+    .withMessage("Необходимо выбрать компанию")
+    .bail()
+    .isUUID()
+    .withMessage("counterpartyId должен быть UUID"),
   body("lastName").optional().trim(),
   body("role")
     .optional()

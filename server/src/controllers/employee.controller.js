@@ -5162,6 +5162,18 @@ export const transferEmployeeToCounterparty = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { counterpartyId } = req.body;
+    const employee = await Employee.findByPk(id, {
+      include: employeeAccessInclude,
+    });
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Сотрудник не найден",
+      });
+    }
+
+    await checkEmployeeAccess(req.user, employee, "transfer");
+
     const transferResult = await transferEmployeeBetweenCounterparties({
       employeeId: id,
       targetCounterpartyId: counterpartyId,

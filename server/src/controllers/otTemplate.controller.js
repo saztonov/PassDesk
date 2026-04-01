@@ -107,14 +107,14 @@ export const downloadOtTemplateFile = async (req, res, next) => {
 
     const downloadData = await storageProvider.getDownloadUrl(file.filePath, {
       expiresIn: 3600,
-      fileName: file.originalName || file.fileName
+      fileName: file.fileName || file.originalName
     });
 
     res.json({
       success: true,
       data: {
         url: downloadData.url,
-        fileName: file.originalName || file.fileName
+        fileName: file.fileName || file.originalName
       }
     });
   } catch (error) {

@@ -12,7 +12,8 @@ import routes from "./routes/index.js";
 import { attachTranslator } from "./middleware/i18n.js";
 import { startTelegramBot } from "./telegram/bot.js";
 import { startSkudWorkers } from "./queues/skud/queue.js";
-import { isSkudEnabled } from "./services/skud/skudConfig.js";
+import { isSkudEnabled, skudConfig } from "./services/skud/skudConfig.js";
+import { runSkudEventsPull } from "./controllers/skud.controller.js";
 
 // Загружаем переменные окружения
 dotenv.config();
@@ -44,6 +45,8 @@ if (
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+let skudEventsPullTimer = null;
+let skudEventsPullInFlight = false;
 
 // ======================================
 // TRUST PROXY - Для работы за Nginx
@@ -216,6 +219,49 @@ const startServer = async () => {
           .catch((error) => {
             console.error("❌ SKUD workers startup failed:", error.message);
           });
+
+        const pullIntervalMs = skudConfig?.events?.pullIntervalMs || 300000;
+        const runAutoPull = async () => {
+          if (skudEventsPullInFlight) {
+            return;
+          }
+          skudEventsPullInFlight = true;
+          try {
+            const result = await runSkudEventsPull();
+            console.log(
+              `✅ SKUD events auto-pull: fetched=${result?.fetched || 0}, imported=${result?.imported || 0}`,
+            );
+          } catch (error) {
+            console.error("❌ SKUD events auto-pull failed:", error?.message || error);
+          } finally {
+            skudEventsPullInFlight = false;
+          }
+        };
+
+        skudEventsPullTimer = setInterval(() => {
+          runAutoPull().catch(() => {
+            // noop: all errors are handled inside runAutoPull
+          });
+        }, pullIntervalMs);
+
+        if (typeof skudEventsPullTimer?.unref === "function") {
+          skudEventsPullTimer.unref();
+        }
+
+        console.log(`✅ SKUD events auto-pull scheduled every ${pullIntervalMs} ms`);
+
+        runAutoPull().catch(() => {
+          // noop: all errors are handled inside runAutoPull
+        });
+
+        const stopSkudEventsPull = () => {
+          if (skudEventsPullTimer) {
+            clearInterval(skudEventsPullTimer);
+            skudEventsPullTimer = null;
+          }
+        };
+        process.once("SIGINT", stopSkudEventsPull);
+        process.once("SIGTERM", stopSkudEventsPull);
       }
     });
   } catch (error) {

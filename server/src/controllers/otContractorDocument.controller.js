@@ -20,7 +20,7 @@ import { buildFileProxyUrl } from "../services/fileDownloadTokenService.js";
 
 const buildLinkedFilePayload = (file) => ({
   id: file.id,
-  name: file.originalName || file.fileName,
+  name: file.fileName || file.originalName,
   uploadedAt: file.createdAt || null,
   uploadedBy: file.uploadedBy || null,
 });
@@ -570,21 +570,21 @@ export const downloadOtContractorDocumentFile = async (req, res, next) => {
         success: true,
         data: {
           url: buildFileProxyUrl(req, file.id, "attachment"),
-          fileName: file.originalName || file.fileName,
+          fileName: file.fileName || file.originalName,
         },
       });
     }
 
     const downloadData = await storageProvider.getDownloadUrl(file.filePath, {
       expiresIn: 3600,
-      fileName: file.originalName || file.fileName,
+      fileName: file.fileName || file.originalName,
     });
 
     res.json({
       success: true,
       data: {
         url: downloadData.url,
-        fileName: file.originalName || file.fileName,
+        fileName: file.fileName || file.originalName,
       },
     });
   } catch (error) {
@@ -624,7 +624,7 @@ export const getOtContractorDocumentFileView = async (req, res, next) => {
         success: true,
         data: {
           viewUrl: buildFileProxyUrl(req, file.id, "inline"),
-          fileName: file.originalName || file.fileName,
+          fileName: file.fileName || file.originalName,
           mimeType: file.mimeType,
         },
       });
@@ -638,7 +638,7 @@ export const getOtContractorDocumentFileView = async (req, res, next) => {
       success: true,
       data: {
         viewUrl: viewData.url,
-        fileName: file.originalName || file.fileName,
+        fileName: file.fileName || file.originalName,
         mimeType: file.mimeType,
       },
     });

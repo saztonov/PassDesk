@@ -234,7 +234,7 @@ export const employeeService = {
     return response.data;
   },
 
-  // Перевести сотрудника в другую компанию (только для admin)
+  // Перевести сотрудника в другую компанию (admin/manager в рамках прав)
   transferToCounterparty: async (employeeId, counterpartyId) => {
     const response = await api.post(`/employees/${employeeId}/transfer`, {
       counterpartyId,

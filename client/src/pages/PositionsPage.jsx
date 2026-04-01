@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
+  Card,
   Table,
   Button,
   Input,
@@ -9,12 +10,14 @@ import {
   App,
   Popconfirm,
   Upload,
+  Typography,
 } from "antd";
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   UploadOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import positionService from "../services/positionService";
 import { useAuthStore } from "../store/authStore";
@@ -22,6 +25,7 @@ import * as XLSX from "xlsx";
 import { canManageAdministrativeData } from "@/shared/lib/accessControl";
 
 const PAGE_SIZE = 50;
+const { Title } = Typography;
 
 const createColumns = ({ currentPage, canEditAndDelete, onEdit, onDelete }) => [
   {
@@ -75,46 +79,6 @@ const createColumns = ({ currentPage, canEditAndDelete, onEdit, onDelete }) => [
     ),
   },
 ];
-
-const PositionsHeader = ({
-  canEditAndDelete,
-  onSearch,
-  onImport,
-  onAdd,
-}) => (
-  <div
-    style={{
-      marginBottom: 8,
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      gap: 8,
-    }}
-  >
-    <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Должности</h1>
-    <Space size="small">
-      <Input
-        placeholder="Поиск"
-        allowClear
-        style={{ width: 200 }}
-        onChange={(e) => onSearch(e.target.value)}
-        size="small"
-      />
-      {canEditAndDelete && (
-        <>
-          <Upload accept=".xlsx, .xls" beforeUpload={onImport} showUploadList={false}>
-            <Button icon={<UploadOutlined />} size="small">
-              Импорт
-            </Button>
-          </Upload>
-          <Button type="primary" icon={<PlusOutlined />} onClick={onAdd} size="small">
-            Добавить
-          </Button>
-        </>
-      )}
-    </Space>
-  </div>
-);
 
 const PositionFormModal = ({
   form,
@@ -358,32 +322,95 @@ const PositionsPage = () => {
   );
 
   return (
-    <div style={{ padding: "12px 16px" }}>
-      <PositionsHeader
-        canEditAndDelete={canEditAndDelete}
-        onSearch={handleSearch}
-        onImport={handleImportExcel}
-        onAdd={handleAdd}
-      />
-
-      <Table
-        columns={columns}
-        dataSource={positions}
-        rowKey="id"
-        loading={loading}
-        size="small"
-        scroll={{ y: "calc(100vh - 320px)" }}
-        pagination={{
-          current: currentPage,
-          pageSize: PAGE_SIZE,
-          total: totalCount,
-          onChange: (page) => fetchPositions(page, searchText),
-          showSizeChanger: true,
-          pageSizeOptions: ["10", "20", "50", "100"],
-          showTotal: (total) => `Всего: ${total}`,
-          size: "small",
+    <div
+      style={{
+        padding: 0,
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        minHeight: 0,
+        overflow: "hidden",
+      }}
+    >
+      <Card
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          margin: 0,
         }}
-      />
+        styles={{
+          body: {
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            overflow: "hidden",
+            minHeight: 0,
+            padding: 0,
+          },
+        }}
+      >
+        <div
+          style={{
+            flexShrink: 0,
+            padding: "16px 24px",
+            display: "flex",
+            gap: 12,
+            alignItems: "center",
+            borderBottom: "1px solid #f0f0f0",
+          }}
+        >
+          <Title level={3} style={{ margin: 0, whiteSpace: "nowrap" }}>
+            Должности
+          </Title>
+          <Input
+            placeholder="Поиск по названию должности"
+            prefix={<SearchOutlined />}
+            allowClear
+            value={searchText}
+            style={{ width: 320 }}
+            onChange={(event) => handleSearch(event.target.value)}
+          />
+          {canEditAndDelete && (
+            <Space size="small" style={{ marginLeft: "auto" }}>
+              <Upload accept=".xlsx, .xls" beforeUpload={handleImportExcel} showUploadList={false}>
+                <Button icon={<UploadOutlined />}>Импорт</Button>
+              </Upload>
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+                Добавить
+              </Button>
+            </Space>
+          )}
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: "auto",
+            padding: "0 24px 24px 24px",
+          }}
+        >
+          <Table
+            columns={columns}
+            dataSource={positions}
+            rowKey="id"
+            loading={loading}
+            size="small"
+            pagination={{
+              current: currentPage,
+              pageSize: PAGE_SIZE,
+              total: totalCount,
+              onChange: (page) => fetchPositions(page, searchText),
+              showSizeChanger: true,
+              pageSizeOptions: ["10", "20", "50", "100"],
+              showTotal: (total) => `Всего: ${total} записей`,
+            }}
+          />
+        </div>
+      </Card>
 
       <PositionFormModal
         form={form}

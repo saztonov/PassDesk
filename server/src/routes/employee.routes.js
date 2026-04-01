@@ -376,9 +376,9 @@ router.post(
 router.post(
   "/:id/transfer",
   idParamValidation,
-  authorize("admin"),
+  authorize("admin", "manager"),
   employeeController.transferEmployeeToCounterparty,
-); // Перевести сотрудника в другую компанию (только admin)
+); // Перевести сотрудника в другую компанию (admin/manager в рамках прав)
 router.delete("/:id", idParamValidation, employeeController.deleteEmployee); // Проверка прав в контроллере
 
 // Employee files routes

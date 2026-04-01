@@ -23,6 +23,9 @@ const EmployeeActionButtons = ({
     employee.statusMappings?.find((m) => m.statusGroup === "status_active")
       ?.status?.name === "status_active_inactive";
   const canManageStatuses = canManageEmployeeStatuses(userRole);
+  const canTransfer =
+    isDefaultCounterpartyUser &&
+    (isAdmin || userRole === "manager" || employee.isContractor);
 
   const handleFire = async () => {
     try {
@@ -156,7 +159,7 @@ const EmployeeActionButtons = ({
           </Popconfirm>
         ))}
 
-      {isDefaultCounterpartyUser && (isAdmin || employee.isContractor) && (
+      {canTransfer && (
         <Button onClick={onTransfer}>Перевести</Button>
       )}
     </Space>
