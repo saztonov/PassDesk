@@ -78,6 +78,11 @@ const ExportPage = () => {
     [currentPage, pageSize, filterParams, tableFilters],
   );
 
+  const exportQueryParams = useMemo(() => {
+    const { page: _page, limit: _limit, ...rest } = employeeQueryParams;
+    return rest;
+  }, [employeeQueryParams]);
+
   // Сохраняем фильтр при изменении
   useEffect(() => {
     localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filterParams));
@@ -593,9 +598,9 @@ const ExportPage = () => {
 
       {/* Модальное окно выгрузки в Excel */}
       <ExcelExportModal
-          visible={isExcelExportModalOpen}
-          employees={employeesWithOverrides}
-          onCancel={handleCloseExcelExportModal}
+        visible={isExcelExportModalOpen}
+        queryParams={exportQueryParams}
+        onCancel={handleCloseExcelExportModal}
         onSuccess={handleExcelExportSuccess}
       />
     </div>

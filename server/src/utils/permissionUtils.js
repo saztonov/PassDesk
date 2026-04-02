@@ -19,25 +19,14 @@ import { AppError } from "../middleware/errorHandler.js";
 export const checkEmployeeAccess = async (
   user,
   employee,
-  operation = "write",
+  _operation = "write",
 ) => {
-  // Админ имеет доступ ко всему
-  if (user.role === "admin") return true;
+  // Админ и менеджер имеют доступ ко всем сотрудникам
+  if (user.role === "admin" || user.role === "manager") return true;
 
   const defaultCounterpartyId = await Setting.getSetting(
     "default_counterparty_id",
   );
-  const normalizedOperation = String(operation || "write").toLowerCase();
-  const isWriteOperation = normalizedOperation !== "read";
-  const isManager = user.role === "manager";
-  const isTransferOperation = normalizedOperation === "transfer";
-
-  // Для manager оставляем прежнее поведение на чтение,
-  // а операции записи ограничиваем рамками его контрагента/субподрядчиков.
-  // Перевод сотрудника выделен отдельно: manager может инициировать его.
-  if (isManager && (!isWriteOperation || isTransferOperation)) {
-    return true;
-  }
 
   if (user.counterpartyId === defaultCounterpartyId) {
     // Пользователи дефолтного контрагента (бюро пропусков)

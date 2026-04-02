@@ -15,6 +15,18 @@ import {
 
 const normalizeString = (value) => String(value || "").trim();
 
+const isMissingRelationError = (error, relationName) => {
+  const message = String(error?.original?.message || error?.message || "");
+  if (!message) {
+    return false;
+  }
+
+  return (
+    message.includes(`relation "${relationName}" does not exist`) ||
+    message.includes(`relation '${relationName}' does not exist`)
+  );
+};
+
 const DOCUMENT_TYPE_LABELS = {
   passport: "Паспорт",
   passport_translation: "Перевод паспорта",
@@ -560,43 +572,54 @@ const listStoredEmployeeOcrConflicts = async ({
   status = "open",
   employeeId = null,
 }) => {
-  const rows = await EmployeeOcrConflict.findAll({
-    where: {
-      ...(employeeId ? { employeeId } : {}),
-      ...(status ? { status } : {}),
-    },
-    include: [
-      {
-        model: Employee,
-        as: "employee",
-        required: true,
-        where: { isDeleted: false },
-        attributes: ["id", "firstName", "lastName", "middleName"],
-        include: [
-          {
-            model: EmployeeCounterpartyMapping,
-            as: "employeeCounterpartyMappings",
-            required: false,
-            attributes: ["id", "counterpartyId"],
-            include: [
-              {
-                model: Counterparty,
-                as: "counterparty",
-                attributes: ["id", "name"],
-              },
-            ],
-          },
-        ],
+  let rows = [];
+  try {
+    rows = await EmployeeOcrConflict.findAll({
+      where: {
+        ...(employeeId ? { employeeId } : {}),
+        ...(status ? { status } : {}),
       },
-      {
-        model: File,
-        as: "file",
-        required: false,
-        attributes: ["id", "fileName", "originalName", "documentType", "mimeType"],
-      },
-    ],
-    order: [["createdAt", "DESC"]],
-  });
+      include: [
+        {
+          model: Employee,
+          as: "employee",
+          required: true,
+          where: { isDeleted: false },
+          attributes: ["id", "firstName", "lastName", "middleName"],
+          include: [
+            {
+              model: EmployeeCounterpartyMapping,
+              as: "employeeCounterpartyMappings",
+              required: false,
+              attributes: ["id", "counterpartyId"],
+              include: [
+                {
+                  model: Counterparty,
+                  as: "counterparty",
+                  attributes: ["id", "name"],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          model: File,
+          as: "file",
+          required: false,
+          attributes: ["id", "fileName", "originalName", "documentType", "mimeType"],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+  } catch (error) {
+    if (isMissingRelationError(error, "employee_ocr_conflicts")) {
+      console.warn(
+        "Skipping OCR conflicts query because table employee_ocr_conflicts is missing",
+      );
+      return [];
+    }
+    throw error;
+  }
 
   const employeeIds = [...new Set(rows.map((row) => normalizeString(row.employeeId)).filter(Boolean))];
   let preferredFioFieldsByEmployee = new Map();
