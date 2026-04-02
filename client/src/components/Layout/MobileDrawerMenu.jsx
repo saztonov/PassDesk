@@ -6,6 +6,7 @@ import {
   LogoutOutlined,
   SettingOutlined,
   TeamOutlined,
+  BankOutlined,
   SafetyCertificateOutlined,
   KeyOutlined,
   QrcodeOutlined,
@@ -14,6 +15,8 @@ import { useAuthStore } from "@/store/authStore";
 import { canAccessOt } from "@/shared/lib/accessControl";
 import { useTranslation } from "react-i18next";
 import settingsService from "@/services/settingsService";
+
+const SHOW_SKUD_SIDE_MENU_ITEM = false;
 
 /**
  * Мобильное выдвижное меню (Drawer)
@@ -80,6 +83,19 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
     });
   }
 
+  if (
+    user?.role === "admin" ||
+    user?.role === "manager" ||
+    user?.role === "ot_engineer" ||
+    user?.role === "ot_admin"
+  ) {
+    topMenuItems.push({
+      key: "/directories",
+      icon: <BankOutlined />,
+      label: t("menu.references"),
+    });
+  }
+
   // Администирование только для админов
   if (user?.role === "admin" || user?.role === "manager") {
     topMenuItems.push({
@@ -89,7 +105,7 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
     });
   }
 
-  if (user?.role === "admin") {
+  if (SHOW_SKUD_SIDE_MENU_ITEM && user?.role === "admin") {
     topMenuItems.push({
       key: "/skud",
       icon: <KeyOutlined />,

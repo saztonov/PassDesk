@@ -46,6 +46,49 @@ const SettingsCategoriesCard = memo(
 
     return (
       <Card size="small">
+        <style>{`
+          .ot-settings-tree .ant-tree-node-content-wrapper {
+            min-width: 0;
+          }
+          .ot-settings-tree .ant-tree-title {
+            display: block;
+            width: 100%;
+            min-width: 0;
+          }
+          .ot-settings-tree .ot-settings-tree-row {
+            width: 100%;
+            min-width: 0;
+          }
+          .ot-settings-tree .ot-settings-tree-main {
+            min-width: 0;
+          }
+          .ot-settings-tree .ot-settings-tree-main-meta {
+            min-width: 0;
+          }
+          .ot-settings-tree .ot-settings-tree-name {
+            min-width: 0;
+            flex: 1 1 auto;
+          }
+          .ot-settings-tree .ot-settings-tree-actions {
+            flex-wrap: nowrap !important;
+            align-items: center;
+            flex-shrink: 0;
+          }
+          .ot-settings-tree .ot-settings-tree-upload-btn {
+            max-width: 132px;
+          }
+          .ot-settings-tree .ot-settings-tree-upload-btn .ant-btn-icon + span {
+            display: inline-block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          @media (max-width: 1360px) {
+            .ot-settings-tree .ot-settings-tree-upload-btn {
+              max-width: 116px;
+            }
+          }
+        `}</style>
         <Space direction="vertical" size={8} style={{ width: "100%" }}>
           <div
             style={{
@@ -105,6 +148,7 @@ const SettingsCategoriesCard = memo(
             <Empty description="Категории и документы не созданы" />
           ) : (
             <Tree
+              className="ot-settings-tree"
               blockNode
               showLine
               expandedKeys={resolvedExpandedKeys}

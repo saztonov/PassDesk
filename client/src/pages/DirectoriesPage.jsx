@@ -12,6 +12,7 @@ import CounterpartiesPage from "./CounterpartiesPage";
 import ConstructionSitesPage from "./ConstructionSitesPage";
 import DepartmentsPage from "./DepartmentsPage";
 import PositionsPage from "./PositionsPage";
+import { useAuthStore } from "@/store/authStore";
 
 const { Title } = Typography;
 
@@ -22,25 +23,31 @@ const DIRECTORY_TAB_KEYS = [
   "positions",
 ];
 
-const resolveInitialTab = (tabFromQuery) => {
-  if (DIRECTORY_TAB_KEYS.includes(tabFromQuery)) {
+const resolveInitialTab = (tabFromQuery, allowedTabKeys) => {
+  if (allowedTabKeys.includes(tabFromQuery)) {
     return tabFromQuery;
   }
 
   const savedTab = localStorage.getItem("directoriesActiveTab");
-  if (DIRECTORY_TAB_KEYS.includes(savedTab)) {
+  if (allowedTabKeys.includes(savedTab)) {
     return savedTab;
   }
 
-  return "counterparties";
+  return allowedTabKeys[0] || "counterparties";
 };
 
 const DirectoriesPage = () => {
+  const { user } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromQuery = searchParams.get("tab");
+  const isOtRole = user?.role === "ot_admin" || user?.role === "ot_engineer";
+  const allowedTabKeys = useMemo(
+    () => (isOtRole ? ["counterparties"] : DIRECTORY_TAB_KEYS),
+    [isOtRole],
+  );
   const activeTab = useMemo(
-    () => resolveInitialTab(tabFromQuery),
-    [tabFromQuery],
+    () => resolveInitialTab(tabFromQuery, allowedTabKeys),
+    [allowedTabKeys, tabFromQuery],
   );
 
   useEffect(() => {
@@ -48,24 +55,24 @@ const DirectoriesPage = () => {
   }, [activeTab]);
 
   useEffect(() => {
-    if (tabFromQuery === activeTab || !DIRECTORY_TAB_KEYS.includes(activeTab)) {
+    if (tabFromQuery === activeTab || !allowedTabKeys.includes(activeTab)) {
       return;
     }
     setSearchParams({ tab: activeTab }, { replace: true });
-  }, [activeTab, setSearchParams, tabFromQuery]);
+  }, [activeTab, allowedTabKeys, setSearchParams, tabFromQuery]);
 
   const handleTabChange = useCallback(
     (nextTab) => {
-      if (!DIRECTORY_TAB_KEYS.includes(nextTab)) {
+      if (!allowedTabKeys.includes(nextTab)) {
         return;
       }
       setSearchParams({ tab: nextTab }, { replace: false });
     },
-    [setSearchParams],
+    [allowedTabKeys, setSearchParams],
   );
 
-  const tabItems = useMemo(
-    () => [
+  const tabItems = useMemo(() => {
+    const allItems = [
       {
         key: "counterparties",
         label: (
@@ -114,9 +121,10 @@ const DirectoriesPage = () => {
         ),
         children: <PositionsPage />,
       },
-    ],
-    [],
-  );
+    ];
+
+    return allItems.filter((item) => allowedTabKeys.includes(item.key));
+  }, [allowedTabKeys]);
 
   return (
     <div

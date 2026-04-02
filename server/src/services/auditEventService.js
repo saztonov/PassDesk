@@ -13,6 +13,7 @@ export const AUDIT_EVENT_TYPES = Object.freeze({
   FILE_DELETED: "file_deleted",
   PASS_ASSIGNED: "pass_assigned",
   PASS_UNBOUND: "pass_unbound",
+  COUNTERPARTY_SITES_SYNCED: "counterparty_sites_synced",
 });
 
 export const getEmployeeCounterpartyAuditDetails = async (

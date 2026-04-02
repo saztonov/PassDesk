@@ -61,6 +61,7 @@ const useOtSettingsTree = ({
           categoryName: node.name,
           title: (
             <div
+              className="ot-settings-tree-row"
               style={{
                 width: "100%",
                 display: "flex",
@@ -71,6 +72,7 @@ const useOtSettingsTree = ({
               }}
             >
               <div
+                className="ot-settings-tree-main"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -81,6 +83,7 @@ const useOtSettingsTree = ({
               >
                 <FolderOpenOutlined style={{ color: "#2f5fba" }} />
                 <div
+                  className="ot-settings-tree-main-meta"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -90,6 +93,7 @@ const useOtSettingsTree = ({
                   }}
                 >
                   <Text
+                    className="ot-settings-tree-name"
                     strong
                     style={{
                       display: "inline-block",
@@ -114,7 +118,12 @@ const useOtSettingsTree = ({
                   )}
                 </div>
               </div>
-              <Space size={4} wrap style={{ flexShrink: 0 }}>
+              <Space
+                className="ot-settings-tree-actions"
+                size={4}
+                wrap={false}
+                style={{ flexShrink: 0 }}
+              >
                 <Tooltip title="Добавить подкатегорию">
                   <Button
                     size="small"
@@ -127,6 +136,7 @@ const useOtSettingsTree = ({
                 </Tooltip>
                 <Tooltip title="Добавить документ">
                   <Button
+                    className="ot-settings-tree-upload-btn"
                     size="small"
                     icon={<FileAddOutlined />}
                     onClick={(event) => {
@@ -134,7 +144,7 @@ const useOtSettingsTree = ({
                       handleOpenDocumentModal(null, node.id);
                     }}
                   >
-                    Подгрузка документов
+                    Подгрузка
                   </Button>
                 </Tooltip>
                 <Button

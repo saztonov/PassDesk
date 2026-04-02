@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react";
 import { Table, Button, Space, Tag, Tooltip } from "antd";
 import { EyeOutlined, EditOutlined, FileTextOutlined } from "@ant-design/icons";
 import { useEmployees, useEmployeeActions } from "@/entities/employee";
-import { employeeApi } from "@/entities/employee";
 import { ExportDateFilter } from "@/features/export-date-filter";
 import StatusUploadToggle from "@/modules/employees/ui/StatusUploadToggle";
 import EmployeeViewModal from "@/modules/employees/ui/EmployeeViewModal";
@@ -172,26 +171,29 @@ const ExportPage = () => {
   };
 
   // Обработчик успешной выгрузки
-  const handleExcelExportSuccess = (updatedEmployeeIds = []) => {
-    if (updatedEmployeeIds.length > 0) {
-      setUploadOverrides((prev) => {
-        const next = { ...prev };
-
-        employees.forEach((employee) => {
-          if (!updatedEmployeeIds.includes(employee.id)) {
-            return;
-          }
-
-          next[employee.id] = (employee.statusMappings || []).map((mapping) => ({
-            ...mapping,
-            isUpload: true,
-          }));
-        });
-
-        return next;
-      });
-    }
-
+  const handleExcelExportSuccess = () => {
+    // Временно отключено по требованию:
+    // после Excel-выгрузки НЕ делаем авто-смену статуса в колонке "ЗУП".
+    //
+    // Старое поведение (локально отмечало выгруженными):
+    // if (updatedEmployeeIds.length > 0) {
+    //   setUploadOverrides((prev) => {
+    //     const next = { ...prev };
+    //
+    //     employees.forEach((employee) => {
+    //       if (!updatedEmployeeIds.includes(employee.id)) {
+    //         return;
+    //       }
+    //
+    //       next[employee.id] = (employee.statusMappings || []).map((mapping) => ({
+    //         ...mapping,
+    //         isUpload: true,
+    //       }));
+    //     });
+    //
+    //     return next;
+    //   });
+    // }
     invalidateCache();
     refetch();
   };

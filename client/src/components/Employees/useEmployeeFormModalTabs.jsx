@@ -9,6 +9,7 @@ import EmployeeSkudTab from "./EmployeeSkudTab.jsx";
 import EmployeeOcrConflictsCompact from "./EmployeeOcrConflictsCompact.jsx";
 
 const { Text } = Typography;
+const SHOW_SKUD_TAB = false;
 
 export const useEmployeeFormModalTabs = ({
   form,
@@ -147,11 +148,13 @@ export const useEmployeeFormModalTabs = ({
       });
     }
 
-    items.push({
-      key: "5",
-      label: "СКУД",
-      children: <EmployeeSkudTab employee={employee} />,
-    });
+    if (SHOW_SKUD_TAB) {
+      items.push({
+        key: "5",
+        label: "СКУД",
+        children: <EmployeeSkudTab employee={employee} />,
+      });
+    }
 
     if (employee?.id && conflictSummary?.hasConflicts) {
       items.push({

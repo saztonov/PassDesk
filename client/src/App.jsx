@@ -38,6 +38,10 @@ const RoleBasedRedirect = () => {
     return <Navigate to="/cabinet" replace />;
   }
 
+  if (user?.role === "ot_engineer" || user?.role === "ot_admin") {
+    return <Navigate to="/ot" replace />;
+  }
+
   return <Navigate to="/employees" replace />;
 };
 
@@ -214,7 +218,9 @@ function App() {
             <Route
               path="directories"
               element={
-                <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                <ProtectedRoute
+                  allowedRoles={["admin", "manager", "ot_engineer", "ot_admin"]}
+                >
                   <DirectoriesPage />
                 </ProtectedRoute>
               }

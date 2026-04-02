@@ -1,7 +1,6 @@
 import { useCallback, useState, useMemo } from "react";
-import { Modal, Table, Button, Space, App, Empty, Segmented } from "antd";
+import { Modal, Table, Button, Space, App, Empty, Checkbox } from "antd";
 import { FileExcelOutlined } from "@ant-design/icons";
-import { employeeApi } from "@/entities/employee";
 import { formatPassportDepartmentCode } from "@/modules/employees/lib/employeeFormFormatters";
 import dayjs from "dayjs";
 import * as XLSX from "xlsx";
@@ -34,27 +33,24 @@ const ExcelExportModal = ({
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
-  const [showMode, setShowMode] = useState("not_uploaded");
+  const [checkRequiredFields, setCheckRequiredFields] = useState(true);
 
   const filteredEmployees = useMemo(() => {
-    if (showMode === "all") return employees;
-    return employees.filter((emp) => {
-      const activeMappings = (emp.statusMappings || []).filter((m) => m.isActive);
-      if (activeMappings.length === 0) return true;
-      return activeMappings.some((m) => !m.isUpload);
-    });
-  }, [employees, showMode]);
+    if (!checkRequiredFields) {
+      return employees;
+    }
+
+    return employees.filter((emp) => emp.statusCard === "completed");
+  }, [checkRequiredFields, employees]);
 
   const handleOpenChange = useCallback(
     (open) => {
       if (open) {
-        setShowMode("not_uploaded");
-        const notUploaded = employees.filter((emp) => {
-          const activeMappings = (emp.statusMappings || []).filter((m) => m.isActive);
-          if (activeMappings.length === 0) return true;
-          return activeMappings.some((m) => !m.isUpload);
-        });
-        setSelectedEmployeeIds(notUploaded.map((emp) => emp.id));
+        setCheckRequiredFields(true);
+        const completedEmployees = employees.filter(
+          (emp) => emp.statusCard === "completed",
+        );
+        setSelectedEmployeeIds(completedEmployees.map((emp) => emp.id));
       } else {
         setSelectedEmployeeIds([]);
       }
@@ -129,15 +125,18 @@ const ExcelExportModal = ({
       // Сохраняем файл
       XLSX.writeFile(workbook, fileName);
 
-      // Обновляем is_upload = true для всех активных статусов выгруженных сотрудников
-      await Promise.all(
-        employeesToExport.map((emp) =>
-          employeeApi.updateAllStatusesUploadFlag(emp.id, true),
-        ),
-      );
+      // Временно отключено по требованию:
+      // в Администрирование / Выгрузка НЕ делаем авто-отметку выгрузки (ЗУП).
+      //
+      // Старое поведение:
+      // await Promise.all(
+      //   employeesToExport.map((emp) =>
+      //     employeeApi.updateAllStatusesUploadFlag(emp.id, true),
+      //   ),
+      // );
 
       message.success(`Файл успешно выгружен: ${fileName}`);
-      onSuccess?.(employeesToExport.map((emp) => emp.id));
+      onSuccess?.();
       onCancel();
     } catch (error) {
       console.error("Export error:", error);
@@ -240,18 +239,21 @@ const ExcelExportModal = ({
             В текущем списке найдено:{" "}
             <strong>{filteredEmployees.length}</strong>
           </div>
-          <Segmented
-            value={showMode}
-            onChange={(val) => {
-              setShowMode(val);
-              setSelectedEmployeeIds([]);
-            }}
-            options={[
-              { label: "Не выгруженные", value: "not_uploaded" },
-              { label: "Все", value: "all" },
-            ]}
-            style={{ marginBottom: "12px" }}
-          />
+          <div style={{ marginBottom: "12px" }}>
+            <Checkbox
+              checked={checkRequiredFields}
+              onChange={(event) => {
+                const nextValue = event.target.checked;
+                setCheckRequiredFields(nextValue);
+                const nextEmployees = nextValue
+                  ? employees.filter((emp) => emp.statusCard === "completed")
+                  : employees;
+                setSelectedEmployeeIds(nextEmployees.map((emp) => emp.id));
+              }}
+            >
+              Проверять обязательные поля
+            </Checkbox>
+          </div>
           <Table
             rowSelection={rowSelection}
             columns={columns}

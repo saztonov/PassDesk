@@ -282,6 +282,17 @@ const LoginPage = () => {
         return;
       }
 
+      const role = response?.data?.user?.role;
+      if (role === "ot_engineer" || role === "ot_admin") {
+        navigate("/ot");
+        return;
+      }
+
+      if (role === "laborer") {
+        navigate("/cabinet");
+        return;
+      }
+
       navigate("/employees");
     } catch (err) {
       console.error("Login error:", err);

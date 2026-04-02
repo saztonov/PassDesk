@@ -12,6 +12,8 @@ export const canManageCounterparties = ({
   defaultCounterpartyId = null,
 } = {}) =>
   canManageAdministrativeData(role) ||
+  role === "ot_admin" ||
+  role === "ot_engineer" ||
   (role === "user" &&
     counterpartyId &&
     counterpartyId !== defaultCounterpartyId);

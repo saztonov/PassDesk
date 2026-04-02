@@ -23,6 +23,7 @@ import {
   DeleteOutlined,
   SearchOutlined,
   LinkOutlined,
+  SyncOutlined,
 } from "@ant-design/icons";
 import { counterpartyService } from "../services/counterpartyService";
 import settingsService from "../services/settingsService";
@@ -61,9 +62,27 @@ const CounterpartiesPage = () => {
   const [form] = Form.useForm();
   const debounceTimerRef = useRef(null);
   const [defaultCounterpartyId, setDefaultCounterpartyId] = useState(null);
+  const [syncingFromSkud, setSyncingFromSkud] = useState(false);
+  const [syncingCounterpartyId, setSyncingCounterpartyId] = useState(null);
 
   // Debounced фильтры для отправки на сервер
   const [debouncedFilters, setDebouncedFilters] = useState({});
+
+  const updateFilter = useCallback((key, value) => {
+    setPagination((prev) => ({
+      ...prev,
+      current: 1,
+    }));
+    setFilters((prev) => {
+      const next = { ...prev };
+      if (value === undefined || value === null || value === "") {
+        delete next[key];
+      } else {
+        next[key] = value;
+      }
+      return next;
+    });
+  }, []);
 
   // Загрузить defaultCounterpartyId при монтировании
   useEffect(() => {
@@ -88,6 +107,10 @@ const CounterpartiesPage = () => {
       counterpartyId: user?.counterpartyId,
       defaultCounterpartyId,
     });
+  const canManageAllCounterparties =
+    canManageAdministrativeData(user?.role) ||
+    user?.role === "ot_admin" ||
+    user?.role === "ot_engineer";
 
   // Debounce для фильтров (500мс)
   useEffect(() => {
@@ -150,11 +173,11 @@ const CounterpartiesPage = () => {
   const handleEdit = (record) => {
     setEditingId(record.id);
 
-    // Для admin устанавливаем все поля включая type
+    // Для ролей с полным доступом устанавливаем все поля включая type
     // Для user (не default) устанавливаем все кроме type
     const formValues = { ...record };
     if (
-      canManageAdministrativeData(user?.role) &&
+      canManageAllCounterparties &&
       record.typeMapping?.types &&
       record.typeMapping.types.length > 0
     ) {
@@ -330,6 +353,98 @@ const CounterpartiesPage = () => {
     }
   };
 
+  const handleSyncConstructionSitesFromSkud = () => {
+    modal.confirm({
+      title: "Синхронизировать объекты из СКУД?",
+      content:
+        "Система добавит только недостающие связи контрагент-объект. Текущие связи удалены не будут.",
+      okText: "Синхронизировать",
+      cancelText: "Отмена",
+      onOk: async () => {
+        setSyncingFromSkud(true);
+        try {
+          const response =
+            await counterpartyService.syncConstructionSitesFromSkud({
+              dryRun: false,
+              batchSize: 1,
+            });
+          const summary = response?.data?.data?.summary || {};
+          const inserted = Number(summary.insertedPairs || 0);
+          const candidates = Number(summary.candidatePairs || 0);
+          const totalCandidates = Number(summary.candidatePairsTotal || 0);
+          const existing = Number(summary.existingPairs || 0);
+          const remaining = Number(summary.remainingPairs || 0);
+          const providerResolved = Number(
+            summary?.providerSourceSummary?.resolvedPairs || 0,
+          );
+          const createdSites = Number(
+            summary?.providerSourceSummary?.createdConstructionSites || 0,
+          );
+          const providerFailed = Boolean(
+            summary?.providerSourceSummary?.failed,
+          );
+          message.success(
+            providerFailed
+              ? `Синхронизация завершена: добавлено ${inserted}, уже было ${existing}, обработано ${candidates} из ${totalCandidates}. Осталось: ${remaining}. Sigur-расширение недоступно.`
+              : `Синхронизация завершена: добавлено ${inserted}, уже было ${existing}, обработано ${candidates} из ${totalCandidates}. Осталось: ${remaining}. Найдено через Sigur: ${providerResolved}. Новых объектов создано: ${createdSites}.`,
+          );
+          await fetchData();
+        } catch (error) {
+          message.error(
+            error?.response?.data?.message || "Ошибка синхронизации из СКУД",
+          );
+        } finally {
+          setSyncingFromSkud(false);
+        }
+      },
+    });
+  };
+
+  const handleSyncSingleCounterpartyFromSkud = (counterpartyRecord) => {
+    const counterpartyId = String(counterpartyRecord?.id || "").trim();
+    const counterpartyName = counterpartyRecord?.name || "контрагент";
+    if (!counterpartyId) {
+      message.error("Не удалось определить контрагента для синхронизации");
+      return;
+    }
+
+    modal.confirm({
+      title: `Синхронизировать объекты для «${counterpartyName}»?`,
+      content:
+        "Будут добавлены только недостающие связи для выбранного контрагента. Существующие связи удалены не будут.",
+      okText: "Синхронизировать",
+      cancelText: "Отмена",
+      onOk: async () => {
+        setSyncingCounterpartyId(counterpartyId);
+        try {
+          const response =
+            await counterpartyService.syncConstructionSitesFromSkud({
+              dryRun: false,
+              batchSize: 1,
+              counterpartyId,
+              includeProvider: true,
+            });
+          const summary = response?.data?.data?.summary || {};
+          const inserted = Number(summary.insertedPairs || 0);
+          const candidates = Number(summary.candidatePairs || 0);
+          const totalCandidates = Number(summary.candidatePairsTotal || 0);
+          const existing = Number(summary.existingPairs || 0);
+          const remaining = Number(summary.remainingPairs || 0);
+          message.success(
+            `Синхронизация «${counterpartyName}»: добавлено ${inserted}, уже было ${existing}, обработано ${candidates} из ${totalCandidates}. Осталось: ${remaining}.`,
+          );
+          await fetchData();
+        } catch (error) {
+          message.error(
+            error?.response?.data?.message || "Ошибка синхронизации из СКУД",
+          );
+        } finally {
+          setSyncingCounterpartyId(null);
+        }
+      },
+    });
+  };
+
   const columns = [
     { title: "Название", dataIndex: "name", key: "name" },
     { title: "ИНН", dataIndex: "inn", key: "inn" },
@@ -362,7 +477,7 @@ const CounterpartiesPage = () => {
         const objects = record.constructionSites || [];
         // Проверяем права на редактирование объектов
         const canEditObjects =
-          canManageAdministrativeData(user?.role) ||
+          canManageAllCounterparties ||
           (user?.role === "user" &&
             user?.counterpartyId !== defaultCounterpartyId &&
             record.parentCounterparty?.id === user?.counterpartyId);
@@ -443,6 +558,14 @@ const CounterpartiesPage = () => {
             </Tooltip>
             {canManageAdministrativeData(user?.role) && (
               <>
+                <Tooltip title="Синхронизировать объекты этого контрагента из СКУД">
+                  <Button
+                    icon={<SyncOutlined />}
+                    loading={syncingCounterpartyId === String(record.id)}
+                    onClick={() => handleSyncSingleCounterpartyFromSkud(record)}
+                    size="small"
+                  />
+                </Tooltip>
                 <Button
                   icon={<EditOutlined />}
                   onClick={() => handleEdit(record)}
@@ -456,6 +579,22 @@ const CounterpartiesPage = () => {
                 />
               </>
             )}
+            {!canManageAdministrativeData(user?.role) &&
+              canManageAllCounterparties && (
+                <>
+                  <Button
+                    icon={<EditOutlined />}
+                    onClick={() => handleEdit(record)}
+                    size="small"
+                  />
+                  <Button
+                    icon={<DeleteOutlined />}
+                    danger
+                    onClick={() => handleDelete(record.id)}
+                    size="small"
+                  />
+                </>
+              )}
             {user?.role === "user" && isSubcontractor && (
               <Button
                 icon={<EditOutlined />}
@@ -517,18 +656,15 @@ const CounterpartiesPage = () => {
             placeholder="Поиск по названию или ИНН"
             prefix={<SearchOutlined />}
             value={filters.search || ""}
-            onChange={(e) =>
-              setFilters((prev) => ({ ...prev, search: e.target.value }))
-            }
+            onChange={(e) => updateFilter("search", e.target.value)}
             style={{ width: 300 }}
             allowClear
           />
           <Select
             placeholder="Тип"
             style={{ width: 150 }}
-            onChange={(value) =>
-              setFilters((prev) => ({ ...prev, type: value }))
-            }
+            value={filters.type}
+            onChange={(value) => updateFilter("type", value)}
             allowClear
           >
             <Select.Option value="customer">Заказчик</Select.Option>
@@ -537,16 +673,22 @@ const CounterpartiesPage = () => {
               Генподрядчик
             </Select.Option>
           </Select>
-          {canEditCounterparties && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleAdd}
-              style={{ marginLeft: "auto" }}
-            >
-              Добавить
-            </Button>
-          )}
+          <Space style={{ marginLeft: "auto" }}>
+            {canManageAdministrativeData(user?.role) && (
+              <Button
+                icon={<SyncOutlined />}
+                loading={syncingFromSkud}
+                onClick={handleSyncConstructionSitesFromSkud}
+              >
+                Синхр. из СКУД
+              </Button>
+            )}
+            {canEditCounterparties && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+                Добавить
+              </Button>
+            )}
+          </Space>
         </div>
 
         <div
@@ -659,7 +801,7 @@ const CounterpartiesPage = () => {
                   <Input maxLength={15} />
                 </Form.Item>
               </Col>
-              {canManageAdministrativeData(user?.role) && (
+              {canManageAllCounterparties && (
                 <Col span={12}>
                   <Form.Item
                     name="type"

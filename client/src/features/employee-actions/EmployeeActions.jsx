@@ -6,6 +6,9 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
+const SHOW_REQUEST_EXCEL_ACTION = false;
+const SHOW_SECURITY_ACTION = false;
+
 /**
  * Feature: Действия над сотрудниками (добавление, заявка, импорт, блокировка)
  */
@@ -21,14 +24,16 @@ export const EmployeeActions = ({
 
   return (
     <Space size={compact ? "small" : "middle"} wrap>
-      <Button
-        type="primary"
-        icon={<FileExcelOutlined />}
-        onClick={onRequest}
-        size={compact ? "middle" : "middle"}
-      >
-        {t("employees.requestExcel")}
-      </Button>
+      {SHOW_REQUEST_EXCEL_ACTION ? (
+        <Button
+          type="primary"
+          icon={<FileExcelOutlined />}
+          onClick={onRequest}
+          size={compact ? "middle" : "middle"}
+        >
+          {t("employees.requestExcel")}
+        </Button>
+      ) : null}
       <Button
         type="default"
         icon={<FileExcelOutlined />}
@@ -37,7 +42,7 @@ export const EmployeeActions = ({
       >
         {t("employees.importExcel")}
       </Button>
-      {canExport && (
+      {SHOW_SECURITY_ACTION && canExport ? (
         <Button
           type="default"
           icon={<LockOutlined />}
@@ -46,7 +51,7 @@ export const EmployeeActions = ({
         >
           {t("employees.security")}
         </Button>
-      )}
+      ) : null}
       <Button
         type="default"
         icon={<PlusOutlined />}

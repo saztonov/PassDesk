@@ -18,6 +18,7 @@ import { canAccessOt } from "@/shared/lib/accessControl";
 import { useTranslation } from "react-i18next";
 
 const { Sider } = Layout;
+const SHOW_SKUD_SIDE_MENU_ITEM = false;
 
 // Стили для кнопки сворачивания
 const sidebarStyles = `
@@ -121,11 +122,15 @@ const Sidebar = () => {
       icon: <ControlOutlined />,
       label: t("menu.administration"),
     },
-    {
-      key: "/skud",
-      icon: <KeyOutlined />,
-      label: t("menu.skud"),
-    },
+    ...(SHOW_SKUD_SIDE_MENU_ITEM
+      ? [
+          {
+            key: "/skud",
+            icon: <KeyOutlined />,
+            label: t("menu.skud"),
+          },
+        ]
+      : []),
   ];
   const managerMenuItems = adminMenuItems.filter(
     (item) => item.key !== "/skud" && item.key !== "/ot",
@@ -136,6 +141,11 @@ const Sidebar = () => {
       key: "/ot",
       icon: <SafetyCertificateOutlined />,
       label: t("menu.ot"),
+    },
+    {
+      key: "/directories",
+      icon: <BankOutlined />,
+      label: t("menu.references"),
     },
   ];
 

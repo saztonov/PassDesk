@@ -1,4 +1,4 @@
-import { Op } from "sequelize";
+import { Op, QueryTypes } from "sequelize";
 import {
   Employee,
   EmployeeCounterpartyMapping,
@@ -110,6 +110,49 @@ const normalizePersonNameForCompare = (value) =>
 
 const PASSAGE_EVENT_TYPES = ["PASS_DETECTED", "PASS_GRANTED", "PASS_DENIED", "PASS_ATTEMPT"];
 const RAW_PASSAGE_EVENT_TYPE = 6;
+
+const SKUD_SITE_ACCESS_POINTS_TABLE = "skud_site_access_points";
+const SKUD_PERSON_BINDINGS_TABLE = "skud_person_bindings";
+const TABLE_EXISTS_CACHE_TTL_MS = 60 * 1000;
+const tableExistsCache = new Map();
+
+const isUndefinedTableError = (error, tableName) => {
+  const code = error?.original?.code || error?.parent?.code || null;
+  if (code === "42P01") {
+    return true;
+  }
+  const normalizedMessage = String(error?.message || "").toLowerCase();
+  return normalizedMessage.includes(
+    `relation "${String(tableName || "").toLowerCase()}" does not exist`,
+  );
+};
+
+const hasTable = async (tableName) => {
+  const normalized = String(tableName || "").trim();
+  if (!normalized) {
+    return false;
+  }
+
+  const cacheKey = normalized.toLowerCase();
+  const cached = tableExistsCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
+  const rows = await SkudAccessEvent.sequelize.query(
+    "SELECT to_regclass(:tableName) AS table_name",
+    {
+      replacements: { tableName: `public.${cacheKey}` },
+      type: QueryTypes.SELECT,
+    },
+  );
+  const exists = Boolean(rows?.[0]?.table_name);
+  tableExistsCache.set(cacheKey, {
+    value: exists,
+    expiresAt: Date.now() + TABLE_EXISTS_CACHE_TTL_MS,
+  });
+  return exists;
+};
 
 const parsePullParams = (body = {}, query = {}) => {
   const source = body && typeof body === "object" ? body : {};
@@ -1422,8 +1465,11 @@ const enrichProviderEvents = async ({
         .filter((item) => Number.isFinite(item)),
     ),
   );
-  const siteAccessPointRows = accessPointIds.length
-    ? await SkudSiteAccessPoint.findAll({
+  const canUseSkudSiteAccessPoints = await hasTable(SKUD_SITE_ACCESS_POINTS_TABLE);
+  let siteAccessPointRows = [];
+  if (canUseSkudSiteAccessPoints && accessPointIds.length > 0) {
+    try {
+      siteAccessPointRows = await SkudSiteAccessPoint.findAll({
         where: {
           sigurAccessPointId: {
             [Op.in]: accessPointIds,
@@ -1438,8 +1484,19 @@ const enrichProviderEvents = async ({
             attributes: ["id", "shortName", "fullName"],
           },
         ],
-      })
-    : [];
+      });
+    } catch (error) {
+      if (isUndefinedTableError(error, SKUD_SITE_ACCESS_POINTS_TABLE)) {
+        siteAccessPointRows = [];
+        tableExistsCache.set(SKUD_SITE_ACCESS_POINTS_TABLE, {
+          value: false,
+          expiresAt: Date.now() + TABLE_EXISTS_CACHE_TTL_MS,
+        });
+      } else {
+        throw error;
+      }
+    }
+  }
   const siteInfoByAccessPointId = new Map();
   siteAccessPointRows.forEach((item) => {
     const accessPointId = Number.parseInt(String(item?.sigurAccessPointId), 10);
@@ -3919,6 +3976,10 @@ export const skudController = {
 
   async getSiteAccessPoints(req, res, next) {
     try {
+      const canUseSkudSiteAccessPoints = await hasTable(SKUD_SITE_ACCESS_POINTS_TABLE);
+      if (!canUseSkudSiteAccessPoints) {
+        return res.json({ success: true, data: [] });
+      }
       const { siteId } = req.params;
       const rows = await SkudSiteAccessPoint.findAll({
         where: { constructionSiteId: siteId },
@@ -3934,6 +3995,13 @@ export const skudController = {
   // Replaces all mappings for the site atomically
   async setSiteAccessPoints(req, res, next) {
     try {
+      const canUseSkudSiteAccessPoints = await hasTable(SKUD_SITE_ACCESS_POINTS_TABLE);
+      if (!canUseSkudSiteAccessPoints) {
+        throw new AppError(
+          "Таблица skud_site_access_points отсутствует. Примените миграции СКУД.",
+          503,
+        );
+      }
       const { siteId } = req.params;
       const ids = req.body.accessPointIds;
 
@@ -3958,6 +4026,13 @@ export const skudController = {
 
   async deleteSiteAccessPoint(req, res, next) {
     try {
+      const canUseSkudSiteAccessPoints = await hasTable(SKUD_SITE_ACCESS_POINTS_TABLE);
+      if (!canUseSkudSiteAccessPoints) {
+        throw new AppError(
+          "Таблица skud_site_access_points отсутствует. Примените миграции СКУД.",
+          503,
+        );
+      }
       const { id } = req.params;
       const deleted = await SkudSiteAccessPoint.destroy({ where: { id } });
       if (!deleted) throw new AppError("Запись не найдена", 404);

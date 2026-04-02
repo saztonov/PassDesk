@@ -135,6 +135,11 @@ const tableStyles = `
  * Сохраняет состояние фильтров в localStorage
  */
 const EMPTY_HIDDEN_COLUMN_KEYS = [];
+const FORCED_HIDDEN_COLUMN_KEYS = new Set([
+  "position",
+  "department",
+  "status",
+]);
 const INTERACTIVE_ROW_TARGET_SELECTOR = [
   "button",
   "a",
@@ -211,7 +216,9 @@ export const EmployeeTable = ({
   });
 
   const visibleColumns = columns.filter(
-    (column) => !hiddenColumnKeys.includes(column.key),
+    (column) =>
+      !hiddenColumnKeys.includes(column.key) &&
+      !FORCED_HIDDEN_COLUMN_KEYS.has(column.key),
   );
 
   // При загрузке фильтров из localStorage передаем их на верхний уровень

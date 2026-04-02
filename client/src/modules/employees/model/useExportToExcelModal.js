@@ -2,12 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import * as XLSX from "xlsx";
 import { useEmployees } from "@/entities/employee";
-import { employeeStatusService } from "@/services/employeeStatusService";
 import { constructionSiteService } from "@/services/constructionSiteService";
 import { counterpartyService } from "@/services/counterpartyService";
 import {
   buildExportExcelRows,
-  buildStatusUpdatesForExport,
 } from "@/modules/employees/lib/exportToExcelModalUtils";
 
 export const useExportToExcelModal = ({
@@ -19,7 +17,7 @@ export const useExportToExcelModal = ({
   const [constructionSites, setConstructionSites] = useState([]);
   const [counterparties, setCounterparties] = useState([]);
   const [selectedEmployees, setSelectedEmployees] = useState([]);
-  const [filterType, setFilterType] = useState("all");
+  const [checkRequiredFields, setCheckRequiredFields] = useState(true);
   const [constructionSiteId, setConstructionSiteId] = useState(null);
   const [counterpartyId, setCounterpartyId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -38,10 +36,8 @@ export const useExportToExcelModal = ({
       counterpartyIds: JSON.stringify([counterpartyId]),
     };
 
-    if (filterType === "all" || filterType === "tb_passed") {
-      params.statuses = JSON.stringify(["tb_passed"]);
-    } else if (filterType === "blocked") {
-      params.statuses = JSON.stringify(["blocked", "fired", "inactive"]);
+    if (checkRequiredFields) {
+      params.statusCard = JSON.stringify(["completed"]);
     }
 
     return params;
@@ -50,7 +46,7 @@ export const useExportToExcelModal = ({
     counterpartyId,
     currentPage,
     pageSize,
-    filterType,
+    checkRequiredFields,
   ]);
 
   const {
@@ -86,7 +82,7 @@ export const useExportToExcelModal = ({
     };
 
     fetchInitialData();
-    setFilterType("all");
+    setCheckRequiredFields(true);
     setConstructionSiteId(null);
     setCounterpartyId(null);
     setCurrentPage(1);
@@ -99,7 +95,7 @@ export const useExportToExcelModal = ({
     setCurrentPage(1);
     setSelectedEmployees([]);
     setLoadedEmployeesById({});
-  }, [constructionSiteId, counterpartyId, filterType]);
+  }, [constructionSiteId, counterpartyId, checkRequiredFields]);
 
   useEffect(() => {
     if (!constructionSiteId || !counterpartyId) {
@@ -149,9 +145,19 @@ export const useExportToExcelModal = ({
     try {
       setExportLoading(true);
 
-      const employeesToExport = Object.values(loadedEmployeesById).filter(
-        (employee) => selectedEmployees.includes(employee.id),
+      const selectedRows = Object.values(loadedEmployeesById).filter((employee) =>
+        selectedEmployees.includes(employee.id),
       );
+      const employeesToExport = checkRequiredFields
+        ? selectedRows.filter((employee) => employee.statusCard === "completed")
+        : selectedRows;
+
+      if (employeesToExport.length === 0) {
+        messageApi.warning(
+          "Нет сотрудников с заполненной карточкой для экспорта",
+        );
+        return;
+      }
 
       const rows = buildExportExcelRows({
         employees: employeesToExport,
@@ -165,21 +171,6 @@ export const useExportToExcelModal = ({
 
       const fileName = `Сотрудники_${dayjs().format("DD-MM-YYYY_HH-mm")}.xlsx`;
       XLSX.writeFile(workbook, fileName);
-
-      const allStatuses = await employeeStatusService.getAllStatuses();
-      const statusUpdates = buildStatusUpdatesForExport({
-        employees: employeesToExport,
-        filterType,
-        allStatuses,
-      });
-
-      if (statusUpdates.length > 0) {
-        await Promise.all(
-          statusUpdates.map(({ employeeId, statusId }) =>
-            employeeStatusService.setStatus(employeeId, statusId),
-          ),
-        );
-      }
 
       messageApi.success(`Файл успешно сохранен: ${fileName}`);
       onCancel();
@@ -200,8 +191,8 @@ export const useExportToExcelModal = ({
     currentPage,
     pageSize,
     selectedEmployees,
-    filterType,
-    setFilterType,
+    checkRequiredFields,
+    setCheckRequiredFields,
     constructionSiteId,
     setConstructionSiteId,
     counterpartyId,

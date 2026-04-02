@@ -35,6 +35,16 @@ describe("accessControl", () => {
     ).toBe(true);
     expect(
       canManageCounterparties({
+        role: "ot_admin",
+      }),
+    ).toBe(true);
+    expect(
+      canManageCounterparties({
+        role: "ot_engineer",
+      }),
+    ).toBe(true);
+    expect(
+      canManageCounterparties({
         role: "user",
         counterpartyId: "user-counterparty",
         defaultCounterpartyId: "default-counterparty",

@@ -9,6 +9,7 @@ import {
   generateRegistrationCode,
   getCounterpartyConstructionSites,
   saveCounterpartyConstructionSites,
+  syncCounterpartyConstructionSitesFromSkud,
   getAvailableCounterparties,
 } from "../controllers/counterparty.controller.js";
 import { authenticate, authorize } from "../middleware/auth.js";
@@ -50,18 +51,35 @@ router.get(
 // ======================================
 // ИЗМЕНЕНИЕ - только для администраторов и пользователей (не default)
 // ======================================
-router.post("/", authorize("admin", "user", "manager"), createCounterparty);
+router.post(
+  "/",
+  authorize("admin", "user", "manager", "ot_admin", "ot_engineer"),
+  createCounterparty,
+);
+router.post(
+  "/sync-construction-sites-from-skud",
+  authorize("admin", "manager"),
+  syncCounterpartyConstructionSitesFromSkud,
+);
 router.post(
   "/:id/generate-registration-code",
-  authorize("admin", "manager"),
+  authorize("admin", "manager", "ot_admin", "ot_engineer"),
   generateRegistrationCode,
 );
 router.post(
   "/:id/construction-sites",
-  authorize("admin", "user", "manager"),
+  authorize("admin", "user", "manager", "ot_admin", "ot_engineer"),
   saveCounterpartyConstructionSites,
 );
-router.put("/:id", authorize("admin", "user", "manager"), updateCounterparty);
-router.delete("/:id", authorize("admin", "manager"), deleteCounterparty);
+router.put(
+  "/:id",
+  authorize("admin", "user", "manager", "ot_admin", "ot_engineer"),
+  updateCounterparty,
+);
+router.delete(
+  "/:id",
+  authorize("admin", "manager", "ot_admin", "ot_engineer"),
+  deleteCounterparty,
+);
 
 export default router;

@@ -1,22 +1,33 @@
 import { useMemo } from "react";
 
+const FORCED_HIDDEN_COLUMN_KEYS = new Set([
+  "position",
+  "department",
+  "status",
+]);
+
 const buildAvailableColumns = ({
   showDepartmentColumn,
   showCounterpartyColumn,
-}) => [
-  { key: "index", label: "№" },
-  { key: "fullName", label: "ФИО" },
-  { key: "position", label: "Должность" },
-  ...(showDepartmentColumn ? [{ key: "department", label: "Подразделение" }] : []),
-  ...(showCounterpartyColumn ? [{ key: "counterparty", label: "Контрагент" }] : []),
-  { key: "constructionSite", label: "Объект" },
-  { key: "citizenship", label: "Гражданство" },
-  { key: "isUpload", label: "ЗУП" },
-  { key: "statusCard", label: "Заполнен" },
-  { key: "files", label: "Файлы" },
-  { key: "documentExpiry", label: "Срок действия док." },
-  { key: "status", label: "Статус" },
-];
+}) =>
+  [
+    { key: "index", label: "№" },
+    { key: "fullName", label: "ФИО" },
+    { key: "position", label: "Должность" },
+    ...(showDepartmentColumn
+      ? [{ key: "department", label: "Подразделение" }]
+      : []),
+    ...(showCounterpartyColumn
+      ? [{ key: "counterparty", label: "Контрагент" }]
+      : []),
+    { key: "constructionSite", label: "Объект" },
+    { key: "citizenship", label: "Гражданство" },
+    { key: "isUpload", label: "ЗУП" },
+    { key: "statusCard", label: "Заполнен" },
+    { key: "files", label: "Файлы" },
+    { key: "documentExpiry", label: "Срок действия док." },
+    { key: "status", label: "Статус" },
+  ].filter((column) => !FORCED_HIDDEN_COLUMN_KEYS.has(column.key));
 
 const useEmployeesPageViewModels = ({
   backgroundLoading,

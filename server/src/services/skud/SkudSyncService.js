@@ -12,6 +12,7 @@ import {
   Status,
   EmployeeStatusMapping,
 } from "../../models/index.js";
+import { QueryTypes } from "sequelize";
 import { mapEmployeeToSigur } from "../../integrations/skud/providers/sigur/SigurMapper.js";
 import { getSkudProvider } from "../../integrations/skud/SkudProviderRegistry.js";
 import { skudConfig } from "./skudConfig.js";
@@ -26,6 +27,36 @@ const SAFE_OPERATION_SET = new Set([
   "block_employee",
   "unblock_employee",
 ]);
+
+const SKUD_SITE_ACCESS_POINTS_TABLE = "skud_site_access_points";
+const TABLE_EXISTS_CACHE_TTL_MS = 60 * 1000;
+const tableExistsCache = new Map();
+
+const hasTable = async (tableName) => {
+  const normalized = String(tableName || "").trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  const cached = tableExistsCache.get(normalized);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
+  const rows = await Employee.sequelize.query(
+    "SELECT to_regclass(:tableName) AS table_name",
+    {
+      replacements: { tableName: `public.${normalized}` },
+      type: QueryTypes.SELECT,
+    },
+  );
+  const exists = Boolean(rows?.[0]?.table_name);
+  tableExistsCache.set(normalized, {
+    value: exists,
+    expiresAt: Date.now() + TABLE_EXISTS_CACHE_TTL_MS,
+  });
+  return exists;
+};
 
 const getEmployeeWithSkudContext = async (employeeId) => {
   return Employee.findByPk(employeeId, {
@@ -529,6 +560,7 @@ const runSyncEmployeeOperation = async ({ employee, userId, payload = {} }) => {
 export const syncEmployeeAccessPoints = async ({ employeeId, externalEmpId }) => {
   const tag = `[SkudSync][accessPoints][emp=${employeeId}][ext=${externalEmpId}]`;
   const provider = getSkudProvider();
+  const canUseSkudSiteAccessPoints = await hasTable(SKUD_SITE_ACCESS_POINTS_TABLE);
 
   // Получаем объекты сотрудника
   const mappings = await EmployeeCounterpartyMapping.findAll({
@@ -544,6 +576,11 @@ export const syncEmployeeAccessPoints = async ({ employeeId, externalEmpId }) =>
   if (!siteIds.length) {
     await provider.clearEmployeeAccessPoints(externalEmpId);
     console.log(`${tag} no active sites assigned, access points cleared`);
+    return [];
+  }
+
+  if (!canUseSkudSiteAccessPoints) {
+    console.log(`${tag} table ${SKUD_SITE_ACCESS_POINTS_TABLE} does not exist, skip`);
     return [];
   }
 

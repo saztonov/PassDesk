@@ -27,8 +27,24 @@ const EmployeeSitesModal = ({ visible, employee, onCancel, onSuccess }) => {
 
       // Если это default контрагент - загружаем все объекты
       if (user.counterpartyId === defaultCounterpartyId) {
-        const response = await api.get("/construction-sites");
-        const sites = response.data.data.constructionSites || [];
+        const sites = [];
+        let page = 1;
+        let totalPages = 1;
+
+        while (page <= totalPages) {
+          const response = await api.get("/construction-sites", {
+            params: { page, limit: 100 },
+          });
+          const payload = response?.data?.data || {};
+          const chunk = Array.isArray(payload.constructionSites)
+            ? payload.constructionSites
+            : [];
+
+          sites.push(...chunk);
+          totalPages = Number(payload?.pagination?.pages || 1);
+          page += 1;
+        }
+
         setConstructionSites(sites);
       } else {
         // Для остальных контрагентов - только назначенные объекты

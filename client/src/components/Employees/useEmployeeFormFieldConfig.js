@@ -4,6 +4,7 @@ import { DEFAULT_FORM_CONFIG } from "../../shared/config/employeeFields";
 const TEMP_HIDDEN_FIELDS = new Set([
   "gender",
   "email",
+  "positionId",
 ]);
 
 // Временно держим должность необязательной независимо от админ-конфига.
