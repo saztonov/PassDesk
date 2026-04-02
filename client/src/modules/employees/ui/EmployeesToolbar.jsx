@@ -5,6 +5,7 @@ import {
   Dropdown,
   Grid,
   Space,
+  Tag,
   Tooltip,
   Typography,
 } from "antd";
@@ -148,6 +149,32 @@ const EmployeesToolbar = memo(
                 />
               </Dropdown>
             </div>
+
+            {Array.isArray(filters.activeFilters) &&
+            filters.activeFilters.length > 0 ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                }}
+              >
+                {filters.activeFilters.map((activeFilter) => (
+                  <Tag
+                    key={activeFilter.id}
+                    color="blue"
+                    closable
+                    onClose={(event) => {
+                      event.preventDefault();
+                      filters.onRemoveActiveFilter?.(activeFilter);
+                    }}
+                    style={{ marginInlineEnd: 0 }}
+                  >
+                    {activeFilter.label}
+                  </Tag>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -168,6 +195,31 @@ const EmployeesToolbar = memo(
               statusFilter={filters.statusFilter}
               onStatusFilterChange={filters.onStatusFilterChange}
             />
+            {Array.isArray(filters.activeFilters) &&
+            filters.activeFilters.length > 0 ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                }}
+              >
+                {filters.activeFilters.map((activeFilter) => (
+                  <Tag
+                    key={activeFilter.id}
+                    color="blue"
+                    closable
+                    onClose={(event) => {
+                      event.preventDefault();
+                      filters.onRemoveActiveFilter?.(activeFilter);
+                    }}
+                    style={{ marginInlineEnd: 0 }}
+                  >
+                    {activeFilter.label}
+                  </Tag>
+                ))}
+              </div>
+            ) : null}
             <div style={{ display: "flex", gap: 12 }}>
               <Button
                 type="primary"

@@ -37,9 +37,11 @@ const useEmployeesPageViewModels = ({
   canExport,
   searchText,
   statusFilter,
+  activeFilters,
   setSearchText,
   setStatusFilter,
   handleResetFilters,
+  onRemoveActiveFilter,
   showDepartmentColumn,
   showCounterpartyColumn,
   hiddenColumns,
@@ -124,16 +126,20 @@ const useEmployeesPageViewModels = ({
     () => ({
       searchText,
       statusFilter,
+      activeFilters,
       onSearchTextChange: setSearchText,
       onStatusFilterChange: setStatusFilter,
       onResetFilters: handleResetFilters,
+      onRemoveActiveFilter,
     }),
     [
       searchText,
       statusFilter,
+      activeFilters,
       setSearchText,
       setStatusFilter,
       handleResetFilters,
+      onRemoveActiveFilter,
     ],
   );
 

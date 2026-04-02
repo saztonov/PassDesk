@@ -21,6 +21,52 @@ import useEmployeesPageViewModels from "@/modules/employees/model/useEmployeesPa
 
 const { useBreakpoint } = Grid;
 
+const STATUS_FILTER_LABELS = {
+  active: "Действующий",
+  draft: "Черновик",
+  processed: "Отправленные",
+  fired: "Уволен",
+  inactive: "Неактивный",
+  blocked: "Заблокирован",
+};
+
+const TABLE_FILTER_GROUP_LABELS = {
+  counterparty: "Контрагент",
+  position: "Должность",
+  department: "Подразделение",
+  constructionSite: "Объект",
+  citizenship: "Гражданство",
+  isUpload: "ЗУП",
+  statusCard: "Заполнен",
+  documentExpiry: "Срок действия док.",
+  status: "Статус",
+};
+
+const TABLE_FILTER_VALUE_LABELS = {
+  isUpload: {
+    uploaded: "ДА (выгружен)",
+    not_uploaded: "НЕТ (не выгружен)",
+  },
+  statusCard: {
+    completed: "Заполнен",
+    draft: "Не заполнен",
+  },
+  documentExpiry: {
+    expired: "Истек",
+    "expiring-soon": "Осталось ≤ 2 недели",
+    valid: "В норме",
+    "no-data": "Нет данных",
+  },
+  status: {
+    blocked: "Заблокирован",
+    fired: "Уволен",
+    inactive: "Неактивный",
+    draft: "Черновик",
+    active: "Действующий",
+    processed: "Отправленные",
+  },
+};
+
 const EmployeesPage = () => {
   const { modal } = App.useApp();
   const navigate = useNavigate();
@@ -277,6 +323,104 @@ const EmployeesPage = () => {
     uniqueFilters,
   });
 
+  const handleRemoveActiveFilter = useCallback(
+    (filter) => {
+      if (!filter) {
+        return;
+      }
+
+      if (filter.type === "search") {
+        setSearchText("");
+        setCurrentPage(1);
+        return;
+      }
+
+      if (filter.type === "statusFilter") {
+        setStatusFilter(null);
+        setCurrentPage(1);
+        return;
+      }
+
+      if (filter.type === "tableFilter") {
+        const { filterKey, value } = filter;
+        setTableFilters((prev) => {
+          const currentValues = Array.isArray(prev?.[filterKey])
+            ? prev[filterKey]
+            : [];
+          const nextValues = currentValues.filter(
+            (item) => String(item) !== String(value),
+          );
+          const nextFilters = { ...(prev || {}) };
+
+          if (nextValues.length > 0) {
+            nextFilters[filterKey] = nextValues;
+          } else {
+            delete nextFilters[filterKey];
+          }
+
+          return nextFilters;
+        });
+        setCurrentPage(1);
+      }
+    },
+    [setCurrentPage, setSearchText, setStatusFilter, setTableFilters],
+  );
+
+  const activeFilters = useMemo(() => {
+    const filters = [];
+
+    if (searchText.trim()) {
+      filters.push({
+        id: `search:${searchText.trim()}`,
+        type: "search",
+        label: `Поиск: ${searchText.trim()}`,
+      });
+    }
+
+    if (statusFilter) {
+      filters.push({
+        id: `statusFilter:${statusFilter}`,
+        type: "statusFilter",
+        label: `Быстрый статус: ${STATUS_FILTER_LABELS[statusFilter] || statusFilter}`,
+      });
+    }
+
+    const counterpartyLabelById = new Map(
+      (filterOptions.counterparties || []).map((option) => [
+        String(option?.value),
+        option?.label,
+      ]),
+    );
+
+    Object.entries(tableFilters || {}).forEach(([filterKey, filterValue]) => {
+      const values = Array.isArray(filterValue) ? filterValue : [filterValue];
+      const groupLabel = TABLE_FILTER_GROUP_LABELS[filterKey] || filterKey;
+
+      values.forEach((value) => {
+        if (value === null || value === undefined || value === "") {
+          return;
+        }
+
+        let valueLabel = String(value);
+        if (filterKey === "counterparty") {
+          valueLabel = counterpartyLabelById.get(String(value)) || String(value);
+        } else if (TABLE_FILTER_VALUE_LABELS[filterKey]?.[value]) {
+          valueLabel = TABLE_FILTER_VALUE_LABELS[filterKey][value];
+        }
+
+        filters.push({
+          id: `table:${filterKey}:${value}`,
+          type: "tableFilter",
+          filterKey,
+          value,
+          label: `${groupLabel}: ${valueLabel}`,
+        });
+      });
+    });
+
+    return filters;
+  }, [filterOptions.counterparties, searchText, statusFilter, tableFilters]);
+
   const {
     handleCheckInn,
     handleAdd,
@@ -326,9 +470,11 @@ const EmployeesPage = () => {
     canExport,
     searchText,
     statusFilter,
+    activeFilters,
     setSearchText,
     setStatusFilter,
     handleResetFilters,
+    onRemoveActiveFilter: handleRemoveActiveFilter,
     showDepartmentColumn,
     showCounterpartyColumn,
     hiddenColumns,
