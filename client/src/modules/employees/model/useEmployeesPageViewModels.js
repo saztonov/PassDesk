@@ -3,6 +3,7 @@ import { useMemo } from "react";
 const FORCED_HIDDEN_COLUMN_KEYS = new Set([
   "position",
   "department",
+  "constructionSite",
   "status",
 ]);
 
