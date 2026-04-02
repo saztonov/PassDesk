@@ -870,12 +870,6 @@ const normalizeCounterpartyFolderToken = (value) =>
     .replace(/ё/g, "е")
     .replace(/\s+/g, " ");
 
-const splitHierarchyPathSegments = (pathLabel) =>
-  String(pathLabel || "")
-    .split("/")
-    .map((segment) => String(segment || "").trim())
-    .filter(Boolean);
-
 const matchesHierarchyRootSegment = (segment, rootToken) => {
   const normalizedSegment = String(segment || "").trim();
   const normalizedRootToken = String(rootToken || "").trim();
@@ -886,45 +880,6 @@ const matchesHierarchyRootSegment = (segment, rootToken) => {
     normalizedSegment === normalizedRootToken ||
     normalizedSegment.startsWith(`${normalizedRootToken} `)
   );
-};
-
-const resolveCounterpartyFolderNameFromHierarchyPath = (pathLabel) => {
-  const path = splitHierarchyPathSegments(pathLabel);
-  if (!path.length) {
-    return null;
-  }
-
-  const contractorsRoot = String(
-    skudConfig?.sigur?.departmentRootContractors || "",
-  ).trim();
-  const normalizedContractorsRoot = normalizeCounterpartyFolderToken(contractorsRoot);
-  const normalizedDefaultContractorsRoot = normalizeCounterpartyFolderToken(
-    DEFAULT_CONTRACTORS_ROOT_NAME,
-  );
-  const normalizedPath = path.map((segment) =>
-    normalizeCounterpartyFolderToken(segment),
-  );
-  const contractorsRootIdx = normalizedPath.findIndex(
-    (segment) =>
-      segment &&
-      (
-        (normalizedContractorsRoot &&
-          matchesHierarchyRootSegment(segment, normalizedContractorsRoot)) ||
-        matchesHierarchyRootSegment(segment, normalizedDefaultContractorsRoot)
-      ),
-  );
-  if (contractorsRootIdx < 0) {
-    return null;
-  }
-
-  for (let index = contractorsRootIdx + 1; index < path.length; index += 1) {
-    const candidate = String(path[index] || "").trim();
-    if (candidate) {
-      return candidate;
-    }
-  }
-
-  return null;
 };
 
 const resolveCounterpartyFolderNameByDepartmentId = ({
@@ -945,12 +900,10 @@ const resolveCounterpartyFolderNameByDepartmentId = ({
   const contractorsRoot = String(
     skudConfig?.sigur?.departmentRootContractors || "",
   ).trim();
-  const ownRoot = String(skudConfig?.sigur?.departmentRoot || "").trim();
   const normalizedContractorsRoot = normalizeCounterpartyFolderToken(contractorsRoot);
   const normalizedDefaultContractorsRoot = normalizeCounterpartyFolderToken(
     DEFAULT_CONTRACTORS_ROOT_NAME,
   );
-  const normalizedOwnRoot = normalizeCounterpartyFolderToken(ownRoot);
 
   const normalizedPath = path.map((segment) =>
     normalizeCounterpartyFolderToken(segment),
@@ -969,16 +922,9 @@ const resolveCounterpartyFolderNameByDepartmentId = ({
     return contractorFolderName || null;
   }
 
-  const ownRootIdx = normalizedPath.findIndex(
-    (segment) => normalizedOwnRoot && segment === normalizedOwnRoot,
-  );
-  if (ownRootIdx >= 0) {
-    const ownRootName = String(path[ownRootIdx] || "").trim();
-    return ownRootName || null;
-  }
-
-  const topLevelFolderName = String(path[0] || "").trim();
-  return topLevelFolderName || null;
+  // Important: do not fallback to top-level structure folders.
+  // Counterparty in SKUD should come only from contractor subtree.
+  return null;
 };
 
 const extractProviderDepartmentIdFromEvent = (item) => {
@@ -1597,27 +1543,16 @@ const enrichProviderEvents = async ({
           counterpartyLookupIndex,
         )
       : null;
-    const hierarchyCounterpartyFolderName =
-      resolveCounterpartyFolderNameFromHierarchyPath(accessPointPathLabel);
-    const hierarchyCounterparty = hierarchyCounterpartyFolderName
-      ? resolveCounterpartyByName(
-          hierarchyCounterpartyFolderName,
-          counterpartyLookupIndex,
-        )
-      : null;
     const resolvedCounterpartyId =
       item?.counterpartyId
       || resolvedEmployeeMeta?.counterpartyId
       || providerDepartmentCounterparty?.id
-      || hierarchyCounterparty?.id
       || null;
     const resolvedCounterpartyName = String(
       item?.counterpartyName
       || resolvedEmployeeMeta?.counterpartyName
       || providerDepartmentCounterparty?.name
       || providerDepartmentCounterpartyFolderName
-      || hierarchyCounterparty?.name
-      || hierarchyCounterpartyFolderName
       || "",
     ).trim() || null;
     const resolvedCounterpartyIds = Array.isArray(resolvedEmployeeMeta?.counterpartyIds)
@@ -1662,10 +1597,7 @@ const enrichProviderEvents = async ({
       constructionSiteId: item?.constructionSiteId || resolvedEmployeeMeta?.constructionSiteId || null,
       constructionSiteName: resolvedConstructionSiteName,
       counterpartyIds: resolvedCounterpartyIds,
-      providerCounterpartyFolderName:
-        providerDepartmentCounterpartyFolderName
-        || hierarchyCounterpartyFolderName
-        || null,
+      providerCounterpartyFolderName: providerDepartmentCounterpartyFolderName || null,
       constructionSiteIds: resolvedEmployeeMeta?.constructionSiteIds || [],
       departmentIds: resolvedEmployeeMeta?.departmentIds || [],
       eventConstructionSiteIds: eventSiteIds,
