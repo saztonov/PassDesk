@@ -115,15 +115,16 @@ const TrashListTab = ({
   onChangePageSize,
 }) => (
   <div
+    className="trash-list-tab"
     style={{
       display: "flex",
       flexDirection: "column",
-      gap: 12,
+      height: "100%",
       minHeight: 0,
-      overflow: "visible",
+      overflow: "hidden",
     }}
   >
-    <Space style={{ marginBottom: 12 }}>
+    <Space style={{ marginBottom: 12, flexShrink: 0 }}>
       <Input
         placeholder={searchPlaceholder}
         value={searchValue}
@@ -132,7 +133,7 @@ const TrashListTab = ({
       />
       <Button onClick={onRefresh}>Обновить</Button>
     </Space>
-    <Space style={{ marginBottom: 12, flexWrap: "wrap" }}>
+    <Space style={{ marginBottom: 12, flexWrap: "wrap", flexShrink: 0 }}>
       <Button
         onClick={onSelectAllVisible}
         disabled={loading || (dataSource?.length || 0) === 0}
@@ -160,23 +161,35 @@ const TrashListTab = ({
         </Button>
       </Popconfirm>
     </Space>
-    <Table
-      columns={columns}
-      dataSource={dataSource}
-      rowKey="id"
-      rowSelection={rowSelection}
-      loading={loading}
-      pagination={false}
-      size="small"
-    />
-    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-      <Pagination
-        {...pagination}
-        onChange={onChangePage}
-        onShowSizeChange={onChangePageSize}
-        showSizeChanger
-        pageSizeOptions={["10", "20", "50", "100"]}
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <Table
+        className="trash-table"
+        columns={columns}
+        dataSource={dataSource}
+        rowKey="id"
+        rowSelection={rowSelection}
+        loading={loading}
+        pagination={false}
+        size="small"
+        scroll={{ x: "max-content", y: "calc(100vh - 430px)" }}
       />
+      <div className="trash-pagination-bar">
+        <Pagination
+          {...pagination}
+          onChange={onChangePage}
+          onShowSizeChange={onChangePageSize}
+          showSizeChanger
+          pageSizeOptions={["10", "20", "50", "100"]}
+        />
+      </div>
     </div>
   </div>
 );
@@ -499,7 +512,7 @@ const TrashPage = () => {
         minHeight: 0,
         display: "flex",
         flexDirection: "column",
-        overflow: "auto",
+        overflow: "hidden",
         margin: 0,
       }}
       styles={{
@@ -507,7 +520,7 @@ const TrashPage = () => {
           display: "flex",
           flexDirection: "column",
           flex: 1,
-          overflow: "visible",
+          overflow: "hidden",
           minHeight: 0,
           padding: 0,
         },
@@ -517,7 +530,7 @@ const TrashPage = () => {
         style={{
           flex: 1,
           minHeight: 0,
-          overflow: "visible",
+          overflow: "hidden",
           padding: "16px 24px 24px 24px",
         }}
       >
@@ -552,11 +565,51 @@ const TrashPage = () => {
 
           .trash-page-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
             height: 100%;
+            min-height: 0;
+            overflow: hidden;
           }
 
           .trash-page-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane.ant-tabs-tabpane-active {
-            overflow-y: auto;
-            overflow-x: hidden;
+            overflow: hidden;
+          }
+
+          .trash-list-tab .trash-table {
+            flex: 1;
+            min-height: 0;
+          }
+
+          .trash-list-tab .trash-table.ant-table-wrapper {
+            flex: 1;
+            min-height: 0;
+          }
+
+          .trash-list-tab .trash-table .ant-spin-nested-loading,
+          .trash-list-tab .trash-table .ant-spin-container,
+          .trash-list-tab .trash-table .ant-table,
+          .trash-list-tab .trash-table .ant-table-container {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            flex-direction: column;
+          }
+
+          .trash-list-tab .trash-table .ant-table-body {
+            flex: 1;
+            min-height: 0;
+            overflow: auto !important;
+          }
+
+          .trash-list-tab .trash-pagination-bar {
+            position: sticky;
+            bottom: 0;
+            z-index: 5;
+            background: #fff;
+            border-top: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 0;
+            padding: 10px 12px;
+            flex-shrink: 0;
           }
         `}
       </style>

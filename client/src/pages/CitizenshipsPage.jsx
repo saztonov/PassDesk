@@ -11,6 +11,7 @@ import {
   Popconfirm,
   Tag,
   Tooltip,
+  Typography,
 } from "antd";
 import {
   PlusOutlined,
@@ -19,6 +20,8 @@ import {
   GlobalOutlined,
 } from "@ant-design/icons";
 import api from "../services/api";
+
+const { Title } = Typography;
 
 const createCitizenshipColumns = ({
   onOpenEdit,
@@ -385,34 +388,96 @@ const CitizenshipsPage = () => {
         overflow: "hidden",
       }}
     >
+      <style>{`
+        .citizenships-table-container {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          padding: 16px 24px 24px;
+        }
+        .citizenships-table-container .ant-table-wrapper {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .citizenships-table-container .ant-spin-nested-loading {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .citizenships-table-container .ant-spin-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .citizenships-table-container .ant-table {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .citizenships-table-container .ant-table-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .citizenships-table-container .ant-table-body {
+          flex: 1;
+          min-height: 0;
+          overflow: auto !important;
+        }
+        .citizenships-table-container .ant-table-pagination {
+          position: sticky;
+          bottom: 0;
+          z-index: 5;
+          background: #fff;
+          border-top: 1px solid #f0f0f0;
+          flex-shrink: 0;
+          margin: 0 !important;
+          padding: 10px 12px !important;
+        }
+      `}</style>
       <div
         style={{
-          marginBottom: 16,
           display: "flex",
-          justifyContent: "flex-end",
-          padding: 24,
-          paddingBottom: 0,
+          alignItems: "center",
+          gap: 12,
+          borderBottom: "1px solid #f0f0f0",
+          padding: "16px 24px",
           flexShrink: 0,
         }}
       >
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => handleOpenModal()}
+        <Title level={3} style={{ margin: 0, whiteSpace: "nowrap" }}>
+          Гражданство
+        </Title>
+        <div
+          style={{
+            marginLeft: "auto",
+            justifyContent: "flex-end",
+            display: "flex",
+          }}
         >
-          Добавить гражданство
-        </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => handleOpenModal()}
+          >
+            Добавить
+          </Button>
+        </div>
       </div>
 
       <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflow: "auto",
-          padding: "16px 24px 24px 24px",
-        }}
+        className="citizenships-table-container"
       >
         <Table
+          className="citizenships-table"
           columns={columns}
           dataSource={citizenships}
           rowKey="id"
@@ -423,6 +488,7 @@ const CitizenshipsPage = () => {
             showSizeChanger: true,
             showTotal: (total) => `Всего: ${total}`,
           }}
+          scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
         />
       </div>
 

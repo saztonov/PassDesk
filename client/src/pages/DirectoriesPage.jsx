@@ -23,6 +23,9 @@ const DIRECTORY_TAB_KEYS = [
   "positions",
 ];
 
+// Скрываем вкладки в UI, но не удаляем страницы/роуты из кода.
+const HIDDEN_DIRECTORY_TAB_KEYS = ["departments", "positions"];
+
 const resolveInitialTab = (tabFromQuery, allowedTabKeys) => {
   if (allowedTabKeys.includes(tabFromQuery)) {
     return tabFromQuery;
@@ -41,9 +44,16 @@ const DirectoriesPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromQuery = searchParams.get("tab");
   const isOtRole = user?.role === "ot_admin" || user?.role === "ot_engineer";
+  const visibleDirectoryTabKeys = useMemo(
+    () =>
+      DIRECTORY_TAB_KEYS.filter(
+        (key) => !HIDDEN_DIRECTORY_TAB_KEYS.includes(key),
+      ),
+    [],
+  );
   const allowedTabKeys = useMemo(
-    () => (isOtRole ? ["counterparties"] : DIRECTORY_TAB_KEYS),
-    [isOtRole],
+    () => (isOtRole ? ["counterparties"] : visibleDirectoryTabKeys),
+    [isOtRole, visibleDirectoryTabKeys],
   );
   const activeTab = useMemo(
     () => resolveInitialTab(tabFromQuery, allowedTabKeys),

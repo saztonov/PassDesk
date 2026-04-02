@@ -1,5 +1,14 @@
-import { useCallback, useState, useMemo, useEffect } from "react";
-import { Modal, Table, Button, Space, App, Empty, Checkbox, Segmented } from "antd";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Modal,
+  Table,
+  Button,
+  Space,
+  App,
+  Empty,
+  Checkbox,
+  Segmented,
+} from "antd";
 import { FileExcelOutlined } from "@ant-design/icons";
 import { employeeApi } from "@/entities/employee";
 import { formatPassportDepartmentCode } from "@/modules/employees/lib/employeeFormFormatters";
@@ -24,6 +33,11 @@ const formatPassportType = (passportType) => passportType || "-";
 const getBirthCountryName = (employee) =>
   employee?.birthCountry?.code || employee?.citizenship?.code || "-";
 
+const getEmployeeFromGetByIdResponse = (response) => {
+  const payload = response?.data || response;
+  return payload?.data || payload;
+};
+
 const ExcelExportModal = ({
   visible,
   queryParams = {},
@@ -32,144 +46,143 @@ const ExcelExportModal = ({
 }) => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
-  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [employeesLoading, setEmployeesLoading] = useState(true);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
+  const [selectedEmployeesById, setSelectedEmployeesById] = useState({});
   const [checkRequiredFields, setCheckRequiredFields] = useState(true);
   const [selectedTab, setSelectedTab] = useState(TAB_NOT_UPLOADED);
-  const [allEmployees, setAllEmployees] = useState(EMPTY_EMPLOYEES);
+  const [employees, setEmployees] = useState(EMPTY_EMPLOYEES);
+  const [totalCount, setTotalCount] = useState(0);
+  const autoSelectCurrentPageRef = useRef(false);
   const [tablePagination, setTablePagination] = useState({
     current: 1,
     pageSize: DEFAULT_PAGE_SIZE,
   });
 
-  const isEmployeeUploaded = useCallback((employee) => {
-    const activeMappings = (employee?.statusMappings || []).filter(
-      (mapping) => mapping?.isActive !== false,
-    );
+  const segmentOptions = [
+    { label: "Не выгруженные", value: TAB_NOT_UPLOADED },
+    { label: "Все", value: TAB_ALL },
+  ];
 
-    if (activeMappings.length === 0) {
-      return false;
+  const requestParams = useMemo(() => {
+    const params = {
+      ...queryParams,
+      page: tablePagination.current,
+      limit: tablePagination.pageSize,
+    };
+
+    delete params.uploadStates;
+    delete params.statusCard;
+
+    if (selectedTab === TAB_NOT_UPLOADED) {
+      params.uploadStates = JSON.stringify(["not_uploaded"]);
     }
 
-    return activeMappings.every((mapping) => Boolean(mapping?.isUpload));
-  }, []);
+    if (checkRequiredFields) {
+      params.statusCard = JSON.stringify(["completed"]);
+    }
 
-  const applyCurrentSelection = useCallback(
-    (employees, tab, shouldCheckRequired) => {
-      const tabFiltered =
-        tab === TAB_NOT_UPLOADED
-          ? employees.filter((employee) => !isEmployeeUploaded(employee))
-          : employees;
-      const nextFiltered = shouldCheckRequired
-        ? tabFiltered.filter((employee) => employee.statusCard === "completed")
-        : tabFiltered;
+    return params;
+  }, [
+    checkRequiredFields,
+    queryParams,
+    selectedTab,
+    tablePagination,
+  ]);
 
-      setSelectedEmployeeIds(nextFiltered.map((employee) => employee.id));
-    },
-    [isEmployeeUploaded],
-  );
+  const loadEmployeesPage = useCallback(async () => {
+    setEmployeesLoading(true);
 
-  const fetchAllEmployees = useCallback(async () => {
-    const limit = 500;
-    let page = 1;
-    let totalPages = 1;
-    const loadedEmployees = [];
-
-    while (page <= totalPages) {
-      const response = await employeeApi.getAll({
-        ...queryParams,
-        page,
-        limit,
-      });
-      const employeesPage = response?.data?.employees || [];
+    try {
+      const response = await employeeApi.getAll(requestParams);
+      const rows = response?.data?.employees || [];
       const pagination = response?.data?.pagination || {};
+      const nextTotalCount = Number(pagination.total || rows.length || 0);
 
-      loadedEmployees.push(...employeesPage);
-      totalPages = pagination.pages || 1;
-      page += 1;
+      setEmployees(rows);
+      setTotalCount(nextTotalCount);
 
-      if (employeesPage.length === 0) {
-        break;
+      if (autoSelectCurrentPageRef.current) {
+        const pageIds = rows.map((employee) => employee.id).filter(Boolean);
+        const pageMap = rows.reduce((acc, employee) => {
+          if (employee?.id) {
+            acc[employee.id] = employee;
+          }
+          return acc;
+        }, {});
+
+        setSelectedEmployeeIds(pageIds);
+        setSelectedEmployeesById(pageMap);
+        autoSelectCurrentPageRef.current = false;
+      } else {
+        setSelectedEmployeesById((prev) => {
+          const trackedIds = new Set(Object.keys(prev));
+          if (trackedIds.size === 0) {
+            return prev;
+          }
+
+          let changed = false;
+          const next = { ...prev };
+          rows.forEach((employee) => {
+            if (employee?.id && trackedIds.has(employee.id)) {
+              next[employee.id] = employee;
+              changed = true;
+            }
+          });
+
+          return changed ? next : prev;
+        });
       }
+    } catch (error) {
+      console.error("Failed to load employees for export:", error);
+      message.error("Не удалось загрузить сотрудников для выгрузки");
+      setEmployees([]);
+      setTotalCount(0);
+    } finally {
+      setEmployeesLoading(false);
     }
-
-    return loadedEmployees;
-  }, [queryParams]);
+  }, [message, requestParams]);
 
   useEffect(() => {
     if (!visible) {
       return undefined;
     }
 
-    let isCancelled = false;
-    setEmployeesLoading(true);
-
-    fetchAllEmployees()
-      .then((employees) => {
-        if (isCancelled) {
-          return;
-        }
-        setAllEmployees(employees);
-        applyCurrentSelection(employees, TAB_NOT_UPLOADED, true);
-      })
-      .catch((error) => {
-        if (isCancelled) {
-          return;
-        }
-        console.error("Failed to load employees for export:", error);
-        message.error("Не удалось загрузить сотрудников для выгрузки");
-        setAllEmployees([]);
-        setSelectedEmployeeIds([]);
-      })
-      .finally(() => {
-        if (!isCancelled) {
-          setEmployeesLoading(false);
-        }
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [visible, fetchAllEmployees, applyCurrentSelection, message]);
+    loadEmployeesPage();
+    return undefined;
+  }, [visible, loadEmployeesPage]);
 
   const handleOpenChange = useCallback((open) => {
     if (open) {
+      setEmployeesLoading(true);
       setCheckRequiredFields(true);
       setSelectedTab(TAB_NOT_UPLOADED);
       setTablePagination({ current: 1, pageSize: DEFAULT_PAGE_SIZE });
       setSelectedEmployeeIds([]);
+      setSelectedEmployeesById({});
+      autoSelectCurrentPageRef.current = true;
     } else {
-      setAllEmployees([]);
       setSelectedEmployeeIds([]);
+      setSelectedEmployeesById({});
+      autoSelectCurrentPageRef.current = false;
     }
   }, []);
-
-  const employeesByTab = useMemo(() => {
-    if (selectedTab === TAB_NOT_UPLOADED) {
-      return allEmployees.filter((employee) => !isEmployeeUploaded(employee));
-    }
-    return allEmployees;
-  }, [allEmployees, isEmployeeUploaded, selectedTab]);
-
-  const filteredEmployees = useMemo(() => {
-    if (!checkRequiredFields) {
-      return employeesByTab;
-    }
-
-    return employeesByTab.filter((employee) => employee.statusCard === "completed");
-  }, [checkRequiredFields, employeesByTab]);
 
   const handleTabChange = (nextTab) => {
     setSelectedTab(nextTab);
     setTablePagination((prev) => ({ ...prev, current: 1 }));
-    applyCurrentSelection(allEmployees, nextTab, checkRequiredFields);
+    setSelectedEmployeeIds([]);
+    setSelectedEmployeesById({});
+    autoSelectCurrentPageRef.current = true;
   };
 
   const handleRequiredFieldsChange = (event) => {
     const nextValue = event.target.checked;
     setCheckRequiredFields(nextValue);
     setTablePagination((prev) => ({ ...prev, current: 1 }));
-    applyCurrentSelection(allEmployees, selectedTab, nextValue);
+    setSelectedEmployeeIds([]);
+    setSelectedEmployeesById({});
+    autoSelectCurrentPageRef.current = true;
   };
 
   const rowSelection = {
@@ -177,6 +190,29 @@ const ExcelExportModal = ({
     preserveSelectedRowKeys: true,
     onChange: (selectedKeys) => {
       setSelectedEmployeeIds(selectedKeys);
+      setSelectedEmployeesById((prev) => {
+        const next = { ...prev };
+
+        employees.forEach((employee) => {
+          if (!employee?.id) {
+            return;
+          }
+
+          if (selectedKeys.includes(employee.id)) {
+            next[employee.id] = employee;
+          } else {
+            delete next[employee.id];
+          }
+        });
+
+        Object.keys(next).forEach((employeeId) => {
+          if (!selectedKeys.includes(employeeId)) {
+            delete next[employeeId];
+          }
+        });
+
+        return next;
+      });
     },
   };
 
@@ -208,7 +244,7 @@ const ExcelExportModal = ({
           const mappings = record.employeeCounterpartyMappings || [];
           if (mappings.length === 0) return "-";
           const counterparties = [
-            ...new Set(mappings.map((m) => m.counterparty?.name).filter(Boolean)),
+            ...new Set(mappings.map((mapping) => mapping.counterparty?.name).filter(Boolean)),
           ];
           return counterparties.join(", ") || "-";
         },
@@ -232,21 +268,16 @@ const ExcelExportModal = ({
     [tablePagination],
   );
 
-  const filteredEmployeesMap = useMemo(
-    () => new Map(filteredEmployees.map((employee) => [employee.id, employee])),
-    [filteredEmployees],
-  );
-
   const selectedEmployees = useMemo(
     () =>
       selectedEmployeeIds
-        .map((employeeId) => filteredEmployeesMap.get(employeeId))
+        .map((employeeId) => selectedEmployeesById[employeeId])
         .filter(Boolean),
-    [filteredEmployeesMap, selectedEmployeeIds],
+    [selectedEmployeeIds, selectedEmployeesById],
   );
 
   const handleExport = async () => {
-    if (selectedEmployees.length === 0) {
+    if (selectedEmployeeIds.length === 0) {
       message.warning("Выберите хотя бы одного сотрудника для выгрузки");
       return;
     }
@@ -254,42 +285,77 @@ const ExcelExportModal = ({
     try {
       setLoading(true);
 
-      const excelData = selectedEmployees.map((emp) => {
-        const counterpartyMapping = emp.employeeCounterpartyMappings?.[0];
+      const missingEmployeeIds = selectedEmployeeIds.filter(
+        (employeeId) => !selectedEmployeesById[employeeId],
+      );
+
+      let allSelectedEmployees = selectedEmployees;
+
+      if (missingEmployeeIds.length > 0) {
+        const missingEmployees = await Promise.all(
+          missingEmployeeIds.map(async (employeeId) => {
+            const response = await employeeApi.getById(employeeId);
+            return getEmployeeFromGetByIdResponse(response);
+          }),
+        );
+
+        const fetchedById = missingEmployees.reduce((acc, employee) => {
+          if (employee?.id) {
+            acc[employee.id] = employee;
+          }
+          return acc;
+        }, {});
+
+        setSelectedEmployeesById((prev) => ({
+          ...prev,
+          ...fetchedById,
+        }));
+
+        allSelectedEmployees = selectedEmployeeIds
+          .map((employeeId) => selectedEmployeesById[employeeId] || fetchedById[employeeId])
+          .filter(Boolean);
+      }
+
+      if (allSelectedEmployees.length === 0) {
+        message.warning("Не удалось собрать данные выбранных сотрудников для выгрузки");
+        return;
+      }
+
+      const excelData = allSelectedEmployees.map((employee) => {
+        const counterpartyMapping = employee.employeeCounterpartyMappings?.[0];
 
         return {
-          UUID: emp.id || "-",
-          Фамилия: emp.lastName || "-",
-          Имя: emp.firstName || "-",
-          Отчество: emp.middleName || "-",
-          Пол: formatGender(emp.gender),
-          Телефон: emp.phone || "-",
-          "Дата рождения": formatDateValue(emp.birthDate),
-          "Страна рождения": getBirthCountryName(emp),
-          "Область рождения": emp.birthRegion || "-",
-          "Населенный пункт рождения": emp.birthCity || "-",
-          "Тип паспорта": formatPassportType(emp.passportType),
-          "Номер паспорта": emp.passportNumber || "-",
-          "Дата выдачи паспорта": formatDateValue(emp.passportDate),
-          "Кем выдан паспорт": emp.passportIssuer || "-",
-          "Код подразделения": formatPassportDepartmentCode(
-            emp.passportDepartmentCode,
-          ) || "-",
-          "Адрес регистрации": emp.registrationAddress || "-",
-          Патент: emp.patentNumber || "-",
-          "Дата выдачи патента": formatDateValue(emp.patentIssueDate),
-          "Номер бланка патента": emp.blankNumber || "-",
-          ИНН: emp.inn || "-",
-          СНИЛС: emp.snils || "-",
-          КИГ: emp.kig || "-",
-          "Дата окончания КИГ": formatDateValue(emp.kigEndDate),
-          Гражданство: emp.citizenship?.name || "-",
+          UUID: employee.id || "-",
+          Фамилия: employee.lastName || "-",
+          Имя: employee.firstName || "-",
+          Отчество: employee.middleName || "-",
+          Пол: formatGender(employee.gender),
+          Телефон: employee.phone || "-",
+          "Дата рождения": formatDateValue(employee.birthDate),
+          "Страна рождения": getBirthCountryName(employee),
+          "Область рождения": employee.birthRegion || "-",
+          "Населенный пункт рождения": employee.birthCity || "-",
+          "Тип паспорта": formatPassportType(employee.passportType),
+          "Номер паспорта": employee.passportNumber || "-",
+          "Дата выдачи паспорта": formatDateValue(employee.passportDate),
+          "Кем выдан паспорт": employee.passportIssuer || "-",
+          "Код подразделения":
+            formatPassportDepartmentCode(employee.passportDepartmentCode) || "-",
+          "Адрес регистрации": employee.registrationAddress || "-",
+          Патент: employee.patentNumber || "-",
+          "Дата выдачи патента": formatDateValue(employee.patentIssueDate),
+          "Номер бланка патента": employee.blankNumber || "-",
+          ИНН: employee.inn || "-",
+          СНИЛС: employee.snils || "-",
+          КИГ: employee.kig || "-",
+          "Дата окончания КИГ": formatDateValue(employee.kigEndDate),
+          Гражданство: employee.citizenship?.name || "-",
           Организация: counterpartyMapping?.counterparty?.name || "-",
           "ИНН организации": counterpartyMapping?.counterparty?.inn || "-",
-          "р/с": emp.bankAccountNumber || "-",
-          БИК: emp.bankBik || "-",
-          id_all: emp.idAll || "-",
-          "Дата окончания паспорта": formatDateValue(emp.passportExpiryDate),
+          "р/с": employee.bankAccountNumber || "-",
+          БИК: employee.bankBik || "-",
+          id_all: employee.idAll || "-",
+          "Дата окончания паспорта": formatDateValue(employee.passportExpiryDate),
         };
       });
 
@@ -298,18 +364,7 @@ const ExcelExportModal = ({
       XLSX.utils.book_append_sheet(workbook, worksheet, "Сотрудники");
 
       const fileName = `Выгрузка_сотрудников_${dayjs().format("DD-MM-YYYY_HH-mm")}.xlsx`;
-
       XLSX.writeFile(workbook, fileName);
-
-      // Временно отключено по требованию:
-      // в Администрирование / Выгрузка НЕ делаем авто-отметку выгрузки (ЗУП).
-      //
-      // Старое поведение:
-      // await Promise.all(
-      //   employeesToExport.map((emp) =>
-      //     employeeApi.updateAllStatusesUploadFlag(emp.id, true),
-      //   ),
-      // );
 
       message.success(`Файл успешно выгружен: ${fileName}`);
       onSuccess?.();
@@ -322,10 +377,8 @@ const ExcelExportModal = ({
     }
   };
 
-  const segmentOptions = [
-    { label: "Не выгруженные", value: TAB_NOT_UPLOADED },
-    { label: "Все", value: TAB_ALL },
-  ];
+  const tableLoading = employeesLoading || loading;
+  const showEmptyState = !tableLoading && employees.length === 0;
 
   return (
     <Modal
@@ -333,7 +386,17 @@ const ExcelExportModal = ({
       open={visible}
       onCancel={onCancel}
       width="90vw"
+      centered
       style={{ maxWidth: "95vw" }}
+      styles={{
+        body: {
+          maxHeight: "78vh",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        },
+      }}
       afterOpenChange={handleOpenChange}
       footer={
         <Space>
@@ -343,68 +406,97 @@ const ExcelExportModal = ({
             icon={<FileExcelOutlined />}
             onClick={handleExport}
             loading={loading}
-            disabled={selectedEmployees.length === 0}
+            disabled={selectedEmployeeIds.length === 0}
           >
-            Выгрузить в Excel ({selectedEmployees.length})
+            Выгрузить в Excel ({selectedEmployeeIds.length})
           </Button>
         </Space>
       }
     >
-      {filteredEmployees.length === 0 ? (
-        <Empty
-          description={
-            employeesLoading
-              ? "Загрузка сотрудников..."
-              : "Нет сотрудников для выгрузки"
+      <div
+        style={{
+          marginBottom: 0,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+          flex: 1,
+        }}
+      >
+        <style>{`
+          .excel-export-table-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            flex: 1;
           }
-          style={{ marginTop: "40px", marginBottom: "40px" }}
+          .excel-export-table-container .ant-table-pagination {
+            position: sticky;
+            bottom: 0;
+            z-index: 5;
+            background: #fff;
+            border-top: 1px solid #f0f0f0;
+            margin: 0 !important;
+            padding: 10px 12px !important;
+          }
+        `}</style>
+        <div style={{ marginBottom: "12px", color: "#666", fontSize: "14px" }}>
+          В текущем списке найдено: <strong>{totalCount}</strong>
+        </div>
+        <Segmented
+          options={segmentOptions}
+          value={selectedTab}
+          onChange={handleTabChange}
+          style={{
+            marginBottom: "12px",
+            width: "fit-content",
+            alignSelf: "flex-start",
+          }}
         />
-      ) : (
-        <div style={{ marginBottom: "16px" }}>
-          <div
-            style={{ marginBottom: "12px", color: "#666", fontSize: "14px" }}
+        <div style={{ marginBottom: "12px" }}>
+          <Checkbox
+            checked={checkRequiredFields}
+            onChange={handleRequiredFieldsChange}
           >
-            В текущем списке найдено: <strong>{filteredEmployees.length}</strong>
-          </div>
-          <Segmented
-            options={segmentOptions}
-            value={selectedTab}
-            onChange={handleTabChange}
-            style={{ marginBottom: "12px" }}
+            Проверять обязательные поля
+          </Checkbox>
+        </div>
+
+        {showEmptyState ? (
+          <Empty
+            description="Нет сотрудников для выгрузки"
+            style={{ marginTop: "40px", marginBottom: "40px" }}
           />
-          <div style={{ marginBottom: "12px" }}>
-            <Checkbox
-              checked={checkRequiredFields}
-              onChange={handleRequiredFieldsChange}
-            >
-              Проверять обязательные поля
-            </Checkbox>
-          </div>
-          <Table
-            rowSelection={rowSelection}
-            columns={columns}
-            dataSource={filteredEmployees}
-            rowKey="id"
-            loading={employeesLoading || loading}
-            size="small"
-            pagination={{
-              current: tablePagination.current,
-              pageSize: tablePagination.pageSize,
-              total: filteredEmployees.length,
-              showSizeChanger: true,
-              pageSizeOptions: ["10", "20", "50", "100"],
-              showTotal: (total) => `Всего: ${total}`,
+        ) : (
+          <div className="excel-export-table-container">
+            <Table
+              className="excel-export-table"
+              rowSelection={rowSelection}
+              columns={columns}
+              dataSource={employees}
+              rowKey="id"
+              loading={tableLoading}
+              size="small"
+              pagination={{
+                current: tablePagination.current,
+                pageSize: tablePagination.pageSize,
+                total: totalCount,
+                showSizeChanger: true,
+                pageSizeOptions: ["10", "20", "50", "100"],
+                showTotal: (total) => `Всего: ${total}`,
               onChange: (page, pageSize) => {
                 setTablePagination({ current: page, pageSize });
+                autoSelectCurrentPageRef.current = false;
               },
               onShowSizeChange: (_current, pageSize) => {
                 setTablePagination({ current: 1, pageSize });
+                autoSelectCurrentPageRef.current = false;
               },
             }}
-            scroll={{ x: 1000, y: 520 }}
-          />
-        </div>
-      )}
+              scroll={{ x: 1000, y: "calc(78vh - 280px)" }}
+            />
+          </div>
+        )}
+      </div>
     </Modal>
   );
 };

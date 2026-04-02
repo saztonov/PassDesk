@@ -619,6 +619,62 @@ const CounterpartiesPage = () => {
         overflow: "hidden",
       }}
     >
+      <style>{`
+        .counterparties-table-container {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          padding: 0 24px 24px;
+        }
+        .counterparties-table-container .ant-table-wrapper {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+          margin-top: 0 !important;
+        }
+        .counterparties-table-container .ant-spin-nested-loading {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .counterparties-table-container .ant-spin-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .counterparties-table-container .ant-table {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .counterparties-table-container .ant-table-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .counterparties-table-container .ant-table-body {
+          flex: 1;
+          min-height: 0;
+          overflow: auto !important;
+        }
+        .counterparties-table-container .ant-table-pagination {
+          position: sticky;
+          bottom: 0;
+          z-index: 5;
+          background: #fff;
+          border-top: 1px solid #f0f0f0;
+          flex-shrink: 0;
+          margin: 0 !important;
+          padding: 10px 12px !important;
+        }
+      `}</style>
       <Card
         style={{
           flex: 1,
@@ -692,12 +748,7 @@ const CounterpartiesPage = () => {
         </div>
 
         <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflow: "auto",
-            padding: "0 24px 24px 24px",
-          }}
+          className="counterparties-table-container"
         >
           <Table
             columns={columns}
@@ -705,6 +756,7 @@ const CounterpartiesPage = () => {
             rowKey="id"
             loading={loading}
             size="small"
+            scroll={{ x: "max-content", y: "calc(100vh - 330px)" }}
             pagination={{
               ...pagination,
               onChange: (page) =>

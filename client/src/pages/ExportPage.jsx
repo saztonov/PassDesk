@@ -517,13 +517,75 @@ const ExportPage = () => {
   ];
 
   return (
-    <div style={{ padding: "16px" }}>
+    <div
+      style={{
+        padding: "16px",
+        height: "100%",
+        minHeight: 0,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
       <style>{`
         .export-table .ant-table-cell {
           padding: 4px 8px !important;
         }
         .export-table .ant-table-row {
           height: auto !important;
+        }
+        .export-table-container {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        .export-table-container .ant-table-wrapper {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+          margin-top: 0 !important;
+        }
+        .export-table-container .ant-spin-nested-loading {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .export-table-container .ant-spin-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .export-table-container .ant-table {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .export-table-container .ant-table-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .export-table-container .ant-table-body {
+          flex: 1;
+          min-height: 0;
+          overflow: auto !important;
+        }
+        .export-table-container .ant-table-pagination {
+          position: sticky;
+          bottom: 0;
+          z-index: 5;
+          background: #fff;
+          border-top: 1px solid #f0f0f0;
+          flex-shrink: 0;
+          margin: 0 !important;
+          padding: 10px 12px !important;
         }
       `}</style>
 
@@ -535,41 +597,43 @@ const ExportPage = () => {
         onExcelExport={handleOpenExcelExportModal}
       />
 
-      <Table
-        className="export-table"
-        columns={columns}
-        dataSource={employeesWithOverrides}
-        rowKey="id"
-        loading={loading}
-        size="small"
-        onChange={(pag, filters, _sorter, extra) => {
-          if (extra?.action === "filter") {
-            setTableFilters(filters);
-          }
-          setPagination((prev) => ({
-            current:
-              extra?.action === "filter"
-                ? 1
-                : pag?.current || prev.current || 1,
-            pageSize: pag?.pageSize || prev.pageSize || 20,
-          }));
-        }}
-        pagination={{
-          current: pagination.current,
-          pageSize: pagination.pageSize,
-          total: totalCount,
-          showSizeChanger: true,
-          showTotal: (total) => `Всего: ${total}`,
-          pageSizeOptions: ["10", "20", "50", "100"],
-          onChange: (page, pageSize) => {
-            setPagination({ current: page, pageSize });
-          },
-          onShowSizeChange: (current, pageSize) => {
-            setPagination({ current: 1, pageSize });
-          },
-        }}
-        scroll={{ x: 1300 }}
-      />
+      <div className="export-table-container">
+        <Table
+          className="export-table"
+          columns={columns}
+          dataSource={employeesWithOverrides}
+          rowKey="id"
+          loading={loading}
+          size="small"
+          onChange={(pag, filters, _sorter, extra) => {
+            if (extra?.action === "filter") {
+              setTableFilters(filters);
+            }
+            setPagination((prev) => ({
+              current:
+                extra?.action === "filter"
+                  ? 1
+                  : pag?.current || prev.current || 1,
+              pageSize: pag?.pageSize || prev.pageSize || 20,
+            }));
+          }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: totalCount,
+            showSizeChanger: true,
+            showTotal: (total) => `Всего: ${total}`,
+            pageSizeOptions: ["10", "20", "50", "100"],
+            onChange: (page, pageSize) => {
+              setPagination({ current: page, pageSize });
+            },
+            onShowSizeChange: (_current, pageSize) => {
+              setPagination({ current: 1, pageSize });
+            },
+          }}
+          scroll={{ x: 1300, y: "calc(100vh - 340px)" }}
+        />
+      </div>
 
       {/* Модальное окно просмотра */}
       <EmployeeViewModal

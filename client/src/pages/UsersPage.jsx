@@ -393,9 +393,68 @@ const UsersPage = () => {
       style={{
         display: "flex",
         flexDirection: "column",
-        minHeight: "100%",
+        height: "100%",
+        minHeight: 0,
+        overflow: "hidden",
       }}
     >
+      <style>{`
+        .users-table-container {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          padding-left: 24px;
+          padding-right: 24px;
+          padding-bottom: 24px;
+        }
+        .users-table-container .ant-table-wrapper {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .users-table-container .ant-spin-nested-loading {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .users-table-container .ant-spin-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .users-table-container .ant-table {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .users-table-container .ant-table-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .users-table-container .ant-table-body {
+          flex: 1;
+          min-height: 0;
+          overflow: auto !important;
+        }
+        .users-table-container .ant-table-pagination {
+          position: sticky;
+          bottom: 0;
+          z-index: 5;
+          background: #fff;
+          border-top: 1px solid #f0f0f0;
+          flex-shrink: 0;
+          margin: 0 !important;
+          padding: 10px 12px !important;
+        }
+      `}</style>
       {/* Тулбар */}
       <div
         style={{
@@ -458,14 +517,7 @@ const UsersPage = () => {
       </div>
 
       {/* Таблица */}
-      <div
-        style={{
-          overflow: "visible",
-          paddingLeft: 24,
-          paddingRight: 24,
-          paddingBottom: 24,
-        }}
-      >
+      <div className="users-table-container">
         <Table
           columns={columns}
           dataSource={users}
@@ -482,7 +534,7 @@ const UsersPage = () => {
               setPagination((prev) => ({ ...prev, current: page, pageSize }));
             },
           }}
-          scroll={{ x: "max-content" }}
+          scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
           style={{ width: "100%" }}
         />
       </div>
