@@ -29,7 +29,7 @@ import { counterpartyService } from "../services/counterpartyService";
 import settingsService from "../services/settingsService";
 import { CounterpartyObjectsModal } from "./CounterpartiesPage/CounterpartyObjectsModal";
 import { useAuthStore } from "../store/authStore";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   canManageAdministrativeData,
   canManageCounterparties,
@@ -47,6 +47,7 @@ const typeMap = {
 const CounterpartiesPage = () => {
   const { message, modal } = App.useApp();
   const { user } = useAuthStore();
+  const { pathname } = useLocation();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -111,6 +112,9 @@ const CounterpartiesPage = () => {
     canManageAdministrativeData(user?.role) ||
     user?.role === "ot_admin" ||
     user?.role === "ot_engineer";
+  const canSyncFromSkud =
+    canManageAdministrativeData(user?.role) &&
+    !pathname.startsWith("/directories");
 
   // Debounce для фильтров (500мс)
   useEffect(() => {
@@ -558,14 +562,16 @@ const CounterpartiesPage = () => {
             </Tooltip>
             {canManageAdministrativeData(user?.role) && (
               <>
-                <Tooltip title="Синхронизировать объекты этого контрагента из СКУД">
-                  <Button
-                    icon={<SyncOutlined />}
-                    loading={syncingCounterpartyId === String(record.id)}
-                    onClick={() => handleSyncSingleCounterpartyFromSkud(record)}
-                    size="small"
-                  />
-                </Tooltip>
+                {canSyncFromSkud && (
+                  <Tooltip title="Синхронизировать объекты этого контрагента из СКУД">
+                    <Button
+                      icon={<SyncOutlined />}
+                      loading={syncingCounterpartyId === String(record.id)}
+                      onClick={() => handleSyncSingleCounterpartyFromSkud(record)}
+                      size="small"
+                    />
+                  </Tooltip>
+                )}
                 <Button
                   icon={<EditOutlined />}
                   onClick={() => handleEdit(record)}
@@ -730,7 +736,7 @@ const CounterpartiesPage = () => {
             </Select.Option>
           </Select>
           <Space style={{ marginLeft: "auto" }}>
-            {canManageAdministrativeData(user?.role) && (
+            {canSyncFromSkud && (
               <Button
                 icon={<SyncOutlined />}
                 loading={syncingFromSkud}
