@@ -323,6 +323,8 @@ const ExcelExportModal = ({
     ],
     [tablePagination],
   );
+  const hiddenColumnKeys = new Set(["position"]);
+  const visibleColumns = columns.filter((column) => !hiddenColumnKeys.has(column.key));
 
   const selectedEmployees = useMemo(
     () =>
@@ -534,7 +536,7 @@ const ExcelExportModal = ({
             <Table
               className="excel-export-table"
               rowSelection={rowSelection}
-              columns={columns}
+              columns={visibleColumns}
               dataSource={employees}
               rowKey="id"
               loading={tableLoading}
