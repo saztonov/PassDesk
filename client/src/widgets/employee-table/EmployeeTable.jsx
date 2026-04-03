@@ -139,6 +139,7 @@ const FORCED_HIDDEN_COLUMN_KEYS = new Set([
   "position",
   "department",
   "constructionSite",
+  "documentExpiry",
   "status",
 ]);
 const INTERACTIVE_ROW_TARGET_SELECTOR = [
