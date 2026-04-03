@@ -14,6 +14,7 @@ import { FileExcelOutlined } from "@ant-design/icons";
 import { employeeApi } from "@/entities/employee";
 import { resolvePreferredEmployeeCounterpartyMapping } from "@/modules/employees/lib/employeeCounterpartyMapping";
 import { formatPassportDepartmentCode } from "@/modules/employees/lib/employeeFormFormatters";
+import { formatSnils } from "@/utils/formatters";
 import dayjs from "dayjs";
 import * as XLSX from "xlsx";
 
@@ -204,10 +205,8 @@ const ExcelExportModal = ({
   const handleOpenChange = useCallback((open) => {
     if (open) {
       setEmployeesLoading(true);
-      // При открытии из уже отфильтрованной страницы показываем более широкий срез,
-      // чтобы попап не казался пустым из-за доп. внутренних ограничений.
       setCheckRequiredFields(!hasExternalFilters);
-      setSelectedTab(hasExternalFilters ? TAB_ALL : TAB_NOT_UPLOADED);
+      setSelectedTab(TAB_NOT_UPLOADED);
       setTablePagination({ current: 1, pageSize: DEFAULT_PAGE_SIZE });
       setSearchText("");
       setDebouncedSearchText("");
@@ -403,7 +402,7 @@ const ExcelExportModal = ({
           "Дата выдачи патента": formatDateValue(employee.patentIssueDate),
           "Номер бланка патента": employee.blankNumber || "-",
           ИНН: employee.inn || "-",
-          СНИЛС: employee.snils || "-",
+          СНИЛС: formatSnils(employee.snils),
           КИГ: employee.kig || "-",
           "Дата окончания КИГ": formatDateValue(employee.kigEndDate),
           Гражданство: employee.citizenship?.name || "-",
