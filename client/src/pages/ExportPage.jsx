@@ -70,7 +70,9 @@ const ExportPage = () => {
       const counterparty = normalizeFilterArray(tableFilters.counterparty);
       const citizenship = normalizeFilterArray(tableFilters.citizenship);
       const isUpload = normalizeFilterArray(tableFilters.isUpload);
-      const status = normalizeFilterArray(tableFilters.status);
+      // Столбец "Статус" скрыт на странице выгрузки.
+      // Не применяем скрытый фильтр status из localStorage.
+      const status = [];
       if (normalizedSearch) params.search = normalizedSearch;
       if (position.length > 0) params.positionNames = JSON.stringify(position);
       if (department.length > 0) params.departmentNames = JSON.stringify(department);
@@ -531,6 +533,7 @@ const ExportPage = () => {
       ),
     },
   ];
+  const visibleColumns = columns.filter((column) => column.key !== "status");
 
   return (
     <div
@@ -629,7 +632,7 @@ const ExportPage = () => {
       <div className="export-table-container">
         <Table
           className="export-table"
-          columns={columns}
+          columns={visibleColumns}
           dataSource={employeesWithOverrides}
           rowKey="id"
           loading={loading}
