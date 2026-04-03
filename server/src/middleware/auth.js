@@ -12,57 +12,8 @@ const normalizeLanguage = (lng) => {
   return SUPPORTED_LANGUAGES.has(normalized) ? normalized : "ru";
 };
 
-const TEST_BYPASS_ROLES = new Set([
-  "admin",
-  "manager",
-  "user",
-  "laborer",
-  "ot_admin",
-  "ot_engineer",
-]);
-
-const attachTestBypassUser = (req) => {
-  if (process.env.AUTH_TEST_BYPASS !== "true") {
-    return false;
-  }
-
-  const bypassKey = process.env.AUTH_TEST_BYPASS_KEY;
-  if (!bypassKey) {
-    return false;
-  }
-
-  const headerKey = req.headers["x-test-auth-key"];
-  if (headerKey !== bypassKey) {
-    return false;
-  }
-
-  const role = String(req.headers["x-test-role"] || "").trim();
-  if (!TEST_BYPASS_ROLES.has(role)) {
-    throw new AppError("Невалидная тестовая роль", 401);
-  }
-
-  const userLanguage = normalizeLanguage(
-    req.headers["x-test-user-language"] || req.headers["accept-language"] || "ru",
-  );
-
-  req.user = {
-    id: String(req.headers["x-test-user-id"] || `test-${role}`),
-    role,
-    counterpartyId: req.headers["x-test-counterparty-id"] || null,
-    userLanguage,
-  };
-  req.language = userLanguage;
-  req.t = getTranslator(userLanguage);
-
-  return true;
-};
-
 export const authenticate = async (req, res, next) => {
   try {
-    if (attachTestBypassUser(req)) {
-      return next();
-    }
-
     // Получаем токен из заголовка
     const authHeader = req.headers.authorization;
 
@@ -131,10 +82,6 @@ export const authenticate = async (req, res, next) => {
 // Middleware для аутентификации БЕЗ проверки активации (для страницы профиля)
 export const authenticateWithoutActivationCheck = async (req, res, next) => {
   try {
-    if (attachTestBypassUser(req)) {
-      return next();
-    }
-
     // Получаем токен из заголовка
     const authHeader = req.headers.authorization;
 

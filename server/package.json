@@ -7,11 +7,6 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test:rbac": "node --test src/tests/rbac/*.test.js",
-    "rbac:generate": "node src/scripts/generateRbacMatrix.js",
-    "rbac:check": "node src/scripts/generateRbacMatrix.js --check",
-    "rbac:smoke": "node src/scripts/rbacHttpSmoke.js",
-    "rbac:smoke:all": "node src/scripts/rbacHttpSmoke.js --include-mutations",
     "db:check": "node src/database/check-connection.js",
     "db:migrate": "node src/database/runMigrations.js",
     "encryption:clear-legacy-plaintext": "node src/scripts/clearEmployeeSensitiveLegacyPlaintext.js",
