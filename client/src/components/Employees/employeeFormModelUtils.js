@@ -1,4 +1,5 @@
 import dayjs from "dayjs";
+import { resolvePreferredEmployeeCounterpartyMapping } from "@/modules/employees/lib/employeeCounterpartyMapping";
 
 const FIRED_STATUS_NAMES = new Set([
   "status_active_fired",
@@ -66,7 +67,7 @@ export const buildEmployeeInitialFormData = ({
     return null;
   }
 
-  const mapping = employee.employeeCounterpartyMappings?.[0];
+  const mapping = resolvePreferredEmployeeCounterpartyMapping(employee);
   const { isFired, isInactive } = resolveEmployeeActivityFlags(
     employee.statusMappings,
   );

@@ -1,3 +1,5 @@
+import { resolvePreferredEmployeeCounterpartyMapping } from "@/modules/employees/lib/employeeCounterpartyMapping";
+
 const PROFILE_CODES = {
   EXTERNAL: "external",
   DEFAULT_RU: "default_ru",
@@ -151,10 +153,9 @@ export const resolveEmployeeCounterpartyId = ({
   employee,
   fallbackCounterpartyId = null,
 }) => {
+  const preferredMapping = resolvePreferredEmployeeCounterpartyMapping(employee);
   const mappingCounterpartyId =
-    employee?.employeeCounterpartyMappings?.[0]?.counterpartyId ||
-    employee?.employeeCounterpartyMappings?.[0]?.counterparty?.id ||
-    null;
+    preferredMapping?.counterpartyId || preferredMapping?.counterparty?.id || null;
 
   return (
     mappingCounterpartyId ||

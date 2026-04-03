@@ -4,6 +4,8 @@ import {
   App,
   Button,
   Drawer,
+  Input,
+  Select,
   Space,
   Table,
   Tag,
@@ -12,6 +14,7 @@ import {
 import { ReloadOutlined, UserOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import ocrService, { getOcrRequestErrorMessage } from "@/services/ocrService";
+import { counterpartyService } from "@/services/counterpartyService";
 import { DEFAULT_DOCUMENT_TYPES } from "@/modules/employees/lib/documentTypeUploaderUtils";
 
 const { Text } = Typography;
@@ -52,12 +55,6 @@ const buildValuePreview = (sources = []) => {
 
   return `${uniqueValues.slice(0, 2).join(" / ")} ...`;
 };
-
-const buildSourcesSignature = (sources = []) =>
-  sources
-    .map((source) => `${source.documentType || "unknown"}:${source.fileId || "none"}`)
-    .sort()
-    .join("|");
 
 const buildFieldPreview = (fields = []) => {
   const labels = [...new Set(fields.map((item) => item.fieldLabel).filter(Boolean))];
@@ -173,6 +170,10 @@ const OcrConflictsAdminSection = () => {
   const [loading, setLoading] = useState(false);
   const [drawerRecord, setDrawerRecord] = useState(null);
   const [actionLoadingKey, setActionLoadingKey] = useState(null);
+  const [counterparties, setCounterparties] = useState([]);
+  const [counterpartiesLoading, setCounterpartiesLoading] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [selectedCounterpartyId, setSelectedCounterpartyId] = useState(undefined);
   const [tableState, setTableState] = useState({
     items: [],
     pagination: {
@@ -183,13 +184,37 @@ const OcrConflictsAdminSection = () => {
     },
   });
 
+  const loadCounterparties = useCallback(async () => {
+    setCounterpartiesLoading(true);
+    try {
+      const response = await counterpartyService.getAll({
+        page: 1,
+        limit: 10000,
+      });
+      setCounterparties(response?.data?.data?.counterparties || []);
+    } catch (error) {
+      console.error("Failed to load counterparties for OCR discrepancies:", error);
+      message.error("Не удалось загрузить список контрагентов");
+    } finally {
+      setCounterpartiesLoading(false);
+    }
+  }, [message]);
+
   const loadData = useCallback(
-    async ({ page = 1, limit = tableState.pagination.limit } = {}) => {
+    async ({
+      page = 1,
+      limit = tableState.pagination.limit,
+      search = employeeSearch,
+      counterpartyId = selectedCounterpartyId,
+    } = {}) => {
       setLoading(true);
       try {
+        const normalizedSearch = String(search || "").trim();
         const response = await ocrService.getConflicts({
           page,
           limit,
+          ...(normalizedSearch ? { search: normalizedSearch } : {}),
+          ...(counterpartyId ? { counterpartyId } : {}),
         });
         const payload = toResponseData(response);
         const groupedItems = groupConflictItems(
@@ -211,12 +236,25 @@ const OcrConflictsAdminSection = () => {
         setLoading(false);
       }
     },
-    [message, tableState.pagination.limit],
+    [employeeSearch, message, selectedCounterpartyId, tableState.pagination.limit],
   );
+
+  useEffect(() => {
+    loadCounterparties();
+  }, [loadCounterparties]);
 
   useEffect(() => {
     loadData({ page: 1 });
   }, [loadData]);
+
+  const counterpartyOptions = useMemo(
+    () =>
+      (counterparties || []).map((counterparty) => ({
+        value: counterparty.id,
+        label: counterparty.name || "Без названия",
+      })),
+    [counterparties],
+  );
 
   const updateDrawerAfterResolve = useCallback((resolvedFieldIds = []) => {
     if (!Array.isArray(resolvedFieldIds) || resolvedFieldIds.length === 0) {
@@ -404,7 +442,7 @@ const OcrConflictsAdminSection = () => {
         ),
       },
     ],
-    [],
+    [navigate],
   );
 
   return (
@@ -418,7 +456,32 @@ const OcrConflictsAdminSection = () => {
             реквизиты.
           </Text>
         </Space>
-        <Button icon={<ReloadOutlined />} onClick={() => loadData()}>
+      </Space>
+
+      <Space wrap style={{ width: "100%" }}>
+        <Input
+          placeholder="Поиск по ФИО сотрудника"
+          allowClear
+          value={employeeSearch}
+          onChange={(event) => {
+            setEmployeeSearch(event.target.value);
+          }}
+          style={{ width: 280 }}
+        />
+        <Select
+          placeholder="Контрагент"
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          loading={counterpartiesLoading}
+          value={selectedCounterpartyId}
+          onChange={(value) => {
+            setSelectedCounterpartyId(value || undefined);
+          }}
+          options={counterpartyOptions}
+          style={{ width: 280 }}
+        />
+        <Button icon={<ReloadOutlined />} onClick={() => loadData({ page: 1 })}>
           Обновить
         </Button>
       </Space>

@@ -410,9 +410,17 @@ export const getEmployeeConflictsSummary = async (req, res, next) => {
 
 export const getOcrConflictsList = async (req, res, next) => {
   try {
-    const { status = "open", page = 1, limit = 50, employeeId = null } =
+    const {
+      status = "open",
+      page = 1,
+      limit = 50,
+      employeeId = null,
+      search = "",
+      counterpartyId = null,
+    } =
       req.query || {};
     const normalizedEmployeeId = normalizeString(employeeId);
+    const normalizedCounterpartyId = normalizeString(counterpartyId);
 
     if (normalizedEmployeeId) {
       const employee = await fetchEmployeeWithMappings(normalizedEmployeeId);
@@ -434,6 +442,8 @@ export const getOcrConflictsList = async (req, res, next) => {
       page,
       limit,
       employeeId: normalizedEmployeeId || null,
+      search,
+      counterpartyId: normalizedCounterpartyId || null,
     });
 
     return res.json({

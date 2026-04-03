@@ -40,6 +40,9 @@ export const useMobileEmployeeFormSections = ({
   onDocumentUploaded,
 }) => {
   return useMemo(() => {
+    const canSelectCounterparty =
+      user?.role === "admin" || user?.role === "manager";
+
     const items = [
       ...buildMobilePrimarySections({
         form,
@@ -89,6 +92,7 @@ export const useMobileEmployeeFormSections = ({
         loadingCounterparties,
         availableCounterparties,
         onDocumentUploaded,
+        canSelectCounterparty,
       }),
     );
 

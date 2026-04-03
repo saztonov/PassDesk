@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Table, Button, Space, Tag, Tooltip } from "antd";
+import { Table, Button, Space, Tag, Tooltip, Input } from "antd";
 import { EyeOutlined, EditOutlined, FileTextOutlined } from "@ant-design/icons";
 import { useEmployees, useEmployeeActions } from "@/entities/employee";
 import { ExportDateFilter } from "@/features/export-date-filter";
@@ -7,6 +7,7 @@ import StatusUploadToggle from "@/modules/employees/ui/StatusUploadToggle";
 import EmployeeViewModal from "@/modules/employees/ui/EmployeeViewModal";
 import EmployeeFormModal from "@/modules/employees/ui/EmployeeFormModal";
 import ExcelExportModal from "@/modules/employees/ui/ExcelExportModal";
+import { resolvePreferredEmployeeCounterpartyMapping } from "@/modules/employees/lib/employeeCounterpartyMapping";
 import { AsyncCheckboxFilterDropdown } from "@/widgets/employee-table/AsyncCheckboxFilterDropdown";
 import positionService from "@/services/positionService";
 import { citizenshipService } from "@/services/citizenshipService";
@@ -40,6 +41,8 @@ const ExportPage = () => {
   const [isExcelExportModalOpen, setIsExcelExportModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [uploadOverrides, setUploadOverrides] = useState({});
+  const [searchText, setSearchText] = useState("");
+  const [debouncedSearchText, setDebouncedSearchText] = useState("");
   const [pagination, setPagination] = useState(() =>
     parseStoredJson(PAGINATION_STORAGE_KEY, { current: 1, pageSize: 20 }),
   );
@@ -61,12 +64,14 @@ const ExportPage = () => {
         page: currentPage,
         limit: pageSize,
       };
+      const normalizedSearch = debouncedSearchText.trim();
       const position = normalizeFilterArray(tableFilters.position);
       const department = normalizeFilterArray(tableFilters.department);
       const counterparty = normalizeFilterArray(tableFilters.counterparty);
       const citizenship = normalizeFilterArray(tableFilters.citizenship);
       const isUpload = normalizeFilterArray(tableFilters.isUpload);
       const status = normalizeFilterArray(tableFilters.status);
+      if (normalizedSearch) params.search = normalizedSearch;
       if (position.length > 0) params.positionNames = JSON.stringify(position);
       if (department.length > 0) params.departmentNames = JSON.stringify(department);
       if (counterparty.length > 0) params.counterpartyNames = JSON.stringify(counterparty);
@@ -75,7 +80,7 @@ const ExportPage = () => {
       if (status.length > 0) params.statuses = JSON.stringify(status);
       return params;
     },
-    [currentPage, pageSize, filterParams, tableFilters],
+    [currentPage, pageSize, filterParams, tableFilters, debouncedSearchText],
   );
 
   const exportQueryParams = useMemo(() => {
@@ -104,6 +109,16 @@ const ExportPage = () => {
       }),
     );
   }, [currentPage, pageSize]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearchText(searchText.trim());
+    }, 350);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [searchText]);
 
   // Загружаем сотрудников без жёсткого activeOnly, чтобы новые записи без статусов
   // тоже попадали в выгрузку и отображались со статусом "НЕТ".
@@ -367,12 +382,8 @@ const ExportPage = () => {
       key: "counterparty",
       width: 150,
       render: (_, record) => {
-        const mappings = record.employeeCounterpartyMappings || [];
-        if (mappings.length === 0) return "-";
-        const counterparties = [
-          ...new Set(mappings.map((m) => m.counterparty?.name).filter(Boolean)),
-        ];
-        const text = counterparties.join(", ") || "-";
+        const preferredMapping = resolvePreferredEmployeeCounterpartyMapping(record);
+        const text = preferredMapping?.counterparty?.name || "-";
         return (
           <div
             style={{
@@ -596,6 +607,19 @@ const ExportPage = () => {
         onReset={handleDateFilterReset}
         onExcelExport={handleOpenExcelExportModal}
       />
+
+      <div style={{ marginBottom: 12 }}>
+        <Input
+          allowClear
+          placeholder="Поиск по ФИО, ИНН, СНИЛС, телефону"
+          value={searchText}
+          onChange={(event) => {
+            setSearchText(event.target.value);
+            setPagination((prev) => ({ ...prev, current: 1 }));
+          }}
+          style={{ width: 380, maxWidth: "100%" }}
+        />
+      </div>
 
       <div className="export-table-container">
         <Table

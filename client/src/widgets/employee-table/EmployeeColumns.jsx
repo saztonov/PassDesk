@@ -70,16 +70,30 @@ const renderMappingState = ({
     >
       {activeValues.length > 0 && (
         <div>
-          <span style={{ color: "#8c8c8c" }}>Работает:</span>{" "}
           <span>{activeValues.join(", ")}</span>
         </div>
       )}
       {dismissedValues.length > 0 && (
         <div>
-          <span style={{ color: "#d46b08" }}>Уволен из:</span>{" "}
-          <span>{dismissedValues.join(", ")}</span>
+          <span style={{ color: "#d46b08" }}>{dismissedValues.join(", ")}</span>
         </div>
       )}
+
+      {/* Старое поведение (скрыто по требованию): */}
+      {/*
+        {activeValues.length > 0 && (
+          <div>
+            <span style={{ color: "#8c8c8c" }}>Работает:</span>{" "}
+            <span>{activeValues.join(", ")}</span>
+          </div>
+        )}
+        {dismissedValues.length > 0 && (
+          <div>
+            <span style={{ color: "#d46b08" }}>Уволен из:</span>{" "}
+            <span>{dismissedValues.join(", ")}</span>
+          </div>
+        )}
+      */}
     </div>
   );
 };
@@ -122,7 +136,7 @@ export const useEmployeeColumns = ({
           : null;
     };
 
-    const serverSorter = (columnKey) => ({
+    const _serverSorter = (columnKey) => ({
       sorter: true,
       sortOrder: getSortOrder(columnKey),
     });
@@ -292,10 +306,16 @@ export const useEmployeeColumns = ({
                   (mapping) => mapping.counterparty?.name,
                 );
 
-                return renderMappingState({
-                  activeValues: activeCounterparties,
-                  dismissedValues: dismissedCounterparties,
-                });
+                const primaryCounterpartyName =
+                  activeCounterparties[0] || dismissedCounterparties[0] || "-";
+
+                return primaryCounterpartyName;
+
+                // Старое поведение (скрыто по требованию):
+                // return renderMappingState({
+                //   activeValues: activeCounterparties,
+                //   dismissedValues: dismissedCounterparties,
+                // });
               },
               filterDropdown: (props) => (
                 <CounterpartyFilterDropdown

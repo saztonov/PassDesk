@@ -23,13 +23,12 @@ import {
   DeleteOutlined,
   SearchOutlined,
   LinkOutlined,
-  SyncOutlined,
 } from "@ant-design/icons";
 import { counterpartyService } from "../services/counterpartyService";
 import settingsService from "../services/settingsService";
 import { CounterpartyObjectsModal } from "./CounterpartiesPage/CounterpartyObjectsModal";
 import { useAuthStore } from "../store/authStore";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   canManageAdministrativeData,
   canManageCounterparties,
@@ -47,7 +46,6 @@ const typeMap = {
 const CounterpartiesPage = () => {
   const { message, modal } = App.useApp();
   const { user } = useAuthStore();
-  const { pathname } = useLocation();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -63,8 +61,6 @@ const CounterpartiesPage = () => {
   const [form] = Form.useForm();
   const debounceTimerRef = useRef(null);
   const [defaultCounterpartyId, setDefaultCounterpartyId] = useState(null);
-  const [syncingFromSkud, setSyncingFromSkud] = useState(false);
-  const [syncingCounterpartyId, setSyncingCounterpartyId] = useState(null);
 
   // Debounced фильтры для отправки на сервер
   const [debouncedFilters, setDebouncedFilters] = useState({});
@@ -112,9 +108,6 @@ const CounterpartiesPage = () => {
     canManageAdministrativeData(user?.role) ||
     user?.role === "ot_admin" ||
     user?.role === "ot_engineer";
-  const canSyncFromSkud =
-    canManageAdministrativeData(user?.role) &&
-    !pathname.startsWith("/directories");
 
   // Debounce для фильтров (500мс)
   useEffect(() => {
@@ -357,98 +350,6 @@ const CounterpartiesPage = () => {
     }
   };
 
-  const handleSyncConstructionSitesFromSkud = () => {
-    modal.confirm({
-      title: "Синхронизировать объекты из СКУД?",
-      content:
-        "Система добавит только недостающие связи контрагент-объект. Текущие связи удалены не будут.",
-      okText: "Синхронизировать",
-      cancelText: "Отмена",
-      onOk: async () => {
-        setSyncingFromSkud(true);
-        try {
-          const response =
-            await counterpartyService.syncConstructionSitesFromSkud({
-              dryRun: false,
-              batchSize: 1,
-            });
-          const summary = response?.data?.data?.summary || {};
-          const inserted = Number(summary.insertedPairs || 0);
-          const candidates = Number(summary.candidatePairs || 0);
-          const totalCandidates = Number(summary.candidatePairsTotal || 0);
-          const existing = Number(summary.existingPairs || 0);
-          const remaining = Number(summary.remainingPairs || 0);
-          const providerResolved = Number(
-            summary?.providerSourceSummary?.resolvedPairs || 0,
-          );
-          const createdSites = Number(
-            summary?.providerSourceSummary?.createdConstructionSites || 0,
-          );
-          const providerFailed = Boolean(
-            summary?.providerSourceSummary?.failed,
-          );
-          message.success(
-            providerFailed
-              ? `Синхронизация завершена: добавлено ${inserted}, уже было ${existing}, обработано ${candidates} из ${totalCandidates}. Осталось: ${remaining}. Sigur-расширение недоступно.`
-              : `Синхронизация завершена: добавлено ${inserted}, уже было ${existing}, обработано ${candidates} из ${totalCandidates}. Осталось: ${remaining}. Найдено через Sigur: ${providerResolved}. Новых объектов создано: ${createdSites}.`,
-          );
-          await fetchData();
-        } catch (error) {
-          message.error(
-            error?.response?.data?.message || "Ошибка синхронизации из СКУД",
-          );
-        } finally {
-          setSyncingFromSkud(false);
-        }
-      },
-    });
-  };
-
-  const handleSyncSingleCounterpartyFromSkud = (counterpartyRecord) => {
-    const counterpartyId = String(counterpartyRecord?.id || "").trim();
-    const counterpartyName = counterpartyRecord?.name || "контрагент";
-    if (!counterpartyId) {
-      message.error("Не удалось определить контрагента для синхронизации");
-      return;
-    }
-
-    modal.confirm({
-      title: `Синхронизировать объекты для «${counterpartyName}»?`,
-      content:
-        "Будут добавлены только недостающие связи для выбранного контрагента. Существующие связи удалены не будут.",
-      okText: "Синхронизировать",
-      cancelText: "Отмена",
-      onOk: async () => {
-        setSyncingCounterpartyId(counterpartyId);
-        try {
-          const response =
-            await counterpartyService.syncConstructionSitesFromSkud({
-              dryRun: false,
-              batchSize: 1,
-              counterpartyId,
-              includeProvider: true,
-            });
-          const summary = response?.data?.data?.summary || {};
-          const inserted = Number(summary.insertedPairs || 0);
-          const candidates = Number(summary.candidatePairs || 0);
-          const totalCandidates = Number(summary.candidatePairsTotal || 0);
-          const existing = Number(summary.existingPairs || 0);
-          const remaining = Number(summary.remainingPairs || 0);
-          message.success(
-            `Синхронизация «${counterpartyName}»: добавлено ${inserted}, уже было ${existing}, обработано ${candidates} из ${totalCandidates}. Осталось: ${remaining}.`,
-          );
-          await fetchData();
-        } catch (error) {
-          message.error(
-            error?.response?.data?.message || "Ошибка синхронизации из СКУД",
-          );
-        } finally {
-          setSyncingCounterpartyId(null);
-        }
-      },
-    });
-  };
-
   const columns = [
     { title: "Название", dataIndex: "name", key: "name" },
     { title: "ИНН", dataIndex: "inn", key: "inn" },
@@ -562,16 +463,6 @@ const CounterpartiesPage = () => {
             </Tooltip>
             {canManageAdministrativeData(user?.role) && (
               <>
-                {canSyncFromSkud && (
-                  <Tooltip title="Синхронизировать объекты этого контрагента из СКУД">
-                    <Button
-                      icon={<SyncOutlined />}
-                      loading={syncingCounterpartyId === String(record.id)}
-                      onClick={() => handleSyncSingleCounterpartyFromSkud(record)}
-                      size="small"
-                    />
-                  </Tooltip>
-                )}
                 <Button
                   icon={<EditOutlined />}
                   onClick={() => handleEdit(record)}
@@ -736,15 +627,6 @@ const CounterpartiesPage = () => {
             </Select.Option>
           </Select>
           <Space style={{ marginLeft: "auto" }}>
-            {canSyncFromSkud && (
-              <Button
-                icon={<SyncOutlined />}
-                loading={syncingFromSkud}
-                onClick={handleSyncConstructionSitesFromSkud}
-              >
-                Синхр. из СКУД
-              </Button>
-            )}
             {canEditCounterparties && (
               <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
                 Добавить

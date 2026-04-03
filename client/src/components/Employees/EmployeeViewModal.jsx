@@ -73,6 +73,30 @@ const getUniqueMappedNames = (employee, key) => {
   return values.length > 0 ? [...new Set(values)].join(", ") : "-";
 };
 
+const getPrimaryMappedName = (employee, key) => {
+  const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+    ? employee.employeeCounterpartyMappings
+    : [];
+
+  if (mappings.length === 0) {
+    return "-";
+  }
+
+  const activeMapping =
+    mappings.find(
+      (mapping) =>
+        !mapping?.dismissedAt &&
+        (mapping?.[key]?.name || mapping?.[key]?.shortName),
+    ) ||
+    mappings.find((mapping) => mapping?.[key]?.name || mapping?.[key]?.shortName);
+
+  if (!activeMapping) {
+    return "-";
+  }
+
+  return activeMapping?.[key]?.name || activeMapping?.[key]?.shortName || "-";
+};
+
 const getActiveStatusName = (employee) => {
   const statusName = employee?.statusMappings?.find(
     (item) =>
@@ -179,7 +203,7 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
               {formatBirthPlace(employee)}
             </Descriptions.Item>
             <Descriptions.Item label="Организация" span={2}>
-              {getUniqueMappedNames(employee, "counterparty")}
+              {getPrimaryMappedName(employee, "counterparty")}
             </Descriptions.Item>
             <Descriptions.Item label="Объекты" span={1}>
               {getUniqueMappedNames(employee, "constructionSite")}

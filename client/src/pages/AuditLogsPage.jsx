@@ -3,6 +3,7 @@ import {
   App,
   Button,
   DatePicker,
+  Input,
   Modal,
   Select,
   Space,
@@ -165,6 +166,11 @@ const formatDateTime = (value) =>
   value ? dayjs(value).format("DD.MM.YYYY HH:mm:ss") : "—";
 
 const getEmployeeName = (employee) => employee?.fullName || "—";
+const normalizeSearchText = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 
 const getUserName = (user) => user?.fullName || user?.email || "Система";
 
@@ -518,6 +524,7 @@ const AuditLogsPage = () => {
   const [selectedEventTypes, setSelectedEventTypes] = useState([]);
   const [selectedCounterpartyId, setSelectedCounterpartyId] = useState(null);
   const [selectedChangedByUserId, setSelectedChangedByUserId] = useState(null);
+  const [employeeSearchText, setEmployeeSearchText] = useState("");
   const [dateRange, setDateRange] = useState(null);
   const [drawerGroup, setDrawerGroup] = useState(null);
   const [pagination, setPagination] = useState({
@@ -635,6 +642,21 @@ const AuditLogsPage = () => {
   );
 
   const groupedLogs = useMemo(() => buildAuditGroups(logsWithLookups), [logsWithLookups]);
+  const normalizedEmployeeSearchText = useMemo(
+    () => normalizeSearchText(employeeSearchText),
+    [employeeSearchText],
+  );
+  const filteredGroupedLogs = useMemo(() => {
+    if (!normalizedEmployeeSearchText) {
+      return groupedLogs;
+    }
+
+    return groupedLogs.filter((group) =>
+      normalizeSearchText(getEmployeeName(group.employee)).includes(
+        normalizedEmployeeSearchText,
+      ),
+    );
+  }, [groupedLogs, normalizedEmployeeSearchText]);
 
   const changedByOptions = useMemo(() => {
     const uniqueUsers = new Map();
@@ -678,18 +700,19 @@ const AuditLogsPage = () => {
   useEffect(() => {
     setPagination((prev) => ({
       ...prev,
-      total: groupedLogs.length,
+      total: filteredGroupedLogs.length,
       current:
-        prev.current > Math.max(1, Math.ceil(groupedLogs.length / prev.pageSize))
+        prev.current >
+        Math.max(1, Math.ceil(filteredGroupedLogs.length / prev.pageSize))
           ? 1
           : prev.current,
     }));
-  }, [groupedLogs]);
+  }, [filteredGroupedLogs]);
 
   const paginatedGroups = useMemo(() => {
     const start = (paginationCurrent - 1) * paginationPageSize;
-    return groupedLogs.slice(start, start + paginationPageSize);
-  }, [groupedLogs, paginationCurrent, paginationPageSize]);
+    return filteredGroupedLogs.slice(start, start + paginationPageSize);
+  }, [filteredGroupedLogs, paginationCurrent, paginationPageSize]);
 
   const drawerCategoryFilters = useMemo(() => {
     const uniqueCategories = [
@@ -718,6 +741,7 @@ const AuditLogsPage = () => {
     setSelectedEventTypes([]);
     setSelectedCounterpartyId(null);
     setSelectedChangedByUserId(null);
+    setEmployeeSearchText("");
     setDateRange(null);
     setDrawerGroup(null);
     setPagination((prev) => ({
@@ -882,84 +906,105 @@ const AuditLogsPage = () => {
 
         <div
           style={{
-            display: "grid",
+            display: "flex",
+            flexWrap: "wrap",
             gap: 8,
             alignItems: "center",
             width: "100%",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
           }}
         >
-          <RangePicker
-            style={{ width: "100%" }}
-            value={dateRange}
-            onChange={(value) => {
-              setDateRange(value);
-              setPagination((prev) => ({ ...prev, current: 1 }));
-            }}
-            format="DD.MM.YYYY"
-            allowEmpty={[true, true]}
-          />
-          <Select
-            placeholder="Категория"
-            style={{ width: "100%" }}
-            value={selectedCategory}
-            onChange={(value) => {
-              setSelectedCategory(value);
-              setPagination((prev) => ({ ...prev, current: 1 }));
-            }}
-            allowClear
-            options={EVENT_CATEGORY_OPTIONS.map((option) => ({
-              value: option.value,
-              label: option.label,
-            }))}
-          />
-          <Select
-            mode="multiple"
-            placeholder="Тип изменения"
-            style={{ width: "100%" }}
-            value={selectedEventTypes}
-            onChange={(value) => {
-              setSelectedEventTypes(value || []);
-              setPagination((prev) => ({ ...prev, current: 1 }));
-            }}
-            allowClear
-            maxTagCount="responsive"
-            optionFilterProp="label"
-            options={availableEventTypeOptions.map((option) => ({
-              value: option.value,
-              label: option.label,
-            }))}
-          />
-          <Select
-            placeholder="Контрагент"
-            style={{ width: "100%" }}
-            value={selectedCounterpartyId}
-            onChange={(value) => {
-              setSelectedCounterpartyId(value);
-              setPagination((prev) => ({ ...prev, current: 1 }));
-            }}
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            options={counterparties.map((counterparty) => ({
-              value: counterparty.id,
-              label: counterparty.name,
-            }))}
-          />
-          <Select
-            placeholder="Кто изменил"
-            style={{ width: "100%" }}
-            value={selectedChangedByUserId}
-            onChange={(value) => {
-              setSelectedChangedByUserId(value);
-              setPagination((prev) => ({ ...prev, current: 1 }));
-            }}
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            options={changedByOptions}
-          />
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ flex: "1 1 260px", minWidth: 220 }}>
+            <RangePicker
+              style={{ width: "100%" }}
+              value={dateRange}
+              onChange={(value) => {
+                setDateRange(value);
+                setPagination((prev) => ({ ...prev, current: 1 }));
+              }}
+              format="DD.MM.YYYY"
+              allowEmpty={[true, true]}
+            />
+          </div>
+          <div style={{ flex: "1 1 260px", minWidth: 220 }}>
+            <Select
+              placeholder="Категория"
+              style={{ width: "100%" }}
+              value={selectedCategory}
+              onChange={(value) => {
+                setSelectedCategory(value);
+                setPagination((prev) => ({ ...prev, current: 1 }));
+              }}
+              allowClear
+              options={EVENT_CATEGORY_OPTIONS.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
+          </div>
+          <div style={{ flex: "1 1 260px", minWidth: 220 }}>
+            <Select
+              mode="multiple"
+              placeholder="Тип изменения"
+              style={{ width: "100%" }}
+              value={selectedEventTypes}
+              onChange={(value) => {
+                setSelectedEventTypes(value || []);
+                setPagination((prev) => ({ ...prev, current: 1 }));
+              }}
+              allowClear
+              maxTagCount="responsive"
+              optionFilterProp="label"
+              options={availableEventTypeOptions.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
+          </div>
+          <div style={{ flex: "1 1 260px", minWidth: 220 }}>
+            <Select
+              placeholder="Контрагент"
+              style={{ width: "100%" }}
+              value={selectedCounterpartyId}
+              onChange={(value) => {
+                setSelectedCounterpartyId(value);
+                setPagination((prev) => ({ ...prev, current: 1 }));
+              }}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={counterparties.map((counterparty) => ({
+                value: counterparty.id,
+                label: counterparty.name,
+              }))}
+            />
+          </div>
+          <div style={{ flex: "1 1 260px", minWidth: 220 }}>
+            <Select
+              placeholder="Кто изменил"
+              style={{ width: "100%" }}
+              value={selectedChangedByUserId}
+              onChange={(value) => {
+                setSelectedChangedByUserId(value);
+                setPagination((prev) => ({ ...prev, current: 1 }));
+              }}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={changedByOptions}
+            />
+          </div>
+          <div style={{ flex: "1 1 260px", minWidth: 220 }}>
+            <Input
+              placeholder="Поиск по ФИО сотрудника"
+              value={employeeSearchText}
+              onChange={(event) => {
+                setEmployeeSearchText(event.target.value);
+                setPagination((prev) => ({ ...prev, current: 1 }));
+              }}
+              allowClear
+            />
+          </div>
+          <div style={{ display: "flex", marginLeft: "auto" }}>
             <Button icon={<ReloadOutlined />} onClick={handleResetFilters}>
               Сбросить
             </Button>

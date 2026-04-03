@@ -47,7 +47,7 @@ const createEmployeeColumns = (onRestore, onPermanentDelete) => [
     title: "Действия",
     key: "actions",
     render: (_, record) => (
-      <Space wrap>
+      <Space wrap={false} style={{ whiteSpace: "nowrap" }}>
         <Button onClick={() => onRestore(record)}>Восстановить</Button>
         <Popconfirm
           title="Удалить сотрудника навсегда?"
@@ -77,7 +77,7 @@ const createUserColumns = (onRestore, onPermanentDelete) => [
     title: "Действия",
     key: "actions",
     render: (_, record) => (
-      <Space wrap>
+      <Space wrap={false} style={{ whiteSpace: "nowrap" }}>
         <Button onClick={() => onRestore(record)}>Восстановить</Button>
         <Popconfirm
           title="Удалить пользователя навсегда?"
@@ -124,43 +124,75 @@ const TrashListTab = ({
       overflow: "hidden",
     }}
   >
-    <Space style={{ marginBottom: 12, flexShrink: 0 }}>
-      <Input
-        placeholder={searchPlaceholder}
-        value={searchValue}
-        onChange={onSearchChange}
-        allowClear
-      />
-      <Button onClick={onRefresh}>Обновить</Button>
-    </Space>
-    <Space style={{ marginBottom: 12, flexWrap: "wrap", flexShrink: 0 }}>
-      <Button
-        onClick={onSelectAllVisible}
-        disabled={loading || (dataSource?.length || 0) === 0}
-      >
-        Выделить все
-      </Button>
-      <Button onClick={onClearSelection} disabled={selectedCount === 0}>
-        Снять выделение
-      </Button>
-      <Popconfirm
-        title={bulkDeleteTitle}
-        description={bulkDeleteDescription}
-        okText="Удалить"
-        okType="danger"
-        cancelText="Отмена"
-        onConfirm={onBulkDelete}
-        disabled={selectedCount === 0}
+    <div
+      style={{
+        marginBottom: 12,
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        flexWrap: "nowrap",
+        whiteSpace: "nowrap",
+        overflowX: "auto",
+        paddingBottom: 2,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <Input
+          placeholder={searchPlaceholder}
+          value={searchValue}
+          onChange={onSearchChange}
+          allowClear
+          style={{ width: 320, minWidth: 260, flexShrink: 0 }}
+        />
+        <Button onClick={onRefresh} style={{ flexShrink: 0 }}>
+          Обновить
+        </Button>
+      </div>
+
+      <div
+        style={{
+          marginLeft: "auto",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexShrink: 0,
+        }}
       >
         <Button
-          danger
-          disabled={selectedCount === 0}
-          loading={bulkDeleteLoading}
+          onClick={onSelectAllVisible}
+          disabled={loading || (dataSource?.length || 0) === 0}
+          style={{ flexShrink: 0 }}
         >
-          Удалить выбранные ({selectedCount})
+          Выделить все
         </Button>
-      </Popconfirm>
-    </Space>
+        <Button
+          onClick={onClearSelection}
+          disabled={selectedCount === 0}
+          style={{ flexShrink: 0 }}
+        >
+          Снять выделение
+        </Button>
+        <Popconfirm
+          title={bulkDeleteTitle}
+          description={bulkDeleteDescription}
+          okText="Удалить"
+          okType="danger"
+          cancelText="Отмена"
+          onConfirm={onBulkDelete}
+          disabled={selectedCount === 0}
+        >
+          <Button
+            danger
+            disabled={selectedCount === 0}
+            loading={bulkDeleteLoading}
+            style={{ flexShrink: 0 }}
+          >
+            Удалить выбранные ({selectedCount})
+          </Button>
+        </Popconfirm>
+      </div>
+    </div>
     <div
       style={{
         flex: 1,

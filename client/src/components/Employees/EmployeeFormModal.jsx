@@ -282,8 +282,18 @@ const EmployeeFormModal = ({
     screens.xl &&
     pageFormWidth > 0 &&
     pageFormWidth < PAGE_FORM_COMPACT_WIDTH;
+  const canSelectCounterparty =
+    user?.role === "admin" || user?.role === "manager";
 
   const handleFilesChange = useCallback(() => {}, []);
+  const formatEmployeeFormPayloadWithRole = useCallback(
+    (values, options = {}) =>
+      formatEmployeeFormPayload(values, {
+        ...options,
+        includeCounterpartyId: canSelectCounterparty,
+      }),
+    [canSelectCounterparty],
+  );
 
   const {
     isFormResetRef,
@@ -313,7 +323,7 @@ const EmployeeFormModal = ({
     setPassportType,
     applyLinkingModePayload,
     shouldStayOpenAfterSave,
-    formatEmployeeFormPayload,
+    formatEmployeeFormPayload: formatEmployeeFormPayloadWithRole,
   });
 
   const {

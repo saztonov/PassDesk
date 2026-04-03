@@ -71,8 +71,11 @@ export const buildMobileEmployeeStatusSection = ({
               Активировать
             </Button>
           </Popconfirm>
-        ) : (
-          user?.counterpartyId !== defaultCounterpartyId && (
+        ) : null}
+
+        {/* Временно скрыто по требованию: кнопка деактивации в карточке сотрудника (mobile) */}
+        {/*
+          {!isInactive && user?.counterpartyId !== defaultCounterpartyId && (
             <Popconfirm
               title="Сотрудник не работает на объектах СУ-10?"
               description={`Вы уверены, что ${employee.lastName} ${employee.firstName} не работает на объектах СУ-10?`}
@@ -84,8 +87,8 @@ export const buildMobileEmployeeStatusSection = ({
                 Не работает на объектах СУ-10
               </Button>
             </Popconfirm>
-          )
-        )}
+          )}
+        */}
       </Space>
     ),
   };

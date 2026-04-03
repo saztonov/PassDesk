@@ -147,7 +147,11 @@ const EmployeeActionButtons = ({
               Активировать
             </Button>
           </Popconfirm>
-        ) : (
+        ) : null)}
+
+      {/* Временно скрыто по требованию: кнопка "Деактивировать" в карточке сотрудника */}
+      {/*
+        {canManageStatuses && !isInactive && (
           <Popconfirm
             title="Деактивировать сотрудника?"
             description={`Вы уверены, что ${employee.lastName} ${employee.firstName} деактивируется?`}
@@ -159,7 +163,8 @@ const EmployeeActionButtons = ({
               Деактивировать
             </Button>
           </Popconfirm>
-        ))}
+        )}
+      */}
 
       {/* Временно скрыто по требованию: кнопка "Перевести" */}
       {/*

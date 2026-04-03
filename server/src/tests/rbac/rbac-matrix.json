@@ -1,0 +1,5290 @@
+{
+  "schemaVersion": 1,
+  "roles": [
+    "admin",
+    "manager",
+    "user",
+    "laborer",
+    "ot_admin",
+    "ot_engineer"
+  ],
+  "endpoints": [
+    {
+      "key": "GET /applications",
+      "method": "GET",
+      "path": "/applications",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /applications",
+      "method": "POST",
+      "path": "/applications",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /applications/:applicationId/files",
+      "method": "GET",
+      "path": "/applications/:applicationId/files",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /applications/:applicationId/files",
+      "method": "POST",
+      "path": "/applications/:applicationId/files",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /applications/:applicationId/files/:fileId",
+      "method": "DELETE",
+      "path": "/applications/:applicationId/files/:fileId",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /applications/:applicationId/files/:fileId/download",
+      "method": "GET",
+      "path": "/applications/:applicationId/files/:fileId/download",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /applications/:applicationId/files/:fileId/view",
+      "method": "GET",
+      "path": "/applications/:applicationId/files/:fileId/view",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /applications/:id",
+      "method": "DELETE",
+      "path": "/applications/:id",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /applications/:id",
+      "method": "GET",
+      "path": "/applications/:id",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /applications/:id",
+      "method": "PUT",
+      "path": "/applications/:id",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /applications/:id/consents/developer-biometric/download",
+      "method": "POST",
+      "path": "/applications/:id/consents/developer-biometric/download",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /applications/:id/copy",
+      "method": "POST",
+      "path": "/applications/:id/copy",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /applications/:id/export/word",
+      "method": "GET",
+      "path": "/applications/:id/export/word",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /applications/helpers/contracts",
+      "method": "GET",
+      "path": "/applications/helpers/contracts",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /applications/helpers/employees",
+      "method": "GET",
+      "path": "/applications/helpers/employees",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /applications/helpers/request-employees",
+      "method": "GET",
+      "path": "/applications/helpers/request-employees",
+      "routeFile": "routes/application.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /audit-logs",
+      "method": "GET",
+      "path": "/audit-logs",
+      "routeFile": "routes/audit.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /auth/login",
+      "method": "POST",
+      "path": "/auth/login",
+      "routeFile": "routes/auth.routes.js",
+      "access": "public",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /auth/logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "routeFile": "routes/auth.routes.js",
+      "access": "public",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /auth/me",
+      "method": "GET",
+      "path": "/auth/me",
+      "routeFile": "routes/auth.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /auth/refresh",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "routeFile": "routes/auth.routes.js",
+      "access": "public",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /auth/register",
+      "method": "POST",
+      "path": "/auth/register",
+      "routeFile": "routes/auth.routes.js",
+      "access": "public",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /citizenships",
+      "method": "GET",
+      "path": "/citizenships",
+      "routeFile": "routes/citizenship.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /citizenships",
+      "method": "POST",
+      "path": "/citizenships",
+      "routeFile": "routes/citizenship.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /citizenships/:citizenshipId/synonyms",
+      "method": "POST",
+      "path": "/citizenships/:citizenshipId/synonyms",
+      "routeFile": "routes/citizenship.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /citizenships/:id",
+      "method": "DELETE",
+      "path": "/citizenships/:id",
+      "routeFile": "routes/citizenship.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /citizenships/:id",
+      "method": "PUT",
+      "path": "/citizenships/:id",
+      "routeFile": "routes/citizenship.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /citizenships/synonyms/:id",
+      "method": "DELETE",
+      "path": "/citizenships/synonyms/:id",
+      "routeFile": "routes/citizenship.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /citizenships/synonyms/:id",
+      "method": "PUT",
+      "path": "/citizenships/synonyms/:id",
+      "routeFile": "routes/citizenship.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /construction-sites",
+      "method": "GET",
+      "path": "/construction-sites",
+      "routeFile": "routes/constructionSite.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /construction-sites",
+      "method": "POST",
+      "path": "/construction-sites",
+      "routeFile": "routes/constructionSite.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /construction-sites/:id",
+      "method": "DELETE",
+      "path": "/construction-sites/:id",
+      "routeFile": "routes/constructionSite.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /construction-sites/:id",
+      "method": "GET",
+      "path": "/construction-sites/:id",
+      "routeFile": "routes/constructionSite.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "PUT /construction-sites/:id",
+      "method": "PUT",
+      "path": "/construction-sites/:id",
+      "routeFile": "routes/constructionSite.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /contracts",
+      "method": "GET",
+      "path": "/contracts",
+      "routeFile": "routes/contract.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /contracts",
+      "method": "POST",
+      "path": "/contracts",
+      "routeFile": "routes/contract.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /contracts/:id",
+      "method": "DELETE",
+      "path": "/contracts/:id",
+      "routeFile": "routes/contract.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /contracts/:id",
+      "method": "GET",
+      "path": "/contracts/:id",
+      "routeFile": "routes/contract.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /contracts/:id",
+      "method": "PUT",
+      "path": "/contracts/:id",
+      "routeFile": "routes/contract.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /counterparties",
+      "method": "GET",
+      "path": "/counterparties",
+      "routeFile": "routes/counterparty.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /counterparties",
+      "method": "POST",
+      "path": "/counterparties",
+      "routeFile": "routes/counterparty.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "DELETE /counterparties/:id",
+      "method": "DELETE",
+      "path": "/counterparties/:id",
+      "routeFile": "routes/counterparty.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /counterparties/:id",
+      "method": "GET",
+      "path": "/counterparties/:id",
+      "routeFile": "routes/counterparty.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "PUT /counterparties/:id",
+      "method": "PUT",
+      "path": "/counterparties/:id",
+      "routeFile": "routes/counterparty.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /counterparties/:id/construction-sites",
+      "method": "GET",
+      "path": "/counterparties/:id/construction-sites",
+      "routeFile": "routes/counterparty.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /counterparties/:id/construction-sites",
+      "method": "POST",
+      "path": "/counterparties/:id/construction-sites",
+      "routeFile": "routes/counterparty.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /counterparties/:id/generate-registration-code",
+      "method": "POST",
+      "path": "/counterparties/:id/generate-registration-code",
+      "routeFile": "routes/counterparty.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /counterparties/available",
+      "method": "GET",
+      "path": "/counterparties/available",
+      "routeFile": "routes/counterparty.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /counterparties/stats",
+      "method": "GET",
+      "path": "/counterparties/stats",
+      "routeFile": "routes/counterparty.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /counterparties/sync-construction-sites-from-skud",
+      "method": "POST",
+      "path": "/counterparties/sync-construction-sites-from-skud",
+      "routeFile": "routes/counterparty.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /departments",
+      "method": "GET",
+      "path": "/departments",
+      "routeFile": "routes/department.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /departments",
+      "method": "POST",
+      "path": "/departments",
+      "routeFile": "routes/department.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /departments/:id",
+      "method": "DELETE",
+      "path": "/departments/:id",
+      "routeFile": "routes/department.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /departments/:id",
+      "method": "GET",
+      "path": "/departments/:id",
+      "routeFile": "routes/department.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "PUT /departments/:id",
+      "method": "PUT",
+      "path": "/departments/:id",
+      "routeFile": "routes/department.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees",
+      "method": "GET",
+      "path": "/employees",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees",
+      "method": "POST",
+      "path": "/employees",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/:employeeId/files",
+      "method": "GET",
+      "path": "/employees/:employeeId/files",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/:employeeId/files",
+      "method": "POST",
+      "path": "/employees/:employeeId/files",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /employees/:employeeId/files/:fileId",
+      "method": "DELETE",
+      "path": "/employees/:employeeId/files/:fileId",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/:employeeId/files/:fileId/download",
+      "method": "GET",
+      "path": "/employees/:employeeId/files/:fileId/download",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/:employeeId/files/:fileId/view",
+      "method": "GET",
+      "path": "/employees/:employeeId/files/:fileId/view",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/:employeeId/status",
+      "method": "POST",
+      "path": "/employees/:employeeId/status",
+      "routeFile": "routes/employeeStatus.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /employees/:employeeId/status/:statusMappingId/upload",
+      "method": "PUT",
+      "path": "/employees/:employeeId/status/:statusMappingId/upload",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/:employeeId/status/edited",
+      "method": "POST",
+      "path": "/employees/:employeeId/status/edited",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/:employeeId/status/group/:group",
+      "method": "GET",
+      "path": "/employees/:employeeId/status/group/:group",
+      "routeFile": "routes/employeeStatus.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /employees/:employeeId/statuses",
+      "method": "GET",
+      "path": "/employees/:employeeId/statuses",
+      "routeFile": "routes/employeeStatus.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "PUT /employees/:employeeId/statuses/upload",
+      "method": "PUT",
+      "path": "/employees/:employeeId/statuses/upload",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/:employeeId/with-statuses",
+      "method": "GET",
+      "path": "/employees/:employeeId/with-statuses",
+      "routeFile": "routes/employeeStatus.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "DELETE /employees/:id",
+      "method": "DELETE",
+      "path": "/employees/:id",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/:id",
+      "method": "GET",
+      "path": "/employees/:id",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /employees/:id",
+      "method": "PUT",
+      "path": "/employees/:id",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/:id/action/activate",
+      "method": "POST",
+      "path": "/employees/:id/action/activate",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/:id/action/deactivate",
+      "method": "POST",
+      "path": "/employees/:id/action/deactivate",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/:id/action/fire",
+      "method": "POST",
+      "path": "/employees/:id/action/fire",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/:id/action/reinstate",
+      "method": "POST",
+      "path": "/employees/:id/action/reinstate",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /employees/:id/construction-sites",
+      "method": "PUT",
+      "path": "/employees/:id/construction-sites",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /employees/:id/department",
+      "method": "PUT",
+      "path": "/employees/:id/department",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/:id/discard-draft",
+      "method": "POST",
+      "path": "/employees/:id/discard-draft",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /employees/:id/draft",
+      "method": "PUT",
+      "path": "/employees/:id/draft",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/:id/mark-for-deletion",
+      "method": "POST",
+      "path": "/employees/:id/mark-for-deletion",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /employees/:id/permanent",
+      "method": "DELETE",
+      "path": "/employees/:id/permanent",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/:id/restore",
+      "method": "POST",
+      "path": "/employees/:id/restore",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/:id/transfer",
+      "method": "POST",
+      "path": "/employees/:id/transfer",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/:id/unmark-for-deletion",
+      "method": "POST",
+      "path": "/employees/:id/unmark-for-deletion",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/check-inn",
+      "method": "GET",
+      "path": "/employees/check-inn",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/deleted",
+      "method": "GET",
+      "path": "/employees/deleted",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/document-types",
+      "method": "GET",
+      "path": "/employees/document-types",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /employees/document-types/:id",
+      "method": "PUT",
+      "path": "/employees/document-types/:id",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /employees/document-types/:id/sample",
+      "method": "DELETE",
+      "path": "/employees/document-types/:id/sample",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/document-types/:id/sample",
+      "method": "POST",
+      "path": "/employees/document-types/:id/sample",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/document-types/admin",
+      "method": "GET",
+      "path": "/employees/document-types/admin",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/documents/export/excel",
+      "method": "GET",
+      "path": "/employees/documents/export/excel",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/documents/export/zip",
+      "method": "GET",
+      "path": "/employees/documents/export/zip",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/documents/table",
+      "method": "GET",
+      "path": "/employees/documents/table",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/import/execute",
+      "method": "POST",
+      "path": "/employees/import/execute",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/import/validate",
+      "method": "POST",
+      "path": "/employees/import/validate",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/marked-for-deletion",
+      "method": "GET",
+      "path": "/employees/marked-for-deletion",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/my-profile",
+      "method": "GET",
+      "path": "/employees/my-profile",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "laborer",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /employees/my-profile",
+      "method": "PUT",
+      "path": "/employees/my-profile",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "laborer",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/my-profile/skud/qr",
+      "method": "POST",
+      "path": "/employees/my-profile/skud/qr",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "laborer",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/my-profile/telegram",
+      "method": "GET",
+      "path": "/employees/my-profile/telegram",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /employees/my-profile/telegram/link",
+      "method": "DELETE",
+      "path": "/employees/my-profile/telegram/link",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /employees/my-profile/telegram/link-code",
+      "method": "POST",
+      "path": "/employees/my-profile/telegram/link-code",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/search",
+      "method": "GET",
+      "path": "/employees/search",
+      "routeFile": "routes/employee.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /employees/statuses/all",
+      "method": "GET",
+      "path": "/employees/statuses/all",
+      "routeFile": "routes/employeeStatus.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /employees/statuses/batch",
+      "method": "POST",
+      "path": "/employees/statuses/batch",
+      "routeFile": "routes/employeeStatus.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /employees/statuses/group/:group",
+      "method": "GET",
+      "path": "/employees/statuses/group/:group",
+      "routeFile": "routes/employeeStatus.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /employees/with-statuses",
+      "method": "GET",
+      "path": "/employees/with-statuses",
+      "routeFile": "routes/employeeStatus.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /excel-column-sets",
+      "method": "GET",
+      "path": "/excel-column-sets",
+      "routeFile": "routes/excelColumnSet.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /excel-column-sets",
+      "method": "POST",
+      "path": "/excel-column-sets",
+      "routeFile": "routes/excelColumnSet.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /excel-column-sets/:id",
+      "method": "DELETE",
+      "path": "/excel-column-sets/:id",
+      "routeFile": "routes/excelColumnSet.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /excel-column-sets/:id",
+      "method": "GET",
+      "path": "/excel-column-sets/:id",
+      "routeFile": "routes/excelColumnSet.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /excel-column-sets/:id",
+      "method": "PUT",
+      "path": "/excel-column-sets/:id",
+      "routeFile": "routes/excelColumnSet.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PATCH /excel-column-sets/:id/set-default",
+      "method": "PATCH",
+      "path": "/excel-column-sets/:id/set-default",
+      "routeFile": "routes/excelColumnSet.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /files/:fileKey",
+      "method": "DELETE",
+      "path": "/files/:fileKey",
+      "routeFile": "routes/file.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /files/:fileKey",
+      "method": "GET",
+      "path": "/files/:fileKey",
+      "routeFile": "routes/file.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /files/:fileKey/public",
+      "method": "GET",
+      "path": "/files/:fileKey/public",
+      "routeFile": "routes/file.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /files/id/:fileId",
+      "method": "GET",
+      "path": "/files/id/:fileId",
+      "routeFile": "routes/file.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /files/proxy/:fileId",
+      "method": "GET",
+      "path": "/files/proxy/:fileId",
+      "routeFile": "routes/file.routes.js",
+      "access": "public",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /files/upload",
+      "method": "POST",
+      "path": "/files/upload",
+      "routeFile": "routes/file.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /files/upload-multiple",
+      "method": "POST",
+      "path": "/files/upload-multiple",
+      "routeFile": "routes/file.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /integrations/skud/bindings/audit",
+      "method": "GET",
+      "path": "/integrations/skud/bindings/audit",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /integrations/skud/bindings/employee/:employeeId",
+      "method": "GET",
+      "path": "/integrations/skud/bindings/employee/:employeeId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/bindings/employee/:employeeId",
+      "method": "POST",
+      "path": "/integrations/skud/bindings/employee/:employeeId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /integrations/skud/bindings/employee/:employeeId/department",
+      "method": "PUT",
+      "path": "/integrations/skud/bindings/employee/:employeeId/department",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PATCH /integrations/skud/bindings/employee/:employeeId/meta",
+      "method": "PATCH",
+      "path": "/integrations/skud/bindings/employee/:employeeId/meta",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/bindings/import/execute",
+      "method": "POST",
+      "path": "/integrations/skud/bindings/import/execute",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/bindings/import/preview",
+      "method": "POST",
+      "path": "/integrations/skud/bindings/import/preview",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /integrations/skud/cards",
+      "method": "GET",
+      "path": "/integrations/skud/cards",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/cards/assign",
+      "method": "POST",
+      "path": "/integrations/skud/cards/assign",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/cards/block",
+      "method": "POST",
+      "path": "/integrations/skud/cards/block",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/cards/live/block-employee",
+      "method": "POST",
+      "path": "/integrations/skud/cards/live/block-employee",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/cards/live/unbind",
+      "method": "POST",
+      "path": "/integrations/skud/cards/live/unbind",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/cards/live/unblock-employee",
+      "method": "POST",
+      "path": "/integrations/skud/cards/live/unblock-employee",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/cards/unbind",
+      "method": "POST",
+      "path": "/integrations/skud/cards/unbind",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /integrations/skud/events",
+      "method": "GET",
+      "path": "/integrations/skud/events",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/events/ingest",
+      "method": "POST",
+      "path": "/integrations/skud/events/ingest",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/events/pull",
+      "method": "POST",
+      "path": "/integrations/skud/events/pull",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /integrations/skud/health",
+      "method": "GET",
+      "path": "/integrations/skud/health",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /integrations/skud/local/employees",
+      "method": "GET",
+      "path": "/integrations/skud/local/employees",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /integrations/skud/provider/access-points",
+      "method": "GET",
+      "path": "/integrations/skud/provider/access-points",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /integrations/skud/provider/departments",
+      "method": "GET",
+      "path": "/integrations/skud/provider/departments",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/provider/departments",
+      "method": "POST",
+      "path": "/integrations/skud/provider/departments",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /integrations/skud/provider/departments/:departmentId",
+      "method": "DELETE",
+      "path": "/integrations/skud/provider/departments/:departmentId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /integrations/skud/provider/departments/:departmentId",
+      "method": "PUT",
+      "path": "/integrations/skud/provider/departments/:departmentId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /integrations/skud/provider/employees",
+      "method": "GET",
+      "path": "/integrations/skud/provider/employees",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /integrations/skud/provider/employees/:externalEmpId",
+      "method": "GET",
+      "path": "/integrations/skud/provider/employees/:externalEmpId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/qr/issue",
+      "method": "POST",
+      "path": "/integrations/skud/qr/issue",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/qr/verify",
+      "method": "POST",
+      "path": "/integrations/skud/qr/verify",
+      "routeFile": "routes/skud.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /integrations/skud/site-access-points/:siteId",
+      "method": "GET",
+      "path": "/integrations/skud/site-access-points/:siteId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /integrations/skud/site-access-points/:siteId",
+      "method": "PUT",
+      "path": "/integrations/skud/site-access-points/:siteId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /integrations/skud/site-access-points/entry/:id",
+      "method": "DELETE",
+      "path": "/integrations/skud/site-access-points/entry/:id",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /integrations/skud/stats",
+      "method": "GET",
+      "path": "/integrations/skud/stats",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /integrations/skud/sync-jobs",
+      "method": "GET",
+      "path": "/integrations/skud/sync-jobs",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/sync/employee/:employeeId",
+      "method": "POST",
+      "path": "/integrations/skud/sync/employee/:employeeId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/sync/employee/:employeeId/blacklist",
+      "method": "POST",
+      "path": "/integrations/skud/sync/employee/:employeeId/blacklist",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/sync/employee/:employeeId/blacklist/clear",
+      "method": "POST",
+      "path": "/integrations/skud/sync/employee/:employeeId/blacklist/clear",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/sync/employee/:employeeId/block",
+      "method": "POST",
+      "path": "/integrations/skud/sync/employee/:employeeId/block",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /integrations/skud/sync/employee/:employeeId/unblock",
+      "method": "POST",
+      "path": "/integrations/skud/sync/employee/:employeeId/unblock",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /mobile-access/logout",
+      "method": "POST",
+      "path": "/mobile-access/logout",
+      "routeFile": "routes/mobileEmployeeAccess.routes.js",
+      "access": "mobile_session",
+      "roles": [],
+      "allowedByRole": {
+        "admin": false,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /mobile-access/me",
+      "method": "GET",
+      "path": "/mobile-access/me",
+      "routeFile": "routes/mobileEmployeeAccess.routes.js",
+      "access": "mobile_session",
+      "roles": [],
+      "allowedByRole": {
+        "admin": false,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /mobile-access/quick-qr",
+      "method": "POST",
+      "path": "/mobile-access/quick-qr",
+      "routeFile": "routes/mobileEmployeeAccess.routes.js",
+      "access": "public",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /mobile-access/request-code",
+      "method": "POST",
+      "path": "/mobile-access/request-code",
+      "routeFile": "routes/mobileEmployeeAccess.routes.js",
+      "access": "public",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /mobile-access/skud/qr",
+      "method": "POST",
+      "path": "/mobile-access/skud/qr",
+      "routeFile": "routes/mobileEmployeeAccess.routes.js",
+      "access": "mobile_session",
+      "roles": [],
+      "allowedByRole": {
+        "admin": false,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /mobile-access/verify-code",
+      "method": "POST",
+      "path": "/mobile-access/verify-code",
+      "routeFile": "routes/mobileEmployeeAccess.routes.js",
+      "access": "public",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /ocr/confirm",
+      "method": "POST",
+      "path": "/ocr/confirm",
+      "routeFile": "routes/ocr.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /ocr/conflicts",
+      "method": "GET",
+      "path": "/ocr/conflicts",
+      "routeFile": "routes/ocr.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /ocr/conflicts/:id/apply",
+      "method": "POST",
+      "path": "/ocr/conflicts/:id/apply",
+      "routeFile": "routes/ocr.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /ocr/conflicts/:id/resolve",
+      "method": "POST",
+      "path": "/ocr/conflicts/:id/resolve",
+      "routeFile": "routes/ocr.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /ocr/conflicts/summary/:employeeId",
+      "method": "GET",
+      "path": "/ocr/conflicts/summary/:employeeId",
+      "routeFile": "routes/ocr.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /ocr/recognize",
+      "method": "POST",
+      "path": "/ocr/recognize",
+      "routeFile": "routes/ocr.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /ocr/scan",
+      "method": "POST",
+      "path": "/ocr/scan",
+      "routeFile": "routes/ocr.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /ot/categories",
+      "method": "GET",
+      "path": "/ot/categories",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /ot/categories",
+      "method": "POST",
+      "path": "/ot/categories",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "DELETE /ot/categories/:id",
+      "method": "DELETE",
+      "path": "/ot/categories/:id",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "PATCH /ot/categories/:id",
+      "method": "PATCH",
+      "path": "/ot/categories/:id",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "PATCH /ot/categories/:id/order",
+      "method": "PATCH",
+      "path": "/ot/categories/:id/order",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /ot/comments",
+      "method": "GET",
+      "path": "/ot/comments",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /ot/comments",
+      "method": "POST",
+      "path": "/ot/comments",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "DELETE /ot/comments/:id",
+      "method": "DELETE",
+      "path": "/ot/comments/:id",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "PATCH /ot/comments/:id",
+      "method": "PATCH",
+      "path": "/ot/comments/:id",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /ot/contractor-docs",
+      "method": "GET",
+      "path": "/ot/contractor-docs",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /ot/contractor-docs",
+      "method": "POST",
+      "path": "/ot/contractor-docs",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /ot/contractor-docs/:id/approve",
+      "method": "POST",
+      "path": "/ot/contractor-docs/:id/approve",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /ot/contractor-docs/:id/file",
+      "method": "GET",
+      "path": "/ot/contractor-docs/:id/file",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "DELETE /ot/contractor-docs/:id/files/:fileId",
+      "method": "DELETE",
+      "path": "/ot/contractor-docs/:id/files/:fileId",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /ot/contractor-docs/:id/files/:fileId/view",
+      "method": "GET",
+      "path": "/ot/contractor-docs/:id/files/:fileId/view",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /ot/contractor-docs/:id/reject",
+      "method": "POST",
+      "path": "/ot/contractor-docs/:id/reject",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /ot/contractor-status",
+      "method": "GET",
+      "path": "/ot/contractor-status",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /ot/contractor-status/:counterpartyId/:siteId/override",
+      "method": "POST",
+      "path": "/ot/contractor-status/:counterpartyId/:siteId/override",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /ot/contractor-status/:counterpartyId/:siteId/recalculate",
+      "method": "POST",
+      "path": "/ot/contractor-status/:counterpartyId/:siteId/recalculate",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /ot/contractor-status/summary",
+      "method": "GET",
+      "path": "/ot/contractor-status/summary",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /ot/documents",
+      "method": "GET",
+      "path": "/ot/documents",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /ot/documents",
+      "method": "POST",
+      "path": "/ot/documents",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "DELETE /ot/documents/:id",
+      "method": "DELETE",
+      "path": "/ot/documents/:id",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "PATCH /ot/documents/:id",
+      "method": "PATCH",
+      "path": "/ot/documents/:id",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /ot/documents/:id/template",
+      "method": "GET",
+      "path": "/ot/documents/:id/template",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /ot/documents/:id/template",
+      "method": "POST",
+      "path": "/ot/documents/:id/template",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /ot/instructions",
+      "method": "GET",
+      "path": "/ot/instructions",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /ot/instructions",
+      "method": "POST",
+      "path": "/ot/instructions",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "DELETE /ot/instructions/:id",
+      "method": "DELETE",
+      "path": "/ot/instructions/:id",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "PATCH /ot/instructions/:id",
+      "method": "PATCH",
+      "path": "/ot/instructions/:id",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /ot/instructions/:id/file",
+      "method": "GET",
+      "path": "/ot/instructions/:id/file",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /ot/templates",
+      "method": "GET",
+      "path": "/ot/templates",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /ot/templates",
+      "method": "POST",
+      "path": "/ot/templates",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "DELETE /ot/templates/:id",
+      "method": "DELETE",
+      "path": "/ot/templates/:id",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /ot/templates/:id/file",
+      "method": "GET",
+      "path": "/ot/templates/:id/file",
+      "routeFile": "routes/ot.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "ot_admin",
+        "ot_engineer",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": true,
+        "laborer": false,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /passes",
+      "method": "GET",
+      "path": "/passes",
+      "routeFile": "routes/pass.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /passes",
+      "method": "POST",
+      "path": "/passes",
+      "routeFile": "routes/pass.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /passes/:id",
+      "method": "DELETE",
+      "path": "/passes/:id",
+      "routeFile": "routes/pass.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /passes/:id",
+      "method": "GET",
+      "path": "/passes/:id",
+      "routeFile": "routes/pass.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "PUT /passes/:id",
+      "method": "PUT",
+      "path": "/passes/:id",
+      "routeFile": "routes/pass.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /passes/:id/qr",
+      "method": "POST",
+      "path": "/passes/:id/qr",
+      "routeFile": "routes/pass.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PATCH /passes/:id/revoke",
+      "method": "PATCH",
+      "path": "/passes/:id/revoke",
+      "routeFile": "routes/pass.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /passes/employee/:employeeId",
+      "method": "GET",
+      "path": "/passes/employee/:employeeId",
+      "routeFile": "routes/pass.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /positions",
+      "method": "GET",
+      "path": "/positions",
+      "routeFile": "routes/position.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "POST /positions",
+      "method": "POST",
+      "path": "/positions",
+      "routeFile": "routes/position.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /positions/:id",
+      "method": "DELETE",
+      "path": "/positions/:id",
+      "routeFile": "routes/position.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /positions/:id",
+      "method": "GET",
+      "path": "/positions/:id",
+      "routeFile": "routes/position.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "PUT /positions/:id",
+      "method": "PUT",
+      "path": "/positions/:id",
+      "routeFile": "routes/position.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /positions/import",
+      "method": "POST",
+      "path": "/positions/import",
+      "routeFile": "routes/position.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /settings",
+      "method": "GET",
+      "path": "/settings",
+      "routeFile": "routes/settings.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /settings/:key",
+      "method": "PUT",
+      "path": "/settings/:key",
+      "routeFile": "routes/settings.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /settings/public",
+      "method": "GET",
+      "path": "/settings/public",
+      "routeFile": "routes/settings.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /skud/bindings/audit",
+      "method": "GET",
+      "path": "/skud/bindings/audit",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /skud/bindings/employee/:employeeId",
+      "method": "GET",
+      "path": "/skud/bindings/employee/:employeeId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/bindings/employee/:employeeId",
+      "method": "POST",
+      "path": "/skud/bindings/employee/:employeeId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /skud/bindings/employee/:employeeId/department",
+      "method": "PUT",
+      "path": "/skud/bindings/employee/:employeeId/department",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PATCH /skud/bindings/employee/:employeeId/meta",
+      "method": "PATCH",
+      "path": "/skud/bindings/employee/:employeeId/meta",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/bindings/import/execute",
+      "method": "POST",
+      "path": "/skud/bindings/import/execute",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/bindings/import/preview",
+      "method": "POST",
+      "path": "/skud/bindings/import/preview",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /skud/cards",
+      "method": "GET",
+      "path": "/skud/cards",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/cards/assign",
+      "method": "POST",
+      "path": "/skud/cards/assign",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/cards/block",
+      "method": "POST",
+      "path": "/skud/cards/block",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/cards/live/block-employee",
+      "method": "POST",
+      "path": "/skud/cards/live/block-employee",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/cards/live/unbind",
+      "method": "POST",
+      "path": "/skud/cards/live/unbind",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/cards/live/unblock-employee",
+      "method": "POST",
+      "path": "/skud/cards/live/unblock-employee",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/cards/unbind",
+      "method": "POST",
+      "path": "/skud/cards/unbind",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /skud/events",
+      "method": "GET",
+      "path": "/skud/events",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/events/ingest",
+      "method": "POST",
+      "path": "/skud/events/ingest",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/events/pull",
+      "method": "POST",
+      "path": "/skud/events/pull",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /skud/health",
+      "method": "GET",
+      "path": "/skud/health",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /skud/local/employees",
+      "method": "GET",
+      "path": "/skud/local/employees",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /skud/provider/access-points",
+      "method": "GET",
+      "path": "/skud/provider/access-points",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /skud/provider/departments",
+      "method": "GET",
+      "path": "/skud/provider/departments",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/provider/departments",
+      "method": "POST",
+      "path": "/skud/provider/departments",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /skud/provider/departments/:departmentId",
+      "method": "DELETE",
+      "path": "/skud/provider/departments/:departmentId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /skud/provider/departments/:departmentId",
+      "method": "PUT",
+      "path": "/skud/provider/departments/:departmentId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /skud/provider/employees",
+      "method": "GET",
+      "path": "/skud/provider/employees",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /skud/provider/employees/:externalEmpId",
+      "method": "GET",
+      "path": "/skud/provider/employees/:externalEmpId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager",
+        "user"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/qr/issue",
+      "method": "POST",
+      "path": "/skud/qr/issue",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/qr/verify",
+      "method": "POST",
+      "path": "/skud/qr/verify",
+      "routeFile": "routes/skud.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /skud/site-access-points/:siteId",
+      "method": "GET",
+      "path": "/skud/site-access-points/:siteId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /skud/site-access-points/:siteId",
+      "method": "PUT",
+      "path": "/skud/site-access-points/:siteId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /skud/site-access-points/entry/:id",
+      "method": "DELETE",
+      "path": "/skud/site-access-points/entry/:id",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /skud/stats",
+      "method": "GET",
+      "path": "/skud/stats",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /skud/sync-jobs",
+      "method": "GET",
+      "path": "/skud/sync-jobs",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin",
+        "manager"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/sync/employee/:employeeId",
+      "method": "POST",
+      "path": "/skud/sync/employee/:employeeId",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/sync/employee/:employeeId/blacklist",
+      "method": "POST",
+      "path": "/skud/sync/employee/:employeeId/blacklist",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/sync/employee/:employeeId/blacklist/clear",
+      "method": "POST",
+      "path": "/skud/sync/employee/:employeeId/blacklist/clear",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/sync/employee/:employeeId/block",
+      "method": "POST",
+      "path": "/skud/sync/employee/:employeeId/block",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /skud/sync/employee/:employeeId/unblock",
+      "method": "POST",
+      "path": "/skud/sync/employee/:employeeId/unblock",
+      "routeFile": "routes/skud.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /users",
+      "method": "GET",
+      "path": "/users",
+      "routeFile": "routes/user.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /users",
+      "method": "POST",
+      "path": "/users",
+      "routeFile": "routes/user.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /users/:id",
+      "method": "DELETE",
+      "path": "/users/:id",
+      "routeFile": "routes/user.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /users/:id",
+      "method": "GET",
+      "path": "/users/:id",
+      "routeFile": "routes/user.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PUT /users/:id",
+      "method": "PUT",
+      "path": "/users/:id",
+      "routeFile": "routes/user.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PATCH /users/:id/password",
+      "method": "PATCH",
+      "path": "/users/:id/password",
+      "routeFile": "routes/user.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "DELETE /users/:id/permanent",
+      "method": "DELETE",
+      "path": "/users/:id/permanent",
+      "routeFile": "routes/user.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /users/:id/restore",
+      "method": "POST",
+      "path": "/users/:id/restore",
+      "routeFile": "routes/user.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "PATCH /users/:id/toggle-status",
+      "method": "PATCH",
+      "path": "/users/:id/toggle-status",
+      "routeFile": "routes/user.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "GET /users/deleted",
+      "method": "GET",
+      "path": "/users/deleted",
+      "routeFile": "routes/user.routes.js",
+      "access": "roles",
+      "roles": [
+        "admin"
+      ],
+      "allowedByRole": {
+        "admin": true,
+        "manager": false,
+        "user": false,
+        "laborer": false,
+        "ot_admin": false,
+        "ot_engineer": false
+      }
+    },
+    {
+      "key": "POST /users/profile/change-password",
+      "method": "POST",
+      "path": "/users/profile/change-password",
+      "routeFile": "routes/user.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "GET /users/profile/me",
+      "method": "GET",
+      "path": "/users/profile/me",
+      "routeFile": "routes/user.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    },
+    {
+      "key": "PUT /users/profile/me",
+      "method": "PUT",
+      "path": "/users/profile/me",
+      "routeFile": "routes/user.routes.js",
+      "access": "authenticated",
+      "roles": [],
+      "allowedByRole": {
+        "admin": true,
+        "manager": true,
+        "user": true,
+        "laborer": true,
+        "ot_admin": true,
+        "ot_engineer": true
+      }
+    }
+  ]
+}

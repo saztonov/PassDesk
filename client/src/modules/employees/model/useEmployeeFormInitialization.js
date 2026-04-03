@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import dayjs from "dayjs";
 import { constructionSiteService } from "@/services/constructionSiteService";
+import { resolvePreferredEmployeeCounterpartyMapping } from "@/modules/employees/lib/employeeCounterpartyMapping";
 
 export const useEmployeeFormInitialization = ({
   visible,
@@ -88,7 +89,7 @@ export const useEmployeeFormInitialization = ({
         if (employee) {
           setLinkingMode(getInitialLinkingMode(employee));
 
-          const mapping = employee.employeeCounterpartyMappings?.[0];
+          const mapping = resolvePreferredEmployeeCounterpartyMapping(employee);
           let isFired = false;
           let isInactive = false;
 

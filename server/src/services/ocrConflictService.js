@@ -51,6 +51,14 @@ const getEmployeeFullName = (employee) =>
 const getCounterpartyName = (employee) =>
   employee?.employeeCounterpartyMappings?.[0]?.counterparty?.name || "Без контрагента";
 
+const getCounterpartyIds = (employee) => [
+  ...new Set(
+    (employee?.employeeCounterpartyMappings || [])
+      .map((mapping) => normalizeString(mapping?.counterparty?.id || mapping?.counterpartyId))
+      .filter(Boolean),
+  ),
+];
+
 const DATE_FIELDS = new Set([
   "birthDate",
   "passportDate",
@@ -225,6 +233,7 @@ const buildFioSourcesByEmployee = (files = []) => {
             id: file.employee.id,
             fullName: getEmployeeFullName(file.employee),
             counterpartyName: getCounterpartyName(file.employee),
+            counterpartyIds: getCounterpartyIds(file.employee),
           }
         : null,
       sources: new Map(),
@@ -683,6 +692,7 @@ const listStoredEmployeeOcrConflicts = async ({
             id: row.employee.id,
             fullName: getEmployeeFullName(row.employee),
             counterpartyName: getCounterpartyName(row.employee),
+            counterpartyIds: getCounterpartyIds(row.employee),
           }
         : null,
       sources: [
@@ -819,8 +829,12 @@ export const listEmployeeOcrConflicts = async ({
   employeeId = null,
   page = 1,
   limit = 50,
+  search = "",
+  counterpartyId = null,
 }) => {
   const status = normalizeString(_status) || "open";
+  const normalizedSearch = normalizeComparableText(search);
+  const normalizedCounterpartyId = normalizeString(counterpartyId);
   const normalizedPage = Math.max(Number(page) || 1, 1);
   const normalizedLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
   const offset = (normalizedPage - 1) * normalizedLimit;
@@ -898,15 +912,38 @@ export const listEmployeeOcrConflicts = async ({
     (left, right) =>
       getTimestampValue(right.createdAt) - getTimestampValue(left.createdAt),
   );
-  const paginatedItems = sortedItems.slice(offset, offset + normalizedLimit);
+
+  const filteredItems = sortedItems.filter((item) => {
+    const employee = item?.employee || {};
+
+    if (normalizedCounterpartyId) {
+      const employeeCounterpartyIds = Array.isArray(employee.counterpartyIds)
+        ? employee.counterpartyIds.map((value) => normalizeString(value))
+        : [];
+      if (!employeeCounterpartyIds.includes(normalizedCounterpartyId)) {
+        return false;
+      }
+    }
+
+    if (normalizedSearch) {
+      const normalizedFullName = normalizeComparableText(employee.fullName);
+      if (!normalizedFullName.includes(normalizedSearch)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  const paginatedItems = filteredItems.slice(offset, offset + normalizedLimit);
 
   return {
     items: paginatedItems,
     pagination: {
       page: normalizedPage,
       limit: normalizedLimit,
-      total: sortedItems.length,
-      pages: Math.ceil(sortedItems.length / normalizedLimit),
+      total: filteredItems.length,
+      pages: Math.ceil(filteredItems.length / normalizedLimit),
     },
   };
 };

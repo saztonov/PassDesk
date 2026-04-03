@@ -8,9 +8,11 @@ import {
   Empty,
   Checkbox,
   Segmented,
+  Input,
 } from "antd";
 import { FileExcelOutlined } from "@ant-design/icons";
 import { employeeApi } from "@/entities/employee";
+import { resolvePreferredEmployeeCounterpartyMapping } from "@/modules/employees/lib/employeeCounterpartyMapping";
 import { formatPassportDepartmentCode } from "@/modules/employees/lib/employeeFormFormatters";
 import dayjs from "dayjs";
 import * as XLSX from "xlsx";
@@ -51,6 +53,8 @@ const ExcelExportModal = ({
   const [selectedEmployeesById, setSelectedEmployeesById] = useState({});
   const [checkRequiredFields, setCheckRequiredFields] = useState(true);
   const [selectedTab, setSelectedTab] = useState(TAB_NOT_UPLOADED);
+  const [searchText, setSearchText] = useState("");
+  const [debouncedSearchText, setDebouncedSearchText] = useState("");
   const [employees, setEmployees] = useState(EMPTY_EMPLOYEES);
   const [totalCount, setTotalCount] = useState(0);
   const autoSelectCurrentPageRef = useRef(false);
@@ -63,6 +67,14 @@ const ExcelExportModal = ({
     { label: "Не выгруженные", value: TAB_NOT_UPLOADED },
     { label: "Все", value: TAB_ALL },
   ];
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearchText(searchText.trim());
+    }, 350);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchText]);
 
   const requestParams = useMemo(() => {
     const params = {
@@ -82,9 +94,14 @@ const ExcelExportModal = ({
       params.statusCard = JSON.stringify(["completed"]);
     }
 
+    if (debouncedSearchText) {
+      params.search = debouncedSearchText;
+    }
+
     return params;
   }, [
     checkRequiredFields,
+    debouncedSearchText,
     queryParams,
     selectedTab,
     tablePagination,
@@ -158,6 +175,8 @@ const ExcelExportModal = ({
       setCheckRequiredFields(true);
       setSelectedTab(TAB_NOT_UPLOADED);
       setTablePagination({ current: 1, pageSize: DEFAULT_PAGE_SIZE });
+      setSearchText("");
+      setDebouncedSearchText("");
       setSelectedEmployeeIds([]);
       setSelectedEmployeesById({});
       autoSelectCurrentPageRef.current = true;
@@ -179,6 +198,14 @@ const ExcelExportModal = ({
   const handleRequiredFieldsChange = (event) => {
     const nextValue = event.target.checked;
     setCheckRequiredFields(nextValue);
+    setTablePagination((prev) => ({ ...prev, current: 1 }));
+    setSelectedEmployeeIds([]);
+    setSelectedEmployeesById({});
+    autoSelectCurrentPageRef.current = true;
+  };
+
+  const handleSearchTextChange = (event) => {
+    setSearchText(event.target.value);
     setTablePagination((prev) => ({ ...prev, current: 1 }));
     setSelectedEmployeeIds([]);
     setSelectedEmployeesById({});
@@ -241,12 +268,8 @@ const ExcelExportModal = ({
       {
         title: "Контрагент",
         render: (_, record) => {
-          const mappings = record.employeeCounterpartyMappings || [];
-          if (mappings.length === 0) return "-";
-          const counterparties = [
-            ...new Set(mappings.map((mapping) => mapping.counterparty?.name).filter(Boolean)),
-          ];
-          return counterparties.join(", ") || "-";
+          const preferredMapping = resolvePreferredEmployeeCounterpartyMapping(record);
+          return preferredMapping?.counterparty?.name || "-";
         },
         key: "counterparty",
         ellipsis: true,
@@ -322,7 +345,7 @@ const ExcelExportModal = ({
       }
 
       const excelData = allSelectedEmployees.map((employee) => {
-        const counterpartyMapping = employee.employeeCounterpartyMappings?.[0];
+        const counterpartyMapping = resolvePreferredEmployeeCounterpartyMapping(employee);
 
         return {
           UUID: employee.id || "-",
@@ -442,6 +465,13 @@ const ExcelExportModal = ({
         <div style={{ marginBottom: "12px", color: "#666", fontSize: "14px" }}>
           В текущем списке найдено: <strong>{totalCount}</strong>
         </div>
+        <Input
+          placeholder="Поиск по ФИО"
+          value={searchText}
+          onChange={handleSearchTextChange}
+          allowClear
+          style={{ marginBottom: "12px", maxWidth: 420 }}
+        />
         <Segmented
           options={segmentOptions}
           value={selectedTab}

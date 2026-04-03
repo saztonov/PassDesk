@@ -86,9 +86,7 @@ export const useMobileEmployeeFormInitialization = ({
       }
     };
 
-    if (userCounterpartyId) {
-      loadCounterparties();
-    }
+    loadCounterparties();
   }, [
     employee?.id,
     form,

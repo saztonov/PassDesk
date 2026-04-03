@@ -310,6 +310,10 @@ const hasComparableFieldValueChanged = (fieldName, currentValue, nextValue) =>
   normalizeComparableEmployeeFieldValue(fieldName, currentValue) !==
   normalizeComparableEmployeeFieldValue(fieldName, nextValue);
 
+const hasComparableValueChanged = (currentValue, nextValue) =>
+  normalizeComparableEmployeeValue(currentValue) !==
+  normalizeComparableEmployeeValue(nextValue);
+
 const shouldSuppressDerivedAuditField = ({
   fieldName,
   currentValue,
@@ -2104,7 +2108,11 @@ export const createEmployee = async (req, res, next) => {
       ...cleanEmployeeData
     } = req.body;
 
-    if (counterpartyId && req.user.role !== "admin") {
+    if (
+      counterpartyId &&
+      req.user.role !== "admin" &&
+      req.user.role !== "manager"
+    ) {
       throw new AppError("Недостаточно прав для назначения контрагента", 403);
     }
 
@@ -2358,7 +2366,8 @@ export const updateEmployee = async (req, res, next) => {
     if (
       counterpartyId !== undefined &&
       counterpartyId !== null &&
-      req.user.role !== "admin"
+      req.user.role !== "admin" &&
+      req.user.role !== "manager"
     ) {
       return next(
         new AppError("Недостаточно прав для изменения контрагента", 403),

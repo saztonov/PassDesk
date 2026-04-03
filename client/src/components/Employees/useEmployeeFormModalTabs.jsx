@@ -48,7 +48,8 @@ export const useEmployeeFormModalTabs = ({
   compactLayout = false,
 }) => {
   return useMemo(() => {
-    const showCounterpartySection = false;
+    const showCounterpartySection =
+      user?.role === "admin" || user?.role === "manager";
 
     const getTabIcon = (tabKey) => {
       if (tabsValidation[tabKey]) {

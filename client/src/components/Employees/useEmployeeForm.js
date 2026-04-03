@@ -72,6 +72,8 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
   const [defaultCounterpartyId, setDefaultCounterpartyId] = useState(null);
   const [documentProfilesConfig, setDocumentProfilesConfig] = useState(null);
   const [activeConfig, setActiveConfig] = useState(DEFAULT_FORM_CONFIG);
+  const canSelectCounterparty =
+    user?.role === "admin" || user?.role === "manager";
 
   // Определяем, требуется ли патент для выбранного гражданства
   const requiresPatent = doesCitizenshipRequirePatent(selectedCitizenship);
@@ -295,7 +297,9 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
       if (draftEmployeeId) {
         payload.__draftEmployeeId = draftEmployeeId;
       }
-      delete payload.counterpartyId;
+      if (!canSelectCounterparty) {
+        delete payload.counterpartyId;
+      }
 
       await onSuccess(payload);
       setLoading(false);
@@ -340,7 +344,9 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
       }
 
       const payload = { ...dataToSend };
-      delete payload.counterpartyId;
+      if (!canSelectCounterparty) {
+        delete payload.counterpartyId;
+      }
 
       const result = await onSuccess(payload);
       setLoading(false);

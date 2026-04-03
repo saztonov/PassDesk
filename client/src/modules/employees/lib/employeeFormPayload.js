@@ -20,12 +20,16 @@ const BOOLEAN_FIELDS = new Set(["isFired", "isInactive"]);
 
 export const formatEmployeeFormPayload = (
   values = {},
-  { isDraft = false } = {},
+  { isDraft = false, includeCounterpartyId = false } = {},
 ) => {
   const formatted = {};
 
   Object.keys(values).forEach((key) => {
-    if (key === "constructionSiteId" || key === "counterpartyId") {
+    if (key === "constructionSiteId") {
+      return;
+    }
+
+    if (key === "counterpartyId" && !includeCounterpartyId) {
       return;
     }
 

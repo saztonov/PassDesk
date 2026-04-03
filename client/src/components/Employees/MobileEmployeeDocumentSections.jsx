@@ -21,8 +21,9 @@ export const buildMobileDocumentSections = ({
   loadingCounterparties,
   availableCounterparties,
   onDocumentUploaded,
+  canSelectCounterparty = false,
 }) => {
-  const showCounterpartySection = false;
+  const showCounterpartySection = canSelectCounterparty;
   const sections = [];
 
   const patentSection = buildMobileEmployeePatentSection({
