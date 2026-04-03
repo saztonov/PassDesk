@@ -84,7 +84,12 @@ const ExportPage = () => {
   );
 
   const exportQueryParams = useMemo(() => {
-    const { page: _page, limit: _limit, ...rest } = employeeQueryParams;
+    const {
+      page: _page,
+      limit: _limit,
+      search: _search,
+      ...rest
+    } = employeeQueryParams;
     return rest;
   }, [employeeQueryParams]);
 

@@ -40,6 +40,22 @@ const getEmployeeFromGetByIdResponse = (response) => {
   return payload?.data || payload;
 };
 
+const hasValue = (value) => {
+  if (value === undefined || value === null) {
+    return false;
+  }
+
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+
+  return true;
+};
+
 const ExcelExportModal = ({
   visible,
   queryParams = {},
@@ -62,6 +78,22 @@ const ExcelExportModal = ({
     current: 1,
     pageSize: DEFAULT_PAGE_SIZE,
   });
+  const hasExternalFilters = useMemo(
+    () =>
+      [
+        "dateFrom",
+        "dateTo",
+        "positionNames",
+        "departmentNames",
+        "counterpartyNames",
+        "citizenshipNames",
+        "statuses",
+        "counterpartyIds",
+        "constructionSiteNames",
+        "constructionSiteId",
+      ].some((key) => hasValue(queryParams?.[key])),
+    [queryParams],
+  );
 
   const segmentOptions = [
     { label: "Не выгруженные", value: TAB_NOT_UPLOADED },
@@ -172,8 +204,10 @@ const ExcelExportModal = ({
   const handleOpenChange = useCallback((open) => {
     if (open) {
       setEmployeesLoading(true);
-      setCheckRequiredFields(true);
-      setSelectedTab(TAB_NOT_UPLOADED);
+      // При открытии из уже отфильтрованной страницы показываем более широкий срез,
+      // чтобы попап не казался пустым из-за доп. внутренних ограничений.
+      setCheckRequiredFields(!hasExternalFilters);
+      setSelectedTab(hasExternalFilters ? TAB_ALL : TAB_NOT_UPLOADED);
       setTablePagination({ current: 1, pageSize: DEFAULT_PAGE_SIZE });
       setSearchText("");
       setDebouncedSearchText("");
@@ -185,7 +219,7 @@ const ExcelExportModal = ({
       setSelectedEmployeesById({});
       autoSelectCurrentPageRef.current = false;
     }
-  }, []);
+  }, [hasExternalFilters]);
 
   const handleTabChange = (nextTab) => {
     setSelectedTab(nextTab);
