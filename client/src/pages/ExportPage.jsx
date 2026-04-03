@@ -65,8 +65,10 @@ const ExportPage = () => {
         limit: pageSize,
       };
       const normalizedSearch = debouncedSearchText.trim();
-      const position = normalizeFilterArray(tableFilters.position);
-      const department = normalizeFilterArray(tableFilters.department);
+      // Столбцы "Должность" и "Подразделение" скрыты на странице выгрузки.
+      // Не применяем скрытые фильтры из localStorage.
+      const position = [];
+      const department = [];
       const counterparty = normalizeFilterArray(tableFilters.counterparty);
       const citizenship = normalizeFilterArray(tableFilters.citizenship);
       const isUpload = normalizeFilterArray(tableFilters.isUpload);
@@ -533,7 +535,8 @@ const ExportPage = () => {
       ),
     },
   ];
-  const visibleColumns = columns.filter((column) => column.key !== "status");
+  const hiddenColumnKeys = new Set(["status", "position", "department"]);
+  const visibleColumns = columns.filter((column) => !hiddenColumnKeys.has(column.key));
 
   return (
     <div
