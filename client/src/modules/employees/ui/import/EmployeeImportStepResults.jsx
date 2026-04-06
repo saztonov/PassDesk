@@ -130,7 +130,11 @@ const EmployeeImportStepResults = memo(({ importResult }) => {
                 ),
               },
             ]}
-            pagination={{ pageSize: 5 }}
+            pagination={{
+              pageSize: 100,
+              showSizeChanger: true,
+              pageSizeOptions: ["50", "100", "200"],
+            }}
             size="small"
             rowKey={(record) => `${record.rowIndex}-${record.lastName}`}
           />

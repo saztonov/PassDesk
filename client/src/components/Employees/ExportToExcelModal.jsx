@@ -129,6 +129,7 @@ const ExportToExcelModal = ({ visible, onCancel }) => {
               pageSize,
               total: totalCount,
               showSizeChanger: true,
+              pageSizeOptions: ["50", "100", "200"],
               onChange: (page, nextPageSize) => {
                 if (nextPageSize !== pageSize) {
                   setPageSize(nextPageSize);

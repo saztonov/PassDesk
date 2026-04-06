@@ -74,7 +74,11 @@ const EmployeeImportStepConflicts = memo(
             <Table
               dataSource={validationResult.validationErrors}
               columns={validationColumns}
-              pagination={{ pageSize: 5 }}
+              pagination={{
+                pageSize: 100,
+                showSizeChanger: true,
+                pageSizeOptions: ["50", "100", "200"],
+              }}
               size="small"
               rowKey="rowIndex"
             />
@@ -216,7 +220,11 @@ const EmployeeImportStepConflicts = memo(
                   width: 150,
                 },
               ]}
-              pagination={{ pageSize: 5 }}
+              pagination={{
+                pageSize: 100,
+                showSizeChanger: true,
+                pageSizeOptions: ["50", "100", "200"],
+              }}
               size="small"
               rowKey="inn"
               scroll={{ x: 700 }}

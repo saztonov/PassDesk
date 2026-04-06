@@ -31,19 +31,19 @@ const loadApplicationsPageState = () => {
     if (!saved) {
       return {
         searchText: "",
-        pagination: { current: 1, pageSize: 10 },
+        pagination: { current: 1, pageSize: 100 },
       };
     }
     const parsed = JSON.parse(saved);
     return {
       searchText: parsed.searchText || "",
-      pagination: parsed.pagination || { current: 1, pageSize: 10 },
+      pagination: parsed.pagination || { current: 1, pageSize: 100 },
     };
   } catch (error) {
     console.warn("Ошибка загрузки состояния страницы заявок:", error);
     return {
       searchText: "",
-      pagination: { current: 1, pageSize: 10 },
+      pagination: { current: 1, pageSize: 100 },
     };
   }
 };
@@ -70,7 +70,7 @@ const ApplicationsPage = () => {
         searchText,
         pagination: {
           current: pagination.current || 1,
-          pageSize: pagination.pageSize || 10,
+          pageSize: pagination.pageSize || 100,
         },
       }),
     );
@@ -269,6 +269,7 @@ const ApplicationsPage = () => {
           current: pagination.current,
           pageSize: pagination.pageSize,
           showSizeChanger: true,
+          pageSizeOptions: ["50", "100", "200"],
           showTotal: (total) => `Всего: ${total}`,
         }}
       />

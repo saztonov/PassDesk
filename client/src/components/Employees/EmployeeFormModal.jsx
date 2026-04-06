@@ -442,9 +442,39 @@ const EmployeeFormModal = ({
   // Контент формы
   const formContent = (
     <>
+      <style>{`
+        .employee-form-modal-body {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          min-height: 0;
+          overflow: hidden;
+        }
+        .employee-form-modal-tabs.ant-tabs {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          min-height: 0;
+        }
+        .employee-form-modal-tabs .ant-tabs-content-holder {
+          flex: 1;
+          min-height: 0;
+          overflow: hidden;
+        }
+        .employee-form-modal-tabs .ant-tabs-content {
+          height: 100%;
+        }
+        .employee-form-modal-tabs .ant-tabs-tabpane {
+          height: 100%;
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding-right: 4px;
+        }
+      `}</style>
       <BrowserAutofillTrap />
       <Form
         form={form}
+        className="employee-form-modal-body"
         layout="vertical"
         initialValues={{ gender: "male" }}
         onFieldsChange={handleFieldsChange}
@@ -477,7 +507,8 @@ const EmployeeFormModal = ({
             setActiveTab(key);
             // Валидация запустится через useEffect при изменении activeTab
           }}
-          style={{ marginTop: 16 }}
+          style={{ marginTop: 16, minHeight: 0 }}
+          className="employee-form-modal-tabs"
           destroyOnHidden={false} // Рендерим все вкладки сразу, чтобы форма видела все поля
           items={tabsItems}
         />
@@ -763,7 +794,19 @@ const EmployeeFormModal = ({
         width={1350}
         footer={footer}
         styles={{
-          body: { maxHeight: "70vh", overflowY: "auto", overflowX: "hidden" },
+          content: {
+            height: "80vh",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          },
+          body: {
+            flex: 1,
+            minHeight: 0,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          },
         }}
       >
         {formContent}

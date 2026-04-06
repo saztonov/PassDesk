@@ -44,13 +44,13 @@ const ExportPage = () => {
   const [searchText, setSearchText] = useState("");
   const [debouncedSearchText, setDebouncedSearchText] = useState("");
   const [pagination, setPagination] = useState(() =>
-    parseStoredJson(PAGINATION_STORAGE_KEY, { current: 1, pageSize: 20 }),
+    parseStoredJson(PAGINATION_STORAGE_KEY, { current: 1, pageSize: 100 }),
   );
   const [tableFilters, setTableFilters] = useState(() =>
     parseStoredJson(TABLE_FILTERS_STORAGE_KEY, {}),
   );
   const currentPage = pagination.current || 1;
-  const pageSize = pagination.pageSize || 20;
+  const pageSize = pagination.pageSize || 100;
 
   // Инициализируем фильтр из localStorage
   const [filterParams, setFilterParams] = useState(() => {
@@ -169,12 +169,12 @@ const ExportPage = () => {
   // Обработчики фильтра по дате
   const handleDateFilterApply = (params) => {
     setFilterParams(params);
-    setPagination({ current: 1, pageSize: 20 }); // Сбросить пагинацию
+    setPagination({ current: 1, pageSize: 100 }); // Сбросить пагинацию
   };
 
   const handleDateFilterReset = () => {
     setFilterParams({});
-    setPagination({ current: 1, pageSize: 20 });
+    setPagination({ current: 1, pageSize: 100 });
     // Сбрасываем также фильтры таблицы
     setTableFilters({});
   };
@@ -649,7 +649,7 @@ const ExportPage = () => {
                 extra?.action === "filter"
                   ? 1
                   : pag?.current || prev.current || 1,
-              pageSize: pag?.pageSize || prev.pageSize || 20,
+              pageSize: pag?.pageSize || prev.pageSize || 100,
             }));
           }}
           pagination={{
@@ -658,7 +658,7 @@ const ExportPage = () => {
             total: totalCount,
             showSizeChanger: true,
             showTotal: (total) => `Всего: ${total}`,
-            pageSizeOptions: ["10", "20", "50", "100"],
+            pageSizeOptions: ["50", "100", "200"],
             onChange: (page, pageSize) => {
               setPagination({ current: page, pageSize });
             },

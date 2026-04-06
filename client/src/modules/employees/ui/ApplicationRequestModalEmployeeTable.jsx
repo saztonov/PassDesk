@@ -54,6 +54,7 @@ const ApplicationRequestModalEmployeeTable = ({
           pageSize: pagination.pageSize,
           total: pagination.total,
           showSizeChanger: true,
+          pageSizeOptions: ["50", "100", "200"],
           onChange: (page, pageSize) => {
             onPaginationChange(page, pageSize);
           },

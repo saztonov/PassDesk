@@ -25,7 +25,7 @@ const buildAvailableColumns = ({
     { key: "constructionSite", label: "Объект" },
     { key: "citizenship", label: "Гражданство" },
     { key: "isUpload", label: "ЗУП" },
-    { key: "statusCard", label: "Заполнен" },
+    { key: "zupUploadedAt", label: "Дата ЗУП (НЕТ→ДА)" },
     { key: "files", label: "Файлы" },
     { key: "documentExpiry", label: "Срок действия док." },
     { key: "status", label: "Статус" },
@@ -103,6 +103,11 @@ const useEmployeesPageViewModels = ({
   sortBy,
   sortOrder,
   handleSortChange,
+  statsPeriod,
+  setStatsPeriod,
+  portalStats,
+  portalStatsLoading,
+  exportQueryParams,
 }) => {
   const availableColumns = useMemo(
     () =>
@@ -159,9 +164,16 @@ const useEmployeesPageViewModels = ({
       onAdd: handleAdd,
       onRequest: handleRequest,
       onImport: () => setIsImportModalOpen(true),
+      onExport: () => setIsExportModalOpen(true),
       onSecurity: () => setIsSecurityModalOpen(true),
     }),
-    [handleAdd, handleRequest, setIsImportModalOpen, setIsSecurityModalOpen],
+    [
+      handleAdd,
+      handleRequest,
+      setIsImportModalOpen,
+      setIsExportModalOpen,
+      setIsSecurityModalOpen,
+    ],
   );
 
   const employeesListModel = useMemo(
@@ -185,6 +197,9 @@ const useEmployeesPageViewModels = ({
       canMarkForDeletion,
       sortBy,
       sortOrder,
+      statsPeriod,
+      portalStats,
+      portalStatsLoading,
     }),
     [
       filteredEmployees,
@@ -206,6 +221,9 @@ const useEmployeesPageViewModels = ({
       canMarkForDeletion,
       sortBy,
       sortOrder,
+      statsPeriod,
+      portalStats,
+      portalStatsLoading,
     ],
   );
 
@@ -221,6 +239,7 @@ const useEmployeesPageViewModels = ({
       onFiltersChange: setTableFilters,
       onConstructionSitesEdit: handleConstructionSitesEdit,
       onSortChange: handleSortChange,
+      onStatsPeriodChange: setStatsPeriod,
     }),
     [
       handleView,
@@ -233,6 +252,7 @@ const useEmployeesPageViewModels = ({
       setTableFilters,
       handleConstructionSitesEdit,
       handleSortChange,
+      setStatsPeriod,
     ],
   );
 
@@ -256,6 +276,7 @@ const useEmployeesPageViewModels = ({
       isExportModalOpen,
       isImportModalOpen,
       isSecurityModalOpen,
+      exportQueryParams,
     }),
     [
       isModalOpen,
@@ -276,6 +297,7 @@ const useEmployeesPageViewModels = ({
       isExportModalOpen,
       isImportModalOpen,
       isSecurityModalOpen,
+      exportQueryParams,
     ],
   );
 
@@ -287,6 +309,7 @@ const useEmployeesPageViewModels = ({
       onCheckInn: handleCheckInn,
       setIsViewModalOpen,
       setViewingEmployee,
+      onEditEmployee: handleEdit,
       onMobileViewEdit: handleMobileViewEdit,
       onCloseFilesModal: closeFilesModal,
       onFilesUpdated: handleFilesUpdated,
@@ -305,6 +328,7 @@ const useEmployeesPageViewModels = ({
       handleCheckInn,
       setIsViewModalOpen,
       setViewingEmployee,
+      handleEdit,
       handleMobileViewEdit,
       closeFilesModal,
       handleFilesUpdated,

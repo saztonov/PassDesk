@@ -1,40 +1,26 @@
 import { memo } from "react";
 import ApplicationRequestModal from "@/modules/employees/ui/ApplicationRequestModal";
 import EmployeeFilesModal from "@/modules/employees/ui/EmployeeFilesModal";
-import EmployeeFormModal from "@/modules/employees/ui/EmployeeFormModal";
 import EmployeeImportModal from "@/modules/employees/ui/EmployeeImportModal";
 import EmployeeSitesModal from "@/modules/employees/ui/EmployeeSitesModal";
 import EmployeeViewDrawer from "@/modules/employees/ui/EmployeeViewDrawer";
 import EmployeeViewModal from "@/modules/employees/ui/EmployeeViewModal";
-import ExportToExcelModal from "@/modules/employees/ui/ExportToExcelModal";
+import ExcelExportModal from "@/modules/employees/ui/ExcelExportModal";
 import SecurityModal from "@/modules/employees/ui/SecurityModal";
 
 const EmployeesModals = memo(({ isMobile, model, actions }) => (
   <>
     {!isMobile ? (
-      <>
-        <EmployeeFormModal
-          visible={model.isModalOpen}
-          employee={model.editingEmployee}
-          onCancel={() => {
-            actions.setIsModalOpen(false);
-            actions.setEditingEmployee(null);
-          }}
-          onSuccess={actions.onFormSuccess}
-          onCheckInn={actions.onCheckInn}
-        />
-
-        <EmployeeViewModal
-          visible={model.isViewModalOpen}
-          employee={model.viewingEmployee}
-          onCancel={() => actions.setIsViewModalOpen(false)}
-          onEdit={() => {
-            actions.setIsViewModalOpen(false);
-            actions.setEditingEmployee(model.viewingEmployee);
-            actions.setIsModalOpen(true);
-          }}
-        />
-      </>
+      <EmployeeViewModal
+        visible={model.isViewModalOpen}
+        employee={model.viewingEmployee}
+        onCancel={() => actions.setIsViewModalOpen(false)}
+        onEdit={() => {
+          actions.setIsViewModalOpen(false);
+          actions.setViewingEmployee(null);
+          actions.onEditEmployee?.(model.viewingEmployee);
+        }}
+      />
     ) : null}
 
     {isMobile ? (
@@ -80,12 +66,14 @@ const EmployeesModals = memo(({ isMobile, model, actions }) => (
       userId={model.userId}
     />
 
-    <ExportToExcelModal
+    <ExcelExportModal
       visible={model.isExportModalOpen}
+      queryParams={model.exportQueryParams || {}}
       onCancel={() => {
         actions.setIsExportModalOpen(false);
         actions.refetchEmployees();
       }}
+      onSuccess={() => actions.refetchEmployees()}
     />
 
     <EmployeeImportModal

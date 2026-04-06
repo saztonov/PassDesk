@@ -219,7 +219,7 @@ const TrashListTab = ({
           onChange={onChangePage}
           onShowSizeChange={onChangePageSize}
           showSizeChanger
-          pageSizeOptions={["10", "20", "50", "100"]}
+          pageSizeOptions={["50", "100", "200"]}
         />
       </div>
     </div>
@@ -243,7 +243,7 @@ const TrashPage = () => {
     search: "",
     pagination: {
       current: 1,
-      pageSize: 10,
+      pageSize: 100,
       total: 0,
     },
   });
@@ -253,7 +253,7 @@ const TrashPage = () => {
     search: "",
     pagination: {
       current: 1,
-      pageSize: 10,
+      pageSize: 100,
       total: 0,
     },
   });

@@ -18,6 +18,7 @@ import { useEmployeeTableFilterOptions } from "@/modules/employees/model/useEmpl
 import { useEmployeesModals } from "@/modules/employees/model/useEmployeesModals";
 import { useEmployeesPermissions } from "@/modules/employees/model/useEmployeesPermissions";
 import useEmployeesPageViewModels from "@/modules/employees/model/useEmployeesPageViewModels";
+import { useEmployeesPortalStats } from "@/modules/employees/model/useEmployeesPortalStats";
 
 const { useBreakpoint } = Grid;
 
@@ -37,6 +38,7 @@ const TABLE_FILTER_GROUP_LABELS = {
   constructionSite: "Объект",
   citizenship: "Гражданство",
   isUpload: "ЗУП",
+  zupUploadedAt: "Дата ЗУП (НЕТ→ДА)",
   statusCard: "Заполнен",
   documentExpiry: "Срок действия док.",
   status: "Статус",
@@ -97,6 +99,7 @@ const EmployeesPage = () => {
 
   const [sortBy, setSortBy] = useState("updatedAt");
   const [sortOrder, setSortOrder] = useState("DESC");
+  const [statsPeriod, setStatsPeriod] = useState("day");
 
   const handleSortChange = useCallback((field, order) => {
     const normalizedField = field === "fullName" ? "updatedAt" : field;
@@ -131,8 +134,6 @@ const EmployeesPage = () => {
     setViewingEmployee,
     filesEmployee,
     sitesEmployee,
-    openCreateModal,
-    openEditModal,
     closeEditModal,
     openViewModal,
     closeMobileView,
@@ -216,6 +217,12 @@ const EmployeesPage = () => {
       filters.uploadStates = JSON.stringify(tableFilters.isUpload);
     }
 
+    if (tableFilters.zupUploadedAt?.length === 2) {
+      const [from, to] = tableFilters.zupUploadedAt;
+      filters.zupUploadedAtFrom = from;
+      filters.zupUploadedAtTo = to;
+    }
+
     filters.page = currentPage;
     filters.limit = pageSize;
     if (sortBy && sortBy !== "fullName") filters.sortBy = sortBy;
@@ -235,10 +242,26 @@ const EmployeesPage = () => {
     tableFilters.department,
     tableFilters.documentExpiry,
     tableFilters.isUpload,
+    tableFilters.zupUploadedAt,
     tableFilters.position,
     tableFilters.status,
     tableFilters.statusCard,
   ]);
+
+  const exportQueryParams = useMemo(() => {
+    const {
+      page: _page,
+      limit: _limit,
+      sortBy: _sortBy,
+      sortOrder: _sortOrder,
+      activeOnly: _activeOnly,
+      uploadStates: _uploadStates,
+      statusCard: _statusCard,
+      ...rest
+    } = employeeRequestFilters || {};
+
+    return rest;
+  }, [employeeRequestFilters]);
 
   useEffect(() => {
     if (!filtersInitializedRef.current) {
@@ -257,6 +280,7 @@ const EmployeesPage = () => {
     tableFilters.citizenship,
     tableFilters.documentExpiry,
     tableFilters.isUpload,
+    tableFilters.zupUploadedAt,
     tableFilters.status,
     tableFilters.statusCard,
     setCurrentPage,
@@ -275,6 +299,11 @@ const EmployeesPage = () => {
   );
 
   const { departments } = useDepartments();
+  const { stats: portalStats, loading: portalStatsLoading } =
+    useEmployeesPortalStats({
+      period: statsPeriod,
+      counterpartyIds: counterpartyIdsForFilter,
+    });
 
   const loading = employeesLoading;
 
@@ -343,6 +372,17 @@ const EmployeesPage = () => {
 
       if (filter.type === "tableFilter") {
         const { filterKey, value } = filter;
+
+        if (filterKey === "zupUploadedAt") {
+          setTableFilters((prev) => {
+            const nextFilters = { ...(prev || {}) };
+            delete nextFilters[filterKey];
+            return nextFilters;
+          });
+          setCurrentPage(1);
+          return;
+        }
+
         setTableFilters((prev) => {
           const currentValues = Array.isArray(prev?.[filterKey])
             ? prev[filterKey]
@@ -396,6 +436,18 @@ const EmployeesPage = () => {
       const values = Array.isArray(filterValue) ? filterValue : [filterValue];
       const groupLabel = TABLE_FILTER_GROUP_LABELS[filterKey] || filterKey;
 
+      if (filterKey === "zupUploadedAt" && values.length === 2) {
+        const [from, to] = values;
+        filters.push({
+          id: `table:zupUploadedAt:${from}:${to}`,
+          type: "tableFilter",
+          filterKey,
+          value: values,
+          label: `${groupLabel}: ${from} — ${to}`,
+        });
+        return;
+      }
+
       values.forEach((value) => {
         if (value === null || value === undefined || value === "") {
           return;
@@ -446,8 +498,6 @@ const EmployeesPage = () => {
     viewingEmployee,
     closeEditModal,
     closeMobileView,
-    openCreateModal,
-    openEditModal,
     openViewModal,
     openFilesModal,
     openSitesModal,
@@ -535,6 +585,11 @@ const EmployeesPage = () => {
     sortBy,
     sortOrder,
     handleSortChange,
+    statsPeriod,
+    setStatsPeriod,
+    portalStats,
+    portalStatsLoading,
+    exportQueryParams,
   });
 
   return (

@@ -405,7 +405,7 @@ const PositionsPage = () => {
               total: totalCount,
               onChange: (page) => fetchPositions(page, searchText),
               showSizeChanger: true,
-              pageSizeOptions: ["10", "20", "50", "100"],
+              pageSizeOptions: ["50", "100", "200"],
               showTotal: (total) => `Всего: ${total} записей`,
             }}
           />

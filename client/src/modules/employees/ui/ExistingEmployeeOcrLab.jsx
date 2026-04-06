@@ -445,7 +445,7 @@ const ExistingEmployeeOcrLab = () => {
           columns={employeeColumns}
           dataSource={employees}
           loading={employeesLoading}
-          pagination={{ pageSize: 10 }}
+          pagination={{ pageSize: 100 }}
           rowSelection={{
             selectedRowKeys: selectedEmployeeIds,
             onChange: (keys) => setSelectedEmployeeIds(keys),
@@ -482,7 +482,11 @@ const ExistingEmployeeOcrLab = () => {
             columns={fileColumns}
             dataSource={files}
             loading={filesLoading}
-            pagination={{ pageSize: 10, showSizeChanger: true }}
+            pagination={{
+              pageSize: 100,
+              showSizeChanger: true,
+              pageSizeOptions: ["50", "100", "200"],
+            }}
             scroll={{ x: 1400 }}
           />
         )}

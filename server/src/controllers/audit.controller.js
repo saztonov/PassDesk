@@ -275,6 +275,10 @@ export const getAuditLogs = async (req, res, next) => {
     const offset = (page - 1) * limit;
     const eventType = req.query.eventType || null;
     const eventCategory = req.query.eventCategory || null;
+    const entityId =
+      typeof req.query.entityId === "string" && req.query.entityId.trim()
+        ? req.query.entityId.trim()
+        : null;
     const counterpartyId = req.query.counterpartyId || null;
     const userIds = normalizeQueryValues(req.query.userId);
     const dateFrom = parseDateValue(req.query.dateFrom, "dateFrom");
@@ -297,6 +301,12 @@ export const getAuditLogs = async (req, res, next) => {
         [Op.ne]: null,
       },
     });
+
+    if (entityId) {
+      andConditions.push({
+        entityId,
+      });
+    }
 
     if (requestedActions.length > 0) {
       andConditions.push({

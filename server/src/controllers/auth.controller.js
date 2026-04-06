@@ -264,6 +264,37 @@ export const register = async (req, res, next) => {
   }
 };
 
+export const getRegistrationInfo = async (req, res, next) => {
+  try {
+    const registrationCode = String(req.query?.registrationCode || "").trim();
+    if (!registrationCode) {
+      throw new AppError("Код регистрации обязателен", 400);
+    }
+
+    const counterparty = await Counterparty.findOne({
+      where: { registrationCode },
+      attributes: ["id", "name"],
+    });
+
+    if (!counterparty) {
+      throw new AppError("Неверный код регистрации", 404);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        registrationCode,
+        counterparty: {
+          id: counterparty.id,
+          name: counterparty.name,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;

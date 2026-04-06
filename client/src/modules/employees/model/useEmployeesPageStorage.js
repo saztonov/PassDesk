@@ -5,6 +5,15 @@ const TABLE_COLUMNS_STORAGE_KEY = "employee_table_columns";
 const EMPLOYEES_PAGE_STATE_STORAGE_KEY = "employees_page_state";
 const UNSUPPORTED_FILTER_KEYS = new Set(["fullName", "createdAt"]);
 const NON_HIDEABLE_COLUMN_KEYS = new Set(["actions"]);
+const EMPLOYEE_PAGE_SIZE_OPTIONS = [50, 100, 200];
+const DEFAULT_EMPLOYEE_PAGE_SIZE = 100;
+
+const normalizePageSize = (value) => {
+  const parsed = Number(value);
+  return EMPLOYEE_PAGE_SIZE_OPTIONS.includes(parsed)
+    ? parsed
+    : DEFAULT_EMPLOYEE_PAGE_SIZE;
+};
 
 const getInitialFilters = () => {
   try {
@@ -36,7 +45,12 @@ const getInitialPageState = () => {
   try {
     const saved = localStorage.getItem(EMPLOYEES_PAGE_STATE_STORAGE_KEY);
     if (!saved) {
-      return { searchText: "", statusFilter: null, currentPage: 1, pageSize: 20 };
+      return {
+        searchText: "",
+        statusFilter: null,
+        currentPage: 1,
+        pageSize: DEFAULT_EMPLOYEE_PAGE_SIZE,
+      };
     }
     const parsed = JSON.parse(saved);
     return {
@@ -47,14 +61,16 @@ const getInitialPageState = () => {
         Number.isInteger(parsed.currentPage) && parsed.currentPage > 0
           ? parsed.currentPage
           : 1,
-      pageSize:
-        Number.isInteger(parsed.pageSize) && parsed.pageSize > 0
-          ? parsed.pageSize
-          : 20,
+      pageSize: normalizePageSize(parsed.pageSize),
     };
   } catch (error) {
     console.warn("Ошибка при загрузке состояния страницы сотрудников:", error);
-    return { searchText: "", statusFilter: null, currentPage: 1, pageSize: 20 };
+    return {
+      searchText: "",
+      statusFilter: null,
+      currentPage: 1,
+      pageSize: DEFAULT_EMPLOYEE_PAGE_SIZE,
+    };
   }
 };
 

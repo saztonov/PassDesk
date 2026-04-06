@@ -135,6 +135,7 @@ const EmployeesToolbar = memo(
                   onAdd={actions.onAdd}
                   onRequest={actions.onRequest}
                   onImport={actions.onImport}
+                  onExport={actions.onExport}
                   onSecurity={actions.onSecurity}
                   canExport={view.canExport}
                   compact={isTabletLayout}

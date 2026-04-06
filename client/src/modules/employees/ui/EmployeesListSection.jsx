@@ -63,6 +63,10 @@ const EmployeesListSection = memo(({ isMobile, model, actions }) => {
         currentSortBy={model.sortBy}
         currentSortOrder={model.sortOrder}
         onSortChange={actions.onSortChange}
+        statsPeriod={model.statsPeriod}
+        portalStats={model.portalStats}
+        portalStatsLoading={model.portalStatsLoading}
+        onStatsPeriodChange={actions.onStatsPeriodChange}
       />
     </div>
   );

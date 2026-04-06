@@ -1,5 +1,5 @@
 import express from 'express';
-import { body } from 'express-validator';
+import { body, query } from 'express-validator';
 import { validate } from '../middleware/validator.js';
 import * as authController from '../controllers/auth.controller.js';
 import { authenticate, authenticateForLogout } from '../middleware/auth.js';
@@ -24,9 +24,22 @@ const registerValidation = [
   body('fullName').notEmpty().trim().withMessage('ФИО обязательно')
 ];
 
+const registrationInfoValidation = [
+  query("registrationCode")
+    .notEmpty()
+    .withMessage("Код регистрации обязателен")
+    .trim(),
+];
+
 // Routes
 // Публичная регистрация (без authenticate middleware)
 router.post('/register', registerValidation, validate, authController.register);
+router.get(
+  "/registration-info",
+  registrationInfoValidation,
+  validate,
+  authController.getRegistrationInfo,
+);
 router.post('/login', loginValidation, validate, authController.login);
 router.post('/logout', authenticateForLogout, authController.logout);
 router.post('/refresh', authController.refreshToken);

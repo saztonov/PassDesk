@@ -853,9 +853,9 @@ const SkudEmployeeEventsPage = () => {
               dataSource={events}
               loading={loading}
               pagination={{
-                pageSize: 20,
+                pageSize: 100,
                 showSizeChanger: true,
-                pageSizeOptions: ["20", "50", "100", "200"],
+                pageSizeOptions: ["50", "100", "200"],
               }}
               scroll={{ x: 1700 }}
             />

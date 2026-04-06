@@ -1,4 +1,4 @@
-import { Table } from "antd";
+import { Segmented, Table, Typography } from "antd";
 import { useEffect, useRef } from "react";
 import { useEmployeeColumns } from "./EmployeeColumns";
 import { useTableFilters } from "./useTableFilters";
@@ -127,6 +127,18 @@ const tableStyles = `
     margin: 12px 0 !important;
     padding-right: 10px !important;
   }
+
+  .employee-table-pagination-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .employee-table-pagination-summary-item {
+    font-size: 12px;
+    color: #595959;
+  }
 `;
 
 /**
@@ -159,6 +171,11 @@ const INTERACTIVE_ROW_TARGET_SELECTOR = [
   ".ant-popconfirm",
   ".ant-badge",
 ].join(", ");
+const STATS_PERIOD_OPTIONS = [
+  { label: "День", value: "day" },
+  { label: "Неделя", value: "week" },
+  { label: "Месяц", value: "month" },
+];
 
 export const EmployeeTable = ({
   employees,
@@ -188,7 +205,12 @@ export const EmployeeTable = ({
   currentSortBy,
   currentSortOrder,
   onSortChange,
+  statsPeriod = "day",
+  portalStats = null,
+  portalStatsLoading = false,
+  onStatsPeriodChange,
 }) => {
+  const { Text } = Typography;
   const {
     filters,
     onFiltersChange: handleLocalFiltersChange,
@@ -305,8 +327,30 @@ export const EmployeeTable = ({
           pageSize: pageSize,
           total,
           showSizeChanger: true,
-          pageSizeOptions: ["10", "20", "50", "100"],
-          showTotal: (total) => `Всего: ${total}`,
+          pageSizeOptions: ["50", "100", "200"],
+          showTotal: (total) => (
+            <div className="employee-table-pagination-summary">
+              {onStatsPeriodChange ? (
+                <Segmented
+                  size="small"
+                  options={STATS_PERIOD_OPTIONS}
+                  value={statsPeriod}
+                  onChange={onStatsPeriodChange}
+                />
+              ) : null}
+              <Text className="employee-table-pagination-summary-item">
+                Внесено на портал:{" "}
+                <Text strong>{portalStatsLoading ? "..." : Number(portalStats?.portalCreated || 0)}</Text>
+              </Text>
+              <Text className="employee-table-pagination-summary-item">
+                Выгружено в ЗУП:{" "}
+                <Text strong>{portalStatsLoading ? "..." : Number(portalStats?.zupUploaded || 0)}</Text>
+              </Text>
+              <Text className="employee-table-pagination-summary-item">
+                Всего: <Text strong>{total}</Text>
+              </Text>
+            </div>
+          ),
         }}
         rowClassName={(record, index) =>
           index % 2 === 0 ? "table-row-light" : "table-row-dark"

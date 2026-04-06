@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Card,
   Table,
@@ -54,7 +54,7 @@ const CounterpartiesPage = () => {
   const [selectedCounterpartyId, setSelectedCounterpartyId] = useState(null);
   const [pagination, setPagination] = useState({
     current: 1,
-    pageSize: 10,
+    pageSize: 100,
     total: 0,
   });
   const [filters, setFilters] = useState({});
@@ -289,6 +289,30 @@ const CounterpartiesPage = () => {
     setObjectsModalVisible(true);
   };
 
+  const tableData = useMemo(() => {
+    if (!Array.isArray(data) || data.length === 0) {
+      return [];
+    }
+
+    const counterpartyById = new Map(
+      data.map((item) => [item.id, { ...item, children: [] }]),
+    );
+    const roots = [];
+
+    counterpartyById.forEach((item) => {
+      const parentId = item.parentCounterparty?.id || null;
+      const parent = parentId ? counterpartyById.get(parentId) : null;
+
+      if (parent && parent.id !== item.id) {
+        parent.children.push(item);
+      } else {
+        roots.push(item);
+      }
+    });
+
+    return roots;
+  }, [data]);
+
   // Если user (default) - показываем 403
   if (
     defaultCounterpartyId !== null &&
@@ -440,6 +464,24 @@ const CounterpartiesPage = () => {
         return (
           <Tooltip title="Родительский контрагент">
             <Tag color="cyan">{parentName}</Tag>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: "Зависимые",
+      key: "childrenCount",
+      render: (_, record) => {
+        const childrenCount = Array.isArray(record.children)
+          ? record.children.length
+          : 0;
+        if (childrenCount <= 0) {
+          return <span style={{ color: "#999" }}>0</span>;
+        }
+
+        return (
+          <Tooltip title="Нажмите + слева от строки, чтобы раскрыть зависимые организации">
+            <Tag color="geekblue">+{childrenCount}</Tag>
           </Tooltip>
         );
       },
@@ -640,11 +682,14 @@ const CounterpartiesPage = () => {
         >
           <Table
             columns={columns}
-            dataSource={data}
+            dataSource={tableData}
             rowKey="id"
             loading={loading}
             size="small"
             scroll={{ x: "max-content", y: "calc(100vh - 330px)" }}
+            expandable={{
+              defaultExpandAllRows: false,
+            }}
             pagination={{
               ...pagination,
               onChange: (page) =>
@@ -652,7 +697,7 @@ const CounterpartiesPage = () => {
               onShowSizeChange: (current, pageSize) =>
                 setPagination((prev) => ({ ...prev, current: 1, pageSize })),
               showSizeChanger: true,
-              pageSizeOptions: ["10", "20", "50", "100"],
+              pageSizeOptions: ["50", "100", "200"],
               showTotal: (total) => `Всего: ${total} записей`,
             }}
           />

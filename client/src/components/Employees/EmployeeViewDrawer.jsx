@@ -3,6 +3,7 @@ import { CloseOutlined, EditOutlined } from "@ant-design/icons";
 import { useEffect, useMemo, useState } from "react";
 import { useEmployeeForm } from "./useEmployeeForm";
 import { canManageEmployeeStatuses } from "@/shared/lib/accessControl";
+import EmployeeChangeHistoryTab from "@/modules/employees/ui/EmployeeChangeHistoryTab";
 import {
   buildEmployeeViewDrawerFormData,
   buildEmployeeViewDrawerItems,
@@ -34,14 +35,25 @@ const EmployeeViewDrawer = ({ visible, employee, onClose, onEdit }) => {
   const canViewStatuses = canManageEmployeeStatuses(user?.role);
 
   const collapseItems = useMemo(
-    () =>
-      buildEmployeeViewDrawerItems({
+    () => {
+      const items = buildEmployeeViewDrawerItems({
         employee,
         citizenships,
         requiresPatent,
         canViewStatuses,
         getFieldProps,
-      }),
+      });
+
+      if (employee?.id && canViewStatuses) {
+        items.push({
+          key: "history",
+          label: "🕒 История изменений",
+          children: <EmployeeChangeHistoryTab employeeId={employee.id} />,
+        });
+      }
+
+      return items;
+    },
     [
       employee,
       citizenships,

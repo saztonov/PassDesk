@@ -255,6 +255,11 @@ router.get(
   authorize("admin", "manager", "user"),
   employeeDocumentsTableController.exportCounterpartyDocumentsExcel,
 );
+router.get(
+  "/stats/portal",
+  authorize("admin", "manager", "user"),
+  employeeController.getEmployeesPortalStats,
+);
 
 // Общие маршруты
 // Если есть activeOnly=true, используем отдельный контроллер для выгрузки

@@ -5,12 +5,11 @@ import {
   DeleteOutlined,
   EyeOutlined,
   FileOutlined,
-  CheckCircleFilled,
-  CloseCircleFilled,
 } from "@ant-design/icons";
 import { CounterpartyFilterDropdown } from "./CounterpartyFilterDropdown";
 import { DocumentExpiryStatus } from "./DocumentExpiryStatus";
 import { AsyncCheckboxFilterDropdown } from "./AsyncCheckboxFilterDropdown";
+import { CreatedAtFilterDropdown } from "./CreatedAtFilterDropdown";
 import positionService from "@/services/positionService";
 import { citizenshipService } from "@/services/citizenshipService";
 import { constructionSiteService } from "@/services/constructionSiteService";
@@ -45,6 +44,19 @@ const getEmployeeUploadState = (record) => {
   return activeStatusMappings.every((mapping) => mapping?.isUpload)
     ? "uploaded"
     : "not_uploaded";
+};
+
+const formatZupUploadedAt = (value) => {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return date.toLocaleDateString("ru-RU");
 };
 
 const renderMappingState = ({
@@ -509,34 +521,21 @@ export const useEmployeeColumns = ({
         filteredValue: filters.isUpload || [],
       },
       {
-        title: "Заполнен",
-        key: "statusCard",
-        width: 130,
+        title: "Дата ЗУП (НЕТ→ДА)",
+        key: "zupUploadedAt",
+        width: 160,
         align: "center",
-        render: (_, record) => {
-          const isCompleted = record.statusCard === "completed";
-
-          return (
-            <Tooltip
-              title={
-                isCompleted
-                  ? "Все обязательные поля заполнены"
-                  : "Не все обязательные поля заполнены"
-              }
-            >
-              {isCompleted ? (
-                <CheckCircleFilled style={{ fontSize: 20, color: "#52c41a" }} />
-              ) : (
-                <CloseCircleFilled style={{ fontSize: 20, color: "#ff4d4f" }} />
-              )}
-            </Tooltip>
-          );
-        },
-        filters: [
-          { text: "Заполнен", value: "completed" },
-          { text: "Не заполнен", value: "draft" },
-        ],
-        filteredValue: filters.statusCard || [],
+        render: (_, record) => formatZupUploadedAt(record?.zupUploadedAt),
+        filterDropdown: (props) => (
+          <CreatedAtFilterDropdown
+            {...props}
+            resetTrigger={resetTrigger}
+          />
+        ),
+        filterIcon: (filtered) => (
+          <div style={{ color: filtered ? "#1890ff" : undefined }}>☰</div>
+        ),
+        filteredValue: filters.zupUploadedAt || [],
       },
       {
         title: "Файлы",
@@ -545,19 +544,22 @@ export const useEmployeeColumns = ({
         align: "center",
         render: (_, record) => {
           const filesCount = record.filesCount || 0;
+          const isCompleted = record.statusCard === "completed";
+          const statusColor = isCompleted ? "#52c41a" : "#ff4d4f";
           return (
             <Tooltip
               title={
                 filesCount > 0
                   ? `Просмотр файлов (${filesCount})`
-                  : "Нет файлов"
+                  : "Файлы не загружены"
               }
             >
               <Badge
-                count={filesCount > 0 ? filesCount : 0}
+                count={filesCount}
+                showZero
                 offset={[-8, 4]}
                 style={{
-                  backgroundColor: filesCount > 0 ? "#ff7a45" : "#d9d9d9",
+                  backgroundColor: statusColor,
                   fontSize: "10px",
                   height: "16px",
                   lineHeight: "16px",
@@ -571,7 +573,7 @@ export const useEmployeeColumns = ({
                   onClick={() => onViewFiles(record)}
                   disabled={filesCount === 0}
                   style={{
-                    color: filesCount > 0 ? "#1890ff" : "#d9d9d9",
+                    color: filesCount > 0 ? statusColor : "#d9d9d9",
                     padding: "4px 8px",
                   }}
                 />

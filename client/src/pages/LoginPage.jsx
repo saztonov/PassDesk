@@ -10,13 +10,21 @@ import {
 import { useAuthStore } from "@/store/authStore";
 import { forbiddenPasswordValidator } from "@/utils/forbiddenPasswords";
 import { useTranslation } from "react-i18next";
+import api from "@/services/api";
 
 const { Title, Text, Link } = Typography;
 
 const INSTRUCTION_URL =
   "https://docs.google.com/document/d/12wNHmIGNUcLjdDeThLY-77F_ARR1o2hKF_CIWhauy88/edit?usp=sharing";
 
-const AuthPageLayout = ({ icon, title, subtitle, children, footerText }) => (
+const AuthPageLayout = ({
+  icon,
+  title,
+  subtitle,
+  subtitleExtra,
+  children,
+  footerText,
+}) => (
   <div
     style={{
       minHeight: "100vh",
@@ -63,6 +71,13 @@ const AuthPageLayout = ({ icon, title, subtitle, children, footerText }) => (
         </div>
         <div style={{ textAlign: "center" }}>
           <Text type="secondary">{subtitle}</Text>
+          {subtitleExtra ? (
+            <div style={{ marginTop: 6 }}>
+              <Text strong style={{ fontSize: 14 }}>
+                {subtitleExtra}
+              </Text>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -263,12 +278,42 @@ const LoginPage = () => {
   const [loginForm] = Form.useForm();
   const [registerForm] = Form.useForm();
   const [registrationCode, setRegistrationCode] = useState(null);
+  const [registrationCounterpartyName, setRegistrationCounterpartyName] =
+    useState("");
 
   useEffect(() => {
     const codeFromUrl = searchParams.get("registrationCode");
-    if (codeFromUrl) {
-      setRegistrationCode(codeFromUrl);
+    setRegistrationCode(codeFromUrl || null);
+    setRegistrationCounterpartyName("");
+
+    if (!codeFromUrl) {
+      return;
     }
+
+    let isCancelled = false;
+
+    const loadRegistrationInfo = async () => {
+      try {
+        const response = await api.get("/auth/registration-info", {
+          params: { registrationCode: codeFromUrl },
+        });
+        const counterpartyName =
+          response?.data?.data?.counterparty?.name || "";
+        if (!isCancelled) {
+          setRegistrationCounterpartyName(counterpartyName);
+        }
+      } catch (error) {
+        if (!isCancelled && error?.response?.status !== 404) {
+          console.error("Failed to load registration counterparty info:", error);
+        }
+      }
+    };
+
+    void loadRegistrationInfo();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [searchParams]);
 
   const handleLogin = async (values) => {
@@ -369,6 +414,11 @@ const LoginPage = () => {
         icon={<UserAddOutlined style={{ fontSize: 20, color: "#fff" }} />}
         title={t("auth.register")}
         subtitle={t("common.portalTitle")}
+        subtitleExtra={
+          registrationCounterpartyName
+            ? `Организация: ${registrationCounterpartyName}`
+            : null
+        }
         footerText={{
           instruction: t("common.instruction"),
           copyright: t("common.copyright"),

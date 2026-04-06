@@ -128,6 +128,7 @@
     "title": "Қызметкерлер",
     "requestExcel": "Excel өтінім",
     "importExcel": "Excel импорт",
+    "exportExcel": "Экспорт",
     "security": "Бұғаттау",
     "addEmployee": "Қызметкер қосу"
   },

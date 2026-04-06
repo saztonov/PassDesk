@@ -16,10 +16,10 @@ const Layout = () => {
       {!isMobile && <Sidebar />}
 
       <AntLayout style={{ overflow: "hidden", borderRadius: 10 }}>
-        <Header />
+        {isMobile && <Header />}
         <Content
           style={{
-            height: "calc(100vh - 64px)", // 64px - высота Header
+            height: isMobile ? "calc(100vh - 64px)" : "100vh",
             overflowY: "auto", // Скролл в контенте
             overflowX: "hidden",
             background: "#f0f2f5", // Фон как у Ant Design

@@ -32,7 +32,7 @@ const ConstructionSitesPage = () => {
   });
   const [pagination, setPagination] = useState({
     current: 1,
-    pageSize: 10,
+    pageSize: 100,
     total: 0,
   });
   const [form] = Form.useForm();
@@ -225,7 +225,7 @@ const ConstructionSitesPage = () => {
               onShowSizeChange: (current, pageSize) =>
                 setPagination((prev) => ({ ...prev, current: 1, pageSize })),
               showSizeChanger: true,
-              pageSizeOptions: ["10", "20", "50", "100"],
+              pageSizeOptions: ["50", "100", "200"],
               showTotal: (total) => `Всего: ${total} записей`,
             }}
             style={{ fontSize: 12 }}

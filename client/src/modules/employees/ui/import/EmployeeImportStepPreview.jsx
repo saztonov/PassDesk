@@ -115,7 +115,12 @@ const EmployeeImportStepPreview = memo(({ fileData, profile }) => {
           _key: index,
         }))}
         columns={columns}
-        pagination={{ pageSize: 5, size: "small" }}
+        pagination={{
+          pageSize: 100,
+          size: "small",
+          showSizeChanger: true,
+          pageSizeOptions: ["50", "100", "200"],
+        }}
         size="small"
         scroll={{ x: 900 }}
         rowKey="_key"

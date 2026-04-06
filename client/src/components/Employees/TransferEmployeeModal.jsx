@@ -4,7 +4,7 @@ import { SearchOutlined, SwapOutlined } from "@ant-design/icons";
 import { counterpartyService } from "../../services/counterpartyService";
 import { employeeService } from "../../services/employeeService";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 100;
 
 /**
  * Модальное окно для перевода сотрудника в другую компанию
@@ -13,6 +13,7 @@ const PAGE_SIZE = 10;
 const TransferEmployeeModal = ({ visible, employee, onCancel }) => {
   const { message, modal } = App.useApp();
   const [searchText, setSearchText] = useState("");
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [listState, setListState] = useState({
     counterparties: [],
     currentPage: 1,
@@ -27,13 +28,13 @@ const TransferEmployeeModal = ({ visible, employee, onCancel }) => {
 
   // Загрузка контрагентов
   const loadCounterparties = useCallback(
-    async (search = "", page = 1) => {
+    async (search = "", page = 1, nextPageSize = PAGE_SIZE) => {
       setRequestState((prev) => ({ ...prev, loading: true }));
       try {
         const response = await counterpartyService.getAll({
           search,
           page,
-          limit: PAGE_SIZE,
+          limit: nextPageSize,
         });
 
         if (response.data?.success) {
@@ -61,10 +62,10 @@ const TransferEmployeeModal = ({ visible, employee, onCancel }) => {
         clearTimeout(searchTimeoutRef.current);
       }
       searchTimeoutRef.current = setTimeout(() => {
-        loadCounterparties(value, 1);
+        loadCounterparties(value, 1, pageSize);
       }, 300);
     },
-    [loadCounterparties],
+    [loadCounterparties, pageSize],
   );
 
   // Загрузка при открытии модального окна
@@ -72,7 +73,8 @@ const TransferEmployeeModal = ({ visible, employee, onCancel }) => {
     if (visible) {
       setSearchText("");
       setSelectedCounterparty(null);
-      loadCounterparties("", 1);
+      setPageSize(PAGE_SIZE);
+      loadCounterparties("", 1, PAGE_SIZE);
     }
     // Очистка таймера при размонтировании
     return () => {
@@ -91,7 +93,10 @@ const TransferEmployeeModal = ({ visible, employee, onCancel }) => {
 
   // Обработчик изменения страницы
   const handleTableChange = (newPagination) => {
-    loadCounterparties(searchText, newPagination.current);
+    const nextPage = newPagination.current || 1;
+    const nextPageSize = newPagination.pageSize || pageSize;
+    setPageSize(nextPageSize);
+    loadCounterparties(searchText, nextPage, nextPageSize);
   };
 
   // Обработчик выбора контрагента
@@ -263,9 +268,10 @@ const TransferEmployeeModal = ({ visible, employee, onCancel }) => {
           size="small"
           pagination={{
             current: listState.currentPage,
-            pageSize: PAGE_SIZE,
+            pageSize,
             total: listState.total,
-            showSizeChanger: false,
+            showSizeChanger: true,
+            pageSizeOptions: ["50", "100", "200"],
             showTotal: (total) => `Всего: ${total}`,
           }}
           onChange={handleTableChange}

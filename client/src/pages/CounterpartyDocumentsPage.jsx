@@ -108,7 +108,7 @@ const CounterpartyDocumentsPage = () => {
   const [items, setItems] = useState([]);
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
     total: 0,
   });
   const [detailsGroupKey, setDetailsGroupKey] = useState(null);
@@ -615,6 +615,7 @@ const CounterpartyDocumentsPage = () => {
               pageSize: pagination.limit,
               total: pagination.total,
               showSizeChanger: true,
+              pageSizeOptions: ["50", "100", "200"],
               showTotal: (total) => `Всего строк документов: ${total}`,
             }}
             onChange={(nextPagination) => {

@@ -5,20 +5,16 @@ import {
   TeamOutlined,
   GlobalOutlined,
   ShopOutlined,
-  DownloadOutlined,
   DeleteOutlined,
   FileImageOutlined,
-  HistoryOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import AuditLogsPage from "./AuditLogsPage";
 import UsersPage from "./UsersPage";
 import MobileUsersPage from "./MobileUsersPage";
 import SettingsPage from "./SettingsPage";
 import CitizenshipsPage from "./CitizenshipsPage";
 import CounterpartiesPage from "./CounterpartiesPage";
 import MobileCounterpartiesPage from "./MobileCounterpartiesPage";
-import ExportPage from "./ExportPage";
 import TrashPage from "./TrashPage";
 import DocumentSamplesPage from "./DocumentSamplesPage";
 import OcrConflictsAdminSection from "@/components/Admin/OcrConflictsAdminSection";
@@ -41,9 +37,7 @@ const AdministrationPage = () => {
     "users",
     "counterparties",
     "citizenships",
-    "export",
     "trash",
-    "audit-logs",
     "document-samples",
     "ocr-conflicts",
     "settings",
@@ -87,19 +81,9 @@ const AdministrationPage = () => {
       children: <CitizenshipsPage />,
     },
     {
-      key: "export",
-      label: renderTabLabel(DownloadOutlined, "Выгрузка"),
-      children: <ExportPage />,
-    },
-    {
       key: "trash",
       label: renderTabLabel(DeleteOutlined, "Корзина"),
       children: <TrashPage />,
-    },
-    {
-      key: "audit-logs",
-      label: renderTabLabel(HistoryOutlined, "Журнал изменений"),
-      children: <AuditLogsPage />,
     },
     {
       key: "ocr-conflicts",

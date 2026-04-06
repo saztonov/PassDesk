@@ -471,7 +471,7 @@ const SkudAdminSection = () => {
   const [appliedConstructionSiteFilter, setAppliedConstructionSiteFilter] = useState(undefined);
   const [appliedEventDateRange, setAppliedEventDateRange] = useState(getTodayEventRange);
   const [eventsPage, setEventsPage] = useState(1);
-  const [eventsPageSize, setEventsPageSize] = useState(20);
+  const [eventsPageSize, setEventsPageSize] = useState(100);
   const [eventsSortOrder, setEventsSortOrder] = useState("descend");
   const [eventsMetaLoading, setEventsMetaLoading] = useState(false);
   const [bindingsAuditLoading, setBindingsAuditLoading] = useState(false);
@@ -758,7 +758,7 @@ const SkudAdminSection = () => {
   ]);
 
   const handleEventsTableChange = useCallback((pagination, _filters, sorter) => {
-    const nextPageSize = Number(pagination?.pageSize || 20);
+    const nextPageSize = Number(pagination?.pageSize || 100);
     const nextPage = Number(pagination?.current || 1);
     const nextSortOrder =
       !Array.isArray(sorter) && sorter?.field === "eventTime" && sorter?.order
@@ -2805,7 +2805,7 @@ const SkudAdminSection = () => {
                       pageSize: eventsPageSize,
                       total: totalEventsCount,
                       showSizeChanger: true,
-                      pageSizeOptions: ["20", "50", "100", "200"],
+                      pageSizeOptions: ["50", "100", "200"],
                       showTotal: (total, range) => `${range[0]}-${range[1]} из ${total}`,
                     }}
                     scroll={{ x: 1650 }}
@@ -2874,9 +2874,9 @@ const SkudAdminSection = () => {
                         dataSource={passLookupResults}
                         loading={passLookupLoading}
                         pagination={{
-                          pageSize: 10,
+                          pageSize: 100,
                           showSizeChanger: true,
-                          pageSizeOptions: ["10", "20", "50"],
+                          pageSizeOptions: ["50", "100", "200"],
                         }}
                         scroll={{ x: 900 }}
                       />
@@ -3132,9 +3132,9 @@ const SkudAdminSection = () => {
                         columns={bindingImportColumns}
                         dataSource={bindingImportPreview.items}
                         pagination={{
-                          pageSize: 10,
+                          pageSize: 100,
                           showSizeChanger: true,
-                          pageSizeOptions: ["10", "20", "50"],
+                          pageSizeOptions: ["50", "100", "200"],
                         }}
                         scroll={{ x: 1100 }}
                       />
@@ -3182,9 +3182,9 @@ const SkudAdminSection = () => {
                     loading={bindingsAuditLoading}
                     dataSource={bindingsAuditItems}
                     pagination={{
-                      pageSize: 20,
+                      pageSize: 100,
                       showSizeChanger: true,
-                      pageSizeOptions: ["20", "50", "100"],
+                      pageSizeOptions: ["50", "100", "200"],
                     }}
                     columns={[
                       {

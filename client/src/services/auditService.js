@@ -7,6 +7,17 @@ export const auditService = {
       `audit-logs:getAll:${JSON.stringify(params || {})}`,
       () => api.get("/audit-logs", { params }),
     ),
+  getEmployeeHistory: (employeeId, params = {}) =>
+    deduplicateRequest(
+      `audit-logs:getEmployeeHistory:${employeeId}:${JSON.stringify(params || {})}`,
+      () =>
+        api.get("/audit-logs", {
+          params: {
+            ...params,
+            entityId: employeeId,
+          },
+        }),
+    ),
 };
 
 export default auditService;

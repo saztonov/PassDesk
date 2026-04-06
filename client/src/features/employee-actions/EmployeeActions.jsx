@@ -3,6 +3,7 @@ import {
   PlusOutlined,
   FileExcelOutlined,
   LockOutlined,
+  DownloadOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +17,7 @@ export const EmployeeActions = ({
   onAdd,
   onRequest,
   onImport,
+  onExport,
   onSecurity,
   canExport,
   compact = false,
@@ -42,6 +44,16 @@ export const EmployeeActions = ({
       >
         {t("employees.importExcel")}
       </Button>
+      {canExport ? (
+        <Button
+          type="default"
+          icon={<DownloadOutlined />}
+          onClick={onExport}
+          size={compact ? "middle" : "middle"}
+        >
+          {t("employees.exportExcel")}
+        </Button>
+      ) : null}
       {SHOW_SECURITY_ACTION && canExport ? (
         <Button
           type="default"

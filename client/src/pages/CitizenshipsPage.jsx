@@ -484,8 +484,9 @@ const CitizenshipsPage = () => {
           loading={loading}
           size="small"
           pagination={{
-            pageSize: 20,
+            pageSize: 100,
             showSizeChanger: true,
+            pageSizeOptions: ["50", "100", "200"],
             showTotal: (total) => `Всего: ${total}`,
           }}
           scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}

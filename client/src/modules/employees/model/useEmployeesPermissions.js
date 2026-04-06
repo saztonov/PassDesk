@@ -9,9 +9,8 @@ export const useEmployeesPermissions = ({
     user?.role === "admin" || user?.role === "manager";
 
   const canExport = useMemo(
-    () =>
-      user?.counterpartyId === defaultCounterpartyId && user?.role !== "user",
-    [user?.counterpartyId, user?.role, defaultCounterpartyId],
+    () => user?.role === "admin" || user?.role === "manager",
+    [user?.role],
   );
 
   const showCounterpartyColumn =

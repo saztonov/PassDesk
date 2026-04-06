@@ -3,8 +3,6 @@ import { useCallback } from "react";
 export const useEmployeesNavigationActions = ({
   isMobile,
   navigate,
-  openCreateModal,
-  openEditModal,
   openViewModal,
   openFilesModal,
   openSitesModal,
@@ -14,22 +12,14 @@ export const useEmployeesNavigationActions = ({
   viewingEmployee,
 }) => {
   const handleAdd = useCallback(() => {
-    if (isMobile) {
-      navigate("/employees/add");
-      return;
-    }
-    openCreateModal();
-  }, [isMobile, navigate, openCreateModal]);
+    navigate("/employees/add");
+  }, [navigate]);
 
   const handleEdit = useCallback(
     (employee) => {
-      if (isMobile) {
-        navigate(`/employees/edit/${employee.id}`);
-        return;
-      }
-      openEditModal(employee);
+      navigate(`/employees/edit/${employee.id}`);
     },
-    [isMobile, navigate, openEditModal],
+    [navigate],
   );
 
   const handleView = useCallback(

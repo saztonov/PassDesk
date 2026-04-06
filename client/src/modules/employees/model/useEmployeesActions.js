@@ -12,8 +12,6 @@ export const useEmployeesActions = ({
   viewingEmployee,
   closeEditModal,
   closeMobileView,
-  openCreateModal,
-  openEditModal,
   openViewModal,
   openFilesModal,
   openSitesModal,
@@ -31,8 +29,6 @@ export const useEmployeesActions = ({
   const navigationActions = useEmployeesNavigationActions({
     isMobile,
     navigate,
-    openCreateModal,
-    openEditModal,
     openViewModal,
     openFilesModal,
     openSitesModal,

@@ -20,6 +20,22 @@ export const employeeApi = {
     });
   },
 
+  getPortalStats: async (params = {}) => {
+    const queryParams = {
+      period: params.period || "day",
+      ...(params.counterpartyIds?.length
+        ? { counterpartyIds: JSON.stringify(params.counterpartyIds) }
+        : {}),
+    };
+    const key = `entities:employees:getPortalStats:${JSON.stringify(queryParams)}`;
+    return deduplicateRequest(key, async () => {
+      const response = await api.get("/employees/stats/portal", {
+        params: queryParams,
+      });
+      return response.data;
+    });
+  },
+
   // Получить сотрудника по ID
   getById: async (id) => {
     const response = await api.get(`/employees/${id}`);

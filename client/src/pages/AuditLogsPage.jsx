@@ -529,7 +529,7 @@ const AuditLogsPage = () => {
   const [drawerGroup, setDrawerGroup] = useState(null);
   const [pagination, setPagination] = useState({
     current: 1,
-    pageSize: 20,
+    pageSize: 100,
     total: 0,
   });
   const { current: paginationCurrent, pageSize: paginationPageSize } =
@@ -1034,6 +1034,7 @@ const AuditLogsPage = () => {
             pageSize: pagination.pageSize,
             total: pagination.total,
             showSizeChanger: true,
+            pageSizeOptions: ["50", "100", "200"],
             showTotal: (total) => `Всего сотрудников: ${total}`,
             onChange: (page, pageSize) => {
               setPagination((prev) => ({

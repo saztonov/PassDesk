@@ -178,7 +178,7 @@ const OcrConflictsAdminSection = () => {
     items: [],
     pagination: {
       page: 1,
-      limit: 50,
+      limit: 100,
       total: 0,
       pages: 0,
     },
@@ -500,6 +500,7 @@ const OcrConflictsAdminSection = () => {
           pageSize: tableState.pagination.limit,
           total: tableState.pagination.total,
           showSizeChanger: true,
+          pageSizeOptions: ["50", "100", "200"],
         }}
         onChange={(pagination) => {
           loadData({

@@ -236,6 +236,71 @@ const calculateEmployeeDocumentExpiryStatus = (employee) => {
   return "valid";
 };
 
+const normalizeDateBoundary = (value, { endOfDay = false } = {}) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  if (endOfDay) {
+    date.setHours(23, 59, 59, 999);
+  } else {
+    date.setHours(0, 0, 0, 0);
+  }
+
+  return date;
+};
+
+const loadEmployeesZupUploadDates = async (employeeIds = []) => {
+  const uniqueEmployeeIds = [...new Set(employeeIds.filter(Boolean))];
+  if (uniqueEmployeeIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = await AuditLog.findAll({
+    attributes: ["entityId", "createdAt", "details"],
+    where: {
+      action: AUDIT_EVENT_TYPES.ZUP_FLAG_CHANGED,
+      entityType: "employee",
+      entityId: {
+        [Op.in]: uniqueEmployeeIds,
+      },
+    },
+    order: [["createdAt", "DESC"]],
+    raw: true,
+  });
+
+  const zupUploadedAtByEmployeeId = new Map();
+
+  rows.forEach((row) => {
+    const employeeId = String(row?.entityId || "");
+    if (!employeeId || zupUploadedAtByEmployeeId.has(employeeId)) {
+      return;
+    }
+
+    const toValue = row?.details?.to;
+    const isUploadedTransition =
+      toValue === true || String(toValue).toLowerCase() === "true";
+
+    if (!isUploadedTransition) {
+      return;
+    }
+
+    const createdAt = row?.createdAt ? new Date(row.createdAt) : null;
+    if (!createdAt || Number.isNaN(createdAt.getTime())) {
+      return;
+    }
+
+    zupUploadedAtByEmployeeId.set(employeeId, createdAt.toISOString());
+  });
+
+  return zupUploadedAtByEmployeeId;
+};
+
 const normalizeTextSearch = (value = "") =>
   String(value || "")
     .toLowerCase()
@@ -378,6 +443,233 @@ const normalizeQueryArray = (value) => {
   }
 
   return [String(value)];
+};
+
+const EMPLOYEE_PORTAL_STATS_PERIODS = new Set(["day", "week", "month"]);
+
+const resolveEmployeePortalStatsRange = (period) => {
+  const normalizedPeriod = EMPLOYEE_PORTAL_STATS_PERIODS.has(String(period || ""))
+    ? String(period)
+    : "day";
+
+  const rangeEnd = new Date();
+  const rangeStart = new Date(rangeEnd);
+
+  if (normalizedPeriod === "week") {
+    rangeStart.setDate(rangeStart.getDate() - 6);
+  } else if (normalizedPeriod === "month") {
+    rangeStart.setMonth(rangeStart.getMonth() - 1);
+  }
+
+  rangeStart.setHours(0, 0, 0, 0);
+
+  return { normalizedPeriod, rangeStart, rangeEnd };
+};
+
+const buildEmployeePortalStatsAccessInclude = async ({
+  user,
+  requestedCounterpartyIds = [],
+}) => {
+  const include = [];
+  const normalizedCounterpartyIds = [
+    ...new Set((requestedCounterpartyIds || []).map((value) => String(value))),
+  ];
+
+  if (user?.role === "admin" || user?.role === "manager") {
+    if (normalizedCounterpartyIds.length > 0) {
+      include.push({
+        model: EmployeeCounterpartyMapping,
+        as: "employeeCounterpartyMappings",
+        attributes: [],
+        where: {
+          counterpartyId: normalizedCounterpartyIds,
+        },
+        required: true,
+      });
+    }
+
+    return { include, noAccess: false };
+  }
+
+  const defaultCounterpartyId = await Setting.getSetting(
+    "default_counterparty_id",
+  );
+  const userCounterpartyId = user?.counterpartyId ? String(user.counterpartyId) : null;
+
+  if (userCounterpartyId && userCounterpartyId === String(defaultCounterpartyId)) {
+    include.push({
+      model: UserEmployeeMapping,
+      as: "userEmployeeMappings",
+      attributes: [],
+      where: {
+        userId: user.id,
+        counterpartyId: null,
+      },
+      required: true,
+    });
+
+    if (normalizedCounterpartyIds.length > 0) {
+      include.push({
+        model: EmployeeCounterpartyMapping,
+        as: "employeeCounterpartyMappings",
+        attributes: [],
+        where: {
+          counterpartyId: normalizedCounterpartyIds,
+        },
+        required: true,
+      });
+    }
+
+    return { include, noAccess: false };
+  }
+
+  const { CounterpartySubcounterpartyMapping } = await import(
+    "../models/index.js"
+  );
+  const subcontractors = await CounterpartySubcounterpartyMapping.findAll({
+    where: { parentCounterpartyId: user.counterpartyId },
+    attributes: ["childCounterpartyId"],
+  });
+
+  const allowedCounterpartyIds = [
+    userCounterpartyId,
+    ...subcontractors.map((item) => String(item.childCounterpartyId)),
+  ].filter(Boolean);
+
+  const scopedCounterpartyIds =
+    normalizedCounterpartyIds.length > 0
+      ? allowedCounterpartyIds.filter((id) =>
+          normalizedCounterpartyIds.includes(String(id)),
+        )
+      : allowedCounterpartyIds;
+
+  if (scopedCounterpartyIds.length === 0) {
+    return { include, noAccess: true };
+  }
+
+  include.push({
+    model: EmployeeCounterpartyMapping,
+    as: "employeeCounterpartyMappings",
+    attributes: [],
+    where: {
+      counterpartyId: scopedCounterpartyIds,
+    },
+    required: true,
+  });
+
+  return { include, noAccess: false };
+};
+
+export const getEmployeesPortalStats = async (req, res, next) => {
+  try {
+    const userRole = req.user?.role;
+    ensureEmployeeRoleAllowed(userRole);
+
+    const requestedCounterpartyIds = normalizeQueryArray(req.query.counterpartyIds);
+    const { normalizedPeriod, rangeStart, rangeEnd } =
+      resolveEmployeePortalStatsRange(req.query.period);
+
+    const baseEmployeeWhere = {
+      isDeleted: false,
+      markedForDeletion: false,
+    };
+
+    const { include: accessInclude, noAccess } =
+      await buildEmployeePortalStatsAccessInclude({
+        user: req.user,
+        requestedCounterpartyIds,
+      });
+
+    if (noAccess) {
+      res.json({
+        success: true,
+        data: {
+          period: normalizedPeriod,
+          range: {
+            from: rangeStart.toISOString(),
+            to: rangeEnd.toISOString(),
+          },
+          stats: {
+            portalCreated: 0,
+            zupUploaded: 0,
+          },
+        },
+      });
+      return;
+    }
+
+    const portalCreated = await Employee.count({
+      where: {
+        ...baseEmployeeWhere,
+        createdAt: {
+          [Op.between]: [rangeStart, rangeEnd],
+        },
+      },
+      include: accessInclude,
+      distinct: true,
+      col: "id",
+    });
+
+    const uploadAuditRows = await AuditLog.findAll({
+      attributes: ["entityId", "details"],
+      where: {
+        action: AUDIT_EVENT_TYPES.ZUP_FLAG_CHANGED,
+        entityType: "employee",
+        createdAt: {
+          [Op.between]: [rangeStart, rangeEnd],
+        },
+      },
+      raw: true,
+    });
+
+    const uploadedEmployeeIds = [
+      ...new Set(
+        uploadAuditRows
+          .filter((row) => {
+            const toValue = row?.details?.to;
+            return toValue === true || String(toValue).toLowerCase() === "true";
+          })
+          .map((row) => row?.entityId)
+          .filter(Boolean)
+          .map((id) => String(id)),
+      ),
+    ];
+
+    let zupUploaded = 0;
+
+    if (uploadedEmployeeIds.length > 0) {
+      const visibleUploadedEmployees = await Employee.findAll({
+        attributes: ["id"],
+        where: {
+          ...baseEmployeeWhere,
+          id: {
+            [Op.in]: uploadedEmployeeIds,
+          },
+        },
+        include: accessInclude,
+        raw: true,
+      });
+
+      zupUploaded = visibleUploadedEmployees.length;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        period: normalizedPeriod,
+        range: {
+          from: rangeStart.toISOString(),
+          to: rangeEnd.toISOString(),
+        },
+        stats: {
+          portalCreated,
+          zupUploaded,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 const buildMinimalCountInclude = (includeConfig = []) =>
@@ -1064,6 +1356,13 @@ export const getAllEmployees = async (req, res, next) => {
     const requestedStatusCardFilters = normalizeQueryArray(req.query.statusCard)
       .map((value) => String(value || "").trim().toLowerCase())
       .filter((value) => value === "completed" || value === "draft");
+    const zupUploadedAtFrom = normalizeDateBoundary(req.query.zupUploadedAtFrom);
+    const zupUploadedAtTo = normalizeDateBoundary(req.query.zupUploadedAtTo, {
+      endOfDay: true,
+    });
+    const hasZupUploadedAtRangeFilter = Boolean(
+      zupUploadedAtFrom || zupUploadedAtTo,
+    );
     const sqlStatusPredicate = buildEmployeeStatusSqlPredicate(
       requestedStatusFilters,
     );
@@ -1082,6 +1381,7 @@ export const getAllEmployees = async (req, res, next) => {
     const requiresPostFiltering =
       (requestedStatusCardFilters.length > 0 && !canUseSqlStatusCardFiltering) ||
       requestedFullNames.length > 0 ||
+      hasZupUploadedAtRangeFilter ||
       (requestedDocumentExpiryFilters.length > 0 &&
         !canUseSqlDocumentExpiryFiltering);
     const searchAndConditions = [];
@@ -1721,6 +2021,37 @@ export const getAllEmployees = async (req, res, next) => {
       );
     }
 
+    const zupUploadedAtByEmployeeId = await loadEmployeesZupUploadDates(
+      filteredRows.map((employee) => employee?.id),
+    );
+
+    const resolveZupUploadedAt = (employeeId) =>
+      zupUploadedAtByEmployeeId.get(String(employeeId)) || null;
+
+    if (hasZupUploadedAtRangeFilter) {
+      filteredRows = filteredRows.filter((employee) => {
+        const zupUploadedAt = resolveZupUploadedAt(employee?.id);
+        if (!zupUploadedAt) {
+          return false;
+        }
+
+        const uploadedAtDate = new Date(zupUploadedAt);
+        if (Number.isNaN(uploadedAtDate.getTime())) {
+          return false;
+        }
+
+        if (zupUploadedAtFrom && uploadedAtDate < zupUploadedAtFrom) {
+          return false;
+        }
+
+        if (zupUploadedAtTo && uploadedAtDate > zupUploadedAtTo) {
+          return false;
+        }
+
+        return true;
+      });
+    }
+
     const statusCardCache = new Map();
 
     const resolveStatusCard = (employee) => {
@@ -1742,6 +2073,7 @@ export const getAllEmployees = async (req, res, next) => {
     const attachStatusCard = (employee) => {
       const employeeData = employee?.toJSON ? employee.toJSON() : employee;
       employeeData.statusCard = resolveStatusCard(employee);
+      employeeData.zupUploadedAt = resolveZupUploadedAt(employeeData?.id);
 
       return employeeData;
     };

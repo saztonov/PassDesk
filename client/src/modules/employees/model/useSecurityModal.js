@@ -17,7 +17,7 @@ export const useSecurityModal = ({
   const [statusFilter, setStatusFilter] = useState(null); // null | "blocked" | "not_blocked"
   const [allStatuses, setAllStatuses] = useState([]);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(100);
 
   const fetchAllStatuses = useCallback(async () => {
     try {
@@ -140,7 +140,7 @@ export const useSecurityModal = ({
       pageSize,
       total,
       showSizeChanger: true,
-      pageSizeOptions: [10, 20, 50, 100],
+      pageSizeOptions: [50, 100, 200],
       onChange: (p, ps) => {
         setPage(p);
         setPageSize(ps);

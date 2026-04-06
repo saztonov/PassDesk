@@ -21,7 +21,7 @@ export const useExportToExcelModal = ({
   const [constructionSiteId, setConstructionSiteId] = useState(null);
   const [counterpartyId, setCounterpartyId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(100);
   const [loadedEmployeesById, setLoadedEmployeesById] = useState({});
 
   const employeeQueryParams = useMemo(() => {
@@ -86,7 +86,7 @@ export const useExportToExcelModal = ({
     setConstructionSiteId(null);
     setCounterpartyId(null);
     setCurrentPage(1);
-    setPageSize(10);
+    setPageSize(100);
     setSelectedEmployees([]);
     setLoadedEmployeesById({});
   }, [visible]);

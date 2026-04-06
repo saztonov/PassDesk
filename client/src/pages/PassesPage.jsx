@@ -70,7 +70,7 @@ const loadPassesPageState = () => {
       return {
         searchText: "",
         tableFilters: {},
-        pagination: { current: 1, pageSize: 10 },
+        pagination: { current: 1, pageSize: 100 },
       };
     }
 
@@ -78,14 +78,14 @@ const loadPassesPageState = () => {
     return {
       searchText: parsed.searchText || "",
       tableFilters: parsed.tableFilters || {},
-      pagination: parsed.pagination || { current: 1, pageSize: 10 },
+      pagination: parsed.pagination || { current: 1, pageSize: 100 },
     };
   } catch (error) {
     console.warn("Ошибка загрузки состояния страницы пропусков:", error);
     return {
       searchText: "",
       tableFilters: {},
-      pagination: { current: 1, pageSize: 10 },
+      pagination: { current: 1, pageSize: 100 },
     };
   }
 };
@@ -438,7 +438,7 @@ const PassesPage = ({ embedded = false }) => {
         tableFilters,
         pagination: {
           current: pagination.current || 1,
-          pageSize: pagination.pageSize || 10,
+          pageSize: pagination.pageSize || 100,
         },
       }),
     );
@@ -740,6 +740,7 @@ const PassesPage = ({ embedded = false }) => {
           current: pagination.current,
           pageSize: pagination.pageSize,
           showSizeChanger: true,
+          pageSizeOptions: ["50", "100", "200"],
           showTotal: (total) => `Всего: ${total}`,
         }}
       />

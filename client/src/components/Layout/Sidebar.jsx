@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Layout, Menu } from "antd";
 import {
   UserOutlined,
-  LogoutOutlined,
   TeamOutlined,
   ShopOutlined,
   BankOutlined,
@@ -19,6 +18,22 @@ import { useTranslation } from "react-i18next";
 
 const { Sider } = Layout;
 const SHOW_SKUD_SIDE_MENU_ITEM = false;
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "passdesk.sidebar.collapsed";
+
+const getInitialCollapsedState = () => {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  const storedValue = window.localStorage.getItem(
+    SIDEBAR_COLLAPSED_STORAGE_KEY,
+  );
+
+  if (storedValue === "true") return true;
+  if (storedValue === "false") return false;
+
+  return true;
+};
 
 // Стили для кнопки сворачивания
 const sidebarStyles = `
@@ -31,10 +46,11 @@ const sidebarStyles = `
 const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, user } = useAuthStore();
+  const { user } = useAuthStore();
   const { t } = useTranslation();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(getInitialCollapsedState);
   const [defaultCounterpartyId, setDefaultCounterpartyId] = useState(null);
+  const isLaborer = user?.role === "laborer";
   const isOtEngineer = user?.role === "ot_engineer";
   const isOtAdmin = user?.role === "ot_admin";
 
@@ -173,13 +189,30 @@ const Sidebar = () => {
     menuItems = [...otAdminMenuItems];
   }
 
+  const bottomMenuItems = [
+    isLaborer
+      ? {
+          key: "/cabinet",
+          icon: <QrcodeOutlined />,
+          label: t("menu.cabinet"),
+        }
+      : {
+          key: "/profile",
+          icon: <UserOutlined />,
+          label: t("common.profile"),
+        },
+  ];
+
   const handleMenuClick = ({ key }) => {
-    if (key === "logout") {
-      logout();
-      navigate("/login");
-    } else {
-      navigate(key);
-    }
+    navigate(key);
+  };
+
+  const handleCollapse = (nextCollapsed) => {
+    setCollapsed(nextCollapsed);
+    window.localStorage.setItem(
+      SIDEBAR_COLLAPSED_STORAGE_KEY,
+      String(nextCollapsed),
+    );
   };
 
   return (
@@ -188,15 +221,16 @@ const Sidebar = () => {
       <Sider
         collapsible
         collapsed={collapsed}
-        onCollapse={setCollapsed}
+        onCollapse={handleCollapse}
         width={250}
         style={{
-          overflow: "auto",
           height: "100vh",
           position: "sticky",
           left: 0,
           top: 0,
           bottom: 0,
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         <div
@@ -214,32 +248,26 @@ const Sidebar = () => {
           {collapsed ? "PD" : "PassDesk"}
         </div>
 
-        <Menu
-          mode="inline"
-          selectedKeys={[location.pathname]}
-          items={menuItems}
-          onClick={handleMenuClick}
-          style={{ border: "none" }}
-        />
+        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+          <Menu
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            items={menuItems}
+            onClick={handleMenuClick}
+            style={{ border: "none" }}
+          />
+        </div>
 
         <div
           style={{
-            position: "absolute",
-            bottom: 16,
-            width: "100%",
-            padding: "0 16px",
+            marginTop: "auto",
+            paddingBottom: 16,
           }}
         >
           <Menu
             mode="inline"
-            items={[
-              {
-                key: "logout",
-                icon: <LogoutOutlined />,
-                label: "Выйти",
-                danger: true,
-              },
-            ]}
+            selectedKeys={[location.pathname]}
+            items={bottomMenuItems}
             onClick={handleMenuClick}
             style={{ border: "none" }}
           />
