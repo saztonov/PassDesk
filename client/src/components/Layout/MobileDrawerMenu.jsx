@@ -86,7 +86,6 @@ const MobileDrawerMenu = ({ visible, onClose }) => {
   if (
     user?.role === "admin" ||
     user?.role === "manager" ||
-    user?.role === "ot_engineer" ||
     user?.role === "ot_admin"
   ) {
     topMenuItems.push({

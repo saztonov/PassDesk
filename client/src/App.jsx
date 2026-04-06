@@ -219,7 +219,7 @@ function App() {
               path="directories"
               element={
                 <ProtectedRoute
-                  allowedRoles={["admin", "manager", "ot_engineer", "ot_admin"]}
+                  allowedRoles={["admin", "manager", "ot_admin"]}
                 >
                   <DirectoriesPage />
                 </ProtectedRoute>

@@ -165,11 +165,6 @@ const Sidebar = () => {
       icon: <SafetyCertificateOutlined />,
       label: t("menu.ot"),
     },
-    {
-      key: "/directories",
-      icon: <BankOutlined />,
-      label: t("menu.references"),
-    },
   ];
 
   const otAdminMenuItems = [...engineerMenuItems];

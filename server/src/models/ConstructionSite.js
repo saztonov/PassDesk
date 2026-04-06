@@ -17,6 +17,30 @@ const ConstructionSite = sequelize.define('ConstructionSite', {
       }
     }
   },
+  code: {
+    type: DataTypes.STRING(10),
+    allowNull: true,
+    field: 'code',
+    set(value) {
+      if (value === undefined || value === null) {
+        this.setDataValue('code', null);
+        return;
+      }
+
+      const normalized = String(value).trim().toUpperCase();
+      this.setDataValue('code', normalized || null);
+    },
+    validate: {
+      is: {
+        args: /^[A-Z0-9]+$/i,
+        msg: 'Код может содержать только латинские буквы и цифры',
+      },
+      len: {
+        args: [1, 10],
+        msg: 'Код объекта должен содержать от 1 до 10 символов',
+      },
+    },
+  },
   fullName: {
     type: DataTypes.STRING(500),
     allowNull: true,

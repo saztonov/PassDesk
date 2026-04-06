@@ -2,7 +2,8 @@ import { ConstructionSite, Contract } from "../models/index.js";
 import { Op } from "sequelize";
 
 const MAX_LIST_LIMIT = 100;
-const SITE_MUTABLE_FIELDS = ["shortName", "fullName", "address"];
+const SITE_MUTABLE_FIELDS = ["shortName", "code", "fullName", "address"];
+const CONSTRUCTION_SITE_CODE_PATTERN = /^[A-Z0-9]+$/i;
 
 const sanitizeConstructionSitePayload = (payload = {}) => {
   const sanitized = {};
@@ -14,6 +15,20 @@ const sanitizeConstructionSitePayload = (payload = {}) => {
 
       if (field === "shortName") {
         sanitized[field] = value;
+        continue;
+      }
+
+      if (field === "code") {
+        if (value === "") {
+          sanitized[field] = null;
+        } else if (
+          typeof value === "string" &&
+          CONSTRUCTION_SITE_CODE_PATTERN.test(value)
+        ) {
+          sanitized[field] = value.toUpperCase();
+        } else {
+          sanitized[field] = value;
+        }
         continue;
       }
 
@@ -38,6 +53,7 @@ export const getAllConstructionSites = async (req, res, next) => {
     // Поиск по названию или адресу
     if (search) {
       where[Op.or] = [
+        { code: { [Op.iLike]: `%${search}%` } },
         { shortName: { [Op.iLike]: `%${search}%` } },
         { fullName: { [Op.iLike]: `%${search}%` } },
         { address: { [Op.iLike]: `%${search}%` } },
@@ -113,6 +129,16 @@ export const createConstructionSite = async (req, res, next) => {
         message: "Краткое название объекта обязательно",
       });
     }
+    if (
+      payload.code !== undefined &&
+      payload.code !== null &&
+      !CONSTRUCTION_SITE_CODE_PATTERN.test(String(payload.code))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Код объекта может содержать только латинские буквы и цифры",
+      });
+    }
 
     const site = await ConstructionSite.create({
       ...payload,
@@ -169,6 +195,16 @@ export const updateConstructionSite = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: "Краткое название объекта обязательно",
+      });
+    }
+    if (
+      "code" in payload &&
+      payload.code !== null &&
+      !CONSTRUCTION_SITE_CODE_PATTERN.test(String(payload.code))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Код объекта может содержать только латинские буквы и цифры",
       });
     }
 

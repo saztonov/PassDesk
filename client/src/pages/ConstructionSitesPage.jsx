@@ -105,12 +105,17 @@ const ConstructionSitesPage = () => {
   };
 
   const handleSubmit = async (values) => {
+    const payload = {
+      ...values,
+      code: values?.code ? String(values.code).trim().toUpperCase() : null,
+    };
+
     try {
       if (editingId) {
-        await constructionSiteService.update(editingId, values);
+        await constructionSiteService.update(editingId, payload);
         message.success("Объект обновлен");
       } else {
-        await constructionSiteService.create(values);
+        await constructionSiteService.create(payload);
         message.success("Объект создан");
       }
       setUiState((prev) => ({ ...prev, modalVisible: false }));
@@ -121,6 +126,7 @@ const ConstructionSitesPage = () => {
   };
 
   const columns = [
+    { title: "Код", dataIndex: "code", key: "code", width: 140, render: (value) => value || "—" },
     { title: "Краткое название", dataIndex: "shortName", key: "shortName" },
     { title: "Полное название", dataIndex: "fullName", key: "fullName" },
     { title: "Адрес", dataIndex: "address", key: "address" },
@@ -185,7 +191,7 @@ const ConstructionSitesPage = () => {
             Объекты строительства
           </Title>
           <Input
-            placeholder="Поиск по названию или адресу"
+            placeholder="Поиск по коду, названию или адресу"
             prefix={<SearchOutlined />}
             value={search}
             onChange={(e) =>
@@ -243,6 +249,22 @@ const ConstructionSitesPage = () => {
         width={600}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
+          <Form.Item
+            name="code"
+            label="Код (до 10 символов)"
+            rules={[
+              {
+                max: 10,
+                message: "Код должен быть не длиннее 10 символов",
+              },
+              {
+                pattern: /^[A-Za-z0-9]+$/,
+                message: "Используйте только латинские буквы и цифры",
+              },
+            ]}
+          >
+            <Input maxLength={10} placeholder="Например: MSK01" />
+          </Form.Item>
           <Form.Item
             name="shortName"
             label="Краткое название"
