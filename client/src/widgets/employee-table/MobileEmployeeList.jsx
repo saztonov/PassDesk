@@ -191,12 +191,11 @@ const MobileEmployeeList = ({
                   )}
                 </Text>
 
-                {/* Телефон и статус */}
+                {/* Телефон */}
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "space-between",
                     marginTop: 4,
                     gap: 8,
                   }}
@@ -215,70 +214,6 @@ const MobileEmployeeList = ({
                       <span>{formatPhone(employee.phone)}</span>
                     </div>
                   )}
-                  {(() => {
-                    // Проверяем статус уволен
-                    const activeStatusMapping = employee.statusMappings?.find(
-                      (m) =>
-                        m.statusGroup === "status_active" ||
-                        m.status_group === "status_active",
-                    );
-                    const isFired =
-                      activeStatusMapping?.status?.name ===
-                      "status_active_fired";
-                    const isInactive =
-                      activeStatusMapping?.status?.name ===
-                      "status_active_inactive";
-
-                    // Проверяем статус черновик (может быть в группе status_card, status или старых неправильных группах 'card draft', 'draft')
-                    const cardStatusMapping = employee.statusMappings?.find(
-                      (m) => {
-                        const group = m.statusGroup || m.status_group;
-                        return (
-                          group === "status_card" || group === "card draft"
-                        );
-                      },
-                    );
-                    const mainStatusMapping = employee.statusMappings?.find(
-                      (m) => {
-                        const group = m.statusGroup || m.status_group;
-                        return group === "status" || group === "draft";
-                      },
-                    );
-                    const isDraft =
-                      cardStatusMapping?.status?.name === "status_card_draft" ||
-                      mainStatusMapping?.status?.name === "status_draft";
-
-                    // Показываем только если есть хотя бы один статус
-                    if (!isFired && !isDraft && !isInactive) return null;
-
-                    return (
-                      <div
-                        style={{ display: "flex", gap: 4, flexWrap: "wrap" }}
-                      >
-                        {isFired && (
-                          <Tag color="red" style={{ fontSize: 10, margin: 0 }}>
-                            Уволен
-                          </Tag>
-                        )}
-                        {isInactive && (
-                          <Tag
-                            color="orange"
-                            style={{ fontSize: 10, margin: 0 }}
-                          >
-                            Неактивен
-                          </Tag>
-                        )}
-                        {isDraft && (
-                          <Tag
-                            color="default"
-                            style={{ fontSize: 10, margin: 0 }}
-                          >
-                            Черновик
-                          </Tag>
-                        )}
-                      </div>
-                    );
-                  })()}
                 </div>
               </div>
             </div>

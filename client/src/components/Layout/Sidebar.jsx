@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Layout, Menu } from "antd";
+import { Button, Dropdown, Layout, Menu } from "antd";
 import {
+  IdcardOutlined,
+  LogoutOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
   UserOutlined,
   TeamOutlined,
   ShopOutlined,
@@ -19,6 +23,17 @@ import { useTranslation } from "react-i18next";
 const { Sider } = Layout;
 const SHOW_SKUD_SIDE_MENU_ITEM = false;
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "passdesk.sidebar.collapsed";
+const SIDEBAR_CLASS_NAME = "passdesk-layout-sidebar";
+
+const sidebarStyles = `
+  .${SIDEBAR_CLASS_NAME} .ant-layout-sider-children {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    position: relative;
+  }
+`;
 
 const getInitialCollapsedState = () => {
   if (typeof window === "undefined") {
@@ -35,18 +50,10 @@ const getInitialCollapsedState = () => {
   return true;
 };
 
-// Стили для кнопки сворачивания
-const sidebarStyles = `
-  .ant-layout-sider-trigger {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-  }
-`;
-
 const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(getInitialCollapsedState);
   const [defaultCounterpartyId, setDefaultCounterpartyId] = useState(null);
@@ -189,22 +196,37 @@ const Sidebar = () => {
     menuItems = [...otAdminMenuItems];
   }
 
-  const bottomMenuItems = [
-    isLaborer
-      ? {
-          key: "/cabinet",
-          icon: <QrcodeOutlined />,
-          label: t("menu.cabinet"),
-        }
-      : {
-          key: "/profile",
-          icon: <UserOutlined />,
-          label: t("common.profile"),
-        },
+  const profilePath = isLaborer ? "/cabinet" : "/profile";
+  const profileLabel = isLaborer ? t("menu.cabinet") : t("common.profile");
+  const profileMenuItems = [
+    {
+      key: "profile",
+      icon: <IdcardOutlined />,
+      label: profileLabel,
+    },
+    {
+      type: "divider",
+    },
+    {
+      key: "logout",
+      icon: <LogoutOutlined />,
+      label: t("common.logout"),
+      danger: true,
+    },
   ];
 
   const handleMenuClick = ({ key }) => {
     navigate(key);
+  };
+
+  const handleProfileMenuClick = ({ key }) => {
+    if (key === "logout") {
+      logout();
+      return;
+    }
+    if (key === "profile") {
+      navigate(profilePath);
+    }
   };
 
   const handleCollapse = (nextCollapsed) => {
@@ -219,60 +241,115 @@ const Sidebar = () => {
     <>
       <style>{sidebarStyles}</style>
       <Sider
-        collapsible
-        collapsed={collapsed}
-        onCollapse={handleCollapse}
-        width={250}
+      className={SIDEBAR_CLASS_NAME}
+      trigger={null}
+      collapsed={collapsed}
+      width={250}
+      style={{
+        height: "100vh",
+        position: "sticky",
+        left: 0,
+        top: 0,
+        bottom: 0,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <div
         style={{
-          height: "100vh",
-          position: "sticky",
-          left: 0,
-          top: 0,
-          bottom: 0,
+          height: 64,
           display: "flex",
-          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: collapsed ? 18 : 24,
+          fontWeight: 700,
+          color: "#2563eb",
+          padding: "0 16px",
+        }}
+      >
+        {collapsed ? "PD" : "PassDesk"}
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          overflowX: "hidden",
+          paddingBottom: 64,
+        }}
+      >
+        <Menu
+          mode="inline"
+          selectedKeys={[location.pathname]}
+          items={menuItems}
+          onClick={handleMenuClick}
+          style={{ border: "none" }}
+        />
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          padding: 8,
+          borderTop: "1px solid #f0f0f0",
+          display: "flex",
+          flexDirection: collapsed ? "column" : "row",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: collapsed ? 4 : 6,
         }}
       >
         <div
           style={{
-            height: 64,
+            flex: collapsed ? "none" : 1,
+            width: collapsed ? "auto" : "100%",
             display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          <Dropdown
+            trigger={["click"]}
+            placement={collapsed ? "rightTop" : "topLeft"}
+            menu={{
+              items: profileMenuItems,
+              onClick: handleProfileMenuClick,
+            }}
+          >
+            <Button
+              type="text"
+              icon={<IdcardOutlined />}
+              style={{
+                width: collapsed ? 40 : "100%",
+                height: 40,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: collapsed ? "center" : "flex-start",
+                paddingInline: collapsed ? 0 : 12,
+                gap: collapsed ? 0 : 8,
+              }}
+            >
+              {!collapsed ? profileLabel : null}
+            </Button>
+          </Dropdown>
+        </div>
+        <Button
+          type="text"
+          aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
+          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          onClick={() => handleCollapse(!collapsed)}
+          style={{
+            height: 40,
+            width: 40,
+            display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: collapsed ? 18 : 24,
-            fontWeight: 700,
-            color: "#2563eb",
-            padding: "0 16px",
           }}
-        >
-          {collapsed ? "PD" : "PassDesk"}
-        </div>
-
-        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
-          <Menu
-            mode="inline"
-            selectedKeys={[location.pathname]}
-            items={menuItems}
-            onClick={handleMenuClick}
-            style={{ border: "none" }}
-          />
-        </div>
-
-        <div
-          style={{
-            marginTop: "auto",
-            paddingBottom: 16,
-          }}
-        >
-          <Menu
-            mode="inline"
-            selectedKeys={[location.pathname]}
-            items={bottomMenuItems}
-            onClick={handleMenuClick}
-            style={{ border: "none" }}
-          />
-        </div>
-      </Sider>
+        />
+      </div>
+    </Sider>
     </>
   );
 };

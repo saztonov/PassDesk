@@ -396,6 +396,18 @@ const EmployeeBasicInfoPrimaryRows = ({
               </Form.Item>
             </Col>
           )}
+        {!getFieldProps("plannedExitDate").hidden && (
+          <Col {...getQuarterColProps(compactLayout)}>
+            <Form.Item
+              name="plannedExitDate"
+              label="Планируемая дата выхода"
+              required={getFieldProps("plannedExitDate").required}
+              rules={getFieldProps("plannedExitDate").rules}
+            >
+              <MaskedDatePicker format={dateFormat} />
+            </Form.Item>
+          </Col>
+        )}
       </Row>
     </>
   );

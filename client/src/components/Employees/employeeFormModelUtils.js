@@ -104,12 +104,21 @@ export const buildEmployeeInitialFormData = ({
       ? dayjs(employee.kigEndDate)
       : null;
 
+  const plannedExitDateValue = isMobile
+    ? employee.plannedExitDate
+      ? dayjs(employee.plannedExitDate).format("DD.MM.YYYY")
+      : null
+    : employee.plannedExitDate
+      ? dayjs(employee.plannedExitDate)
+      : null;
+
   return {
     ...employee,
     birthDate: birthDateValue,
     passportDate: passportDateValue,
     patentIssueDate: patentIssueDateValue,
     kigEndDate: kigEndDateValue,
+    plannedExitDate: plannedExitDateValue,
     constructionSiteId: mapping?.constructionSiteId || null,
     counterpartyId: mapping?.counterpartyId || null,
     birthCountryId: employee.birthCountryId || null,
@@ -152,6 +161,7 @@ export const buildSaveNormalizedValues = ({ values, normalizers }) => ({
   passportDate: normalizeDateField(values.passportDate),
   patentIssueDate: normalizeDateField(values.patentIssueDate),
   kigEndDate: normalizeDateField(values.kigEndDate),
+  plannedExitDate: normalizeDateField(values.plannedExitDate),
   passportExpiryDate: normalizeDateField(values.passportExpiryDate),
   phone: normalizers.normalizePhoneNumber(values.phone),
   snils: normalizers.normalizeSnils(values.snils),
@@ -178,6 +188,7 @@ export const buildDraftNormalizedValues = ({ values, normalizers }) => ({
   passportDate: normalizeDateField(values.passportDate),
   patentIssueDate: normalizeDateField(values.patentIssueDate),
   kigEndDate: normalizeDateField(values.kigEndDate),
+  plannedExitDate: normalizeDateField(values.plannedExitDate),
   passportExpiryDate: normalizeDateField(values.passportExpiryDate),
   phone: values.phone ? normalizers.normalizePhoneNumber(values.phone) : null,
   snils: values.snils ? normalizers.normalizeSnils(values.snils) : null,

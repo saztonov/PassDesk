@@ -1,10 +1,14 @@
+import { useState } from "react";
 import {
+  Alert,
   Button,
   List,
+  Modal,
   Popconfirm,
   Spin,
   Space,
   Tooltip,
+  Typography,
   Upload,
 } from "antd";
 import {
@@ -21,6 +25,9 @@ import {
   SUPPORTED_FORMATS,
 } from "@/shared/constants/fileTypes";
 import { getSampleUrl } from "@/modules/employees/lib/documentTypeUploaderUtils";
+
+const { Text } = Typography;
+const { Dragger } = Upload;
 
 const ALLOWED_EXTENSION_SET = new Set(
   ALLOWED_EXTENSIONS.split(",").map((value) => value.trim().toLowerCase()),
@@ -111,12 +118,14 @@ const DocumentTypeUploaderItem = ({
   uploading,
   messageApi,
   onOpenSample,
-  onUploadChange,
+  onUploadSubmit,
   onViewFile,
   onDownloadFile,
   onDeleteFile,
   compact = false,
 }) => {
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [pendingFileList, setPendingFileList] = useState([]);
   const uploadDisabled = uploading || (!employeeId && !canEnsureEmployeeId);
   const countNode = uploading ? (
     <Spin size="small" />
@@ -126,6 +135,38 @@ const DocumentTypeUploaderItem = ({
       {filesOfType.length}
     </>
   );
+
+  const openUploadModal = () => {
+    if (uploadDisabled) {
+      return;
+    }
+
+    setUploadModalOpen(true);
+  };
+
+  const closeUploadModal = () => {
+    if (uploading) {
+      return;
+    }
+    setUploadModalOpen(false);
+    setPendingFileList([]);
+  };
+
+  const handleUpload = async () => {
+    if (!pendingFileList.length || uploading) {
+      return;
+    }
+
+    const isUploaded = await onUploadSubmit(pendingFileList, docType.value);
+    if (isUploaded) {
+      setUploadModalOpen(false);
+      setPendingFileList([]);
+    }
+  };
+
+  const handlePendingFilesChange = (info) => {
+    setPendingFileList(info.fileList);
+  };
 
   return (
     <div
@@ -158,25 +199,17 @@ const DocumentTypeUploaderItem = ({
 
         {!readonly ? (
           <div className="document-uploader-actions">
-            <Upload
-              accept={ALLOWED_EXTENSIONS}
-              multiple={true}
-              beforeUpload={(file) => validateUploadFile(file, messageApi)}
-              onChange={(info) => onUploadChange(info, docType.value)}
-              showUploadList={false}
+            <Button
+              size="small"
+              loading={uploading}
+              className="document-uploader-button"
               disabled={uploadDisabled}
+              icon={compact ? <UploadOutlined /> : undefined}
+              block={compact}
+              onClick={openUploadModal}
             >
-              <Button
-                size="small"
-                loading={uploading}
-                className="document-uploader-button"
-                disabled={uploadDisabled}
-                icon={compact ? <UploadOutlined /> : undefined}
-                block={compact}
-              >
-                {uploading ? "Загруз." : "Загрузить"}
-              </Button>
-            </Upload>
+              {uploading ? "Загруз." : "Загрузить"}
+            </Button>
           </div>
         ) : null}
       </div>
@@ -265,6 +298,59 @@ const DocumentTypeUploaderItem = ({
           />
         </div>
       )}
+
+      {!readonly ? (
+        <Modal
+          title={`Загрузка документа: ${docType.label}`}
+          open={uploadModalOpen}
+          onCancel={closeUploadModal}
+          onOk={handleUpload}
+          okText={
+            pendingFileList.length > 0
+              ? `Загрузить (${pendingFileList.length})`
+              : "Загрузить"
+          }
+          cancelText="Отмена"
+          okButtonProps={{ disabled: pendingFileList.length === 0 }}
+          confirmLoading={uploading}
+          destroyOnClose
+          centered
+        >
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            <Alert
+              type="info"
+              showIcon
+              message={
+                <Space direction="vertical" size={0}>
+                  <Text type="secondary">Тип документа</Text>
+                  <Text strong>{docType.label}</Text>
+                </Space>
+              }
+            />
+
+            <Dragger
+              accept={ALLOWED_EXTENSIONS}
+              multiple={true}
+              fileList={pendingFileList}
+              beforeUpload={(file) => validateUploadFile(file, messageApi)}
+              onChange={handlePendingFilesChange}
+              disabled={uploading}
+            >
+              <p className="ant-upload-drag-icon">
+                <UploadOutlined />
+              </p>
+              <p className="ant-upload-text">Перетащите файлы сюда</p>
+              <p className="ant-upload-hint">
+                или нажмите, чтобы выбрать файлы
+              </p>
+            </Dragger>
+
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Поддерживаемые форматы: {SUPPORTED_FORMATS} (макс. 100 МБ)
+            </Text>
+          </Space>
+        </Modal>
+      ) : null}
     </div>
   );
 };

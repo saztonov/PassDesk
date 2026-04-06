@@ -190,6 +190,17 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log("✅ Database connected successfully");
 
+    // Hotfix compatibility: ensure new employee date column exists
+    // so API doesn't fail when app code is newer than DB schema.
+    await sequelize.query(`
+      ALTER TABLE public.employees
+      ADD COLUMN IF NOT EXISTS planned_exit_date date;
+    `);
+    await sequelize.query(`
+      CREATE INDEX IF NOT EXISTS idx_employees_planned_exit_date
+      ON public.employees USING btree (planned_exit_date);
+    `);
+
     // НЕ синхронизируем модели автоматически!
     // Таблицы создаются только явно через: npm run db:init
     // Изменения в БД делаются только через миграции с явным запуском

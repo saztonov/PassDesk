@@ -44,6 +44,7 @@ export const EMPLOYEE_FIELDS = [
   { key: 'blankNumber', defaultRequired: true, defaultVisible: true },
   
   // Примечания
+  { key: 'plannedExitDate', defaultRequired: false, defaultVisible: true },
   { key: 'notes', defaultRequired: false, defaultVisible: true },
 ];
 

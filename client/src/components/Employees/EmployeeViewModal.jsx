@@ -233,6 +233,11 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
         <Descriptions.Item label="Статус карточки" span={1}>
           {getCardStatusName(employee.statusCard)}
         </Descriptions.Item>
+        {!getFieldProps("plannedExitDate").hidden && (
+          <Descriptions.Item label="Планируемая дата выхода" span={1}>
+            {formatDateValue(employee.plannedExitDate)}
+          </Descriptions.Item>
+        )}
         {!getFieldProps("notes").hidden && (
           <Descriptions.Item label="Примечания" span={primaryFullSpan}>
             {employee.notes || "-"}

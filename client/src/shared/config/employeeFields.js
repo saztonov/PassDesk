@@ -41,6 +41,7 @@ export const EMPLOYEE_FIELDS = [
   { key: 'blankNumber', label: 'Номер бланка патента', group: 'patent', defaultRequired: true, defaultVisible: true },
   
   // Примечания
+  { key: 'plannedExitDate', label: 'Планируемая дата выхода', group: 'other', defaultRequired: false, defaultVisible: true },
   { key: 'notes', label: 'Примечания', group: 'other', defaultRequired: false, defaultVisible: true },
 ];
 

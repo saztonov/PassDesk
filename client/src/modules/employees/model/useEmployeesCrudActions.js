@@ -97,6 +97,10 @@ export const useEmployeesCrudActions = ({
     [updateDepartment, refetchEmployees],
   );
 
+  const handleUploadStatusChange = useCallback(() => {
+    refetchEmployees();
+  }, [refetchEmployees]);
+
   const handleFormSuccess = useCallback(
     async (values) => {
       const valuesToSave = { ...values };
@@ -136,6 +140,7 @@ export const useEmployeesCrudActions = ({
     handleDelete,
     handleMarkForDeletion,
     handleDepartmentChange,
+    handleUploadStatusChange,
     handleFormSuccess,
   };
 };

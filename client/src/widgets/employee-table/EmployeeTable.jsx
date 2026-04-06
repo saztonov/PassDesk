@@ -128,6 +128,21 @@ const tableStyles = `
     padding-right: 10px !important;
   }
 
+  /* Левая зона пагинации: переключатель периода + статистика */
+  .employee-table-container .ant-table-pagination.ant-pagination {
+    width: 100%;
+    display: flex;
+    align-items: center;
+  }
+
+  .employee-table-container .ant-table-pagination .ant-pagination-total-text {
+    margin-left: 10px;
+    margin-right: auto;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
   .employee-table-pagination-summary {
     display: inline-flex;
     align-items: center;
@@ -154,23 +169,6 @@ const FORCED_HIDDEN_COLUMN_KEYS = new Set([
   "documentExpiry",
   "status",
 ]);
-const INTERACTIVE_ROW_TARGET_SELECTOR = [
-  "button",
-  "a",
-  "input",
-  "textarea",
-  "[role='button']",
-  ".ant-btn",
-  ".ant-select",
-  ".ant-select-selector",
-  ".ant-picker",
-  ".ant-picker-input",
-  ".ant-input",
-  ".ant-input-affix-wrapper",
-  ".ant-popover",
-  ".ant-popconfirm",
-  ".ant-badge",
-].join(", ");
 const STATS_PERIOD_OPTIONS = [
   { label: "День", value: "day" },
   { label: "Неделя", value: "week" },
@@ -189,6 +187,7 @@ export const EmployeeTable = ({
   onView,
   onDelete,
   onViewFiles,
+  onUploadStatusChange,
   onDepartmentChange,
   canExport,
   showDepartmentColumn,
@@ -223,6 +222,7 @@ export const EmployeeTable = ({
     onView,
     onDelete,
     onViewFiles,
+    onUploadStatusChange,
     onDepartmentChange,
     canExport,
     showDepartmentColumn,
@@ -294,6 +294,14 @@ export const EmployeeTable = ({
       {},
     );
 
+    // Колонка "Файлы" использует фильтр заполненности карточки.
+    // Для совместимости с серверными фильтрами и сохранением состояния
+    // приводим ключ таблицы "files" к доменному ключу "statusCard".
+    if (Array.isArray(normalizedFilters.files)) {
+      normalizedFilters.statusCard = normalizedFilters.files;
+      delete normalizedFilters.files;
+    }
+
     const shouldApplyFilterUpdate = extra?.action === "filter";
 
     if (shouldApplyFilterUpdate) {
@@ -355,21 +363,6 @@ export const EmployeeTable = ({
         rowClassName={(record, index) =>
           index % 2 === 0 ? "table-row-light" : "table-row-dark"
         }
-        onRow={(record) => ({
-          onClick: (event) => {
-            if (
-              event.target instanceof Element &&
-              event.target.closest(INTERACTIVE_ROW_TARGET_SELECTOR)
-            ) {
-              return;
-            }
-
-            onView(record);
-          },
-          style: {
-            cursor: "pointer",
-          },
-        })}
         scroll={{
           x: 1300,
           y: "calc(100vh - 220px)",

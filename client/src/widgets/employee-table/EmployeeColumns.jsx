@@ -14,6 +14,7 @@ import positionService from "@/services/positionService";
 import { citizenshipService } from "@/services/citizenshipService";
 import { constructionSiteService } from "@/services/constructionSiteService";
 import { departmentApi } from "@/entities/department";
+import StatusUploadToggle from "@/modules/employees/ui/StatusUploadToggle";
 
 const getEmployeeMappings = (record) =>
   Array.isArray(record?.employeeCounterpartyMappings)
@@ -32,21 +33,7 @@ const getUniqueMappingValues = (mappings, selector) => [
   ...new Set(mappings.map(selector).filter(Boolean)),
 ];
 
-const getEmployeeUploadState = (record) => {
-  const activeStatusMappings = Array.isArray(record?.statusMappings)
-    ? record.statusMappings.filter((mapping) => mapping?.isActive !== false)
-    : [];
-
-  if (activeStatusMappings.length === 0) {
-    return null;
-  }
-
-  return activeStatusMappings.every((mapping) => mapping?.isUpload)
-    ? "uploaded"
-    : "not_uploaded";
-};
-
-const formatZupUploadedAt = (value) => {
+const formatShortDate = (value) => {
   if (!value) {
     return "-";
   }
@@ -56,7 +43,10 @@ const formatZupUploadedAt = (value) => {
     return "-";
   }
 
-  return date.toLocaleDateString("ru-RU");
+  return date.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+  });
 };
 
 const renderMappingState = ({
@@ -131,6 +121,7 @@ export const useEmployeeColumns = ({
   filterOptions,
   filters = {}, // Состояние фильтров из localStorage
   onConstructionSitesEdit, // Новый callback для редактирования объектов
+  onUploadStatusChange,
   resetTrigger = 0, // Триггер для сброса фильтров
   currentSortBy,
   currentSortOrder,
@@ -167,10 +158,23 @@ export const useEmployeeColumns = ({
         width: 230,
         render: (_, record) => (
           <div
+            role="button"
+            tabIndex={0}
+            onClick={(event) => {
+              event.stopPropagation();
+              onView(record);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onView(record);
+              }
+            }}
             style={{
               whiteSpace: "normal",
               wordBreak: "normal",
               overflowWrap: "break-word",
+              cursor: "pointer",
             }}
           >
             {record.lastName} {record.firstName} {record.middleName || ""}
@@ -321,7 +325,30 @@ export const useEmployeeColumns = ({
                 const primaryCounterpartyName =
                   activeCounterparties[0] || dismissedCounterparties[0] || "-";
 
-                return primaryCounterpartyName;
+                return (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onView(record);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onView(record);
+                      }
+                    }}
+                    style={{
+                      cursor: "pointer",
+                      whiteSpace: "normal",
+                      wordBreak: "normal",
+                      overflowWrap: "break-word",
+                    }}
+                  >
+                    {primaryCounterpartyName}
+                  </div>
+                );
 
                 // Старое поведение (скрыто по требованию):
                 // return renderMappingState({
@@ -475,7 +502,25 @@ export const useEmployeeColumns = ({
         key: "citizenship",
         width: 150,
         ellipsis: true,
-        render: (name) => name || "-",
+        render: (name, record) => (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={(event) => {
+              event.stopPropagation();
+              onView(record);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onView(record);
+              }
+            }}
+            style={{ cursor: "pointer" }}
+          >
+            {name || "-"}
+          </div>
+        ),
         filterDropdown: (props) => (
           <AsyncCheckboxFilterDropdown
             key={`citizenship-filter-${resetTrigger}`}
@@ -501,19 +546,13 @@ export const useEmployeeColumns = ({
         key: "isUpload",
         width: 96,
         align: "center",
-        render: (_, record) => {
-          const uploadState = getEmployeeUploadState(record);
-
-          if (uploadState === "uploaded") {
-            return <Tag color="green">ДА</Tag>;
-          }
-
-          if (uploadState === "not_uploaded") {
-            return <Tag color="orange">НЕТ</Tag>;
-          }
-
-          return "-";
-        },
+        render: (_, record) => (
+          <StatusUploadToggle
+            employeeId={record.id}
+            statusMappings={record.statusMappings}
+            onSuccess={onUploadStatusChange}
+          />
+        ),
         filters: [
           { text: "ДА (выгружен)", value: "uploaded" },
           { text: "НЕТ (не выгружен)", value: "not_uploaded" },
@@ -521,11 +560,22 @@ export const useEmployeeColumns = ({
         filteredValue: filters.isUpload || [],
       },
       {
-        title: "Дата ЗУП (НЕТ→ДА)",
+        title: "Дата",
         key: "zupUploadedAt",
-        width: 160,
-        align: "center",
-        render: (_, record) => formatZupUploadedAt(record?.zupUploadedAt),
+        width: 170,
+        align: "left",
+        render: (_, record) => (
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <div>
+              <span style={{ color: "#8c8c8c" }}>ЗУП:</span>{" "}
+              <span>{formatShortDate(record?.zupUploadedAt)}</span>
+            </div>
+            <div>
+              <span style={{ color: "#8c8c8c" }}>Дата выхода:</span>{" "}
+              <span>{formatShortDate(record?.plannedExitDate)}</span>
+            </div>
+          </div>
+        ),
         filterDropdown: (props) => (
           <CreatedAtFilterDropdown
             {...props}
@@ -581,6 +631,11 @@ export const useEmployeeColumns = ({
             </Tooltip>
           );
         },
+        filters: [
+          { text: "Заполнен", value: "completed" },
+          { text: "Не заполнен", value: "draft" },
+        ],
+        filteredValue: filters.statusCard || [],
       },
       {
         title: "Срок действия док.",
@@ -739,6 +794,7 @@ export const useEmployeeColumns = ({
     showDepartmentColumn,
     showCounterpartyColumn,
     onConstructionSitesEdit,
+    onUploadStatusChange,
     resetTrigger,
     canMarkForDeletion,
     onMarkForDeletion,

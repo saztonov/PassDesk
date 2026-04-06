@@ -67,6 +67,7 @@ const createEmployeeValidation = [
   body("phone").optional().trim(),
   body("bankAccountNumber").optional().trim(),
   body("bankBik").optional().trim(),
+  body("plannedExitDate").optional().trim(),
 ];
 
 // Для обновления черновика - мягкая валидация
@@ -89,6 +90,7 @@ const updateEmployeeDraftValidation = [
   body("registrationAddress").optional().trim(),
   body("patentNumber").optional().trim(),
   body("blankNumber").optional().trim(),
+  body("plannedExitDate").optional().trim(),
   body("notes").optional().trim(),
 ];
 
@@ -102,6 +104,7 @@ const updateEmployeeValidation = [
   body("phone").optional().trim(),
   body("bankAccountNumber").optional().trim(),
   body("bankBik").optional().trim(),
+  body("plannedExitDate").optional().trim(),
 ];
 
 // Более мягкая валидация для профиля пользователя
@@ -123,6 +126,7 @@ const updateMyProfileValidation = [
   body("registrationAddress").optional().trim(),
   body("patentNumber").optional().trim(),
   body("blankNumber").optional().trim(),
+  body("plannedExitDate").optional().trim(),
   body("notes").optional().trim(),
 ];
 

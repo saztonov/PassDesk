@@ -66,8 +66,42 @@ const MobileUsersPage = () => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await userService.getAll();
-      setUsers(response?.data?.users || []);
+      const pageLimit = 200;
+      const maxPages = 100;
+      let page = 1;
+      let totalPages = 1;
+      const collectedUsers = [];
+
+      const statusFilterValue =
+        statusFilter === "active"
+          ? true
+          : statusFilter === "inactive"
+            ? false
+            : null;
+
+      while (page <= totalPages && page <= maxPages) {
+        const response = await userService.getAll({
+          page,
+          limit: pageLimit,
+          ...(statusFilterValue === null
+            ? {}
+            : { isActive: statusFilterValue }),
+        });
+
+        const pageUsers = Array.isArray(response?.data?.users)
+          ? response.data.users
+          : [];
+        collectedUsers.push(...pageUsers);
+        totalPages = Number(response?.data?.pagination?.pages || 1);
+
+        if (pageUsers.length < pageLimit) {
+          break;
+        }
+
+        page += 1;
+      }
+
+      setUsers(collectedUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
       setUsers([]);
@@ -75,7 +109,7 @@ const MobileUsersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [message]);
+  }, [message, statusFilter]);
 
   const upsertUser = useCallback((userPayload) => {
     if (!userPayload?.id) return;
@@ -108,32 +142,24 @@ const MobileUsersPage = () => {
   // Загрузка данных при монтировании
   useEffect(() => {
     fetchUsers();
+  }, [fetchUsers]);
+
+  useEffect(() => {
     fetchCounterparties();
-  }, [fetchUsers, fetchCounterparties]);
+  }, [fetchCounterparties]);
 
   // Отфильтрованный список пользователей
   const filteredUsers = users.filter((user) => {
     const searchLower = searchText.toLowerCase();
-    const searchMatch =
-      user.email?.toLowerCase().includes(searchLower) ||
-      false ||
-      user.firstName?.toLowerCase().includes(searchLower) ||
-      false ||
-      user.lastName?.toLowerCase().includes(searchLower) ||
-      false ||
-      user.identificationNumber?.toLowerCase().includes(searchLower) ||
-      false;
+    const containsValue = (value) =>
+      String(value || "").toLowerCase().includes(searchLower);
 
-    // Фильтрация по статусу
-    let statusMatch = true;
-    if (statusFilter) {
-      const isActive = user.isActive;
-      statusMatch =
-        (statusFilter === "active" && isActive) ||
-        (statusFilter === "inactive" && !isActive);
-    }
-
-    return searchMatch && statusMatch;
+    return (
+      containsValue(user.email) ||
+      containsValue(user.firstName) ||
+      containsValue(user.lastName) ||
+      containsValue(user.identificationNumber)
+    );
   });
 
   // Переключить статус пользователя

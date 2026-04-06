@@ -16,6 +16,7 @@ import {
   App,
   Alert,
   Result,
+  Grid,
 } from "antd";
 import {
   PlusOutlined,
@@ -35,6 +36,7 @@ import {
 } from "@/shared/lib/accessControl";
 
 const { Title } = Typography;
+const { useBreakpoint } = Grid;
 
 const typeMap = {
   customer: { label: "Заказчик", color: "blue" },
@@ -45,6 +47,8 @@ const typeMap = {
 
 const CounterpartiesPage = () => {
   const { message, modal } = App.useApp();
+  const screens = useBreakpoint();
+  const isCompactToolbar = !screens.xl;
   const { user } = useAuthStore();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -133,20 +137,48 @@ const CounterpartiesPage = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: response } = await counterpartyService.getAll({
-        page: paginationCurrent,
-        limit: paginationPageSize,
+      const normalizedSearch = String(debouncedFilters.search || "")
+        .trim()
+        .toLowerCase();
+      const hasSearchQuery = normalizedSearch.length > 0;
+      const { search: _ignoredSearch, ...restFilters } = debouncedFilters;
+
+      const requestParams = {
+        page: hasSearchQuery ? 1 : paginationCurrent,
+        limit: hasSearchQuery ? 10000 : paginationPageSize,
         include: "construction_sites", // Включаем construction sites в один запрос
-        ...debouncedFilters,
-      });
-      setData(response.data.counterparties);
-      const nextTotal = response.data.pagination.total;
+        ...restFilters,
+        ...(hasSearchQuery ? {} : normalizedSearch ? { search: normalizedSearch } : {}),
+      };
+
+      const { data: response } = await counterpartyService.getAll(requestParams);
+      const responseRows = Array.isArray(response?.data?.counterparties)
+        ? response.data.counterparties
+        : [];
+
+      const nextRows = hasSearchQuery
+        ? responseRows.filter((item) => {
+            const nameValue = String(item?.name || "").toLowerCase();
+            const innValue = String(item?.inn || "").toLowerCase();
+            return (
+              nameValue.includes(normalizedSearch) ||
+              innValue.includes(normalizedSearch)
+            );
+          })
+        : responseRows;
+
+      setData(nextRows);
+      const nextTotal = hasSearchQuery
+        ? nextRows.length
+        : Number(response?.data?.pagination?.total || nextRows.length);
       setPagination((prev) => {
-        if (prev.total === nextTotal) {
+        const nextCurrent = hasSearchQuery ? 1 : prev.current;
+        if (prev.total === nextTotal && prev.current === nextCurrent) {
           return prev;
         }
         return {
           ...prev,
+          current: nextCurrent,
           total: nextTotal,
         };
       });
@@ -641,10 +673,18 @@ const CounterpartiesPage = () => {
             display: "flex",
             gap: 12,
             alignItems: "center",
+            flexWrap: isCompactToolbar ? "wrap" : "nowrap",
             borderBottom: "1px solid #f0f0f0",
           }}
         >
-          <Title level={3} style={{ margin: 0, whiteSpace: "nowrap" }}>
+          <Title
+            level={3}
+            style={{
+              margin: 0,
+              whiteSpace: "nowrap",
+              flex: isCompactToolbar ? "1 1 100%" : "0 0 auto",
+            }}
+          >
             Контрагенты
           </Title>
           <Input
@@ -652,12 +692,16 @@ const CounterpartiesPage = () => {
             prefix={<SearchOutlined />}
             value={filters.search || ""}
             onChange={(e) => updateFilter("search", e.target.value)}
-            style={{ width: 300 }}
+            style={
+              isCompactToolbar
+                ? { flex: "1 1 220px", minWidth: 180 }
+                : { width: 300 }
+            }
             allowClear
           />
           <Select
             placeholder="Тип"
-            style={{ width: 150 }}
+            style={{ width: 150, minWidth: 130 }}
             value={filters.type}
             onChange={(value) => updateFilter("type", value)}
             allowClear
@@ -668,9 +712,19 @@ const CounterpartiesPage = () => {
               Генподрядчик
             </Select.Option>
           </Select>
-          <Space style={{ marginLeft: "auto" }}>
+          <Space
+            style={{
+              marginLeft: isCompactToolbar ? 0 : "auto",
+              flexShrink: 0,
+            }}
+          >
             {canEditCounterparties && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleAdd}
+                style={{ whiteSpace: "nowrap" }}
+              >
                 Добавить
               </Button>
             )}

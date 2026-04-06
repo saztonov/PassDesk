@@ -236,23 +236,25 @@ const DocumentTypeUploader = ({
     }));
   }, []);
 
-  const handleChange = async (info, documentType) => {
-    const { fileList } = info;
+  const handleUploadSubmit = async (fileList, documentType) => {
+    if (!Array.isArray(fileList) || fileList.length === 0) {
+      return false;
+    }
 
-    if (fileList.length === 0 || uploadingTypes[documentType]) {
-      return;
+    if (uploadingTypes[documentType]) {
+      return false;
     }
 
     const currentEmployeeId = await resolveEmployeeId();
     if (!currentEmployeeId) {
-      return;
+      return false;
     }
 
     const uploadKey = fileList
       .map((file) => `${file.name}_${file.size}`)
       .join("|");
     if (uploadingRef.current.has(uploadKey)) {
-      return;
+      return false;
     }
 
     uploadingRef.current.add(uploadKey);
@@ -298,9 +300,11 @@ const DocumentTypeUploader = ({
       if (onFilesUpdated) {
         onFilesUpdated();
       }
+      return true;
     } catch (error) {
       console.error(`Error uploading ${documentType}:`, error);
       message.error(error?.response?.data?.message || "Ошибка загрузки файла");
+      return false;
     } finally {
       setDataState((prev) => ({
         ...prev,
@@ -434,7 +438,7 @@ const DocumentTypeUploader = ({
                 uploading={uploadingTypes[docType.value]}
                 messageApi={message}
                 onOpenSample={handleOpenSample}
-                onUploadChange={handleChange}
+                onUploadSubmit={handleUploadSubmit}
                 onViewFile={handleViewFile}
                 onDownloadFile={handleDownloadFile}
                 onDeleteFile={handleDeleteFile}
@@ -499,7 +503,8 @@ const DocumentTypeUploader = ({
             border: "1px solid #b3d8ff",
           }}
         >
-          ℹ️ Укажите тип документа и выберите файл (поддерживаемые форматы:{" "}
+          ℹ️ Нажмите «Загрузить» напротив нужного типа документа. Далее в модалке
+          выберите или перетащите файлы (поддерживаемые форматы:{" "}
           {SUPPORTED_FORMATS})
           {loadingDocumentTypes && (
             <span style={{ marginLeft: 8 }}>

@@ -143,6 +143,9 @@ export const useEmployeeFormInitialization = ({
             insurancePolicyDate: employee.insurancePolicyDate
               ? dayjs(employee.insurancePolicyDate)
               : null,
+            plannedExitDate: employee.plannedExitDate
+              ? dayjs(employee.plannedExitDate)
+              : null,
             kig: employee.kig ? formatKig(employee.kig) : null,
             patentNumber: employee.patentNumber
               ? formatPatentNumber(employee.patentNumber)

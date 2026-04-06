@@ -1,12 +1,17 @@
-import { Button, Spin, App } from 'antd';
-import { useState } from 'react';
-import { employeeApi } from '@/entities/employee';
+import { Button, Spin, App } from "antd";
+import { useState } from "react";
+import { employeeApi } from "@/entities/employee";
 
 /**
  * Компонент для переключения флага is_upload всех активных статусов сотрудника
  * Зеленая кнопка "ДА" (обработанный) / Оранжевая кнопка "НЕТ" (необработанный)
  */
-const StatusUploadToggle = ({ employeeId, statusMappings, onUpdate }) => {
+const StatusUploadToggle = ({
+  employeeId,
+  statusMappings,
+  onUpdate,
+  onSuccess,
+}) => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const activeStatusMappings = (statusMappings || []).filter(
@@ -25,14 +30,16 @@ const StatusUploadToggle = ({ employeeId, statusMappings, onUpdate }) => {
     try {
       const response = await employeeApi.updateAllStatusesUploadFlag(
         employeeId,
-        !allUploaded
+        !allUploaded,
       );
 
       if (response.success) {
         message.success(
-          !allUploaded ? 'Сотрудник отмечен как обработанный' : 'Сотрудник отмечен как необработанный'
+          !allUploaded
+            ? "Сотрудник отмечен как обработанный"
+            : "Сотрудник отмечен как необработанный",
         );
-        
+
         // Обновляем все статусы
         const updatedMappings = (statusMappings || []).map((statusMapping) => {
           if (!statusMapping?.isActive) {
@@ -44,12 +51,13 @@ const StatusUploadToggle = ({ employeeId, statusMappings, onUpdate }) => {
             isUpload: !allUploaded,
           };
         });
-        
+
         onUpdate?.(updatedMappings);
+        onSuccess?.();
       }
     } catch (error) {
-      console.error('Error updating upload flag:', error);
-      message.error('Ошибка при обновлении статуса');
+      console.error("Error updating upload flag:", error);
+      message.error("Ошибка при обновлении статуса");
     } finally {
       setLoading(false);
     }
@@ -60,7 +68,7 @@ const StatusUploadToggle = ({ employeeId, statusMappings, onUpdate }) => {
   }
 
   if (activeStatusMappings.length === 0) {
-    return '-';
+    return "-";
   }
 
   // Если все загружено - показываем "ДА" с зеленым контуром
@@ -70,9 +78,9 @@ const StatusUploadToggle = ({ employeeId, statusMappings, onUpdate }) => {
         size="small"
         onClick={handleToggle}
         style={{
-          color: '#52c41a',
-          borderColor: '#52c41a',
-          backgroundColor: 'transparent',
+          color: "#52c41a",
+          borderColor: "#52c41a",
+          backgroundColor: "transparent",
         }}
       >
         ДА
@@ -86,9 +94,9 @@ const StatusUploadToggle = ({ employeeId, statusMappings, onUpdate }) => {
       size="small"
       onClick={handleToggle}
       style={{
-        color: '#fa8c16',
-        borderColor: '#fa8c16',
-        backgroundColor: 'transparent',
+        color: "#fa8c16",
+        borderColor: "#fa8c16",
+        backgroundColor: "transparent",
       }}
     >
       НЕТ

@@ -14,16 +14,18 @@ const EmployeeBasicInfoSecondaryRows = ({ getFieldProps, userRole }) => {
   return (
     <>
       <Row gutter={16}>
-        <Col xs={24} sm={24} md={24} lg={24}>
-          <Form.Item
-            name="notes"
-            label="Примечания"
-            required={getFieldProps("notes").required}
-            rules={getFieldProps("notes").rules}
-          >
-            <TextArea rows={2} {...noAutoFillProps} />
-          </Form.Item>
-        </Col>
+        {showNotes && (
+          <Col xs={24} sm={24} md={24} lg={24}>
+            <Form.Item
+              name="notes"
+              label="Примечания"
+              required={getFieldProps("notes").required}
+              rules={getFieldProps("notes").rules}
+            >
+              <TextArea rows={2} {...noAutoFillProps} />
+            </Form.Item>
+          </Col>
+        )}
       </Row>
     </>
   );

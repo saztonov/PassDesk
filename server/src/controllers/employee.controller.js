@@ -108,6 +108,7 @@ const EMPLOYEE_UPDATE_ALLOWED_FIELDS = new Set([
   "bankBik",
   "insurancePolicyNumber",
   "insurancePolicyDate",
+  "plannedExitDate",
   "notes",
 ]);
 

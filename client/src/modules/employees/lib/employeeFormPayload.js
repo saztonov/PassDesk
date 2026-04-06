@@ -13,6 +13,7 @@ const DATE_FIELDS = new Set([
   "kigEndDate",
   "passportExpiryDate",
   "insurancePolicyDate",
+  "plannedExitDate",
 ]);
 
 const UUID_FIELDS = new Set(["positionId", "citizenshipId", "birthCountryId"]);

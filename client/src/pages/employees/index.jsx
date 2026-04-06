@@ -38,7 +38,7 @@ const TABLE_FILTER_GROUP_LABELS = {
   constructionSite: "Объект",
   citizenship: "Гражданство",
   isUpload: "ЗУП",
-  zupUploadedAt: "Дата ЗУП (НЕТ→ДА)",
+  zupUploadedAt: "Дата",
   statusCard: "Заполнен",
   documentExpiry: "Срок действия док.",
   status: "Статус",
@@ -426,11 +426,30 @@ const EmployeesPage = () => {
     }
 
     const counterpartyLabelById = new Map(
-      (filterOptions.counterparties || []).map((option) => [
-        String(option?.value),
-        option?.label,
-      ]),
+      (filterOptions.counterparties || [])
+        .filter((option) => option?.value && option?.label)
+        .map((option) => [String(option.value), option.label]),
     );
+
+    (employees || []).forEach((employee) => {
+      const mappings = Array.isArray(employee?.employeeCounterpartyMappings)
+        ? employee.employeeCounterpartyMappings
+        : [];
+
+      mappings.forEach((mapping) => {
+        const counterpartyId = mapping?.counterpartyId || mapping?.counterparty?.id;
+        const counterpartyName = mapping?.counterparty?.name || null;
+
+        if (!counterpartyId || !counterpartyName) {
+          return;
+        }
+
+        const normalizedId = String(counterpartyId);
+        if (!counterpartyLabelById.has(normalizedId)) {
+          counterpartyLabelById.set(normalizedId, counterpartyName);
+        }
+      });
+    });
 
     Object.entries(tableFilters || {}).forEach(([filterKey, filterValue]) => {
       const values = Array.isArray(filterValue) ? filterValue : [filterValue];
@@ -455,7 +474,7 @@ const EmployeesPage = () => {
 
         let valueLabel = String(value);
         if (filterKey === "counterparty") {
-          valueLabel = counterpartyLabelById.get(String(value)) || String(value);
+          valueLabel = counterpartyLabelById.get(String(value)) || "загрузка...";
         } else if (TABLE_FILTER_VALUE_LABELS[filterKey]?.[value]) {
           valueLabel = TABLE_FILTER_VALUE_LABELS[filterKey][value];
         }
@@ -471,7 +490,13 @@ const EmployeesPage = () => {
     });
 
     return filters;
-  }, [filterOptions.counterparties, searchText, statusFilter, tableFilters]);
+  }, [
+    employees,
+    filterOptions.counterparties,
+    searchText,
+    statusFilter,
+    tableFilters,
+  ]);
 
   const {
     handleCheckInn,
@@ -486,6 +511,7 @@ const EmployeesPage = () => {
     handleDelete,
     handleMarkForDeletion,
     handleDepartmentChange,
+    handleUploadStatusChange,
     handleFormSuccess,
     handleMobileViewEdit,
   } = useEmployeesActions({
@@ -552,6 +578,7 @@ const EmployeesPage = () => {
     handleViewFiles,
     handleMarkForDeletion,
     handleDepartmentChange,
+    handleUploadStatusChange,
     handlePaginationChange,
     setTableFilters,
     handleConstructionSitesEdit,

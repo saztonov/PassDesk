@@ -406,6 +406,12 @@ Employee.init(
       field: "insurance_policy_date",
       comment: "Дата выдачи страхового полиса",
     },
+    plannedExitDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      field: "planned_exit_date",
+      comment: "Планируемая дата выхода сотрудника",
+    },
     bankAccountNumber: {
       type: DataTypes.STRING(20),
       allowNull: true,

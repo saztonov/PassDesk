@@ -128,7 +128,7 @@
     "title": "Сотрудники",
     "requestExcel": "Заявка Excel",
     "importExcel": "Импорт из Excel",
-    "exportExcel": "Выгрузка",
+    "exportExcel": "Выгрузка ЗУП",
     "security": "Блокировка",
     "addEmployee": "Добавить сотрудника"
   },

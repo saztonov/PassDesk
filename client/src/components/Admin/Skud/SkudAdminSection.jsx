@@ -1018,17 +1018,38 @@ const SkudAdminSection = () => {
   }, [eventsPage, eventsPageSize, state.events?.pagination?.total]);
 
   const fetchEmployeeOptions = useCallback(async (search = "") => {
-    const response = await employeeService.getAll({
-      page: 1,
-      limit: 100,
-      activeOnly: "true",
-      ...(search ? { search } : {}),
-    });
-    const items = Array.isArray(response?.data?.employees)
-      ? response.data.employees
-      : [];
+    const limit = 200;
+    const maxPages = 50;
+    let page = 1;
+    let totalPages = 1;
+    const itemsById = new Map();
 
-    return items.map((employee) => ({
+    while (page <= totalPages && page <= maxPages) {
+      const response = await employeeService.getAll({
+        page,
+        limit,
+        activeOnly: "true",
+        ...(search ? { search } : {}),
+      });
+      const items = Array.isArray(response?.data?.employees)
+        ? response.data.employees
+        : [];
+      totalPages = Number(response?.data?.pagination?.pages || 1);
+
+      items.forEach((employee) => {
+        if (employee?.id) {
+          itemsById.set(employee.id, employee);
+        }
+      });
+
+      if (items.length < limit) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    return Array.from(itemsById.values()).map((employee) => ({
       value: employee.id,
       label:
         buildEmployeeName(employee) ||
