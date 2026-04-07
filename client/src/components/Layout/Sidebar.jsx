@@ -270,7 +270,7 @@ const Sidebar = () => {
           flex: 1,
           overflowY: "auto",
           overflowX: "hidden",
-          paddingBottom: 64,
+          paddingBottom: collapsed ? 60 : 108,
         }}
       >
         <Menu
@@ -288,21 +288,22 @@ const Sidebar = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          padding: 8,
+          padding: collapsed ? 8 : 0,
           borderTop: "1px solid #f0f0f0",
           display: "flex",
-          flexDirection: collapsed ? "column" : "row",
+          flexDirection: collapsed ? "row" : "column",
+          flexWrap: "nowrap",
           alignItems: "center",
-          justifyContent: "center",
-          gap: collapsed ? 4 : 6,
+          justifyContent: "stretch",
+          gap: 0,
         }}
       >
         <div
           style={{
             flex: collapsed ? "none" : 1,
-            width: collapsed ? "auto" : "100%",
+            width: collapsed ? 32 : "100%",
             display: "flex",
-            justifyContent: "center",
+            justifyContent: collapsed ? "center" : "stretch",
           }}
         >
           <Dropdown
@@ -317,12 +318,13 @@ const Sidebar = () => {
               type="text"
               icon={<IdcardOutlined />}
               style={{
-                width: collapsed ? 40 : "100%",
-                height: 40,
+                width: collapsed ? 32 : "100%",
+                height: collapsed ? 36 : 48,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: collapsed ? "center" : "flex-start",
-                paddingInline: collapsed ? 0 : 12,
+                borderRadius: collapsed ? 6 : 0,
+                paddingInline: collapsed ? 0 : 18,
                 gap: collapsed ? 0 : 8,
               }}
             >
@@ -330,19 +332,32 @@ const Sidebar = () => {
             </Button>
           </Dropdown>
         </div>
-        <Button
-          type="text"
-          aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
-          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-          onClick={() => handleCollapse(!collapsed)}
+        <div
           style={{
-            height: 40,
-            width: 40,
-            display: "inline-flex",
+            width: "100%",
+            borderTop: collapsed ? "none" : "1px solid #f0f0f0",
+            height: collapsed ? "auto" : 52,
+            display: "flex",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: collapsed ? "center" : "flex-end",
+            padding: collapsed ? 0 : "0 12px",
           }}
-        />
+        >
+          <Button
+            type="text"
+            aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
+            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => handleCollapse(!collapsed)}
+            style={{
+              height: collapsed ? 36 : 40,
+              width: collapsed ? 32 : 40,
+              borderRadius: 8,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          />
+        </div>
       </div>
     </Sider>
     </>
