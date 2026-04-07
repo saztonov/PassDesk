@@ -8,6 +8,7 @@ import {
   DeleteOutlined,
   FileImageOutlined,
   WarningOutlined,
+  HistoryOutlined,
 } from "@ant-design/icons";
 import UsersPage from "./UsersPage";
 import MobileUsersPage from "./MobileUsersPage";
@@ -17,6 +18,7 @@ import CounterpartiesPage from "./CounterpartiesPage";
 import MobileCounterpartiesPage from "./MobileCounterpartiesPage";
 import TrashPage from "./TrashPage";
 import DocumentSamplesPage from "./DocumentSamplesPage";
+import AuditLogsPage from "./AuditLogsPage";
 import OcrConflictsAdminSection from "@/components/Admin/OcrConflictsAdminSection";
 import { useAuthStore } from "@/store/authStore";
 
@@ -37,6 +39,7 @@ const AdministrationPage = () => {
     "users",
     "counterparties",
     "citizenships",
+    "audit-logs",
     "trash",
     "document-samples",
     "ocr-conflicts",
@@ -79,6 +82,11 @@ const AdministrationPage = () => {
       key: "citizenships",
       label: renderTabLabel(GlobalOutlined, "Гражданство"),
       children: <CitizenshipsPage />,
+    },
+    {
+      key: "audit-logs",
+      label: renderTabLabel(HistoryOutlined, "Журнал изменений"),
+      children: <AuditLogsPage />,
     },
     {
       key: "trash",
@@ -158,6 +166,11 @@ const AdministrationPage = () => {
                 value: "counterparties",
                 icon: <ShopOutlined />,
               },
+              {
+                label: "Журнал",
+                value: "audit-logs",
+                icon: <HistoryOutlined />,
+              },
             ]}
           />
         </div>
@@ -171,11 +184,9 @@ const AdministrationPage = () => {
             position: "relative",
           }}
         >
-          {activeTab === "users" ? (
-            <MobileUsersPage />
-          ) : (
-            <MobileCounterpartiesPage />
-          )}
+          {activeTab === "users" && !isManager ? <MobileUsersPage /> : null}
+          {activeTab === "counterparties" ? <MobileCounterpartiesPage /> : null}
+          {activeTab === "audit-logs" ? <AuditLogsPage /> : null}
         </div>
       </div>
     );
