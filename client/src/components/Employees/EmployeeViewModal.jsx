@@ -168,19 +168,13 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
       </Row>
 
       <Descriptions bordered column={primaryDescriptionsColumns} size="small">
-        {!getFieldProps("lastName").hidden && (
-          <Descriptions.Item label="Фамилия" span={1}>
-            {employee.lastName || "-"}
-          </Descriptions.Item>
-        )}
-        {!getFieldProps("firstName").hidden && (
-          <Descriptions.Item label="Имя" span={1}>
-            {employee.firstName || "-"}
-          </Descriptions.Item>
-        )}
-        {!getFieldProps("middleName").hidden && (
-          <Descriptions.Item label="Отчество" span={1}>
-            {employee.middleName || "-"}
+        {(!getFieldProps("lastName").hidden ||
+          !getFieldProps("firstName").hidden ||
+          !getFieldProps("middleName").hidden) && (
+          <Descriptions.Item label="ФИО" span={1}>
+            {[employee.lastName, employee.firstName, employee.middleName]
+              .filter(Boolean)
+              .join(" ") || "-"}
           </Descriptions.Item>
         )}
         {!getFieldProps("gender").hidden && (

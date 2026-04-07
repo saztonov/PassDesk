@@ -1,4 +1,3 @@
-import { useCallback, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import { Col, Form, Input, Row, Select } from "antd";
 import {
@@ -21,25 +20,10 @@ const shouldShowBirthPlaceField = (getFieldProps) =>
     (fieldName) => !getFieldProps(fieldName).hidden,
   );
 
-const shouldShowUnifiedFullNameField = (getFieldProps) =>
-  ["lastName", "firstName", "middleName"].some(
-    (fieldName) => !getFieldProps(fieldName).hidden,
-  );
-
 const getQuarterColProps = (compactLayout) =>
   compactLayout
     ? { xs: 24, sm: 12, md: 12, lg: 12, xl: 12, xxl: 12 }
     : { xs: 24, sm: 12, md: 12, xxl: 6 };
-
-const getFullNameColProps = (compactLayout, hasPositionField) => {
-  if (compactLayout) {
-    return { xs: 24, sm: 24, md: 24, lg: 24, xl: 24, xxl: 24 };
-  }
-
-  return hasPositionField
-    ? { xs: 24, sm: 24, md: 24, xxl: 18 }
-    : { xs: 24, sm: 24, md: 24, xxl: 24 };
-};
 
 const EmployeeBasicInfoPrimaryRows = ({
   form,
@@ -59,87 +43,92 @@ const EmployeeBasicInfoPrimaryRows = ({
   const firstNameProps = getFieldProps("firstName");
   const middleNameProps = getFieldProps("middleName");
   const positionProps = getFieldProps("positionId");
-  const watchedLastName = Form.useWatch("lastName", form);
-  const watchedFirstName = Form.useWatch("firstName", form);
-  const watchedMiddleName = Form.useWatch("middleName", form);
-  const [draftFullNameValue, setDraftFullNameValue] = useState(null);
-
-  const unifiedNameError = ["lastName", "firstName", "middleName"].includes(
-    latinInputError,
-  );
-
-  const fullNameValue = useMemo(
-    () =>
-      [watchedLastName, watchedFirstName, watchedMiddleName]
-        .filter(Boolean)
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim(),
-    [watchedFirstName, watchedLastName, watchedMiddleName],
-  );
-
-  const handleUnifiedFullNameChange = useCallback(
-    (event) => {
-      const sanitizedValue = capitalizeFirstLetter(
-        filterCyrillicOnly(String(event?.target?.value || "")).replace(
-          /\s+/g,
-          " ",
-        ),
-      );
-      setDraftFullNameValue(sanitizedValue);
-
-      const normalizedValue = sanitizedValue.trim();
-      const parts = normalizedValue ? normalizedValue.split(" ") : [];
-      const [lastName = "", firstName = "", ...middleNameParts] = parts;
-
-      handleFullNameChange("lastName", lastName);
-      handleFullNameChange("firstName", firstName);
-      handleFullNameChange("middleName", middleNameParts.join(" "));
-    },
-    [handleFullNameChange],
-  );
-
-  const fullNameRequired =
-    lastNameProps.required ||
-    firstNameProps.required ||
-    middleNameProps.required;
 
   return (
     <>
       <Row gutter={16}>
-        {shouldShowUnifiedFullNameField(getFieldProps) && (
-          <Col {...getFullNameColProps(compactLayout, !positionProps.hidden)}>
+        {!lastNameProps.hidden && (
+          <Col {...getQuarterColProps(compactLayout)}>
             <Form.Item
-              label="ФИО"
-              required={fullNameRequired}
-              validateStatus={unifiedNameError ? "error" : ""}
-              help={unifiedNameError ? "Ввод только на кириллице" : ""}
+              label="Фамилия"
+              name="lastName"
+              required={lastNameProps.required}
+              rules={lastNameProps.rules}
+              validateStatus={latinInputError === "lastName" ? "error" : ""}
+              help={
+                latinInputError === "lastName" ? "Ввод только на кириллице" : ""
+              }
             >
               <Input
                 id={antiAutofillIds.lastName}
                 name={antiAutofillIds.lastName}
-                value={draftFullNameValue ?? fullNameValue}
                 {...noAutoFillProps}
-                onChange={handleUnifiedFullNameChange}
-                onBlur={() => setDraftFullNameValue(null)}
+                onChange={(e) =>
+                  handleFullNameChange(
+                    "lastName",
+                    capitalizeFirstLetter(filterCyrillicOnly(e.target.value)),
+                  )
+                }
               />
             </Form.Item>
+          </Col>
+        )}
 
-            {!lastNameProps.hidden && (
-              <Form.Item name="lastName" rules={lastNameProps.rules} hidden>
-                <Input />
-              </Form.Item>
-            )}
-            {!firstNameProps.hidden && (
-              <Form.Item name="firstName" rules={firstNameProps.rules} hidden>
-                <Input />
-              </Form.Item>
-            )}
-            {!middleNameProps.hidden && (
-              <Form.Item name="middleName" rules={middleNameProps.rules} hidden>
-                <Input />
-              </Form.Item>
-            )}
+        {!firstNameProps.hidden && (
+          <Col {...getQuarterColProps(compactLayout)}>
+            <Form.Item
+              label="Имя"
+              name="firstName"
+              required={firstNameProps.required}
+              rules={firstNameProps.rules}
+              validateStatus={latinInputError === "firstName" ? "error" : ""}
+              help={
+                latinInputError === "firstName"
+                  ? "Ввод только на кириллице"
+                  : ""
+              }
+            >
+              <Input
+                id={antiAutofillIds.firstName}
+                name={antiAutofillIds.firstName}
+                {...noAutoFillProps}
+                onChange={(e) =>
+                  handleFullNameChange(
+                    "firstName",
+                    capitalizeFirstLetter(filterCyrillicOnly(e.target.value)),
+                  )
+                }
+              />
+            </Form.Item>
+          </Col>
+        )}
+
+        {!middleNameProps.hidden && (
+          <Col {...getQuarterColProps(compactLayout)}>
+            <Form.Item
+              label="Отчество"
+              name="middleName"
+              required={middleNameProps.required}
+              rules={middleNameProps.rules}
+              validateStatus={latinInputError === "middleName" ? "error" : ""}
+              help={
+                latinInputError === "middleName"
+                  ? "Ввод только на кириллице"
+                  : ""
+              }
+            >
+              <Input
+                id={antiAutofillIds.middleName}
+                name={antiAutofillIds.middleName}
+                {...noAutoFillProps}
+                onChange={(e) =>
+                  handleFullNameChange(
+                    "middleName",
+                    capitalizeFirstLetter(filterCyrillicOnly(e.target.value)),
+                  )
+                }
+              />
+            </Form.Item>
           </Col>
         )}
         {!positionProps.hidden && (

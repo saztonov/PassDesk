@@ -147,24 +147,18 @@ export const buildEmployeeViewDrawerItems = ({
       ),
       children: (
         <>
-          {!getFieldProps("lastName").hidden && (
-            <Form.Item label="Фамилия" name="lastName">
-              <Input disabled size="large" />
-            </Form.Item>
-          )}
-
-          {!getFieldProps("firstName").hidden && (
-            <Form.Item label="Имя" name="firstName">
-              <Input disabled size="large" />
-            </Form.Item>
-          )}
-
-          {!getFieldProps("middleName").hidden && (
-            <Form.Item label="Отчество" name="middleName">
+          {(!getFieldProps("lastName").hidden ||
+            !getFieldProps("firstName").hidden ||
+            !getFieldProps("middleName").hidden) && (
+            <Form.Item label="ФИО">
               <Input
                 disabled
                 size="large"
-                placeholder={employee?.middleName ? undefined : ""}
+                value={
+                  [employee?.lastName, employee?.firstName, employee?.middleName]
+                    .filter(Boolean)
+                    .join(" ") || "-"
+                }
               />
             </Form.Item>
           )}
