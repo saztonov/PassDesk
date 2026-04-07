@@ -333,6 +333,7 @@ export const useEmployeeOcrHandlers = ({
     conflictSummary,
     isConflictSummaryLoading,
     isOcrProcessing: Object.keys(processingMap).length > 0,
+    processingMap,
     handleUploadedFileForOcr,
     refreshConflictSummary,
   };

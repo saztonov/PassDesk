@@ -126,6 +126,14 @@ export const employeeService = {
     });
   },
 
+  // Скачать все файлы сотрудника одним ZIP
+  downloadEmployeeFilesZip: async (employeeId) => {
+    const response = await api.get(`/employees/${employeeId}/files/zip`, {
+      responseType: "blob",
+    });
+    return response;
+  },
+
   // Получить типы документов сотрудника (с образцами)
   getDocumentTypes: async () => {
     const key = "employees:getDocumentTypes";

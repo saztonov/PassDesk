@@ -17,6 +17,7 @@ import {
   DownloadOutlined,
   EyeOutlined,
   InfoCircleOutlined,
+  ReloadOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
 import {
@@ -122,6 +123,8 @@ const DocumentTypeUploaderItem = ({
   onViewFile,
   onDownloadFile,
   onDeleteFile,
+  onRerunOcr,
+  ocrProcessingMap,
   compact = false,
 }) => {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -270,6 +273,20 @@ const DocumentTypeUploaderItem = ({
                       onDownloadFile(file);
                     }}
                   />
+                  {!readonly && typeof onRerunOcr === "function" ? (
+                    <Tooltip title="Запустить распознавание заново">
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<ReloadOutlined />}
+                        loading={Boolean(ocrProcessingMap?.[file.id])}
+                        onClick={(event) => {
+                          stopRowClick(event);
+                          onRerunOcr(file);
+                        }}
+                      />
+                    </Tooltip>
+                  ) : null}
                   {!readonly ? (
                     <Popconfirm
                       title="Удалить файл?"

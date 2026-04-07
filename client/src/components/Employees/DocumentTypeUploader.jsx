@@ -86,6 +86,8 @@ const DocumentTypeUploader = ({
   ensureEmployeeId,
   onFilesUpdated,
   onUploadComplete,
+  onRerunOcr,
+  ocrProcessingMap = null,
   readonly = false,
   profileCode,
   profilesConfig,
@@ -442,6 +444,8 @@ const DocumentTypeUploader = ({
                 onViewFile={handleViewFile}
                 onDownloadFile={handleDownloadFile}
                 onDeleteFile={handleDeleteFile}
+                onRerunOcr={onRerunOcr}
+                ocrProcessingMap={ocrProcessingMap}
                 compact={compact}
               />
             ))}

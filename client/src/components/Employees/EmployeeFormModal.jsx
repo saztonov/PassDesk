@@ -1,5 +1,16 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Modal, Form, App, Tabs, Alert, Space, Grid, Typography } from "antd";
+import {
+  Modal,
+  Form,
+  App,
+  Tabs,
+  Alert,
+  Space,
+  Grid,
+  Typography,
+  Button,
+} from "antd";
+import { DownloadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import {
   capitalizeFirstLetter,
@@ -39,6 +50,7 @@ import { formatEmployeeFormPayload } from "@/modules/employees/lib/employeeFormP
 import OcrConflictSummaryNotice from "@/modules/employees/ui/OcrConflictSummaryNotice";
 import EmployeeAuditInfoTooltip from "@/modules/employees/ui/EmployeeAuditInfoTooltip";
 import EmployeeFilesTab from "./EmployeeFilesTab.jsx";
+import { employeeService } from "@/services/employeeService";
 
 const { useBreakpoint } = Grid;
 const { Text } = Typography;
@@ -100,6 +112,7 @@ const EmployeeFormModal = ({
     handleUploadedFileForOcr,
     isOcrProcessing,
     refreshConflictSummary,
+    processingMap: ocrProcessingMap,
   } = useEmployeeOcrHandlers({
     form,
     citizenships,
@@ -122,6 +135,49 @@ const EmployeeFormModal = ({
     employeeId: employee?.id || null,
     visible,
   });
+
+  const handleDownloadAllFiles = useCallback(async () => {
+    if (!employee?.id) {
+      return;
+    }
+    try {
+      const response = await employeeService.downloadEmployeeFilesZip(employee.id);
+      const blob = new Blob([response.data], { type: "application/zip" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const contentDisposition = response?.headers?.["content-disposition"] || "";
+      const fileNameMatch =
+        /filename\*=UTF-8''([^;]+)|filename=\"?([^\";]+)\"?/i.exec(
+          contentDisposition,
+        );
+      const extractedName = decodeURIComponent(
+        fileNameMatch?.[1] || fileNameMatch?.[2] || "",
+      );
+      link.href = url;
+      link.download = extractedName || `employee_files_${employee.id}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to download employee files zip:", error);
+      message.error("Не удалось скачать архив файлов");
+    }
+  }, [employee?.id, message]);
+
+  const handleRerunOcr = useCallback(
+    async (file) => {
+      if (!employee?.id) {
+        return;
+      }
+      await handleUploadedFileForOcr({
+        file,
+        employeeId: employee.id,
+        fileDocumentType: file?.documentType,
+      });
+    },
+    [employee?.id, handleUploadedFileForOcr],
+  );
 
   const {
     fetchCitizenships,
@@ -542,6 +598,13 @@ const EmployeeFormModal = ({
       <span>{employee ? "Редактировать сотрудника" : "Добавить сотрудника"}</span>
       {employee ? (
         <Space size={8}>
+          <Button
+            size="small"
+            icon={<DownloadOutlined />}
+            onClick={handleDownloadAllFiles}
+          >
+            Сохранить все файлы
+          </Button>
           <EmployeeAuditInfoTooltip employee={employee} />
         </Space>
       ) : null}
@@ -731,7 +794,18 @@ const EmployeeFormModal = ({
                 }}
               >
                 <Text style={{ fontSize: 13, fontWeight: 600, color: "#595959" }}>Документы</Text>
-                {employee ? <EmployeeAuditInfoTooltip employee={employee} /> : null}
+                {employee ? (
+                  <Space size={8}>
+                    <Button
+                      size="small"
+                      icon={<DownloadOutlined />}
+                      onClick={handleDownloadAllFiles}
+                    >
+                      Сохранить все файлы
+                    </Button>
+                    <EmployeeAuditInfoTooltip employee={employee} />
+                  </Space>
+                ) : null}
               </div>
               <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
                 <EmployeeFilesTab
@@ -743,6 +817,8 @@ const EmployeeFormModal = ({
                   userCounterpartyId={user?.counterpartyId || null}
                   onFilesUpdated={handleFilesChange}
                   onUploadComplete={handleUploadedFileForOcr}
+                  onRerunOcr={handleRerunOcr}
+                  ocrProcessingMap={ocrProcessingMap}
                   ensureEmployeeId={ensureEmployeeId}
                   documentProfilesConfig={settings?.employeeDocumentProfiles || null}
                   viewerMode="inline"

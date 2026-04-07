@@ -407,6 +407,11 @@ router.get(
   employeeIdParamValidation,
   employeeFileController.getEmployeeFiles,
 );
+router.get(
+  "/:employeeId/files/zip",
+  employeeIdParamValidation,
+  employeeFileController.downloadEmployeeFilesZip,
+);
 router.delete(
   "/:employeeId/files/:fileId",
   employeeFileParamsValidation,

@@ -13,6 +13,8 @@ const EmployeeFilesTab = ({
   userCounterpartyId,
   onFilesUpdated,
   onUploadComplete,
+  onRerunOcr,
+  ocrProcessingMap,
   ensureEmployeeId,
   documentProfilesConfig,
   viewerMode,
@@ -56,6 +58,8 @@ const EmployeeFilesTab = ({
       readonly={readonly}
       onFilesUpdated={onFilesUpdated}
       onUploadComplete={onUploadComplete}
+      onRerunOcr={onRerunOcr}
+      ocrProcessingMap={ocrProcessingMap}
       profileCode={profileCode}
       profilesConfig={documentProfilesConfig}
       viewerMode={viewerMode}

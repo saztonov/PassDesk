@@ -6,6 +6,7 @@ import {
   Setting,
 } from "../models/index.js";
 import storageProvider from "../config/storage.js";
+import archiver from "archiver";
 import {
   buildEmployeeFilePath,
   sanitizeFileName,
@@ -16,6 +17,7 @@ import { AppError } from "../middleware/errorHandler.js";
 import { checkEmployeeAccess } from "../utils/permissionUtils.js";
 import { buildFileProxyUrl } from "../services/fileDownloadTokenService.js";
 import EmployeeStatusService from "../services/employeeStatusService.js";
+import { decryptFileBuffer } from "../services/fileEncryptionService.js";
 import {
   AUDIT_EVENT_TYPES,
   logAuditEvent,
@@ -41,6 +43,16 @@ const fetchEmployeeWithMappings = async (employeeId) => {
     ],
   });
 };
+
+const sanitizeZipEntryName = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "_")
+    .replace(/\s+/g, " ")
+    .replace(/\.\.+/g, "_")
+    .replace(/^\.+/, "")
+    .slice(0, 160)
+    .trim() || "Без_названия";
 
 /**
  * Загрузка файлов для сотрудника
@@ -365,6 +377,89 @@ export const getEmployeeFiles = async (req, res, next) => {
       success: true,
       data: files,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Скачать все файлы сотрудника одним ZIP-архивом
+ */
+export const downloadEmployeeFilesZip = async (req, res, next) => {
+  try {
+    const { employeeId } = req.params;
+
+    const employee = await fetchEmployeeWithMappings(employeeId);
+    if (!employee) {
+      throw new AppError("Сотрудник не найден", 404);
+    }
+
+    await checkEmployeeAccess(req.user, employee);
+
+    const files = await File.findAll({
+      where: {
+        entityType: "employee",
+        entityId: employeeId,
+        isDeleted: false,
+      },
+      order: [["createdAt", "DESC"]],
+    });
+
+    if (!files.length) {
+      throw new AppError("Нет файлов для выгрузки", 400);
+    }
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", (error) => {
+      if (!res.headersSent) {
+        next(error);
+      }
+    });
+
+    const fileName = `employee_files_${new Date().toISOString().split("T")[0]}.zip`;
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    archive.pipe(res);
+
+    const usedNames = new Map();
+
+    for (const file of files) {
+      try {
+        const sourceBuffer = await storageProvider.getFileBuffer(file.filePath);
+        const fileBuffer = file.isEncrypted
+          ? decryptFileBuffer(sourceBuffer, {
+              encryptionAlgorithm: file.encryptionAlgorithm,
+              encryptionKeyVersion: file.encryptionKeyVersion,
+              encryptionIv: file.encryptionIv,
+              encryptionTag: file.encryptionTag,
+              documentType: file.documentType,
+            })
+          : sourceBuffer;
+
+        const baseName = sanitizeZipEntryName(
+          file.fileName || file.originalName || file.fileKey || `${file.id}.bin`,
+        );
+
+        const existingCount = usedNames.get(baseName) || 0;
+        let entryName = baseName;
+        if (existingCount > 0) {
+          const dotIndex = baseName.lastIndexOf(".");
+          if (dotIndex > 0) {
+            entryName = `${baseName.slice(0, dotIndex)} (${existingCount + 1})${baseName.slice(dotIndex)}`;
+          } else {
+            entryName = `${baseName} (${existingCount + 1})`;
+          }
+        }
+        usedNames.set(baseName, existingCount + 1);
+
+        archive.append(fileBuffer, { name: entryName });
+      } catch (error) {
+        console.error(`Error adding file ${file.id} to zip:`, error.message);
+      }
+    }
+
+    await archive.finalize();
   } catch (error) {
     next(error);
   }
