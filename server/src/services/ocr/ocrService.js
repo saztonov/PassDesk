@@ -35,6 +35,7 @@ const DEFAULT_PROMPTS = {
   patent:
     "Распознай патент на работу на фото (включая сложные условия съемки). " +
     "Если это оборотная сторона и виден номер бланка вида 2 буквы + 7 цифр, верни его в поле blankNumber и НЕ записывай его в patentNumber. " +
+    "Для blankNumber префикс используй на кириллице: ориентируйся на формат ПР + 7 цифр. Если распозналось ПП, но это номер бланка, исправь на ПР. Не используй латиницу. " +
     NAME_CASE_INSTRUCTION +
     DATE_FORMAT_INSTRUCTION +
     "Верни строго JSON без markdown и пояснений. Поля: patentNumber, issueDate, expiryDate, surname, givenNames, middleName, birthDate, nationality, blankNumber.",
