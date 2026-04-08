@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { App, Col, Row, Spin, List, Space, Tag } from "antd";
+import { App, Col, Row, Spin, List, Space, Tag, Alert } from "antd";
 import { FileViewer } from "../../shared/ui/FileViewer";
 import { employeeService } from "../../services/employeeService";
 import DocumentTypeUploaderItem from "@/modules/employees/ui/DocumentTypeUploaderItem";
@@ -103,6 +103,9 @@ const DocumentTypeUploader = ({
     loadingDocumentTypes: false,
   });
   const [uploadQueue, setUploadQueue] = useState([]);
+  const [lastQueueNotice, setLastQueueNotice] = useState(null);
+  const lastCompletedCountRef = useRef(0);
+  const lastQueueLengthRef = useRef(0);
   const [uiState, setUiState] = useState({
     viewerVisible: false,
     viewingFile: null,
@@ -231,6 +234,17 @@ const DocumentTypeUploader = ({
     [profileDocumentTypes],
   );
 
+  const getQueuedCountForType = useCallback(
+    (documentTypeValue) =>
+      uploadQueue.filter(
+        (item) =>
+          item.documentType === documentTypeValue &&
+          item.status !== "completed" &&
+          item.status !== "done",
+      ).length,
+    [uploadQueue],
+  );
+
   const handleOpenSample = useCallback((docType) => {
     setUiState((prev) => ({
       ...prev,
@@ -249,10 +263,21 @@ const DocumentTypeUploader = ({
       );
       const queueItems = Array.isArray(response?.data) ? response.data : [];
       setUploadQueue(queueItems);
+      const completedCount = queueItems.filter(
+        (item) => item.status === "completed" || item.status === "done",
+      ).length;
+      if (completedCount > lastCompletedCountRef.current) {
+        lastCompletedCountRef.current = completedCount;
+        await fetchAllFiles(effectiveEmployeeId, { force: true });
+      }
+      if (lastQueueLengthRef.current > 0 && queueItems.length === 0) {
+        await fetchAllFiles(effectiveEmployeeId, { force: true });
+      }
+      lastQueueLengthRef.current = queueItems.length;
     } catch (error) {
       console.error("Failed to load upload queue:", error);
     }
-  }, [effectiveEmployeeId]);
+  }, [effectiveEmployeeId, fetchAllFiles]);
 
   useEffect(() => {
     fetchUploadQueue();
@@ -297,7 +322,21 @@ const DocumentTypeUploader = ({
 
     uploadingRef.current.add(uploadKey);
 
-    try {
+    const optimisticItems = fileList.map((fileObj, index) => {
+      const actualFile = fileObj.originFileObj || fileObj;
+      return {
+        id: `local-${Date.now()}-${index}`,
+        fileName: actualFile?.name || "Файл",
+        documentType,
+        status: "queued",
+        attempts: 0,
+        error: null,
+      };
+    });
+    setUploadQueue((prev) => [...optimisticItems, ...prev]);
+
+    const runQueueRequest = async () => {
+      try {
       const formData = new FormData();
       for (const fileObj of fileList) {
         const actualFile = fileObj.originFileObj || fileObj;
@@ -318,17 +357,47 @@ const DocumentTypeUploader = ({
       const queuedItems = Array.isArray(queued?.data) ? queued.data : [];
       if (queuedItems.length > 0) {
         setUploadQueue(queuedItems);
+      } else {
+        await fetchUploadQueue();
       }
+
+      const label = getDocumentTypeLabel(documentType);
+      setLastQueueNotice({
+        type: "success",
+        text: `В очередь: ${label} • ${fileList.length}`,
+        ts: Date.now(),
+      });
+      message.success(`В очередь: ${label} • ${fileList.length}`);
 
       return true;
     } catch (error) {
       console.error(`Error enqueue ${documentType}:`, error);
+      setUploadQueue((prev) =>
+        prev.filter((item) => !item.id?.startsWith("local-")),
+      );
+      setLastQueueNotice({
+        type: "error",
+        text:
+          error?.response?.data?.message ||
+          "Ошибка очереди загрузки",
+        ts: Date.now(),
+      });
       message.error(error?.response?.data?.message || "Ошибка очереди загрузки");
       return false;
     } finally {
       uploadingRef.current.delete(uploadKey);
     }
+    };
+
+    void runQueueRequest();
+    return true;
   };
+
+  useEffect(() => {
+    if (!lastQueueNotice) return;
+    const timer = setTimeout(() => setLastQueueNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [lastQueueNotice]);
 
   const handleDeleteFile = async (fileId) => {
     if (!effectiveEmployeeId) {
@@ -461,6 +530,7 @@ const DocumentTypeUploader = ({
                 onRerunOcr={onRerunOcr}
                 ocrProcessingMap={ocrProcessingMap}
                 compact={compact}
+                queuedCount={getQueuedCountForType(docType.value)}
               />
             ))}
           </div>
@@ -547,6 +617,15 @@ const DocumentTypeUploader = ({
           )}
         </div>
       ) : null}
+
+      {lastQueueNotice && (
+        <Alert
+          type={lastQueueNotice.type}
+          message={lastQueueNotice.text}
+          showIcon
+          style={{ marginBottom: 12 }}
+        />
+      )}
 
       {uploadQueue.length > 0 && (
         <div

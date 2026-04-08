@@ -126,6 +126,7 @@ const DocumentTypeUploaderItem = ({
   onRerunOcr,
   ocrProcessingMap,
   compact = false,
+  queuedCount = 0,
 }) => {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [pendingFileList, setPendingFileList] = useState([]);
@@ -196,6 +197,19 @@ const DocumentTypeUploaderItem = ({
                 onClick={() => onOpenSample(docType)}
               />
             </Tooltip>
+            {queuedCount > 0 && (
+              <Tooltip title="Файлы в очереди загрузки">
+                <span
+                  style={{
+                    marginRight: 6,
+                    color: "#1677ff",
+                    fontWeight: 600,
+                  }}
+                >
+                  +{queuedCount}
+                </span>
+              </Tooltip>
+            )}
             <span className="document-uploader-count">{countNode}</span>
           </div>
         </div>
