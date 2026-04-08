@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { App, Col, Row, Spin, Typography } from "antd";
+import { App, Col, Row, Spin, Typography, List, Space, Tag } from "antd";
 
 const { Text } = Typography;
 import { FileViewer } from "../../shared/ui/FileViewer";
@@ -104,6 +104,7 @@ const DocumentTypeUploader = ({
     documentTypes: DEFAULT_DOCUMENT_TYPES,
     loadingDocumentTypes: false,
   });
+  const [uploadQueue, setUploadQueue] = useState([]);
   const [uiState, setUiState] = useState({
     viewerVisible: false,
     viewingFile: null,
@@ -113,6 +114,8 @@ const DocumentTypeUploader = ({
   const [resolvedEmployeeId, setResolvedEmployeeId] = useState(null);
   const uploadingRef = useRef(new Set());
   const ensureEmployeeIdPromiseRef = useRef(null);
+  const queueRef = useRef([]);
+  const processingRef = useRef(false);
   const effectiveEmployeeId = employeeId || resolvedEmployeeId;
   const { uploadingTypes, allFiles, documentTypes, loadingDocumentTypes } =
     dataState;
@@ -122,6 +125,10 @@ const DocumentTypeUploader = ({
     sampleModalVisible,
     selectedSampleDocType,
   } = uiState;
+
+  useEffect(() => {
+    queueRef.current = uploadQueue;
+  }, [uploadQueue]);
   const profileDocumentTypes = useMemo(
     () =>
       applyDocumentTypeProfile({
@@ -238,6 +245,127 @@ const DocumentTypeUploader = ({
     }));
   }, []);
 
+  const enqueueUploads = useCallback((fileList, documentType, targetEmployeeId) => {
+    const now = Date.now();
+    const queueItems = fileList.map((fileObj, index) => {
+      const actualFile = fileObj.originFileObj || fileObj;
+      return {
+        id: `${now}-${index}-${actualFile?.name || "file"}`,
+        employeeId: targetEmployeeId,
+        documentType,
+        file: actualFile,
+        status: "queued",
+        attempts: 0,
+        error: null,
+      };
+    });
+
+    setUploadQueue((prev) => [...prev, ...queueItems]);
+  }, []);
+
+  const updateQueueItem = useCallback((id, patch) => {
+    setUploadQueue((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
+  }, []);
+
+  const processQueue = useCallback(async () => {
+    if (processingRef.current) {
+      return;
+    }
+    processingRef.current = true;
+    const maxRetries = 2;
+
+    try {
+      while (true) {
+        const nextItem = queueRef.current.find(
+          (item) => item.status === "queued",
+        );
+        if (!nextItem) {
+          break;
+        }
+
+        updateQueueItem(nextItem.id, { status: "uploading", error: null });
+        setDataState((prev) => ({
+          ...prev,
+          uploadingTypes: {
+            ...prev.uploadingTypes,
+            [nextItem.documentType]: true,
+          },
+        }));
+
+        try {
+          const formData = new FormData();
+          const fileToUpload = await prepareFileForUpload({
+            file: nextItem.file,
+            documentType: nextItem.documentType,
+            messageApi: message,
+          });
+          formData.append("files", fileToUpload);
+          formData.append("documentType", nextItem.documentType);
+
+          const uploadResult = await employeeService.uploadFiles(
+            nextItem.employeeId,
+            formData,
+          );
+
+          const uploadedFiles = Array.isArray(uploadResult?.data)
+            ? uploadResult.data
+            : [];
+          if (typeof onUploadComplete === "function" && uploadedFiles.length > 0) {
+            for (const uploadedFile of uploadedFiles) {
+              await onUploadComplete({
+                file: uploadedFile,
+                employeeId: nextItem.employeeId,
+                fileDocumentType: nextItem.documentType,
+              });
+            }
+          }
+
+          updateQueueItem(nextItem.id, { status: "done" });
+          await fetchAllFiles(nextItem.employeeId, { force: true });
+          if (onFilesUpdated) {
+            onFilesUpdated();
+          }
+        } catch (error) {
+          const errorMessage =
+            error?.response?.data?.message || "Ошибка загрузки файла";
+          const attempts = nextItem.attempts + 1;
+          if (attempts <= maxRetries) {
+            updateQueueItem(nextItem.id, {
+              status: "queued",
+              attempts,
+              error: errorMessage,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 800));
+          } else {
+            updateQueueItem(nextItem.id, {
+              status: "error",
+              attempts,
+              error: errorMessage,
+            });
+          }
+        } finally {
+          setDataState((prev) => ({
+            ...prev,
+            uploadingTypes: {
+              ...prev.uploadingTypes,
+              [nextItem.documentType]: false,
+            },
+          }));
+        }
+      }
+    } finally {
+      processingRef.current = false;
+    }
+  }, [fetchAllFiles, message, onFilesUpdated, onUploadComplete, updateQueueItem]);
+
+  useEffect(() => {
+    if (uploadQueue.some((item) => item.status === "queued")) {
+      void processQueue();
+    }
+  }, [processQueue, uploadQueue]);
+
   const handleUploadSubmit = async (fileList, documentType) => {
     if (!Array.isArray(fileList) || fileList.length === 0) {
       return false;
@@ -260,60 +388,9 @@ const DocumentTypeUploader = ({
     }
 
     uploadingRef.current.add(uploadKey);
-    setDataState((prev) => ({
-      ...prev,
-      uploadingTypes: { ...prev.uploadingTypes, [documentType]: true },
-    }));
-
-    try {
-      const formData = new FormData();
-      for (const fileObj of fileList) {
-        const actualFile = fileObj.originFileObj || fileObj;
-        const fileToUpload = await prepareFileForUpload({
-          file: actualFile,
-          documentType,
-          messageApi: message,
-        });
-        formData.append("files", fileToUpload);
-      }
-      formData.append("documentType", documentType);
-
-      const uploadResult = await employeeService.uploadFiles(
-        currentEmployeeId,
-        formData,
-      );
-      message.success(`${getDocumentTypeLabel(documentType)} загружен(ы)`);
-
-      const uploadedFiles = Array.isArray(uploadResult?.data)
-        ? uploadResult.data
-        : [];
-      if (typeof onUploadComplete === "function" && uploadedFiles.length > 0) {
-        for (const uploadedFile of uploadedFiles) {
-          await onUploadComplete({
-            file: uploadedFile,
-            employeeId: currentEmployeeId,
-            fileDocumentType: documentType,
-          });
-        }
-      }
-
-      await fetchAllFiles(currentEmployeeId, { force: true });
-
-      if (onFilesUpdated) {
-        onFilesUpdated();
-      }
-      return true;
-    } catch (error) {
-      console.error(`Error uploading ${documentType}:`, error);
-      message.error(error?.response?.data?.message || "Ошибка загрузки файла");
-      return false;
-    } finally {
-      setDataState((prev) => ({
-        ...prev,
-        uploadingTypes: { ...prev.uploadingTypes, [documentType]: false },
-      }));
-      uploadingRef.current.delete(uploadKey);
-    }
+    enqueueUploads(fileList, documentType, currentEmployeeId);
+    uploadingRef.current.delete(uploadKey);
+    return true;
   };
 
   const handleDeleteFile = async (fileId) => {
@@ -455,6 +532,22 @@ const DocumentTypeUploader = ({
     </Row>
   );
 
+  const renderQueueStatus = (item) => {
+    if (item.status === "uploading") {
+      return <Tag color="blue">Загрузка…</Tag>;
+    }
+    if (item.status === "done") {
+      return <Tag color="green">Готово</Tag>;
+    }
+    if (item.status === "error") {
+      return <Tag color="red">Ошибка</Tag>;
+    }
+    if (item.attempts > 0) {
+      return <Tag color="orange">Повтор {item.attempts}</Tag>;
+    }
+    return <Tag>В очереди</Tag>;
+  };
+
   if (viewerMode === "inline") {
     const closeViewer = () =>
       setUiState((prev) => ({ ...prev, viewingFile: null, viewerVisible: false }));
@@ -517,6 +610,45 @@ const DocumentTypeUploader = ({
           )}
         </div>
       ) : null}
+
+      {uploadQueue.length > 0 && (
+        <div
+          style={{
+            marginBottom: 16,
+            border: "1px solid #f0f0f0",
+            borderRadius: 8,
+            padding: 12,
+            background: "#fafafa",
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>
+            Очередь загрузки
+          </div>
+          <List
+            size="small"
+            dataSource={uploadQueue}
+            renderItem={(item) => (
+              <List.Item>
+                <Space direction="vertical" size={2} style={{ width: "100%" }}>
+                  <Space style={{ width: "100%", justifyContent: "space-between" }}>
+                    <span>{item.file?.name || "Файл"}</span>
+                    {renderQueueStatus(item)}
+                  </Space>
+                  <Space style={{ color: "#8c8c8c", fontSize: 12 }}>
+                    <span>{getDocumentTypeLabel(item.documentType)}</span>
+                    {item.error && (
+                      <>
+                        <span>•</span>
+                        <span style={{ color: "#cf1322" }}>{item.error}</span>
+                      </>
+                    )}
+                  </Space>
+                </Space>
+              </List.Item>
+            )}
+          />
+        </div>
+      )}
 
       {documentTypeList}
 
