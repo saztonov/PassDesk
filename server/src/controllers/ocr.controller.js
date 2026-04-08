@@ -13,6 +13,8 @@ import {
   detectDocumentScan,
   normalizeDocumentType,
   recognizeDocument,
+  getOcrPromptsState,
+  saveOcrPromptsState,
 } from "../services/ocr/ocrService.js";
 import {
   applyEmployeeOcrConflict,
@@ -505,6 +507,36 @@ export const applyOcrConflict = async (req, res, next) => {
       return next(new AppError(uniqueMessage, 409));
     }
 
+    next(error);
+  }
+};
+
+export const getOcrPrompts = async (_req, res, next) => {
+  try {
+    const state = await getOcrPromptsState();
+    return res.json({
+      success: true,
+      data: state,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateOcrPrompts = async (req, res, next) => {
+  try {
+    const prompts = req.body?.prompts;
+    if (!prompts || typeof prompts !== "object") {
+      throw new AppError("prompts должен быть объектом", 400);
+    }
+
+    const saved = await saveOcrPromptsState(prompts);
+    return res.json({
+      success: true,
+      message: "OCR промпты сохранены",
+      data: saved,
+    });
+  } catch (error) {
     next(error);
   }
 };

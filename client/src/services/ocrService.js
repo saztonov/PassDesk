@@ -153,6 +153,16 @@ export const ocrService = {
     const response = await api.post(`/ocr/conflicts/${id}/apply`);
     return response.data;
   },
+
+  getPrompts: async () => {
+    const response = await api.get("/ocr/prompts");
+    return response.data;
+  },
+
+  updatePrompts: async (prompts) => {
+    const response = await api.put("/ocr/prompts", { prompts });
+    return response.data;
+  },
 };
 
 export default ocrService;

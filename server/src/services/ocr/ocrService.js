@@ -1,4 +1,6 @@
 import axios from "axios";
+import fs from "fs/promises";
+import path from "path";
 import { AppError } from "../../middleware/errorHandler.js";
 
 const DEFAULT_OPENROUTER_ENDPOINT =
@@ -100,6 +102,87 @@ const DEFAULT_PROMPTS = {
     "Верни строго JSON без markdown и пояснений. Поля: registrationAddress, locality, street, house, apartment, phone.",
 };
 
+export const PROMPT_KEYS = [
+  "passport_rf",
+  "foreign_passport",
+  "patent",
+  "kig",
+  "kig_back",
+  "inn",
+  "snils",
+  "bank_details",
+  "visa",
+  "insurance_policy",
+  "registration_amina",
+];
+
+export const FALLBACK_PROMPT_KEYS = ["fallback_inn", "fallback_snils"];
+
+const DEFAULT_PROMPTS_FILE = path.resolve(
+  process.cwd(),
+  "server/config/ocr-prompts.json",
+);
+
+const getPromptsFilePath = () => {
+  const customPath = String(process.env.OCR_PROMPTS_FILE || "").trim();
+  if (customPath) {
+    return path.isAbsolute(customPath)
+      ? customPath
+      : path.resolve(process.cwd(), customPath);
+  }
+  return DEFAULT_PROMPTS_FILE;
+};
+
+const loadPromptsFromFile = async () => {
+  const filePath = getPromptsFilePath();
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+};
+
+export const getOcrPromptsState = async () => {
+  const filePath = getPromptsFilePath();
+  const filePrompts = await loadPromptsFromFile();
+  const prompts = {};
+
+  for (const key of PROMPT_KEYS) {
+    prompts[key] = String(filePrompts?.[key] || DEFAULT_PROMPTS[key] || "");
+  }
+  prompts.scan = String(filePrompts?.scan || DEFAULT_SCAN_PROMPT || "");
+  for (const key of FALLBACK_PROMPT_KEYS) {
+    prompts[key] = String(filePrompts?.[key] || "");
+  }
+
+  return { filePath, prompts, overrides: filePrompts };
+};
+
+export const saveOcrPromptsState = async (nextPrompts = {}) => {
+  const filePath = getPromptsFilePath();
+  const payload = {};
+  const source = nextPrompts && typeof nextPrompts === "object" ? nextPrompts : {};
+
+  for (const key of PROMPT_KEYS) {
+    if (key in source) {
+      payload[key] = String(source[key] || "");
+    }
+  }
+  if ("scan" in source) {
+    payload.scan = String(source.scan || "");
+  }
+  for (const key of FALLBACK_PROMPT_KEYS) {
+    if (key in source) {
+      payload[key] = String(source[key] || "");
+    }
+  }
+
+  await fs.writeFile(filePath, JSON.stringify(payload, null, 2), "utf8");
+  return { filePath, prompts: payload };
+};
+
 const DEFAULT_SCAN_PROMPT =
   "На фото документ, снятый камерой телефона. " +
   "Найди внешний контур основного документа в центре кадра и верни строго JSON без markdown. " +
@@ -120,12 +203,24 @@ const FALLBACK_IDENTIFIER_PROMPTS = {
     "Если видны ФИО и дата рождения, тоже верни их в JSON.",
 };
 
-const resolveScanPromptByDocumentType = (documentType) => {
+const getFallbackPrompt = async (documentType) => {
+  const filePrompts = await loadPromptsFromFile();
+  const filePrompt = String(filePrompts?.[`fallback_${documentType}`] || "").trim();
+  if (filePrompt) {
+    return filePrompt;
+  }
+  return FALLBACK_IDENTIFIER_PROMPTS[documentType];
+};
+
+const resolveScanPromptByDocumentType = async (documentType) => {
   const normalizedDocumentType = normalizeDocumentType(documentType);
+  const filePrompts = await loadPromptsFromFile();
+  const filePrompt = String(filePrompts?.scan || "").trim();
+  const basePrompt = filePrompt || DEFAULT_SCAN_PROMPT;
 
   if (normalizedDocumentType === "passport_rf") {
     return (
-      `${DEFAULT_SCAN_PROMPT} ` +
+      `${basePrompt} ` +
       "Это разворот паспорта РФ. Найди именно внешний контур всего раскрытого паспорта целиком, а не отдельной страницы, фото, печати или текстового блока. " +
       "Даже если паспорт слегка изогнут по сгибу, ориентируйся по внешней границе раскрытого документа. " +
       "Если видна обложка или темная кайма, включай ее в границы документа."
@@ -134,20 +229,23 @@ const resolveScanPromptByDocumentType = (documentType) => {
 
   if (normalizedDocumentType === "foreign_passport") {
     return (
-      `${DEFAULT_SCAN_PROMPT} ` +
+      `${basePrompt} ` +
       "Это паспортный документ. Ищи внешний контур всего документа, а не внутренней страницы или MRZ-зоны."
     );
   }
 
-  return `${DEFAULT_SCAN_PROMPT} Тип документа: ${normalizedDocumentType || "generic_document"}.`;
+  return `${basePrompt} Тип документа: ${normalizedDocumentType || "generic_document"}.`;
 };
 
-const resolveCloseUpScanPromptByDocumentType = (documentType) => {
+const resolveCloseUpScanPromptByDocumentType = async (documentType) => {
   const normalizedDocumentType = normalizeDocumentType(documentType);
+  const filePrompts = await loadPromptsFromFile();
+  const filePrompt = String(filePrompts?.scan || "").trim();
+  const basePrompt = filePrompt || DEFAULT_SCAN_PROMPT;
 
   if (normalizedDocumentType === "passport_rf") {
     return (
-      `${DEFAULT_SCAN_PROMPT} ` +
+      `${basePrompt} ` +
       "Это крупный кадр разворота паспорта РФ. Документ может занимать почти весь кадр, вплотную подходить к краям изображения и частично выходить за центральную рамку интерфейса. " +
       "Все равно верни внешний контур всего раскрытого паспорта целиком, если видны его реальные внешние границы. " +
       "Не выбирай только одну страницу, фото, печать, текстовый блок или внутреннюю светлую область страницы. " +
@@ -158,14 +256,14 @@ const resolveCloseUpScanPromptByDocumentType = (documentType) => {
 
   if (normalizedDocumentType === "foreign_passport") {
     return (
-      `${DEFAULT_SCAN_PROMPT} ` +
+      `${basePrompt} ` +
       "Это крупный кадр паспортного документа. Документ может занимать почти весь кадр. " +
       "Верни внешний контур всего документа, даже если он расположен очень близко к краям изображения."
     );
   }
 
   return (
-    `${DEFAULT_SCAN_PROMPT} ` +
+    `${basePrompt} ` +
     `Тип документа: ${normalizedDocumentType || "generic_document"}. ` +
     "Документ может быть снят крупным планом и занимать большую часть кадра. Если внешняя граница видна, верни ее."
   );
@@ -1344,7 +1442,10 @@ const getScanModels = ({ model, config }) => {
   return [...new Set(orderedCandidates)];
 };
 
-const resolvePromptByDocumentType = (documentType, promptOverride = "") => {
+const resolvePromptByDocumentType = async (
+  documentType,
+  promptOverride = "",
+) => {
   const normalizedOverride = String(promptOverride || "").trim();
   if (normalizedOverride) {
     return normalizedOverride;
@@ -1365,6 +1466,12 @@ const resolvePromptByDocumentType = (documentType, promptOverride = "") => {
   const envPrompt = String(envPromptMap[documentType] || "").trim();
   if (envPrompt) {
     return envPrompt;
+  }
+
+  const filePrompts = await loadPromptsFromFile();
+  const filePrompt = String(filePrompts?.[documentType] || "").trim();
+  if (filePrompt) {
+    return filePrompt;
   }
 
   return DEFAULT_PROMPTS[documentType] || DEFAULT_PROMPTS.passport_rf;
@@ -1606,7 +1713,7 @@ export const recognizeDocument = async ({
 
   const config = getOcrConfig();
   const selectedModel = String(model || "").trim() || config.defaultModel;
-  const selectedPrompt = resolvePromptByDocumentType(
+  const selectedPrompt = await resolvePromptByDocumentType(
     normalizedDocumentType,
     prompt,
   );
@@ -1707,7 +1814,7 @@ export const recognizeDocument = async ({
     let fallbackRaw = null;
 
     if (shouldRunIdentifierFallback(normalizedDocumentType, normalized)) {
-      const fallbackPrompt = FALLBACK_IDENTIFIER_PROMPTS[normalizedDocumentType];
+      const fallbackPrompt = await getFallbackPrompt(normalizedDocumentType);
 
       if (fallbackPrompt) {
         try {
@@ -1810,20 +1917,23 @@ export const detectDocumentScan = async ({
   const scanModels = getScanModels({ model, config });
   const normalizedDocumentType = normalizeDocumentType(documentType);
   const customPrompt = String(prompt || "").trim();
+  const baseScanPrompt =
+    customPrompt || (await resolveScanPromptByDocumentType(normalizedDocumentType));
+  const closeUpScanPrompt =
+    customPrompt ||
+    (await resolveCloseUpScanPromptByDocumentType(normalizedDocumentType));
+
   const attempts = [
     {
       label: "default",
       model: scanModels[0] || config.defaultModel,
-      prompt:
-        customPrompt || resolveScanPromptByDocumentType(normalizedDocumentType),
+      prompt: baseScanPrompt,
       enforceJson: true,
     },
     {
       label: "close-up",
       model: scanModels[0] || config.defaultModel,
-      prompt:
-        customPrompt ||
-        resolveCloseUpScanPromptByDocumentType(normalizedDocumentType),
+      prompt: closeUpScanPrompt,
       enforceJson: false,
     },
   ];
@@ -1832,9 +1942,7 @@ export const detectDocumentScan = async ({
     attempts.push({
       label: `fallback-${fallbackScanModel}`,
       model: fallbackScanModel,
-      prompt:
-        customPrompt ||
-        resolveCloseUpScanPromptByDocumentType(normalizedDocumentType),
+      prompt: closeUpScanPrompt,
       enforceJson: false,
     });
   }

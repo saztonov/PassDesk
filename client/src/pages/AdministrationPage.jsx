@@ -20,6 +20,7 @@ import TrashPage from "./TrashPage";
 import DocumentSamplesPage from "./DocumentSamplesPage";
 import AuditLogsPage from "./AuditLogsPage";
 import OcrConflictsAdminSection from "@/components/Admin/OcrConflictsAdminSection";
+import OcrPromptsAdminSection from "@/components/Admin/OcrPromptsAdminSection";
 import { useAuthStore } from "@/store/authStore";
 
 const { Title } = Typography;
@@ -43,10 +44,15 @@ const AdministrationPage = () => {
     "trash",
     "document-samples",
     "ocr-conflicts",
+    "ocr-prompts",
     "settings",
   ];
   const managerDesktopTabKeys = adminDesktopTabKeys.filter(
-    (key) => key !== "document-samples" && key !== "settings" && key !== "users",
+    (key) =>
+      key !== "document-samples" &&
+      key !== "settings" &&
+      key !== "users" &&
+      key !== "ocr-prompts",
   );
   const validDesktopTabKeys = isManager
     ? managerDesktopTabKeys
@@ -97,6 +103,11 @@ const AdministrationPage = () => {
       key: "ocr-conflicts",
       label: renderTabLabel(WarningOutlined, "OCR расхождения"),
       children: <OcrConflictsAdminSection />,
+    },
+    {
+      key: "ocr-prompts",
+      label: renderTabLabel(WarningOutlined, "OCR промпты"),
+      children: <OcrPromptsAdminSection />,
     },
     ...(!isManager
       ? [

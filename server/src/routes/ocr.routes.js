@@ -10,10 +10,12 @@ import { validate } from "../middleware/validator.js";
 import {
   applyOcrConflict,
   confirmRecognizedDocument,
+  getOcrPrompts,
   getEmployeeConflictsSummary,
   getOcrConflictsList,
   recognizeDocumentFromImage,
   scanDocumentImage,
+  updateOcrPrompts,
   resolveOcrConflict,
 } from "../controllers/ocr.controller.js";
 
@@ -50,6 +52,9 @@ router.post(
   conflictIdParamValidation,
   applyOcrConflict,
 );
+
+router.get("/prompts", authorize("admin"), getOcrPrompts);
+router.put("/prompts", authorize("admin"), updateOcrPrompts);
 
 router.post(
   "/scan",
