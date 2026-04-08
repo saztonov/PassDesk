@@ -403,6 +403,25 @@ router.post(
   cleanupUploadedTempFiles,
   employeeFileController.uploadEmployeeFiles,
 );
+router.post(
+  "/:employeeId/files/queue",
+  employeeIdParamValidation,
+  uploadRateLimiter,
+  upload.array("files", MAX_FILES_PER_REQUEST),
+  validateUploadedFiles,
+  fixFilenameEncoding,
+  (req, _res, next) => {
+    req.skipUploadCleanup = true;
+    next();
+  },
+  cleanupUploadedTempFiles,
+  employeeFileController.enqueueEmployeeFiles,
+);
+router.get(
+  "/:employeeId/files/queue",
+  employeeIdParamValidation,
+  employeeFileController.getEmployeeUploadQueue,
+);
 router.get(
   "/:employeeId/files",
   employeeIdParamValidation,

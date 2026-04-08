@@ -12,6 +12,7 @@ import routes from "./routes/index.js";
 import { attachTranslator } from "./middleware/i18n.js";
 import { startTelegramBot } from "./telegram/bot.js";
 import { startSkudWorkers } from "./queues/skud/queue.js";
+import { startUploadWorkers } from "./queues/employeeUploads/queue.js";
 import { isSkudEnabled, skudConfig } from "./services/skud/skudConfig.js";
 import { runSkudEventsPull } from "./controllers/skud.controller.js";
 
@@ -274,6 +275,14 @@ const startServer = async () => {
         process.once("SIGINT", stopSkudEventsPull);
         process.once("SIGTERM", stopSkudEventsPull);
       }
+
+      startUploadWorkers()
+        .then(() => {
+          console.log("✅ Upload queue workers started");
+        })
+        .catch((error) => {
+          console.error("❌ Upload workers startup failed:", error.message);
+        });
     });
   } catch (error) {
     console.error("❌ Unable to start server:", error);

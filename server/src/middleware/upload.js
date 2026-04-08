@@ -286,6 +286,9 @@ export const validateUploadedFiles = async (req, _res, next) => {
 };
 
 export const cleanupUploadedTempFiles = (req, res, next) => {
+  if (req.skipUploadCleanup) {
+    return next();
+  }
   const files = getUploadedFiles(req);
   if (files.length === 0) {
     return next();

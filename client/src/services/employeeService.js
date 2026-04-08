@@ -112,6 +112,24 @@ export const employeeService = {
     return response.data;
   },
 
+  enqueueFiles: async (employeeId, formData) => {
+    const response = await api.post(
+      `/employees/${employeeId}/files/queue`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      },
+    );
+    return response.data;
+  },
+
+  getUploadQueue: async (employeeId) => {
+    const response = await api.get(`/employees/${employeeId}/files/queue`);
+    return response.data;
+  },
+
   // Получить файлы сотрудника
   getFiles: async (employeeId, { force = false } = {}) => {
     if (force) {

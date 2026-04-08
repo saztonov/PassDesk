@@ -22,6 +22,10 @@ import {
   AUDIT_EVENT_TYPES,
   logAuditEvent,
 } from "../services/auditEventService.js";
+import {
+  enqueueEmployeeFileUpload,
+  listEmployeeUploadQueue,
+} from "../queues/employeeUploads/queue.js";
 
 /**
  * Helper: Загрузить сотрудника с маппингами для проверки прав
@@ -333,6 +337,144 @@ export const uploadEmployeeFiles = async (req, res, next) => {
     });
   } catch (error) {
     console.error("❌ Upload error:", error.message);
+    next(error);
+  }
+};
+
+export const enqueueEmployeeFiles = async (req, res, next) => {
+  try {
+    const { employeeId } = req.params;
+    const { documentType } = req.body;
+    const maxFilesPerEmployee =
+      parseInt(process.env.MAX_FILES_PER_EMPLOYEE) || 50;
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Файлы не предоставлены",
+      });
+    }
+
+    if (!req.user || !req.user.id) {
+      throw new AppError("Пользователь не аутентифицирован", 401);
+    }
+
+    const validDocumentTypes = [
+      "passport",
+      "passport_translation",
+      "inn_document",
+      "patent_front",
+      "patent_back",
+      "visa",
+      "consent",
+      "biometric_consent",
+      "biometric_consent_developer",
+      "bank_details",
+      "snils_card",
+      "kig",
+      "diploma",
+      "migration_card",
+      "arrival_notice",
+      "patent_payment_receipt",
+      "insurance_policy",
+      "memo_approval",
+      "employment_history_stdr",
+      "registration_amina",
+      "military_id",
+      "other",
+    ];
+    if (documentType && !validDocumentTypes.includes(documentType)) {
+      throw new AppError(
+        `Неверный тип документа. Допустимые значения: ${validDocumentTypes.join(", ")}`,
+        400,
+      );
+    }
+
+    const employee = await fetchEmployeeWithMappings(employeeId);
+    if (!employee) {
+      throw new AppError("Сотрудник не найден", 404);
+    }
+
+    await checkEmployeeAccess(req.user, employee);
+
+    const mapping = employee.employeeCounterpartyMappings?.[0];
+    if (!mapping || !mapping.counterparty) {
+      throw new AppError(
+        "У сотрудника не указан контрагент (нарушение целостности данных)",
+        400,
+      );
+    }
+
+    if (req.user.role === "user") {
+      const existingFilesCount = await File.count({
+        where: {
+          entityType: "employee",
+          entityId: employeeId,
+          isDeleted: false,
+        },
+      });
+      const newFilesCount = req.files.length;
+      const totalFiles = existingFilesCount + newFilesCount;
+
+      if (totalFiles > maxFilesPerEmployee) {
+        throw new AppError(
+          `Превышен лимит файлов. Максимум ${maxFilesPerEmployee} файлов. У вас уже ${existingFilesCount} файлов.`,
+          400,
+        );
+      }
+    }
+
+    req.skipUploadCleanup = true;
+
+    const jobs = [];
+    for (const file of req.files) {
+      const job = await enqueueEmployeeFileUpload({
+        employeeId,
+        documentType,
+        userId: req.user.id,
+        userRole: req.user.role,
+        tempPath: file.path,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        fileSize: file.size,
+      });
+      if (job) {
+        jobs.push({
+          id: String(job.id),
+          fileName: file.originalname,
+          documentType: documentType || null,
+          status: "queued",
+          attempts: 0,
+          error: null,
+        });
+      }
+    }
+
+    res.status(202).json({
+      success: true,
+      message: `Файлы отправлены в очередь: ${jobs.length}`,
+      data: jobs,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getEmployeeUploadQueue = async (req, res, next) => {
+  try {
+    const { employeeId } = req.params;
+    const employee = await fetchEmployeeWithMappings(employeeId);
+    if (!employee) {
+      throw new AppError("Сотрудник не найден", 404);
+    }
+    await checkEmployeeAccess(req.user, employee);
+
+    const queueItems = await listEmployeeUploadQueue(employeeId);
+    res.json({
+      success: true,
+      data: queueItems,
+    });
+  } catch (error) {
     next(error);
   }
 };
