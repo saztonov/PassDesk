@@ -42,7 +42,7 @@ const PROMPT_KEYS = [
 const OcrPromptsAdminSection = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [filePath, setFilePath] = useState("");
+  const [storageInfo, setStorageInfo] = useState(null);
   const [prompts, setPrompts] = useState({});
 
   const orderedKeys = useMemo(() => PROMPT_KEYS, []);
@@ -52,11 +52,16 @@ const OcrPromptsAdminSection = () => {
     try {
       const response = await ocrService.getPrompts();
       const data = response?.data;
-      setFilePath(String(data?.filePath || ""));
+      setStorageInfo({
+        storage: data?.storage || "settings",
+        settingKey: data?.settingKey || "ocr_prompts",
+        updatedAt: data?.updatedAt || null,
+      });
       setPrompts(data?.prompts || {});
     } catch (error) {
       message.error("Не удалось загрузить OCR промпты");
       setPrompts({});
+      setStorageInfo(null);
     } finally {
       setLoading(false);
     }
@@ -93,8 +98,11 @@ const OcrPromptsAdminSection = () => {
           <Text type="secondary">
             Изменения применяются сразу после сохранения.
           </Text>
-          {filePath ? (
-            <Text type="secondary">Файл: {filePath}</Text>
+          {storageInfo ? (
+            <Text type="secondary">
+              Хранилище: {storageInfo.storage} • ключ: {storageInfo.settingKey}
+              {storageInfo.updatedAt ? ` • обновлено: ${storageInfo.updatedAt}` : ""}
+            </Text>
           ) : null}
         </Space>
       </Card>

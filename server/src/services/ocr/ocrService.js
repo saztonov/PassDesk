@@ -1,7 +1,6 @@
 import axios from "axios";
-import fs from "fs/promises";
-import path from "path";
 import { AppError } from "../../middleware/errorHandler.js";
+import { Setting } from "../../models/index.js";
 
 const DEFAULT_OPENROUTER_ENDPOINT =
   "https://openrouter.ai/api/v1/chat/completions";
@@ -118,25 +117,14 @@ export const PROMPT_KEYS = [
 
 export const FALLBACK_PROMPT_KEYS = ["fallback_inn", "fallback_snils"];
 
-const DEFAULT_PROMPTS_FILE = path.resolve(
-  process.cwd(),
-  "config/ocr-prompts.json",
-);
+const PROMPTS_SETTING_KEY = "ocr_prompts";
 
-const getPromptsFilePath = () => {
-  const customPath = String(process.env.OCR_PROMPTS_FILE || "").trim();
-  if (customPath) {
-    return path.isAbsolute(customPath)
-      ? customPath
-      : path.resolve(process.cwd(), customPath);
-  }
-  return DEFAULT_PROMPTS_FILE;
-};
-
-const loadPromptsFromFile = async () => {
-  const filePath = getPromptsFilePath();
+const loadPromptsFromSettings = async () => {
   try {
-    const raw = await fs.readFile(filePath, "utf8");
+    const raw = await Setting.getSetting(PROMPTS_SETTING_KEY);
+    if (!raw) {
+      return {};
+    }
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch (error) {
@@ -145,23 +133,43 @@ const loadPromptsFromFile = async () => {
 };
 
 export const getOcrPromptsState = async () => {
-  const filePath = getPromptsFilePath();
-  const filePrompts = await loadPromptsFromFile();
+  let overrides = {};
+  let updatedAt = null;
+  const setting = await Setting.findOne({ where: { key: PROMPTS_SETTING_KEY } });
+  if (setting?.value) {
+    try {
+      const parsed = JSON.parse(setting.value);
+      if (parsed && typeof parsed === "object") {
+        overrides = parsed;
+      }
+    } catch {
+      overrides = {};
+    }
+  }
+  if (setting?.updatedAt) {
+    updatedAt = setting.updatedAt.toISOString();
+  }
+
   const prompts = {};
 
   for (const key of PROMPT_KEYS) {
-    prompts[key] = String(filePrompts?.[key] || DEFAULT_PROMPTS[key] || "");
+    prompts[key] = String(overrides?.[key] || DEFAULT_PROMPTS[key] || "");
   }
-  prompts.scan = String(filePrompts?.scan || DEFAULT_SCAN_PROMPT || "");
+  prompts.scan = String(overrides?.scan || DEFAULT_SCAN_PROMPT || "");
   for (const key of FALLBACK_PROMPT_KEYS) {
-    prompts[key] = String(filePrompts?.[key] || "");
+    prompts[key] = String(overrides?.[key] || "");
   }
 
-  return { filePath, prompts, overrides: filePrompts };
+  return {
+    storage: "settings",
+    settingKey: PROMPTS_SETTING_KEY,
+    updatedAt,
+    prompts,
+    overrides,
+  };
 };
 
 export const saveOcrPromptsState = async (nextPrompts = {}) => {
-  const filePath = getPromptsFilePath();
   const payload = {};
   const source = nextPrompts && typeof nextPrompts === "object" ? nextPrompts : {};
 
@@ -179,8 +187,18 @@ export const saveOcrPromptsState = async (nextPrompts = {}) => {
     }
   }
 
-  await fs.writeFile(filePath, JSON.stringify(payload, null, 2), "utf8");
-  return { filePath, prompts: payload };
+  await Setting.setSetting(
+    PROMPTS_SETTING_KEY,
+    JSON.stringify(payload),
+    "OCR prompts overrides",
+  );
+  const setting = await Setting.findOne({ where: { key: PROMPTS_SETTING_KEY } });
+  return {
+    storage: "settings",
+    settingKey: PROMPTS_SETTING_KEY,
+    prompts: payload,
+    updatedAt: setting?.updatedAt?.toISOString?.() || null,
+  };
 };
 
 const DEFAULT_SCAN_PROMPT =
@@ -204,8 +222,8 @@ const FALLBACK_IDENTIFIER_PROMPTS = {
 };
 
 const getFallbackPrompt = async (documentType) => {
-  const filePrompts = await loadPromptsFromFile();
-  const filePrompt = String(filePrompts?.[`fallback_${documentType}`] || "").trim();
+  const overrides = await loadPromptsFromSettings();
+  const filePrompt = String(overrides?.[`fallback_${documentType}`] || "").trim();
   if (filePrompt) {
     return filePrompt;
   }
@@ -214,8 +232,8 @@ const getFallbackPrompt = async (documentType) => {
 
 const resolveScanPromptByDocumentType = async (documentType) => {
   const normalizedDocumentType = normalizeDocumentType(documentType);
-  const filePrompts = await loadPromptsFromFile();
-  const filePrompt = String(filePrompts?.scan || "").trim();
+  const overrides = await loadPromptsFromSettings();
+  const filePrompt = String(overrides?.scan || "").trim();
   const basePrompt = filePrompt || DEFAULT_SCAN_PROMPT;
 
   if (normalizedDocumentType === "passport_rf") {
@@ -239,8 +257,8 @@ const resolveScanPromptByDocumentType = async (documentType) => {
 
 const resolveCloseUpScanPromptByDocumentType = async (documentType) => {
   const normalizedDocumentType = normalizeDocumentType(documentType);
-  const filePrompts = await loadPromptsFromFile();
-  const filePrompt = String(filePrompts?.scan || "").trim();
+  const overrides = await loadPromptsFromSettings();
+  const filePrompt = String(overrides?.scan || "").trim();
   const basePrompt = filePrompt || DEFAULT_SCAN_PROMPT;
 
   if (normalizedDocumentType === "passport_rf") {
@@ -1468,8 +1486,8 @@ const resolvePromptByDocumentType = async (
     return envPrompt;
   }
 
-  const filePrompts = await loadPromptsFromFile();
-  const filePrompt = String(filePrompts?.[documentType] || "").trim();
+  const overrides = await loadPromptsFromSettings();
+  const filePrompt = String(overrides?.[documentType] || "").trim();
   if (filePrompt) {
     return filePrompt;
   }
