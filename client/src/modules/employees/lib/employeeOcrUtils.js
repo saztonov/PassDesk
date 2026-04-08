@@ -498,6 +498,27 @@ export const resolveOcrDocumentTypeByFile = (
 export const isAutoOcrSupportedFileType = (fileDocumentType) =>
   Boolean(resolveOcrDocumentTypeByFile(fileDocumentType, "russian"));
 
+export const isPassportMainPageNormalized = (normalized = {}) => {
+  if (!normalized || typeof normalized !== "object") {
+    return false;
+  }
+
+  const lastName = normalizeString(normalized.lastName);
+  const firstName = normalizeString(normalized.firstName);
+  const series = toDigits(normalized.passportSeries, 4);
+  const number = toDigits(normalized.passportNumber, 6);
+  const combined = toDigits(
+    `${normalized.passportSeries || ""}${normalized.passportNumber || ""}`,
+    10,
+  );
+  const hasPassportNumber =
+    (series && series.length === 4 && number && number.length === 6) ||
+    (combined && combined.length === 10);
+  const hasFio = Boolean(lastName && firstName);
+
+  return hasPassportNumber && hasFio;
+};
+
 export const buildFormPatchFromOcr = ({
   normalized = {},
   citizenships = [],

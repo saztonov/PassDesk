@@ -6,6 +6,7 @@ import {
   normalizeString,
   resolveCitizenshipIdByOcrCode,
   resolveOcrDocumentTypeByFile,
+  isPassportMainPageNormalized,
 } from "@/modules/employees/lib/employeeOcrUtils";
 
 const toResponseData = (response) => response?.data || response || {};
@@ -199,11 +200,26 @@ export const useEmployeeOcrHandlers = ({
           return;
         }
 
-        const formPatch = buildFormPatchFromOcr({
+        const isPassportMainPage =
+          docType === "passport" &&
+          effectiveOcrDocumentType === "passport_rf" &&
+          isPassportMainPageNormalized(normalized);
+
+        let formPatch = buildFormPatchFromOcr({
           normalized,
           citizenships,
           dateOutputMode,
         });
+
+        if (
+          docType === "passport" &&
+          effectiveOcrDocumentType === "passport_rf" &&
+          !isPassportMainPage
+        ) {
+          formPatch = formPatch.registrationAddress
+            ? { registrationAddress: formPatch.registrationAddress }
+            : {};
+        }
 
         if (effectiveOcrDocumentType === "foreign_passport") {
           formPatch.passportType = "foreign";
@@ -230,8 +246,18 @@ export const useEmployeeOcrHandlers = ({
         console.log("[OCR] formPatch:", formPatch);
 
         if (Object.keys(formPatch).length === 0) {
-          messageApi?.warning?.("Не удалось извлечь данные для автозаполнения");
-          return;
+          if (
+            docType === "passport" &&
+            effectiveOcrDocumentType === "passport_rf" &&
+            !isPassportMainPage
+          ) {
+            messageApi?.warning?.(
+              "Похоже, это не основная страница паспорта. Автозаполнение и расхождения пропущены.",
+            );
+          } else {
+            messageApi?.warning?.("Не удалось извлечь данные для автозаполнения");
+            return;
+          }
         }
 
         const currentValues = form.getFieldsValue(true);
