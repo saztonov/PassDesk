@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Upload,
   Button,
@@ -10,6 +10,7 @@ import {
   Modal,
   Select,
   Form,
+  Tag,
 } from "antd";
 import {
   UploadOutlined,
@@ -90,6 +91,20 @@ const EmployeeFileUpload = ({
     viewingFile,
   } = state;
   const [form] = Form.useForm();
+  const [uploadQueue, setUploadQueue] = useState([]);
+  const queueRef = useRef([]);
+  const processingRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    queueRef.current = uploadQueue;
+  }, [uploadQueue]);
 
   const fetchFiles = useCallback(async () => {
     setState((prev) => ({ ...prev, loading: true }));
@@ -134,12 +149,95 @@ const EmployeeFileUpload = ({
   };
 
   // Загрузка файлов с типом документа
+  const enqueueUploads = useCallback((filesToUpload, documentType) => {
+    const now = Date.now();
+    const queueItems = filesToUpload.map((fileObj, index) => {
+      const actualFile = fileObj.originFileObj || fileObj;
+      return {
+        id: `${now}-${index}-${actualFile?.name || "file"}`,
+        file: actualFile,
+        documentType,
+        status: "queued",
+        attempts: 0,
+        error: null,
+      };
+    });
+
+    setUploadQueue((prev) => [...prev, ...queueItems]);
+  }, []);
+
+  const updateQueueItem = useCallback((id, patch) => {
+    setUploadQueue((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
+  }, []);
+
+  const processQueue = useCallback(async () => {
+    if (processingRef.current) {
+      return;
+    }
+    processingRef.current = true;
+
+    const maxRetries = 2;
+
+    try {
+      while (true) {
+        const nextItem = queueRef.current.find(
+          (item) => item.status === "queued",
+        );
+        if (!nextItem) {
+          break;
+        }
+
+        updateQueueItem(nextItem.id, {
+          status: "uploading",
+          error: null,
+        });
+
+        const formData = new FormData();
+        formData.append("files", nextItem.file);
+        formData.append("documentType", nextItem.documentType);
+
+        try {
+          await employeeService.uploadFiles(employeeId, formData);
+          updateQueueItem(nextItem.id, { status: "done" });
+          await fetchFiles();
+        } catch (error) {
+          const errorMessage =
+            error?.response?.data?.message || "Ошибка загрузки файлов";
+          const attempts = nextItem.attempts + 1;
+          if (attempts <= maxRetries) {
+            updateQueueItem(nextItem.id, {
+              status: "queued",
+              attempts,
+              error: errorMessage,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 800));
+          } else {
+            updateQueueItem(nextItem.id, {
+              status: "error",
+              attempts,
+              error: errorMessage,
+            });
+          }
+        }
+      }
+    } finally {
+      processingRef.current = false;
+    }
+  }, [employeeId, fetchFiles, updateQueueItem, uploadQueue]);
+
+  useEffect(() => {
+    if (uploadQueue.some((item) => item.status === "queued")) {
+      void processQueue();
+    }
+  }, [processQueue, uploadQueue]);
+
   const handleUploadWithDocumentType = async () => {
     try {
       const values = await form.validateFields();
       const documentType = values.documentType;
 
-      const formData = new FormData();
       const uploadMeta = selectedFiles.map((fileObj) => {
         const actualFile = fileObj.originFileObj || fileObj;
         return {
@@ -148,32 +246,23 @@ const EmployeeFileUpload = ({
           size: actualFile?.size,
         };
       });
-      selectedFiles.forEach((fileObj) => {
-        const actualFile = fileObj.originFileObj || fileObj;
-        formData.append("files", actualFile);
-      });
 
-      // Добавляем тип документа в formData
-      formData.append("documentType", documentType);
-
-      console.log("📤 Upload employee files", {
+      console.log("📤 Upload employee files queued", {
         employeeId,
         documentType,
         filesCount: selectedFiles.length,
         files: uploadMeta,
       });
 
-      setState((prev) => ({ ...prev, uploading: true }));
-      await employeeService.uploadFiles(employeeId, formData);
-      message.success("Файлы успешно загружены");
+      enqueueUploads(selectedFiles, documentType);
       setState((prev) => ({
         ...prev,
         fileList: [],
         selectedFiles: [],
         documentTypeModalVisible: false,
+        uploading: false,
       }));
       form.resetFields();
-      fetchFiles();
     } catch (error) {
       if (error.errorFields) {
         // Ошибка валидации формы
@@ -186,7 +275,9 @@ const EmployeeFileUpload = ({
       });
       message.error(error.response?.data?.message || "Ошибка загрузки файлов");
     } finally {
-      setState((prev) => ({ ...prev, uploading: false }));
+      if (isMountedRef.current) {
+        setState((prev) => ({ ...prev, uploading: false }));
+      }
     }
   };
 
@@ -302,6 +393,22 @@ const EmployeeFileUpload = ({
     return type ? type.label : "Не указан";
   };
 
+  const renderQueueStatus = (item) => {
+    if (item.status === "uploading") {
+      return <Tag color="blue">Загрузка…</Tag>;
+    }
+    if (item.status === "done") {
+      return <Tag color="green">Готово</Tag>;
+    }
+    if (item.status === "error") {
+      return <Tag color="red">Ошибка</Tag>;
+    }
+    if (item.attempts > 0) {
+      return <Tag color="orange">Повтор {item.attempts}</Tag>;
+    }
+    return <Tag>В очереди</Tag>;
+  };
+
   const uploadProps = {
     multiple: true,
     accept: ALLOWED_EXTENSIONS,
@@ -360,6 +467,46 @@ const EmployeeFileUpload = ({
             ✅ Поддерживаемые форматы: {SUPPORTED_FORMATS} (макс. 100 МБ)
           </div>
         </Space>
+      )}
+
+      {uploadQueue.length > 0 && (
+        <div
+          style={{
+            border: "1px solid #f0f0f0",
+            borderRadius: 8,
+            padding: 12,
+            background: "#fafafa",
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>
+            Очередь загрузки
+          </div>
+          <List
+            size="small"
+            dataSource={uploadQueue}
+            renderItem={(item) => (
+              <List.Item>
+                <Space direction="vertical" size={2} style={{ width: "100%" }}>
+                  <Space style={{ width: "100%", justifyContent: "space-between" }}>
+                    <span>{item.file?.name || "Файл"}</span>
+                    {renderQueueStatus(item)}
+                  </Space>
+                  <Space style={{ color: "#8c8c8c", fontSize: 12 }}>
+                    <span>{formatFileSize(item.file?.size || 0)}</span>
+                    <span>•</span>
+                    <span>{getDocumentTypeName(item.documentType)}</span>
+                    {item.error && (
+                      <>
+                        <span>•</span>
+                        <span style={{ color: "#cf1322" }}>{item.error}</span>
+                      </>
+                    )}
+                  </Space>
+                </Space>
+              </List.Item>
+            )}
+          />
+        </div>
       )}
 
       <List
