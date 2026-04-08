@@ -140,6 +140,14 @@ const EmployeeFileUpload = ({
       const documentType = values.documentType;
 
       const formData = new FormData();
+      const uploadMeta = selectedFiles.map((fileObj) => {
+        const actualFile = fileObj.originFileObj || fileObj;
+        return {
+          name: actualFile?.name,
+          type: actualFile?.type,
+          size: actualFile?.size,
+        };
+      });
       selectedFiles.forEach((fileObj) => {
         const actualFile = fileObj.originFileObj || fileObj;
         formData.append("files", actualFile);
@@ -147,6 +155,13 @@ const EmployeeFileUpload = ({
 
       // Добавляем тип документа в formData
       formData.append("documentType", documentType);
+
+      console.log("📤 Upload employee files", {
+        employeeId,
+        documentType,
+        filesCount: selectedFiles.length,
+        files: uploadMeta,
+      });
 
       setState((prev) => ({ ...prev, uploading: true }));
       await employeeService.uploadFiles(employeeId, formData);
@@ -165,6 +180,10 @@ const EmployeeFileUpload = ({
         return;
       }
       console.error("Error uploading files:", error);
+      console.error("Upload response:", {
+        status: error.response?.status,
+        data: error.response?.data,
+      });
       message.error(error.response?.data?.message || "Ошибка загрузки файлов");
     } finally {
       setState((prev) => ({ ...prev, uploading: false }));

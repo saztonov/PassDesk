@@ -107,6 +107,11 @@ export const errorHandler = (err, req, res, next) => {
   }
 
   if (err instanceof multer.MulterError || err?.name === "MulterError") {
+    console.error("Multer error:", {
+      code: err.code,
+      message: err.message,
+      path: req.originalUrl || req.url,
+    });
     let message = "Ошибка загрузки файла";
     if (err.code === "LIMIT_FILE_SIZE") {
       message = "Файл слишком большой";
