@@ -291,11 +291,11 @@ const Sidebar = () => {
           padding: collapsed ? 8 : 0,
           borderTop: "1px solid #f0f0f0",
           display: "flex",
-          flexDirection: collapsed ? "row" : "column",
+          flexDirection: "column",
           flexWrap: "nowrap",
           alignItems: "center",
-          justifyContent: "stretch",
-          gap: 0,
+          justifyContent: collapsed ? "center" : "stretch",
+          gap: collapsed ? 6 : 0,
         }}
       >
         <div
