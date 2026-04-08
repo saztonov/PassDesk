@@ -470,13 +470,13 @@ const DocumentTypeUploader = ({
   );
 
   const renderQueueStatus = (item) => {
-    if (item.status === "uploading") {
+    if (item.status === "uploading" || item.status === "active") {
       return <Tag color="blue">Загрузка…</Tag>;
     }
     if (item.status === "done" || item.status === "completed") {
       return <Tag color="green">Готово</Tag>;
     }
-    if (item.status === "error") {
+    if (item.status === "error" || item.status === "failed") {
       return <Tag color="red">Ошибка</Tag>;
     }
     if (item.attempts > 0) {
