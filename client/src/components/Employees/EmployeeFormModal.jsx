@@ -107,6 +107,7 @@ const EmployeeFormModal = ({
   const pageSplitContainerRef = useRef(null);
   const pageFormPanelRef = useRef(null);
   const [pageFormWidth, setPageFormWidth] = useState(0);
+  const closeConfirmOpenRef = useRef(false);
   const {
     conflictSummary,
     handleUploadedFileForOcr,
@@ -405,12 +406,17 @@ const EmployeeFormModal = ({
 
   // Обработчик закрытия модального окна
   const handleModalCancel = useCallback(async () => {
+    if (closeConfirmOpenRef.current) {
+      return;
+    }
+
     if (!shouldPromptDraftOnClose()) {
       await discardIfAutoCreated();
       onCancel();
       return;
     }
 
+    closeConfirmOpenRef.current = true;
     modal.confirm({
       title: "Сохранить введенные значения?",
       content:
@@ -422,12 +428,16 @@ const EmployeeFormModal = ({
       maskClosable: false,
       centered: true,
       onOk: async () => {
-        const savedDraft = await saveDraftBeforeClose();
-        if (!savedDraft?.id && !employee?.id) {
-          message.error("Не удалось сохранить черновик сотрудника");
-          throw new Error("close-aborted");
+        try {
+          const savedDraft = await saveDraftBeforeClose();
+          if (!savedDraft?.id && !employee?.id) {
+            message.error("Не удалось сохранить черновик сотрудника");
+            throw new Error("close-aborted");
+          }
+          onCancel({ skipDraftCleanup: true, preserveDraft: true });
+        } finally {
+          closeConfirmOpenRef.current = false;
         }
-        onCancel({ skipDraftCleanup: true, preserveDraft: true });
       },
       onCancel: async () => {
         try {
@@ -437,6 +447,8 @@ const EmployeeFormModal = ({
         } catch (error) {
           console.error("Failed to discard draft employee on close:", error);
           message.error("Не удалось удалить черновик сотрудника");
+        } finally {
+          closeConfirmOpenRef.current = false;
         }
       },
     });

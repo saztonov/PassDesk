@@ -678,6 +678,10 @@ const listStoredEmployeeOcrConflicts = async ({
         return true;
       }
 
+      if (!PASSPORT_DOCUMENT_TYPES.has(documentType)) {
+        return true;
+      }
+
       return !preferredFioFieldsByEmployee.get(employeeIdValue)?.has(row.fieldName);
     })
     .map((row) => ({

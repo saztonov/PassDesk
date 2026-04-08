@@ -56,6 +56,45 @@ export const useEmployeeFormSaveHandlers = ({
     });
   }, []);
 
+  const isValueEmpty = useCallback((value) => {
+    if (value === undefined || value === null) {
+      return true;
+    }
+
+    if (typeof value === "string") {
+      return value.trim().length === 0;
+    }
+
+    if (typeof value === "number" || typeof value === "boolean") {
+      return false;
+    }
+
+    if (Array.isArray(value)) {
+      return value.length === 0;
+    }
+
+    if (typeof value === "object") {
+      if (typeof value.isValid === "function") {
+        return !value.isValid();
+      }
+      return Object.keys(value).length === 0;
+    }
+
+    return false;
+  }, []);
+
+  const hasMeaningfulTouchedFields = useCallback(() => {
+    const touchedFields = getTouchedFieldNames();
+    if (touchedFields.length === 0) {
+      return false;
+    }
+
+    return touchedFields.some((fieldName) => {
+      const value = form.getFieldValue(fieldName);
+      return !isValueEmpty(value);
+    });
+  }, [form, getTouchedFieldNames, isValueEmpty]);
+
   useEffect(() => {
     const wasVisible = wasVisibleRef.current;
     wasVisibleRef.current = Boolean(visible);
@@ -299,13 +338,13 @@ export const useEmployeeFormSaveHandlers = ({
   }, []);
 
   const shouldPromptDraftOnClose = useCallback(() => {
+    const hasTouchedFields = hasMeaningfulTouchedFields();
     if (startedWithExistingEmployeeRef.current) {
-      return false;
+      return hasTouchedFields;
     }
 
-    const hasTouchedFields = getTouchedFieldNames().length > 0;
     return hasTouchedFields || Boolean(draftEmployeeIdRef.current);
-  }, [getTouchedFieldNames]);
+  }, [hasMeaningfulTouchedFields]);
 
   const saveDraftBeforeClose = useCallback(async () => {
     isExplicitlySavedRef.current = true;

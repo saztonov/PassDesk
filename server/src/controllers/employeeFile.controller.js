@@ -61,6 +61,8 @@ export const uploadEmployeeFiles = async (req, res, next) => {
   try {
     const { employeeId } = req.params;
     const { documentType } = req.body; // Получаем тип документа из тела запроса
+    const maxFilesPerEmployee =
+      parseInt(process.env.MAX_FILES_PER_EMPLOYEE) || 50;
 
     console.log("📤 Upload request:", {
       employeeId,
@@ -156,9 +158,9 @@ export const uploadEmployeeFiles = async (req, res, next) => {
       const newFilesCount = req.files.length;
       const totalFiles = existingFilesCount + newFilesCount;
 
-      if (totalFiles > 10) {
+      if (totalFiles > maxFilesPerEmployee) {
         throw new AppError(
-          `Превышен лимит файлов. Максимум 10 файлов. У вас уже ${existingFilesCount} файлов.`,
+          `Превышен лимит файлов. Максимум ${maxFilesPerEmployee} файлов. У вас уже ${existingFilesCount} файлов.`,
           400,
         );
       }

@@ -1,4 +1,5 @@
 import { UnauthorizedAccessLog } from "../models/index.js";
+import multer from "multer";
 
 const buildRequestDetails = (req) => {
   const body = req.body && typeof req.body === "object" ? req.body : null;
@@ -102,6 +103,20 @@ export const errorHandler = (err, req, res, next) => {
     return res.status(err.statusCode).json({
       success: false,
       message: err.message,
+    });
+  }
+
+  if (err instanceof multer.MulterError || err?.name === "MulterError") {
+    let message = "Ошибка загрузки файла";
+    if (err.code === "LIMIT_FILE_SIZE") {
+      message = "Файл слишком большой";
+    } else if (err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE") {
+      message = "Слишком много файлов в одном запросе";
+    }
+
+    return res.status(400).json({
+      success: false,
+      message,
     });
   }
 

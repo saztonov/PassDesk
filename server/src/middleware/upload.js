@@ -209,13 +209,16 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
+export const MAX_FILES_PER_REQUEST =
+  parseInt(process.env.MAX_FILES_PER_REQUEST) || 50;
+
 // Конфигурация multer
 const upload = multer({
   storage,
   fileFilter,
   limits: {
     fileSize: parseInt(process.env.MAX_FILE_SIZE) || 20 * 1024 * 1024, // 20MB default
-    files: parseInt(process.env.MAX_FILES_PER_REQUEST) || 10,
+    files: MAX_FILES_PER_REQUEST,
   },
 });
 

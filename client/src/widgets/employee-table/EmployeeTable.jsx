@@ -197,6 +197,7 @@ export const EmployeeTable = ({
   onMarkForDeletion,
   uniqueFilters,
   filterOptions,
+  externalFilters = {},
   onFiltersChange,
   onConstructionSitesEdit, // Новый prop для редактирования объектов
   resetTrigger, // Триггер для сброса фильтров
@@ -248,6 +249,7 @@ export const EmployeeTable = ({
   // При загрузке фильтров из localStorage передаем их на верхний уровень
   // Используем ref чтобы отследить первую загрузку
   const filtersInitializedRef = useRef(false);
+  const syncedExternalFiltersRef = useRef(null);
   useEffect(() => {
     // Передаем фильтры наверх когда они загружены из localStorage (при первом рендере после инициализации)
     if (
@@ -259,6 +261,21 @@ export const EmployeeTable = ({
       onFiltersChange(filters);
     }
   }, [filters, onFiltersChange]);
+
+  useEffect(() => {
+    const nextExternalFilters =
+      externalFilters && typeof externalFilters === "object"
+        ? externalFilters
+        : {};
+    const nextSignature = JSON.stringify(nextExternalFilters);
+
+    if (syncedExternalFiltersRef.current === nextSignature) {
+      return;
+    }
+
+    syncedExternalFiltersRef.current = nextSignature;
+    handleLocalFiltersChange(nextExternalFilters);
+  }, [externalFilters, handleLocalFiltersChange]);
 
   // Сбрасываем фильтры когда меняется resetTrigger
   useEffect(() => {

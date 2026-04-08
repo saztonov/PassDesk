@@ -6,6 +6,7 @@ import upload, {
   fixFilenameEncoding,
   validateUploadedFiles,
   cleanupUploadedTempFiles,
+  MAX_FILES_PER_REQUEST,
 } from "../middleware/upload.js";
 import rateLimit from "express-rate-limit";
 import * as employeeController from "../controllers/employee.controller.js";
@@ -396,7 +397,7 @@ router.post(
   "/:employeeId/files",
   employeeIdParamValidation,
   uploadRateLimiter,
-  upload.array("files", 10), // максимум 10 файлов за раз
+  upload.array("files", MAX_FILES_PER_REQUEST),
   validateUploadedFiles,
   fixFilenameEncoding,
   cleanupUploadedTempFiles,
