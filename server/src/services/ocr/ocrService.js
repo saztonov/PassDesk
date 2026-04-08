@@ -120,7 +120,7 @@ export const FALLBACK_PROMPT_KEYS = ["fallback_inn", "fallback_snils"];
 
 const DEFAULT_PROMPTS_FILE = path.resolve(
   process.cwd(),
-  "server/config/ocr-prompts.json",
+  "config/ocr-prompts.json",
 );
 
 const getPromptsFilePath = () => {
