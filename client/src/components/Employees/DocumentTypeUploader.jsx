@@ -270,10 +270,6 @@ const DocumentTypeUploader = ({
         lastCompletedCountRef.current = completedCount;
         await fetchAllFiles(effectiveEmployeeId, { force: true });
       }
-      if (lastQueueLengthRef.current > 0 && queueItems.length === 0) {
-        await fetchAllFiles(effectiveEmployeeId, { force: true });
-      }
-      lastQueueLengthRef.current = queueItems.length;
     } catch (error) {
       console.error("Failed to load upload queue:", error);
     }
@@ -298,6 +294,31 @@ const DocumentTypeUploader = ({
 
     return () => clearInterval(interval);
   }, [effectiveEmployeeId, fetchUploadQueue, uploadQueue.length]);
+
+  useEffect(() => {
+    if (!effectiveEmployeeId) {
+      return;
+    }
+    if (uploadQueue.length === 0) {
+      return;
+    }
+    const interval = setInterval(() => {
+      fetchAllFiles(effectiveEmployeeId, { force: true });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [effectiveEmployeeId, fetchAllFiles, uploadQueue.length]);
+
+  useEffect(() => {
+    if (!effectiveEmployeeId) {
+      return;
+    }
+    const previousLength = lastQueueLengthRef.current;
+    if (previousLength > 0 && uploadQueue.length === 0) {
+      fetchAllFiles(effectiveEmployeeId, { force: true });
+    }
+    lastQueueLengthRef.current = uploadQueue.length;
+  }, [effectiveEmployeeId, fetchAllFiles, uploadQueue.length]);
 
   const handleUploadSubmit = async (fileList, documentType) => {
     if (!Array.isArray(fileList) || fileList.length === 0) {
