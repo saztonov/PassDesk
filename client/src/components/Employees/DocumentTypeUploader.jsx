@@ -107,6 +107,10 @@ const DocumentTypeUploader = ({
   const lastCompletedCountRef = useRef(0);
   const lastQueueLengthRef = useRef(0);
   const [lastUploadByType, setLastUploadByType] = useState({});
+  const lastFilesCountRef = useRef({});
+  const [lastUploadEvents, setLastUploadEvents] = useState([]);
+  const seenFileIdsRef = useRef(new Set());
+  const initializedFilesRef = useRef(false);
   const [uiState, setUiState] = useState({
     viewerVisible: false,
     viewingFile: null,
@@ -322,39 +326,75 @@ const DocumentTypeUploader = ({
   }, [effectiveEmployeeId, fetchAllFiles, uploadQueue.length]);
 
   useEffect(() => {
-    if (!uploadQueue.length) {
-      setLastUploadByType((prev) => {
-        const next = { ...prev };
-        let changed = false;
-        for (const key of Object.keys(next)) {
-          if (next[key]?.status === "queued") {
-            next[key] = { ...next[key], status: "done" };
-            changed = true;
-          }
-        }
-        return changed ? next : prev;
-      });
-      return;
+    if (!initializedFilesRef.current) {
+      const initialIds = new Set();
+      for (const file of allFiles) {
+        if (file?.id) initialIds.add(file.id);
+      }
+      seenFileIdsRef.current = initialIds;
+      initializedFilesRef.current = true;
     }
+
+    const nextCounts = {};
+    for (const file of allFiles) {
+      if (!file?.documentType) continue;
+      nextCounts[file.documentType] = (nextCounts[file.documentType] || 0) + 1;
+    }
+
+    const prevCounts = lastFilesCountRef.current;
+    lastFilesCountRef.current = nextCounts;
 
     setLastUploadByType((prev) => {
       const next = { ...prev };
       let changed = false;
       for (const key of Object.keys(next)) {
-        const queuedCount = uploadQueue.filter(
-          (item) =>
-            item.documentType === key &&
-            item.status !== "completed" &&
-            item.status !== "done",
-        ).length;
-        if (queuedCount === 0 && next[key]?.status === "queued") {
-          next[key] = { ...next[key], status: "done" };
+        const prevCount = prevCounts?.[key] || 0;
+        const currentCount = nextCounts?.[key] || 0;
+        if (currentCount > prevCount && next[key]?.status === "queued") {
+          next[key] = {
+            ...next[key],
+            status: "done",
+            doneCount: currentCount - prevCount,
+          };
           changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [uploadQueue]);
+
+    if (Object.keys(prevCounts || {}).length > 0) {
+      const updatedEvents = [];
+      for (const file of allFiles) {
+        if (file?.id && seenFileIdsRef.current.has(file.id)) {
+          continue;
+        }
+        const docType = file?.documentType;
+        if (!docType) continue;
+        const prevCount = prevCounts?.[docType] || 0;
+        const currentCount = nextCounts?.[docType] || 0;
+        if (currentCount > prevCount) {
+          updatedEvents.push({
+            id: `done-${file.id}`,
+            documentType: docType,
+            fileName: file.fileName || file.originalName || "Файл",
+            status: "done",
+            ts: Date.now(),
+          });
+          if (file?.id) {
+            seenFileIdsRef.current.add(file.id);
+          }
+        }
+      }
+      if (updatedEvents.length > 0) {
+        setLastUploadEvents((prev) => [...updatedEvents, ...prev].slice(0, 10));
+        updatedEvents.forEach((event) => {
+          message.success(
+            `Загружен: ${getDocumentTypeLabel(event.documentType)} • ${event.fileName}`,
+          );
+        });
+      }
+    }
+  }, [allFiles]);
 
   const handleUploadSubmit = async (fileList, documentType) => {
     if (!Array.isArray(fileList) || fileList.length === 0) {
@@ -399,6 +439,16 @@ const DocumentTypeUploader = ({
         ts: Date.now(),
       },
     }));
+    setLastUploadEvents((prev) => [
+      ...fileList.map((fileObj) => ({
+        id: `queued-${Date.now()}-${fileObj.uid || fileObj.name}`,
+        documentType,
+        fileName: fileObj?.name || fileObj?.originFileObj?.name || "Файл",
+        status: "queued",
+        ts: Date.now(),
+      })),
+      ...prev,
+    ].slice(0, 10));
 
     const runQueueRequest = async () => {
       try {
@@ -691,6 +741,38 @@ const DocumentTypeUploader = ({
           showIcon
           style={{ marginBottom: 12 }}
         />
+      )}
+
+      {lastUploadEvents.length > 0 && (
+        <div
+          style={{
+            marginBottom: 16,
+            border: "1px dashed #d9d9d9",
+            borderRadius: 8,
+            padding: 12,
+            background: "#fff",
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>
+            История загрузки
+          </div>
+          <List
+            size="small"
+            dataSource={lastUploadEvents}
+            renderItem={(item) => (
+              <List.Item>
+                <Space style={{ width: "100%", justifyContent: "space-between" }}>
+                  <span>
+                    {getDocumentTypeLabel(item.documentType)} • {item.fileName}
+                  </span>
+                  <Tag color={item.status === "done" ? "green" : "blue"}>
+                    {item.status === "done" ? "Загружен" : "В очереди"}
+                  </Tag>
+                </Space>
+              </List.Item>
+            )}
+          />
+        </div>
       )}
 
       {uploadQueue.length > 0 && (
