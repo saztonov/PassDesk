@@ -30,6 +30,7 @@ export const useEmployeeFormSaveHandlers = ({
   const isAutoCreatedRef = useRef(false);
   const isExplicitlySavedRef = useRef(false);
   const explicitlyTouchedFieldsRef = useRef(new Set());
+  const baselineValuesRef = useRef(null);
 
   const getTouchedFieldNames = useCallback(() => {
     if (explicitlyTouchedFieldsRef.current.size > 0) {
@@ -56,32 +57,39 @@ export const useEmployeeFormSaveHandlers = ({
     });
   }, []);
 
-  const isValueEmpty = useCallback((value) => {
-    if (value === undefined || value === null) {
-      return true;
+  const normalizeForCompare = useCallback((value) => {
+    if (value === undefined) {
+      return "__undefined__";
     }
-
-    if (typeof value === "string") {
-      return value.trim().length === 0;
+    if (value === null) {
+      return null;
     }
-
-    if (typeof value === "number" || typeof value === "boolean") {
-      return false;
+    if (typeof value === "string" || typeof value === "number") {
+      return value;
     }
-
+    if (typeof value === "boolean") {
+      return value;
+    }
     if (Array.isArray(value)) {
-      return value.length === 0;
+      return value.map((item) => normalizeForCompare(item));
     }
-
+    if (typeof value?.isValid === "function") {
+      return value.isValid() ? value.valueOf() : null;
+    }
     if (typeof value === "object") {
-      if (typeof value.isValid === "function") {
-        return !value.isValid();
-      }
-      return Object.keys(value).length === 0;
+      const sortedKeys = Object.keys(value).sort();
+      const normalized = {};
+      sortedKeys.forEach((key) => {
+        normalized[key] = normalizeForCompare(value[key]);
+      });
+      return normalized;
     }
-
-    return false;
+    return value;
   }, []);
+
+  const markFormBaseline = useCallback(() => {
+    baselineValuesRef.current = form.getFieldsValue(true);
+  }, [form]);
 
   const hasMeaningfulTouchedFields = useCallback(() => {
     const touchedFields = getTouchedFieldNames();
@@ -90,10 +98,13 @@ export const useEmployeeFormSaveHandlers = ({
     }
 
     return touchedFields.some((fieldName) => {
-      const value = form.getFieldValue(fieldName);
-      return !isValueEmpty(value);
+      const currentValue = normalizeForCompare(form.getFieldValue(fieldName));
+      const baselineValue = normalizeForCompare(
+        baselineValuesRef.current?.[fieldName],
+      );
+      return JSON.stringify(currentValue) !== JSON.stringify(baselineValue);
     });
-  }, [form, getTouchedFieldNames, isValueEmpty]);
+  }, [form, getTouchedFieldNames, normalizeForCompare]);
 
   useEffect(() => {
     const wasVisible = wasVisibleRef.current;
@@ -107,6 +118,7 @@ export const useEmployeeFormSaveHandlers = ({
       isAutoCreatedRef.current = false;
       isExplicitlySavedRef.current = false;
       explicitlyTouchedFieldsRef.current = new Set();
+      baselineValuesRef.current = null;
       return;
     }
 
@@ -379,5 +391,6 @@ export const useEmployeeFormSaveHandlers = ({
     saveDraftBeforeClose,
     discardDraftOnClose,
     registerTouchedFields,
+    markFormBaseline,
   };
 };

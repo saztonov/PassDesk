@@ -363,6 +363,7 @@ const EmployeeFormModal = ({
     saveDraftBeforeClose,
     discardDraftOnClose,
     registerTouchedFields,
+    markFormBaseline,
   } = useEmployeeFormSaveHandlers({
     form,
     visible,
@@ -403,6 +404,13 @@ const EmployeeFormModal = ({
     filterCyrillicOnly,
     capitalizeFirstLetter,
   });
+
+  useEffect(() => {
+    if (!visible || !dataLoaded) {
+      return;
+    }
+    markFormBaseline();
+  }, [dataLoaded, markFormBaseline, visible]);
 
   // Обработчик закрытия модального окна
   const handleModalCancel = useCallback(async () => {
