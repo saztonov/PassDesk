@@ -106,6 +106,7 @@ const DocumentTypeUploader = ({
   const [lastQueueNotice, setLastQueueNotice] = useState(null);
   const lastCompletedCountRef = useRef(0);
   const lastQueueLengthRef = useRef(0);
+  const [lastUploadByType, setLastUploadByType] = useState({});
   const [uiState, setUiState] = useState({
     viewerVisible: false,
     viewingFile: null,
@@ -320,6 +321,41 @@ const DocumentTypeUploader = ({
     lastQueueLengthRef.current = uploadQueue.length;
   }, [effectiveEmployeeId, fetchAllFiles, uploadQueue.length]);
 
+  useEffect(() => {
+    if (!uploadQueue.length) {
+      setLastUploadByType((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const key of Object.keys(next)) {
+          if (next[key]?.status === "queued") {
+            next[key] = { ...next[key], status: "done" };
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+      return;
+    }
+
+    setLastUploadByType((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const key of Object.keys(next)) {
+        const queuedCount = uploadQueue.filter(
+          (item) =>
+            item.documentType === key &&
+            item.status !== "completed" &&
+            item.status !== "done",
+        ).length;
+        if (queuedCount === 0 && next[key]?.status === "queued") {
+          next[key] = { ...next[key], status: "done" };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [uploadQueue]);
+
   const handleUploadSubmit = async (fileList, documentType) => {
     if (!Array.isArray(fileList) || fileList.length === 0) {
       return false;
@@ -355,6 +391,14 @@ const DocumentTypeUploader = ({
       };
     });
     setUploadQueue((prev) => [...optimisticItems, ...prev]);
+    setLastUploadByType((prev) => ({
+      ...prev,
+      [documentType]: {
+        status: "queued",
+        count: fileList.length,
+        ts: Date.now(),
+      },
+    }));
 
     const runQueueRequest = async () => {
       try {
@@ -552,6 +596,7 @@ const DocumentTypeUploader = ({
                 ocrProcessingMap={ocrProcessingMap}
                 compact={compact}
                 queuedCount={getQueuedCountForType(docType.value)}
+                uploadHint={lastUploadByType[docType.value] || null}
               />
             ))}
           </div>

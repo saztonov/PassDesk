@@ -127,6 +127,7 @@ const DocumentTypeUploaderItem = ({
   ocrProcessingMap,
   compact = false,
   queuedCount = 0,
+  uploadHint = null,
 }) => {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [pendingFileList, setPendingFileList] = useState([]);
@@ -227,6 +228,13 @@ const DocumentTypeUploaderItem = ({
             >
               {uploading ? "Загруз." : "Загрузить"}
             </Button>
+            {uploadHint ? (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {uploadHint.status === "queued"
+                  ? `В очереди: ${uploadHint.count}`
+                  : `Загружено: ${uploadHint.count}`}
+              </Text>
+            ) : null}
           </div>
         ) : null}
       </div>
