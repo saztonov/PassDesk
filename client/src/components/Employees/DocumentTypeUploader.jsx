@@ -380,6 +380,13 @@ const DocumentTypeUploader = ({
             status: "done",
             ts: Date.now(),
           });
+          if (typeof onUploadComplete === "function") {
+            onUploadComplete({
+              file,
+              employeeId: effectiveEmployeeId,
+              fileDocumentType: docType,
+            });
+          }
           if (file?.id) {
             seenFileIdsRef.current.add(file.id);
           }
