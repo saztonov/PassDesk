@@ -228,11 +228,11 @@ const DocumentTypeUploaderItem = ({
             >
               {uploading ? "Загруз." : "Загрузить"}
             </Button>
-            {uploadHint ? (
+            {uploadHint && !compact ? (
               <Text type="secondary" style={{ fontSize: 12 }}>
                 {uploadHint.status === "queued"
                   ? `В очереди: ${uploadHint.count}`
-                  : `Загружено: ${uploadHint.count}`}
+                  : `Загружено: ${uploadHint.doneCount || uploadHint.count}`}
               </Text>
             ) : null}
           </div>
