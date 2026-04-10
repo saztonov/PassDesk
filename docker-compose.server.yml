@@ -18,17 +18,27 @@ services:
   redis:
     image: redis:7-alpine
     container_name: passdesk_redis
-    command: redis-server --save "" --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if [ -n "${REDIS_PASSWORD}" ]; then
+          exec redis-server --save "" --appendonly yes --requirepass "${REDIS_PASSWORD}"
+        else
+          exec redis-server --save "" --appendonly yes
+        fi
     restart: unless-stopped
     volumes:
       - redis_data:/data
     healthcheck:
       test:
-        - CMD
-        - redis-cli
-        - -a
-        - ${REDIS_PASSWORD:-}
-        - ping
+        - CMD-SHELL
+        - |
+          if [ -n "${REDIS_PASSWORD}" ]; then
+            redis-cli -a "${REDIS_PASSWORD}" ping
+          else
+            redis-cli ping
+          fi
       interval: 5s
       timeout: 3s
       retries: 10
