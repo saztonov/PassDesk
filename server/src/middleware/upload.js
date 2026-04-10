@@ -210,7 +210,7 @@ const fileFilter = (req, file, cb) => {
 };
 
 export const MAX_FILES_PER_REQUEST =
-  parseInt(process.env.MAX_FILES_PER_REQUEST) || 50;
+  parseInt(process.env.MAX_FILES_PER_REQUEST) || 100;
 
 // Конфигурация multer
 const upload = multer({

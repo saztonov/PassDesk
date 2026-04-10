@@ -20,7 +20,7 @@ import {
 
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 const MAX_GLOBAL_OCR_RESULT_KEYS = 1000;
-const MAX_QUEUE_BATCH_SIZE = 10;
+const MAX_QUEUE_BATCH_SIZE = 100;
 const seenOcrResultKeysByEmployee = new Map();
 
 const getSeenOcrResultKeysForEmployee = (employeeId) => {
