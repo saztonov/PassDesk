@@ -20,6 +20,7 @@ import {
 
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 const MAX_GLOBAL_OCR_RESULT_KEYS = 1000;
+const MAX_QUEUE_BATCH_SIZE = 10;
 const seenOcrResultKeysByEmployee = new Map();
 
 const getSeenOcrResultKeysForEmployee = (employeeId) => {
@@ -615,55 +616,70 @@ const DocumentTypeUploader = ({
 
     const runQueueRequest = async () => {
       try {
-      const formData = new FormData();
-      for (const fileObj of fileList) {
-        const actualFile = fileObj.originFileObj || fileObj;
-        const fileToUpload = await prepareFileForUpload({
-          file: actualFile,
-          documentType,
-          messageApi: message,
+        const preparedFiles = [];
+        for (const fileObj of fileList) {
+          const actualFile = fileObj.originFileObj || fileObj;
+          const fileToUpload = await prepareFileForUpload({
+            file: actualFile,
+            documentType,
+            messageApi: message,
+          });
+          preparedFiles.push(fileToUpload);
+        }
+
+        const queuedItems = [];
+        for (let start = 0; start < preparedFiles.length; start += MAX_QUEUE_BATCH_SIZE) {
+          const chunk = preparedFiles.slice(start, start + MAX_QUEUE_BATCH_SIZE);
+          const formData = new FormData();
+          for (const fileToUpload of chunk) {
+            formData.append("files", fileToUpload);
+          }
+          formData.append("documentType", documentType);
+
+          const queued = await employeeService.enqueueFiles(
+            currentEmployeeId,
+            formData,
+          );
+          if (Array.isArray(queued?.data)) {
+            queuedItems.push(...queued.data);
+          }
+        }
+
+        if (queuedItems.length > 0) {
+          setUploadQueue((prev) => [
+            ...queuedItems,
+            ...prev.filter((item) => !item.id?.startsWith("local-")),
+          ]);
+        } else {
+          await fetchUploadQueue();
+        }
+        await fetchOcrQueue();
+
+        const label = getDocumentTypeLabel(documentType);
+        setLastQueueNotice({
+          type: "success",
+          text: `В очередь: ${label} • ${fileList.length}`,
+          ts: Date.now(),
         });
-        formData.append("files", fileToUpload);
+        return true;
+      } catch (error) {
+        console.error(`Error enqueue ${documentType}:`, {
+          message: error?.message,
+          response: error?.response?.data,
+        });
+        setUploadQueue((prev) =>
+          prev.filter((item) => !item.id?.startsWith("local-")),
+        );
+        setLastQueueNotice({
+          type: "error",
+          text: error?.response?.data?.message || "Ошибка очереди загрузки",
+          ts: Date.now(),
+        });
+        message.error(error?.response?.data?.message || "Ошибка очереди загрузки");
+        return false;
+      } finally {
+        uploadingRef.current.delete(uploadKey);
       }
-      formData.append("documentType", documentType);
-
-      const queued = await employeeService.enqueueFiles(
-        currentEmployeeId,
-        formData,
-      );
-
-      const queuedItems = Array.isArray(queued?.data) ? queued.data : [];
-      if (queuedItems.length > 0) {
-        setUploadQueue(queuedItems);
-      } else {
-        await fetchUploadQueue();
-      }
-      await fetchOcrQueue();
-
-      const label = getDocumentTypeLabel(documentType);
-      setLastQueueNotice({
-        type: "success",
-        text: `В очередь: ${label} • ${fileList.length}`,
-        ts: Date.now(),
-      });
-      return true;
-    } catch (error) {
-      console.error(`Error enqueue ${documentType}:`, error);
-      setUploadQueue((prev) =>
-        prev.filter((item) => !item.id?.startsWith("local-")),
-      );
-      setLastQueueNotice({
-        type: "error",
-        text:
-          error?.response?.data?.message ||
-          "Ошибка очереди загрузки",
-        ts: Date.now(),
-      });
-      message.error(error?.response?.data?.message || "Ошибка очереди загрузки");
-      return false;
-    } finally {
-      uploadingRef.current.delete(uploadKey);
-    }
     };
 
     void runQueueRequest();

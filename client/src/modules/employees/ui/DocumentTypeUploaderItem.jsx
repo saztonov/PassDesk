@@ -173,6 +173,128 @@ const DocumentTypeUploaderItem = ({
     setPendingFileList(info.fileList);
   };
 
+  const actionsNode = !readonly ? (
+    <div className="document-uploader-actions">
+      <Button
+        size="small"
+        loading={uploading}
+        className="document-uploader-button"
+        disabled={uploadDisabled}
+        icon={compact ? <UploadOutlined /> : undefined}
+        block={compact}
+        onClick={openUploadModal}
+      >
+        {uploading ? "Загруз." : "Загрузить"}
+      </Button>
+      {uploadHint && !compact ? (
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {uploadHint.status === "queued"
+            ? `В очереди: ${uploadHint.count}`
+            : `Загружено: ${uploadHint.doneCount || uploadHint.count}`}
+        </Text>
+      ) : null}
+    </div>
+  ) : null;
+
+  const filesNode = filesOfType.length > 0 ? (
+    <div className="document-uploader-files">
+      <List
+        size="small"
+        dataSource={filesOfType}
+        renderItem={(file) => (
+          <List.Item
+            className={compact ? "document-uploader-file-item-compact" : ""}
+            onClick={() => onViewFile(file)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onViewFile(file);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            style={{ cursor: "pointer" }}
+          >
+            <List.Item.Meta
+              title={
+                <span
+                  style={{
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    textDecoration: "underline dotted",
+                    textUnderlineOffset: 2,
+                  }}
+                >
+                  {resolveDisplayName(file)}
+                </span>
+              }
+            />
+            <Space
+              size="small"
+              onClick={stopRowClick}
+              onMouseDown={stopRowInteraction}
+            >
+              <Button
+                type="text"
+                size="small"
+                icon={<EyeOutlined />}
+                onClick={(event) => {
+                  stopRowClick(event);
+                  onViewFile(file);
+                }}
+              />
+              <Button
+                type="text"
+                size="small"
+                icon={<DownloadOutlined />}
+                onClick={(event) => {
+                  stopRowClick(event);
+                  onDownloadFile(file);
+                }}
+              />
+              {!readonly && typeof onRerunOcr === "function" ? (
+                <Tooltip title="Запустить распознавание заново">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<ReloadOutlined />}
+                    loading={Boolean(ocrProcessingMap?.[file.id])}
+                    onClick={(event) => {
+                      stopRowClick(event);
+                      onRerunOcr(file);
+                    }}
+                  />
+                </Tooltip>
+              ) : null}
+              {!readonly ? (
+                <Popconfirm
+                  title="Удалить файл?"
+                  description="Вы уверены, что хотите удалить этот файл?"
+                  onConfirm={(event) => {
+                    stopRowInteraction(event);
+                    onDeleteFile(file.id);
+                  }}
+                  onCancel={stopRowInteraction}
+                  okText="Да"
+                  cancelText="Отмена"
+                >
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={stopRowClick}
+                    onMouseDown={stopRowInteraction}
+                  />
+                </Popconfirm>
+              ) : null}
+            </Space>
+          </List.Item>
+        )}
+      />
+    </div>
+  ) : null;
+
   return (
     <div
       className={`document-uploader-item${compact ? " document-uploader-item-compact" : ""}`}
@@ -215,128 +337,10 @@ const DocumentTypeUploaderItem = ({
           </div>
         </div>
 
-        {!readonly ? (
-          <div className="document-uploader-actions">
-            <Button
-              size="small"
-              loading={uploading}
-              className="document-uploader-button"
-              disabled={uploadDisabled}
-              icon={compact ? <UploadOutlined /> : undefined}
-              block={compact}
-              onClick={openUploadModal}
-            >
-              {uploading ? "Загруз." : "Загрузить"}
-            </Button>
-            {uploadHint && !compact ? (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {uploadHint.status === "queued"
-                  ? `В очереди: ${uploadHint.count}`
-                  : `Загружено: ${uploadHint.doneCount || uploadHint.count}`}
-              </Text>
-            ) : null}
-          </div>
-        ) : null}
       </div>
 
-      {filesOfType.length > 0 && (
-        <div className="document-uploader-files">
-          <List
-            size="small"
-            dataSource={filesOfType}
-            renderItem={(file) => (
-              <List.Item
-                className={compact ? "document-uploader-file-item-compact" : ""}
-                onClick={() => onViewFile(file)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onViewFile(file);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-                style={{ cursor: "pointer" }}
-              >
-                <List.Item.Meta
-                  title={
-                    <span
-                      style={{
-                        fontSize: "12px",
-                        cursor: "pointer",
-                        textDecoration: "underline dotted",
-                        textUnderlineOffset: 2,
-                      }}
-                    >
-                      {resolveDisplayName(file)}
-                    </span>
-                  }
-                />
-                <Space
-                  size="small"
-                  onClick={stopRowClick}
-                  onMouseDown={stopRowInteraction}
-                >
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<EyeOutlined />}
-                    onClick={(event) => {
-                      stopRowClick(event);
-                      onViewFile(file);
-                    }}
-                  />
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<DownloadOutlined />}
-                    onClick={(event) => {
-                      stopRowClick(event);
-                      onDownloadFile(file);
-                    }}
-                  />
-                  {!readonly && typeof onRerunOcr === "function" ? (
-                    <Tooltip title="Запустить распознавание заново">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<ReloadOutlined />}
-                        loading={Boolean(ocrProcessingMap?.[file.id])}
-                        onClick={(event) => {
-                          stopRowClick(event);
-                          onRerunOcr(file);
-                        }}
-                      />
-                    </Tooltip>
-                  ) : null}
-                  {!readonly ? (
-                    <Popconfirm
-                      title="Удалить файл?"
-                      description="Вы уверены, что хотите удалить этот файл?"
-                      onConfirm={(event) => {
-                        stopRowInteraction(event);
-                        onDeleteFile(file.id);
-                      }}
-                      onCancel={stopRowInteraction}
-                      okText="Да"
-                      cancelText="Отмена"
-                    >
-                      <Button
-                        type="text"
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={stopRowClick}
-                        onMouseDown={stopRowInteraction}
-                      />
-                    </Popconfirm>
-                  ) : null}
-                </Space>
-              </List.Item>
-            )}
-          />
-        </div>
-      )}
+      {filesNode}
+      {actionsNode}
 
       {!readonly ? (
         <Modal
