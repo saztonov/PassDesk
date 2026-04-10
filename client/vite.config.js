@@ -27,10 +27,31 @@ export default defineConfig(({ mode }) => {
   );
   const useHmrOverlay =
     String(env.VITE_HMR_OVERLAY ?? "true").toLowerCase() === "true";
-  const allowedHosts = (env.VITE_ALLOWED_HOSTS || "localhost,127.0.0.1")
-    .split(",")
-    .map((host) => host.trim())
-    .filter(Boolean);
+  const allowedHosts = new Set(
+    (env.VITE_ALLOWED_HOSTS || "localhost,127.0.0.1")
+      .split(",")
+      .map((host) => host.trim())
+      .filter(Boolean),
+  );
+
+  const addHostFromUrl = (urlValue) => {
+    const raw = String(urlValue || "").trim();
+    if (!raw) return;
+    try {
+      const parsed = new URL(raw);
+      if (parsed.hostname) {
+        allowedHosts.add(parsed.hostname);
+      }
+    } catch {
+      // Ignore invalid URL values from env.
+    }
+  };
+
+  addHostFromUrl(env.CLIENT_URL);
+  addHostFromUrl(env.SERVER_URL);
+  addHostFromUrl(env.VITE_CLIENT_URL);
+
+  const normalizedAllowedHosts = Array.from(allowedHosts);
 
   return {
     plugins: useHttps ? [react(), basicSsl()] : [react()],
@@ -48,7 +69,7 @@ export default defineConfig(({ mode }) => {
       port: devPort,
       host: devHost, // localhost для разработки, VPS использует production build
       https: useHttps, // Включить HTTPS с самоподписанным сертификатом (basicSsl плагин)
-      allowedHosts,
+      allowedHosts: normalizedAllowedHosts,
       watch: usePolling
         ? {
             usePolling: true,
@@ -70,7 +91,7 @@ export default defineConfig(({ mode }) => {
       port: devPort,
       host: devHost,
       https: useHttps,
-      allowedHosts,
+      allowedHosts: normalizedAllowedHosts,
     },
     build: {
       outDir: "dist",
