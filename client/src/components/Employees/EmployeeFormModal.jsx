@@ -434,14 +434,38 @@ const EmployeeFormModal = ({
     }
 
     closeConfirmOpenRef.current = true;
+    let closedByCross = false;
+    let closedByEscape = false;
+    const handleConfirmEscape = (event) => {
+      if (event.key === "Escape") {
+        closedByEscape = true;
+      }
+    };
+    document.addEventListener("keydown", handleConfirmEscape, true);
     modal.confirm({
       title: "Сохранить введенные значения?",
       content:
         "Да — сохранить черновик и продолжить позже. Нет — удалить черновик и временные файлы.",
       okText: "Да",
       cancelText: "Нет",
-      closable: false,
-      keyboard: false,
+      closable: true,
+      closeIcon: (
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            closedByCross = true;
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              closedByCross = true;
+            }
+          }}
+        >
+          ×
+        </span>
+      ),
+      keyboard: true,
       maskClosable: false,
       centered: true,
       onOk: async () => {
@@ -453,10 +477,16 @@ const EmployeeFormModal = ({
           }
           onCancel({ skipDraftCleanup: true, preserveDraft: true });
         } finally {
+          document.removeEventListener("keydown", handleConfirmEscape, true);
           closeConfirmOpenRef.current = false;
         }
       },
       onCancel: async () => {
+        if (closedByCross || closedByEscape) {
+          document.removeEventListener("keydown", handleConfirmEscape, true);
+          closeConfirmOpenRef.current = false;
+          return;
+        }
         try {
           await discardDraftOnClose();
           await discardIfAutoCreated();
@@ -465,6 +495,7 @@ const EmployeeFormModal = ({
           console.error("Failed to discard draft employee on close:", error);
           message.error("Не удалось удалить черновик сотрудника");
         } finally {
+          document.removeEventListener("keydown", handleConfirmEscape, true);
           closeConfirmOpenRef.current = false;
         }
       },

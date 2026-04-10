@@ -23,6 +23,7 @@ const EmployeeFilesModal = ({
   const [loading, setLoading] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewingFile, setViewingFile] = useState(null);
+  const [downloadingZip, setDownloadingZip] = useState(false);
 
   const fetchFiles = useCallback(
     async (silent = false) => {
@@ -146,10 +147,82 @@ const EmployeeFilesModal = ({
     }
   };
 
+  const getFileNameFromDisposition = (disposition) => {
+    if (!disposition || typeof disposition !== "string") {
+      return null;
+    }
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      return decodeURIComponent(utf8Match[1]).replace(/"/g, "");
+    }
+    const plainMatch = disposition.match(/filename="?([^";]+)"?/i);
+    return plainMatch?.[1] || null;
+  };
+
+  const handleDownloadAll = async () => {
+    if (!employeeId || downloadingZip) {
+      return;
+    }
+
+    try {
+      setDownloadingZip(true);
+      const response = await employeeService.downloadEmployeeFilesZip(employeeId);
+      const blob = response?.data;
+      if (!blob) {
+        return;
+      }
+
+      const disposition =
+        response?.headers?.["content-disposition"] ||
+        response?.headers?.["Content-Disposition"];
+      const extractedName = getFileNameFromDisposition(disposition);
+      const fallbackName = `employee_files_${employeeId}.zip`;
+      const fileName = extractedName || fallbackName;
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error downloading employee files zip:", error);
+    } finally {
+      setDownloadingZip(false);
+    }
+  };
+
   return (
     <>
       <Modal
-        title={`Файлы сотрудника: ${employeeName}`}
+        title={
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              paddingRight: 28,
+            }}
+          >
+            <span>{`Файлы сотрудника: ${employeeName}`}</span>
+            <Button
+              type="primary"
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={(event) => {
+                event.stopPropagation();
+                void handleDownloadAll();
+              }}
+              loading={downloadingZip}
+              disabled={!files.length}
+            >
+              Сохранить все
+            </Button>
+          </div>
+        }
         open={visible}
         onCancel={onClose}
         width={700}

@@ -40,6 +40,14 @@ export const useMobileEmployeeCancelConfirm = ({
       return;
     }
 
+    let closedByCross = false;
+    let closedByEscape = false;
+    const handleConfirmEscape = (event) => {
+      if (event.key === "Escape") {
+        closedByEscape = true;
+      }
+    };
+    document.addEventListener("keydown", handleConfirmEscape, true);
     modal.confirm({
       title: "Сохранить введенные значения?",
       icon: <ExclamationCircleOutlined />,
@@ -47,19 +55,47 @@ export const useMobileEmployeeCancelConfirm = ({
         "Да — сохранить черновик и продолжить позже. Нет — закрыть форму и удалить временный черновик.",
       okText: "Да",
       cancelText: "Нет",
-      closable: false,
-      keyboard: false,
+      closable: true,
+      closeIcon: (
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            closedByCross = true;
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              closedByCross = true;
+            }
+          }}
+        >
+          ×
+        </span>
+      ),
+      keyboard: true,
       maskClosable: false,
       onOk: async () => {
-        const savedDraft = await saveDraftBeforeClose?.();
-        if (!savedDraft?.id && shouldPromptDraftClose) {
-          throw new Error("close-aborted");
+        try {
+          const savedDraft = await saveDraftBeforeClose?.();
+          if (!savedDraft?.id && shouldPromptDraftClose) {
+            throw new Error("close-aborted");
+          }
+          onCancel({ skipDraftCleanup: true, preserveDraft: true });
+        } finally {
+          document.removeEventListener("keydown", handleConfirmEscape, true);
         }
-        onCancel({ skipDraftCleanup: true, preserveDraft: true });
       },
       onCancel: async () => {
-        await discardDraftOnClose?.();
-        onCancel({ skipDraftCleanup: true });
+        if (closedByCross || closedByEscape) {
+          document.removeEventListener("keydown", handleConfirmEscape, true);
+          return;
+        }
+        try {
+          await discardDraftOnClose?.();
+          onCancel({ skipDraftCleanup: true });
+        } finally {
+          document.removeEventListener("keydown", handleConfirmEscape, true);
+        }
       },
     });
   }, [
