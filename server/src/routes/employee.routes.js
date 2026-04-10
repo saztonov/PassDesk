@@ -418,6 +418,16 @@ router.post(
   employeeFileController.enqueueEmployeeFiles,
 );
 router.get(
+  "/:employeeId/ocr-queue",
+  employeeIdParamValidation,
+  employeeFileController.getEmployeeOcrQueue,
+);
+router.post(
+  "/:employeeId/files/:fileId/ocr-queue",
+  employeeFileParamsValidation,
+  employeeFileController.enqueueEmployeeOcrForFile,
+);
+router.get(
   "/:employeeId/files/queue",
   employeeIdParamValidation,
   employeeFileController.getEmployeeUploadQueue,

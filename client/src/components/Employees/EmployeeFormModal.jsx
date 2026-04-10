@@ -168,16 +168,20 @@ const EmployeeFormModal = ({
 
   const handleRerunOcr = useCallback(
     async (file) => {
-      if (!employee?.id) {
+      if (!employee?.id || !file?.id) {
         return;
       }
-      await handleUploadedFileForOcr({
-        file,
-        employeeId: employee.id,
-        fileDocumentType: file?.documentType,
-      });
+      try {
+        await employeeService.enqueueFileOcr(employee.id, file.id);
+        message.success("OCR отправлен в очередь");
+      } catch (error) {
+        console.error("Failed to enqueue OCR:", error);
+        message.error(
+          error?.response?.data?.message || "Не удалось поставить OCR в очередь",
+        );
+      }
     },
-    [employee?.id, handleUploadedFileForOcr],
+    [employee?.id, message],
   );
 
   const {

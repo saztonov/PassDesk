@@ -13,6 +13,7 @@ import { attachTranslator } from "./middleware/i18n.js";
 import { startTelegramBot } from "./telegram/bot.js";
 import { startSkudWorkers } from "./queues/skud/queue.js";
 import { startUploadWorkers } from "./queues/employeeUploads/queue.js";
+import { startOcrWorkers } from "./queues/employeeOcr/queue.js";
 import { isSkudEnabled, skudConfig } from "./services/skud/skudConfig.js";
 import { runSkudEventsPull } from "./controllers/skud.controller.js";
 
@@ -282,6 +283,14 @@ const startServer = async () => {
         })
         .catch((error) => {
           console.error("❌ Upload workers startup failed:", error.message);
+        });
+
+      startOcrWorkers()
+        .then(() => {
+          console.log("✅ OCR queue workers started");
+        })
+        .catch((error) => {
+          console.error("❌ OCR workers startup failed:", error.message);
         });
     });
   } catch (error) {

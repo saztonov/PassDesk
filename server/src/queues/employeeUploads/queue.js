@@ -19,6 +19,8 @@ import {
   AUDIT_EVENT_TYPES,
   logAuditEvent,
 } from "../../services/auditEventService.js";
+import { enqueueEmployeeOcrJob } from "../employeeOcr/queue.js";
+import { isOcrSupportedDocumentType } from "../../services/ocr/ocrService.js";
 
 export const UPLOAD_QUEUE_NAME = "employee.files.upload";
 
@@ -263,6 +265,18 @@ const processUploadJob = async (job) => {
   });
 
   await fs.unlink(tempPath).catch(() => null);
+
+  if (isOcrSupportedDocumentType(fileRecord.documentType)) {
+    try {
+      await enqueueEmployeeOcrJob({
+        employeeId,
+        fileId: fileRecord.id,
+        documentType: fileRecord.documentType,
+      });
+    } catch (error) {
+      console.error("Failed to enqueue OCR job:", error?.message || error);
+    }
+  }
 
   return fileRecord;
 };

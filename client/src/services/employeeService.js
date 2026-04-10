@@ -130,6 +130,18 @@ export const employeeService = {
     return response.data;
   },
 
+  getOcrQueue: async (employeeId) => {
+    const response = await api.get(`/employees/${employeeId}/ocr-queue`);
+    return response.data;
+  },
+
+  enqueueFileOcr: async (employeeId, fileId) => {
+    const response = await api.post(
+      `/employees/${employeeId}/files/${fileId}/ocr-queue`,
+    );
+    return response.data;
+  },
+
   // Получить файлы сотрудника
   getFiles: async (employeeId, { force = false } = {}) => {
     if (force) {

@@ -26,6 +26,10 @@ import {
   enqueueEmployeeFileUpload,
   listEmployeeUploadQueue,
 } from "../queues/employeeUploads/queue.js";
+import {
+  enqueueEmployeeOcrJob,
+  listEmployeeOcrQueue,
+} from "../queues/employeeOcr/queue.js";
 
 /**
  * Helper: Загрузить сотрудника с маппингами для проверки прав
@@ -259,6 +263,18 @@ export const uploadEmployeeFiles = async (req, res, next) => {
 
         console.log(`✅ File record saved to DB: ${fileRecord.id}`);
         uploadedFiles.push(fileRecord);
+        try {
+          await enqueueEmployeeOcrJob({
+            employeeId,
+            fileId: fileRecord.id,
+            documentType: fileRecord.documentType,
+          });
+        } catch (enqueueError) {
+          console.error(
+            "Failed to enqueue OCR job:",
+            enqueueError?.message || enqueueError,
+          );
+        }
       } catch (error) {
         console.error(
           `❌ Error uploading file ${file.originalname}:`,
@@ -479,6 +495,63 @@ export const getEmployeeUploadQueue = async (req, res, next) => {
   }
 };
 
+export const getEmployeeOcrQueue = async (req, res, next) => {
+  try {
+    const { employeeId } = req.params;
+    const employee = await fetchEmployeeWithMappings(employeeId);
+    if (!employee) {
+      throw new AppError("Сотрудник не найден", 404);
+    }
+    await checkEmployeeAccess(req.user, employee);
+
+    const queueItems = await listEmployeeOcrQueue(employeeId);
+    res.json({
+      success: true,
+      data: queueItems,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const enqueueEmployeeOcrForFile = async (req, res, next) => {
+  try {
+    const { employeeId, fileId } = req.params;
+    const employee = await fetchEmployeeWithMappings(employeeId);
+    if (!employee) {
+      throw new AppError("Сотрудник не найден", 404);
+    }
+    await checkEmployeeAccess(req.user, employee);
+
+    const fileRecord = await File.findOne({
+      where: {
+        id: fileId,
+        entityType: "employee",
+        entityId: employeeId,
+        isDeleted: false,
+      },
+    });
+    if (!fileRecord) {
+      throw new AppError("Файл не найден", 404);
+    }
+
+    const job = await enqueueEmployeeOcrJob({
+      employeeId,
+      fileId: fileRecord.id,
+      documentType: fileRecord.documentType,
+      force: true,
+    });
+
+    res.status(202).json({
+      success: true,
+      message: "OCR отправлен в очередь",
+      data: job ? { id: String(job.id), fileId: fileRecord.id } : null,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * Получение списка файлов сотрудника
  */
@@ -514,6 +587,10 @@ export const getEmployeeFiles = async (req, res, next) => {
         "publicUrl",
         "documentType",
         "createdAt",
+        "ocrVerified",
+        "ocrVerifiedAt",
+        "ocrProvider",
+        "ocrResultJson",
       ],
     });
 

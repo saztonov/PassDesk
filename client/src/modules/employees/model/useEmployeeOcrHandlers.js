@@ -125,7 +125,7 @@ export const useEmployeeOcrHandlers = ({
   }, [employeeId, refreshConflictSummary, visible]);
 
   const handleUploadedFileForOcr = useCallback(
-    async ({ file, employeeId, fileDocumentType }) => {
+    async ({ file, employeeId, fileDocumentType, ocrResult }) => {
       const fileId = normalizeString(file?.id);
       const docType = normalizeString(
         fileDocumentType || file?.documentType || file?.document_type,
@@ -151,13 +151,17 @@ export const useEmployeeOcrHandlers = ({
       try {
         let effectiveOcrDocumentType = ocrDocumentType;
 
-        let response = await ocrService.recognizeDocument({
-          fileId,
-          employeeId,
-          documentType: effectiveOcrDocumentType,
-        });
+        let responseData =
+          ocrResult && typeof ocrResult === "object" ? ocrResult : null;
 
-        let responseData = toResponseData(response);
+        if (!responseData) {
+          const response = await ocrService.recognizeDocument({
+            fileId,
+            employeeId,
+            documentType: effectiveOcrDocumentType,
+          });
+          responseData = toResponseData(response);
+        }
         let normalized = toNormalizedPayload(responseData);
 
         if (

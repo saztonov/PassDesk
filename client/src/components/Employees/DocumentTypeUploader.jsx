@@ -103,13 +103,17 @@ const DocumentTypeUploader = ({
     loadingDocumentTypes: false,
   });
   const [uploadQueue, setUploadQueue] = useState([]);
+  const [ocrQueue, setOcrQueue] = useState([]);
   const [lastQueueNotice, setLastQueueNotice] = useState(null);
   const lastCompletedCountRef = useRef(0);
   const lastQueueLengthRef = useRef(0);
+  const lastOcrCompletedCountRef = useRef(0);
+  const lastOcrQueueLengthRef = useRef(0);
   const [lastUploadByType, setLastUploadByType] = useState({});
   const lastFilesCountRef = useRef({});
   const [lastUploadEvents, setLastUploadEvents] = useState([]);
   const seenFileIdsRef = useRef(new Set());
+  const seenOcrResultsRef = useRef(new Set());
   const initializedFilesRef = useRef(false);
   const [uiState, setUiState] = useState({
     viewerVisible: false,
@@ -280,9 +284,33 @@ const DocumentTypeUploader = ({
     }
   }, [effectiveEmployeeId, fetchAllFiles]);
 
+  const fetchOcrQueue = useCallback(async () => {
+    if (!effectiveEmployeeId) {
+      return;
+    }
+    try {
+      const response = await employeeService.getOcrQueue(effectiveEmployeeId);
+      const queueItems = Array.isArray(response?.data) ? response.data : [];
+      setOcrQueue(queueItems);
+      const completedCount = queueItems.filter(
+        (item) => item.status === "completed" || item.status === "done",
+      ).length;
+      if (completedCount > lastOcrCompletedCountRef.current) {
+        lastOcrCompletedCountRef.current = completedCount;
+        await fetchAllFiles(effectiveEmployeeId, { force: true });
+      }
+    } catch (error) {
+      console.error("Failed to load OCR queue:", error);
+    }
+  }, [effectiveEmployeeId, fetchAllFiles]);
+
   useEffect(() => {
     fetchUploadQueue();
   }, [fetchUploadQueue]);
+
+  useEffect(() => {
+    fetchOcrQueue();
+  }, [fetchOcrQueue]);
 
   useEffect(() => {
     if (!effectiveEmployeeId) {
@@ -304,7 +332,23 @@ const DocumentTypeUploader = ({
     if (!effectiveEmployeeId) {
       return;
     }
-    if (uploadQueue.length === 0) {
+
+    if (ocrQueue.length === 0) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      fetchOcrQueue();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [effectiveEmployeeId, fetchOcrQueue, ocrQueue.length]);
+
+  useEffect(() => {
+    if (!effectiveEmployeeId) {
+      return;
+    }
+    if (uploadQueue.length === 0 && ocrQueue.length === 0) {
       return;
     }
     const interval = setInterval(() => {
@@ -312,7 +356,7 @@ const DocumentTypeUploader = ({
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [effectiveEmployeeId, fetchAllFiles, uploadQueue.length]);
+  }, [effectiveEmployeeId, fetchAllFiles, uploadQueue.length, ocrQueue.length]);
 
   useEffect(() => {
     if (!effectiveEmployeeId) {
@@ -326,12 +370,28 @@ const DocumentTypeUploader = ({
   }, [effectiveEmployeeId, fetchAllFiles, uploadQueue.length]);
 
   useEffect(() => {
+    if (!effectiveEmployeeId) {
+      return;
+    }
+    const previousLength = lastOcrQueueLengthRef.current;
+    if (previousLength > 0 && ocrQueue.length === 0) {
+      fetchAllFiles(effectiveEmployeeId, { force: true });
+    }
+    lastOcrQueueLengthRef.current = ocrQueue.length;
+  }, [effectiveEmployeeId, fetchAllFiles, ocrQueue.length]);
+
+  useEffect(() => {
     if (!initializedFilesRef.current) {
       const initialIds = new Set();
+      const initialOcrResults = new Set();
       for (const file of allFiles) {
         if (file?.id) initialIds.add(file.id);
+        if (file?.id && file?.ocrVerifiedAt) {
+          initialOcrResults.add(`${file.id}:${file.ocrVerifiedAt}`);
+        }
       }
       seenFileIdsRef.current = initialIds;
+      seenOcrResultsRef.current = initialOcrResults;
       initializedFilesRef.current = true;
     }
 
@@ -380,12 +440,18 @@ const DocumentTypeUploader = ({
             status: "done",
             ts: Date.now(),
           });
-          if (typeof onUploadComplete === "function") {
+          if (typeof onUploadComplete === "function" && file?.ocrResultJson) {
             onUploadComplete({
               file,
               employeeId: effectiveEmployeeId,
               fileDocumentType: docType,
+              ocrResult: file?.ocrResultJson,
             });
+            if (file?.ocrVerifiedAt) {
+              seenOcrResultsRef.current.add(
+                `${file.id}:${file.ocrVerifiedAt}`,
+              );
+            }
           }
           if (file?.id) {
             seenFileIdsRef.current.add(file.id);
@@ -402,6 +468,41 @@ const DocumentTypeUploader = ({
       }
     }
   }, [allFiles]);
+
+  useEffect(() => {
+    if (!effectiveEmployeeId) {
+      return;
+    }
+
+    const nextProcessedKeys = new Set(seenOcrResultsRef.current);
+    const newOcrFiles = [];
+
+    for (const file of allFiles) {
+      if (!file?.id || !file?.ocrResultJson || !file?.ocrVerifiedAt) {
+        continue;
+      }
+      const key = `${file.id}:${file.ocrVerifiedAt}`;
+      if (nextProcessedKeys.has(key)) {
+        continue;
+      }
+      nextProcessedKeys.add(key);
+      newOcrFiles.push(file);
+    }
+
+    if (newOcrFiles.length > 0) {
+      seenOcrResultsRef.current = nextProcessedKeys;
+      newOcrFiles.forEach((file) => {
+        if (typeof onUploadComplete === "function") {
+          onUploadComplete({
+            file,
+            employeeId: effectiveEmployeeId,
+            fileDocumentType: file?.documentType,
+            ocrResult: file?.ocrResultJson,
+          });
+        }
+      });
+    }
+  }, [allFiles, effectiveEmployeeId, onUploadComplete]);
 
   const handleUploadSubmit = async (fileList, documentType) => {
     if (!Array.isArray(fileList) || fileList.length === 0) {

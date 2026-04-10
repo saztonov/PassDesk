@@ -29,6 +29,7 @@ const { useBreakpoint } = Grid;
 const AdministrationPage = () => {
   const { user } = useAuthStore();
   const isManager = user?.role === "manager";
+  const isAdmin = user?.role === "admin";
   const renderTabLabel = (IconComponent, text) => (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <IconComponent />
@@ -104,11 +105,15 @@ const AdministrationPage = () => {
       label: renderTabLabel(WarningOutlined, "OCR расхождения"),
       children: <OcrConflictsAdminSection />,
     },
-    {
-      key: "ocr-prompts",
-      label: renderTabLabel(WarningOutlined, "OCR промпты"),
-      children: <OcrPromptsAdminSection />,
-    },
+    ...(isAdmin
+      ? [
+          {
+            key: "ocr-prompts",
+            label: renderTabLabel(WarningOutlined, "OCR промпты"),
+            children: <OcrPromptsAdminSection />,
+          },
+        ]
+      : []),
     ...(!isManager
       ? [
           {
