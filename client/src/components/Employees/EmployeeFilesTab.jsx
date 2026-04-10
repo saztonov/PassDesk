@@ -14,6 +14,7 @@ const EmployeeFilesTab = ({
   onFilesUpdated,
   onUploadComplete,
   onRerunOcr,
+  onOcrActivityChange,
   ocrProcessingMap,
   ensureEmployeeId,
   documentProfilesConfig,
@@ -59,6 +60,7 @@ const EmployeeFilesTab = ({
       onFilesUpdated={onFilesUpdated}
       onUploadComplete={onUploadComplete}
       onRerunOcr={onRerunOcr}
+      onOcrActivityChange={onOcrActivityChange}
       ocrProcessingMap={ocrProcessingMap}
       profileCode={profileCode}
       profilesConfig={documentProfilesConfig}

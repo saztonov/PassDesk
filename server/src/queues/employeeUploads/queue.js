@@ -272,6 +272,7 @@ const processUploadJob = async (job) => {
         employeeId,
         fileId: fileRecord.id,
         documentType: fileRecord.documentType,
+        fileName: fileRecord.originalName || fileRecord.fileName || null,
       });
     } catch (error) {
       console.error("Failed to enqueue OCR job:", error?.message || error);

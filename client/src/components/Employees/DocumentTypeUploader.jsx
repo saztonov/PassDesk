@@ -19,6 +19,34 @@ import {
 } from "@/shared/lib/aiDocumentScanner";
 
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
+const MAX_GLOBAL_OCR_RESULT_KEYS = 1000;
+const seenOcrResultKeysByEmployee = new Map();
+
+const getSeenOcrResultKeysForEmployee = (employeeId) => {
+  const normalizedEmployeeId = String(employeeId || "").trim();
+  if (!normalizedEmployeeId) {
+    return null;
+  }
+  let keys = seenOcrResultKeysByEmployee.get(normalizedEmployeeId);
+  if (!keys) {
+    keys = new Set();
+    seenOcrResultKeysByEmployee.set(normalizedEmployeeId, keys);
+  }
+  return keys;
+};
+
+const rememberSeenOcrResultKey = (employeeId, key) => {
+  const keys = getSeenOcrResultKeysForEmployee(employeeId);
+  if (!keys || !key) {
+    return;
+  }
+  keys.add(key);
+  if (keys.size <= MAX_GLOBAL_OCR_RESULT_KEYS) {
+    return;
+  }
+  const stale = Array.from(keys).slice(0, keys.size - MAX_GLOBAL_OCR_RESULT_KEYS);
+  stale.forEach((item) => keys.delete(item));
+};
 
 const resolveFileExtension = (fileName = "") =>
   String(fileName || "")
@@ -85,6 +113,7 @@ const DocumentTypeUploader = ({
   onFilesUpdated,
   onUploadComplete,
   onRerunOcr,
+  onOcrActivityChange,
   ocrProcessingMap = null,
   readonly = false,
   profileCode,
@@ -105,6 +134,8 @@ const DocumentTypeUploader = ({
   const [uploadQueue, setUploadQueue] = useState([]);
   const [ocrQueue, setOcrQueue] = useState([]);
   const [lastQueueNotice, setLastQueueNotice] = useState(null);
+  const ocrQueueInitializedRef = useRef(false);
+  const ocrStatusByJobRef = useRef(new Map());
   const lastCompletedCountRef = useRef(0);
   const lastQueueLengthRef = useRef(0);
   const lastOcrCompletedCountRef = useRef(0);
@@ -292,6 +323,39 @@ const DocumentTypeUploader = ({
       const response = await employeeService.getOcrQueue(effectiveEmployeeId);
       const queueItems = Array.isArray(response?.data) ? response.data : [];
       setOcrQueue(queueItems);
+
+      const nextStatusByJob = new Map();
+      for (const item of queueItems) {
+        if (!item?.id) continue;
+        nextStatusByJob.set(String(item.id), item.status);
+      }
+
+      if (ocrQueueInitializedRef.current) {
+        for (const item of queueItems) {
+          const itemId = String(item?.id || "");
+          if (!itemId) continue;
+          const previousStatus = ocrStatusByJobRef.current.get(itemId);
+          const currentStatus = item.status;
+          if (!previousStatus || previousStatus === currentStatus) {
+            continue;
+          }
+
+          const label =
+            item.fileName ||
+            getDocumentTypeLabel(item.documentType) ||
+            "Документ";
+
+          if (currentStatus === "failed" || currentStatus === "error") {
+            message.error(
+              `Ошибка OCR: ${label}${item.error ? ` • ${item.error}` : ""}`,
+            );
+          }
+        }
+      }
+
+      ocrStatusByJobRef.current = nextStatusByJob;
+      ocrQueueInitializedRef.current = true;
+
       const completedCount = queueItems.filter(
         (item) => item.status === "completed" || item.status === "done",
       ).length;
@@ -317,32 +381,13 @@ const DocumentTypeUploader = ({
       return;
     }
 
-    if (uploadQueue.length === 0) {
-      return;
-    }
-
     const interval = setInterval(() => {
       fetchUploadQueue();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [effectiveEmployeeId, fetchUploadQueue, uploadQueue.length]);
-
-  useEffect(() => {
-    if (!effectiveEmployeeId) {
-      return;
-    }
-
-    if (ocrQueue.length === 0) {
-      return;
-    }
-
-    const interval = setInterval(() => {
       fetchOcrQueue();
-    }, 3000);
+    }, 2000);
 
     return () => clearInterval(interval);
-  }, [effectiveEmployeeId, fetchOcrQueue, ocrQueue.length]);
+  }, [effectiveEmployeeId, fetchUploadQueue, fetchOcrQueue]);
 
   useEffect(() => {
     if (!effectiveEmployeeId) {
@@ -357,6 +402,22 @@ const DocumentTypeUploader = ({
 
     return () => clearInterval(interval);
   }, [effectiveEmployeeId, fetchAllFiles, uploadQueue.length, ocrQueue.length]);
+
+  useEffect(() => {
+    if (typeof onOcrActivityChange !== "function") {
+      return undefined;
+    }
+    const hasActiveOcrJobs = ocrQueue.some(
+      (item) =>
+        !["completed", "done", "failed", "error"].includes(
+          String(item?.status || "").toLowerCase(),
+        ),
+    );
+    onOcrActivityChange(hasActiveOcrJobs);
+    return () => {
+      onOcrActivityChange(false);
+    };
+  }, [ocrQueue, onOcrActivityChange]);
 
   useEffect(() => {
     if (!effectiveEmployeeId) {
@@ -440,19 +501,6 @@ const DocumentTypeUploader = ({
             status: "done",
             ts: Date.now(),
           });
-          if (typeof onUploadComplete === "function" && file?.ocrResultJson) {
-            onUploadComplete({
-              file,
-              employeeId: effectiveEmployeeId,
-              fileDocumentType: docType,
-              ocrResult: file?.ocrResultJson,
-            });
-            if (file?.ocrVerifiedAt) {
-              seenOcrResultsRef.current.add(
-                `${file.id}:${file.ocrVerifiedAt}`,
-              );
-            }
-          }
           if (file?.id) {
             seenFileIdsRef.current.add(file.id);
           }
@@ -474,6 +522,7 @@ const DocumentTypeUploader = ({
       return;
     }
 
+    const globalSeenKeys = getSeenOcrResultKeysForEmployee(effectiveEmployeeId);
     const nextProcessedKeys = new Set(seenOcrResultsRef.current);
     const newOcrFiles = [];
 
@@ -482,16 +531,22 @@ const DocumentTypeUploader = ({
         continue;
       }
       const key = `${file.id}:${file.ocrVerifiedAt}`;
-      if (nextProcessedKeys.has(key)) {
+      if (nextProcessedKeys.has(key) || globalSeenKeys?.has(key)) {
         continue;
       }
       nextProcessedKeys.add(key);
+      rememberSeenOcrResultKey(effectiveEmployeeId, key);
       newOcrFiles.push(file);
     }
 
     if (newOcrFiles.length > 0) {
       seenOcrResultsRef.current = nextProcessedKeys;
       newOcrFiles.forEach((file) => {
+        const label =
+          file?.originalName ||
+          file?.fileName ||
+          getDocumentTypeLabel(file?.documentType) ||
+          "Документ";
         if (typeof onUploadComplete === "function") {
           onUploadComplete({
             file,
@@ -502,7 +557,7 @@ const DocumentTypeUploader = ({
         }
       });
     }
-  }, [allFiles, effectiveEmployeeId, onUploadComplete]);
+  }, [allFiles, effectiveEmployeeId, getDocumentTypeLabel, message, onUploadComplete]);
 
   const handleUploadSubmit = async (fileList, documentType) => {
     if (!Array.isArray(fileList) || fileList.length === 0) {
@@ -583,6 +638,7 @@ const DocumentTypeUploader = ({
       } else {
         await fetchUploadQueue();
       }
+      await fetchOcrQueue();
 
       const label = getDocumentTypeLabel(documentType);
       setLastQueueNotice({
@@ -590,8 +646,6 @@ const DocumentTypeUploader = ({
         text: `В очередь: ${label} • ${fileList.length}`,
         ts: Date.now(),
       });
-      message.success(`В очередь: ${label} • ${fileList.length}`);
-
       return true;
     } catch (error) {
       console.error(`Error enqueue ${documentType}:`, error);
@@ -763,9 +817,13 @@ const DocumentTypeUploader = ({
     </Row>
   );
 
-  const renderQueueStatus = (item) => {
+  const renderQueueStatus = (item, mode = "upload") => {
     if (item.status === "uploading" || item.status === "active") {
-      return <Tag color="blue">Загрузка…</Tag>;
+      return (
+        <Tag color="blue">
+          {mode === "ocr" ? "Распознается…" : "Загрузка…"}
+        </Tag>
+      );
     }
     if (item.status === "done" || item.status === "completed") {
       return <Tag color="green">Готово</Tag>;
@@ -905,6 +963,48 @@ const DocumentTypeUploader = ({
                   <Space style={{ width: "100%", justifyContent: "space-between" }}>
                     <span>{item.fileName || "Файл"}</span>
                     {renderQueueStatus(item)}
+                  </Space>
+                  <Space style={{ color: "#8c8c8c", fontSize: 12 }}>
+                    <span>{getDocumentTypeLabel(item.documentType)}</span>
+                    {item.error && (
+                      <>
+                        <span>•</span>
+                        <span style={{ color: "#cf1322" }}>{item.error}</span>
+                      </>
+                    )}
+                  </Space>
+                </Space>
+              </List.Item>
+            )}
+          />
+        </div>
+      )}
+
+      {ocrQueue.length > 0 && (
+        <div
+          style={{
+            marginBottom: 16,
+            border: "1px solid #f0f0f0",
+            borderRadius: 8,
+            padding: 12,
+            background: "#fafafa",
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>Очередь OCR</div>
+          <List
+            size="small"
+            dataSource={ocrQueue}
+            renderItem={(item) => (
+              <List.Item>
+                <Space direction="vertical" size={2} style={{ width: "100%" }}>
+                  <Space style={{ width: "100%", justifyContent: "space-between" }}>
+                    <span>
+                      {item.fileName ||
+                        getDocumentTypeLabel(item.documentType) ||
+                        item.fileId ||
+                        "Документ"}
+                    </span>
+                    {renderQueueStatus(item, "ocr")}
                   </Space>
                   <Space style={{ color: "#8c8c8c", fontSize: 12 }}>
                     <span>{getDocumentTypeLabel(item.documentType)}</span>

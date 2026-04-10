@@ -130,6 +130,7 @@ export const enqueueEmployeeOcrJob = async ({
   employeeId,
   fileId,
   documentType,
+  fileName = null,
   force = false,
 }) => {
   if (!ocrQueueConfig.enabled) {
@@ -143,6 +144,7 @@ export const enqueueEmployeeOcrJob = async ({
       employeeId,
       fileId,
       documentType,
+      fileName,
       force,
     },
     {
@@ -181,6 +183,7 @@ export const listEmployeeOcrQueue = async (employeeId) => {
     results.push({
       id: String(job.id),
       fileId: job.data?.fileId || null,
+      fileName: job.data?.fileName || null,
       documentType: job.data?.documentType || "other",
       status: state,
       attempts: job.attemptsMade,
@@ -282,7 +285,18 @@ export const startOcrWorkers = async () => {
   worker.on("completed", async (job) => {
     const employeeId = job?.data?.employeeId;
     if (!employeeId) return;
-    await connection.srem(getQueueKey(employeeId), String(job.id));
+    // Keep completed job in employee queue set for a short time so UI can show
+    // "completed" status before BullMQ cleanup removes the job hash.
+    const timer = setTimeout(async () => {
+      try {
+        await connection.srem(getQueueKey(employeeId), String(job.id));
+      } catch {
+        // ignore transient cleanup errors
+      }
+    }, 6000);
+    if (typeof timer.unref === "function") {
+      timer.unref();
+    }
   });
 
   worker.on("failed", async (job) => {

@@ -268,6 +268,7 @@ export const uploadEmployeeFiles = async (req, res, next) => {
             employeeId,
             fileId: fileRecord.id,
             documentType: fileRecord.documentType,
+            fileName: fileRecord.originalName || fileRecord.fileName || null,
           });
         } catch (enqueueError) {
           console.error(
@@ -539,6 +540,7 @@ export const enqueueEmployeeOcrForFile = async (req, res, next) => {
       employeeId,
       fileId: fileRecord.id,
       documentType: fileRecord.documentType,
+      fileName: fileRecord.originalName || fileRecord.fileName || null,
       force: true,
     });
 

@@ -102,6 +102,7 @@ const EmployeeFormModal = ({
   const [transferModalVisible, setTransferModalVisible] = useState(false); // Модальное окно перевода сотрудника
   const [availableCounterparties, setAvailableCounterparties] = useState([]); // Доступные контрагенты
   const [loadingCounterparties, setLoadingCounterparties] = useState(false); // Загрузка контрагентов
+  const [isOcrQueueActive, setIsOcrQueueActive] = useState(false);
   const [pageDocsWidth, setPageDocsWidth] = useState(560);
   const [isResizingPageLayout, setIsResizingPageLayout] = useState(false);
   const pageSplitContainerRef = useRef(null);
@@ -183,6 +184,10 @@ const EmployeeFormModal = ({
     },
     [employee?.id, message],
   );
+
+  const handleOcrActivityChange = useCallback((active) => {
+    setIsOcrQueueActive(Boolean(active));
+  }, []);
 
   const {
     fetchCitizenships,
@@ -424,7 +429,7 @@ const EmployeeFormModal = ({
 
     if (!shouldPromptDraftOnClose()) {
       await discardIfAutoCreated();
-      onCancel();
+      onCancel({ skipDraftCleanup: true, preserveDraft: true });
       return;
     }
 
@@ -569,12 +574,12 @@ const EmployeeFormModal = ({
           </>
         )}
       >
-        {isOcrProcessing && (
+        {(isOcrProcessing || isOcrQueueActive) && (
           <Alert
             type="info"
             showIcon
             style={{ marginBottom: 12 }}
-            message="OCR: распознаем документ..."
+            message="Идет распознавание документа..."
           />
         )}
         <OcrConflictSummaryNotice
@@ -842,6 +847,7 @@ const EmployeeFormModal = ({
                   onFilesUpdated={handleFilesChange}
                   onUploadComplete={handleUploadedFileForOcr}
                   onRerunOcr={handleRerunOcr}
+                  onOcrActivityChange={handleOcrActivityChange}
                   ocrProcessingMap={ocrProcessingMap}
                   ensureEmployeeId={ensureEmployeeId}
                   documentProfilesConfig={settings?.employeeDocumentProfiles || null}

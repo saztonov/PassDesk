@@ -23,6 +23,67 @@ const toFileId = (responseData = {}, fallbackFileId = null) =>
   fallbackFileId;
 
 const toDigits = (value = "") => String(value || "").replace(/[^\d]/g, "");
+const MAX_GLOBAL_OCR_KEYS_PER_EMPLOYEE = 500;
+const processedOcrEventKeysByEmployee = new Map();
+
+const getProcessedOcrKeysForEmployee = (employeeId) => {
+  const normalizedEmployeeId = normalizeString(employeeId);
+  if (!normalizedEmployeeId) {
+    return null;
+  }
+
+  let keys = processedOcrEventKeysByEmployee.get(normalizedEmployeeId);
+  if (!keys) {
+    keys = new Set();
+    processedOcrEventKeysByEmployee.set(normalizedEmployeeId, keys);
+  }
+  return keys;
+};
+
+const rememberProcessedOcrEventKey = (employeeId, eventKey) => {
+  const employeeKeys = getProcessedOcrKeysForEmployee(employeeId);
+  if (!employeeKeys || !eventKey) {
+    return;
+  }
+
+  employeeKeys.add(eventKey);
+  if (employeeKeys.size <= MAX_GLOBAL_OCR_KEYS_PER_EMPLOYEE) {
+    return;
+  }
+
+  const staleKeys = Array.from(employeeKeys).slice(
+    0,
+    employeeKeys.size - MAX_GLOBAL_OCR_KEYS_PER_EMPLOYEE,
+  );
+  staleKeys.forEach((key) => employeeKeys.delete(key));
+};
+
+const toOcrResultFingerprint = (ocrResult = null) => {
+  if (!ocrResult || typeof ocrResult !== "object") {
+    return "";
+  }
+
+  const normalized =
+    ocrResult.normalized ||
+    ocrResult?.data?.normalized ||
+    ocrResult?.result?.normalized ||
+    null;
+
+  if (normalized && typeof normalized === "object") {
+    try {
+      return JSON.stringify(normalized);
+    } catch {
+      return "";
+    }
+  }
+
+  return normalizeString(
+    ocrResult.id ||
+      ocrResult.jobId ||
+      ocrResult.providerMessageId ||
+      ocrResult.requestId,
+  );
+};
 
 const shouldRetryPassportAsRussian = (normalized = {}) => {
   const passportNumberDigits = toDigits(normalized?.passportNumber);
@@ -83,6 +144,8 @@ export const useEmployeeOcrHandlers = ({
   const [conflictSummary, setConflictSummary] = useState(null);
   const [isConflictSummaryLoading, setIsConflictSummaryLoading] = useState(false);
   const runningFileIdsRef = useRef(new Set());
+  const processedOcrEventKeysRef = useRef(new Set());
+  const lastHandledAtByFileRef = useRef(new Map());
 
   const refreshConflictSummary = useCallback(
     async (targetEmployeeId = employeeId) => {
@@ -111,6 +174,12 @@ export const useEmployeeOcrHandlers = ({
   );
 
   useEffect(() => {
+    processedOcrEventKeysRef.current = new Set();
+    runningFileIdsRef.current = new Set();
+    lastHandledAtByFileRef.current = new Map();
+  }, [employeeId]);
+
+  useEffect(() => {
     if (!visible) {
       setConflictSummary(null);
       return;
@@ -130,6 +199,25 @@ export const useEmployeeOcrHandlers = ({
       const docType = normalizeString(
         fileDocumentType || file?.documentType || file?.document_type,
       ).toLowerCase();
+      const hasPersistedOcrMetadata = Boolean(
+        file?.ocrVerifiedAt || file?.ocr_verified_at,
+      );
+      const verifiedMarker = normalizeString(
+        file?.ocrVerifiedAt ||
+          file?.ocr_verified_at ||
+          ocrResult?.ocrVerifiedAt ||
+          ocrResult?.data?.ocrVerifiedAt ||
+          ocrResult?.verifiedAt ||
+          ocrResult?.data?.verifiedAt ||
+          ocrResult?.updatedAt ||
+          ocrResult?.data?.updatedAt,
+      );
+      const fingerprint = verifiedMarker ? "" : toOcrResultFingerprint(ocrResult);
+      const ocrEventKey = verifiedMarker
+        ? `${fileId}:verified:${verifiedMarker}`
+        : fingerprint
+          ? `${fileId}:fingerprint:${fingerprint}`
+          : "";
       const passportType =
         typeof getPassportType === "function"
           ? getPassportType()
@@ -141,12 +229,27 @@ export const useEmployeeOcrHandlers = ({
         return;
       }
 
+      const lastHandledAt = lastHandledAtByFileRef.current.get(fileId) || 0;
+      if (!ocrEventKey && Date.now() - lastHandledAt < 10000) {
+        return;
+      }
+
+      const globalProcessedOcrKeys = getProcessedOcrKeysForEmployee(employeeId);
+      if (
+        ocrEventKey &&
+        (processedOcrEventKeysRef.current.has(ocrEventKey) ||
+          globalProcessedOcrKeys?.has(ocrEventKey))
+      ) {
+        return;
+      }
+
       if (runningFileIdsRef.current.has(fileId)) {
         return;
       }
 
       runningFileIdsRef.current.add(fileId);
       setProcessingMap((prev) => ({ ...prev, [fileId]: true }));
+      let handledSuccessfully = false;
 
       try {
         let effectiveOcrDocumentType = ocrDocumentType;
@@ -200,6 +303,7 @@ export const useEmployeeOcrHandlers = ({
         }
 
         if (!normalized || typeof normalized !== "object") {
+          handledSuccessfully = true;
           messageApi?.warning?.("OCR не вернул распознанные поля");
           return;
         }
@@ -245,10 +349,6 @@ export const useEmployeeOcrHandlers = ({
           }
         }
 
-        console.log("[OCR] normalized:", normalized);
-        console.log("[OCR] citizenships count:", citizenships?.length);
-        console.log("[OCR] formPatch:", formPatch);
-
         if (Object.keys(formPatch).length === 0) {
           if (
             docType === "passport" &&
@@ -259,6 +359,7 @@ export const useEmployeeOcrHandlers = ({
               "Похоже, это не основная страница паспорта. Автозаполнение и расхождения пропущены.",
             );
           } else {
+            handledSuccessfully = true;
             messageApi?.warning?.("Не удалось извлечь данные для автозаполнения");
             return;
           }
@@ -281,10 +382,6 @@ export const useEmployeeOcrHandlers = ({
           autoFillPatch.passportType = "russian";
           delete conflicts.passportType;
         }
-
-        console.log("[OCR] currentValues:", currentValues);
-        console.log("[OCR] autoFillPatch:", autoFillPatch);
-        console.log("[OCR] conflicts:", conflicts);
 
         if (Object.keys(autoFillPatch).length > 0) {
           form.setFieldsValue(autoFillPatch);
@@ -312,15 +409,17 @@ export const useEmployeeOcrHandlers = ({
           const provider = toProvider(responseData);
           const resultFileId = toFileId(responseData, fileId);
 
-          await ocrService.confirmFileOcr({
-            fileId: resultFileId,
-            provider,
-            result: {
-              documentType: effectiveOcrDocumentType,
-              normalized,
-            },
-            conflicts: Object.values(conflicts || {}),
-          });
+          if (!hasPersistedOcrMetadata) {
+            await ocrService.confirmFileOcr({
+              fileId: resultFileId,
+              provider,
+              result: {
+                documentType: effectiveOcrDocumentType,
+                normalized,
+              },
+              conflicts: Object.values(conflicts || {}),
+            });
+          }
           const summary = await refreshConflictSummary(employeeId);
           if (summary?.hasConflicts) {
             messageApi?.warning?.(
@@ -334,12 +433,20 @@ export const useEmployeeOcrHandlers = ({
         } catch (confirmError) {
           console.error("Failed to confirm OCR metadata:", confirmError);
         }
+        handledSuccessfully = true;
       } catch (error) {
         console.error("OCR error:", error);
         messageApi?.error?.(
           error?.response?.data?.message || "Ошибка OCR распознавания",
         );
       } finally {
+        if (handledSuccessfully && ocrEventKey) {
+          processedOcrEventKeysRef.current.add(ocrEventKey);
+          rememberProcessedOcrEventKey(employeeId, ocrEventKey);
+        }
+        if (handledSuccessfully) {
+          lastHandledAtByFileRef.current.set(fileId, Date.now());
+        }
         runningFileIdsRef.current.delete(fileId);
         setProcessingMap((prev) => {
           const next = { ...prev };

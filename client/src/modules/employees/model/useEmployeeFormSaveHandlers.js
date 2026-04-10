@@ -126,6 +126,12 @@ export const useEmployeeFormSaveHandlers = ({
       startedWithExistingEmployeeRef.current = Boolean(isExistingSession);
     }
 
+    // /employees/add -> first draft save -> route replace to /employees/edit/:id
+    // happens while form stays visible; switch mode to "existing session" immediately.
+    if (isExistingSession) {
+      startedWithExistingEmployeeRef.current = true;
+    }
+
     if (!draftEmployeeIdRef.current && employee?.id) {
       draftEmployeeIdRef.current = employee.id;
     }
@@ -180,6 +186,11 @@ export const useEmployeeFormSaveHandlers = ({
 
         if (!employee && !preserveForm) {
           resetFormStateAfterSave();
+        } else {
+          // Draft has been persisted; treat current form values as clean baseline
+          // so close confirmation does not appear immediately after manual save.
+          baselineValuesRef.current = form.getFieldsValue(true);
+          explicitlyTouchedFieldsRef.current = new Set();
         }
         return savedEmployee || null;
       } catch (error) {

@@ -1,8 +1,9 @@
 node_modules
 dist
-build
 .git
-.env
+.gitignore
+.DS_Store
 npm-debug.log
-yarn.lock
-pnpm-lock.yaml
+*.log
+test-results
+
