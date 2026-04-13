@@ -262,7 +262,7 @@ const loadMappings = async (client, tableName, fieldSpecs = []) => {
   ).rows;
 };
 
-const loadTargetEmployeeCounterpartyRows = async (client, employeeIds) => {
+const _loadTargetEmployeeCounterpartyRows = async (client, employeeIds) => {
   if (!employeeIds.length) return [];
 
   return (
@@ -286,7 +286,7 @@ const loadTargetEmployeeCounterpartyRows = async (client, employeeIds) => {
   ).rows;
 };
 
-const loadTargetEmployeeStatusRows = async (client, employeeIds) => {
+const _loadTargetEmployeeStatusRows = async (client, employeeIds) => {
   if (!employeeIds.length) return [];
 
   return (
@@ -404,7 +404,7 @@ const buildPlan = async ({ sourceClient, targetClient, sourceConfig, targetConfi
   ]);
 
   const sourceEmployeeById = mapBy(sourceEmployees, "id");
-  const targetEmployeeById = mapBy(targetEmployees, "id");
+  const _targetEmployeeById = mapBy(targetEmployees, "id");
   const targetEmployeeIds = new Set(targetEmployees.map((employee) => employee.id));
   const targetFileIds = new Set(targetFiles.map((row) => row.id));
   const targetMappingIds = new Set(targetEmployeeCounterpartyRows.map((row) => row.id));
@@ -554,7 +554,7 @@ const buildPlan = async ({ sourceClient, targetClient, sourceConfig, targetConfi
   );
 
   const sourceOnlyEmployeeIds = sourceOnlyEmployees.map((employee) => employee.id);
-  const refEmployeeIds = sourceOnlyEmployeeIds.concat(
+  const _refEmployeeIds = sourceOnlyEmployeeIds.concat(
     mergeExisting.map((item) => item.target_employee_id),
   );
   const refCitizenshipIds = sourceOnlyEmployees.map(

@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import { useEmployeeActions, useCheckInn } from "@/entities/employee";
-import { employeeApi } from "@/entities/employee";
 import { employeeService } from "@/services/employeeService";
 
 export const useEmployeesCrudActions = ({

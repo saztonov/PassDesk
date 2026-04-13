@@ -149,7 +149,7 @@ const EmployeeFormModal = ({
       const link = document.createElement("a");
       const contentDisposition = response?.headers?.["content-disposition"] || "";
       const fileNameMatch =
-        /filename\*=UTF-8''([^;]+)|filename=\"?([^\";]+)\"?/i.exec(
+        /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(
           contentDisposition,
         );
       const extractedName = decodeURIComponent(

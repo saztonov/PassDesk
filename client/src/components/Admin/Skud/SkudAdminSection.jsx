@@ -413,14 +413,14 @@ const SkudAdminSection = () => {
   const [providerHierarchyModalName, setProviderHierarchyModalName] = useState("");
   const [providerHierarchyModalSubmitting, setProviderHierarchyModalSubmitting] = useState(false);
   const [providerHierarchyDeleting, setProviderHierarchyDeleting] = useState(false);
-  const [assigningCard, setAssigningCard] = useState(false);
+  const [_assigningCard, setAssigningCard] = useState(false);
   const [cardActionLoadingId, setCardActionLoadingId] = useState(null);
-  const [cardEmployeeIdInput, setCardEmployeeIdInput] = useState("");
-  const [cardEmployeeOptions, setCardEmployeeOptions] = useState([]);
-  const [cardEmployeeSearch, setCardEmployeeSearch] = useState("");
-  const [cardEmployeeOptionsLoading, setCardEmployeeOptionsLoading] = useState(false);
+  const [cardEmployeeIdInput, _setCardEmployeeIdInput] = useState("");
+  const [_cardEmployeeOptions, setCardEmployeeOptions] = useState([]);
+  const [cardEmployeeSearch, _setCardEmployeeSearch] = useState("");
+  const [_cardEmployeeOptionsLoading, setCardEmployeeOptionsLoading] = useState(false);
   const [cardNumberInput, setCardNumberInput] = useState("");
-  const [cardTypeInput, setCardTypeInput] = useState("rfid");
+  const [cardTypeInput, _setCardTypeInput] = useState("rfid");
   const [cardNotesInput, setCardNotesInput] = useState("");
   const [cardReaderArmed, setCardReaderArmed] = useState(false);
   const [activeTab, setActiveTab] = useState(() =>
@@ -482,8 +482,8 @@ const SkudAdminSection = () => {
   const loadDataRequestIdRef = useRef(0);
   const wsRef = useRef(null);
   const handleAssignCardRef = useRef(null);
-  const [wsConnected, setWsConnected] = useState(false);
-  const [uidFormat, setUidFormat] = useState("w26");
+  const [_wsConnected, setWsConnected] = useState(false);
+  const [uidFormat, _setUidFormat] = useState("w26");
   const [state, setState] = useState({
     health: null,
     stats: null,
@@ -895,7 +895,7 @@ const SkudAdminSection = () => {
     }
   }, []);
 
-  const handleArmCardReader = useCallback(() => {
+  const _handleArmCardReader = useCallback(() => {
     if (cardReaderArmed) {
       handleDisarmCardReader();
       return;
@@ -2059,7 +2059,7 @@ const SkudAdminSection = () => {
     [],
   );
 
-  const cardColumns = useMemo(
+  const _cardColumns = useMemo(
     () => [
       {
         title: "Номер",

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import jwt from "jsonwebtoken";
 import {
   issueFileProxyToken,
   verifyFileProxyToken,
@@ -29,7 +30,7 @@ const withEnv = (values, fn) => {
   }
 };
 
-test("file proxy token should issue and verify payload", () =>
+test("file proxy token should issue and verify payload", { concurrency: false }, () =>
   withEnv(
     {
       JWT_SECRET: "test_jwt_secret_test_jwt_secret_32chars",
@@ -43,5 +44,58 @@ test("file proxy token should issue and verify payload", () =>
       const payload = verifyFileProxyToken(token);
       assert.equal(payload.fileId, "f-1");
       assert.equal(payload.disposition, "inline");
+    },
+  ));
+
+test("file proxy token should reject non-HS256 algorithm", { concurrency: false }, () =>
+  withEnv(
+    {
+      JWT_SECRET: "test_jwt_secret_test_jwt_secret_32chars",
+    },
+    () => {
+      const token = jwt.sign(
+        {
+          purpose: "file_proxy_download",
+          fileId: "f-1",
+          disposition: "attachment",
+        },
+        process.env.JWT_SECRET,
+        {
+          algorithm: "HS384",
+          issuer: "passdesk-file-proxy",
+          subject: "f-1",
+          expiresIn: 60,
+        },
+      );
+
+      assert.throws(() => verifyFileProxyToken(token));
+    },
+  ));
+
+test("file proxy token should reject payload with wrong purpose", { concurrency: false }, () =>
+  withEnv(
+    {
+      JWT_SECRET: "test_jwt_secret_test_jwt_secret_32chars",
+    },
+    () => {
+      const token = jwt.sign(
+        {
+          purpose: "other",
+          fileId: "f-1",
+          disposition: "attachment",
+        },
+        process.env.JWT_SECRET,
+        {
+          algorithm: "HS256",
+          issuer: "passdesk-file-proxy",
+          subject: "f-1",
+          expiresIn: 60,
+        },
+      );
+
+      assert.throws(
+        () => verifyFileProxyToken(token),
+        /Invalid file proxy token payload/,
+      );
     },
   ));

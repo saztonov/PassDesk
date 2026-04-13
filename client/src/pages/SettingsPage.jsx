@@ -27,37 +27,52 @@ const SettingsPage = () => {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      const [counterpartiesResult, settingsResult] = await Promise.allSettled([
+        counterpartyService.getAll({
+          limit: 10000,
+          page: 1,
+        }),
+        settingsService.getSettings(),
+      ]);
 
-      // Загружаем все контрагенты без ограничения
-      const counterpartiesResponse = await counterpartyService.getAll({
-        limit: 10000,
-        page: 1,
-      });
+      if (counterpartiesResult.status === "fulfilled") {
+        const counterpartiesResponse = counterpartiesResult.value;
+        const counterpartiesList =
+          counterpartiesResponse?.data?.data?.counterparties ||
+          counterpartiesResponse?.data?.counterparties ||
+          counterpartiesResponse?.data?.data ||
+          counterpartiesResponse?.data ||
+          [];
+        setCounterparties(counterpartiesList);
+      } else {
+        console.error(
+          "Error loading counterparties for settings:",
+          counterpartiesResult.reason,
+        );
+        setCounterparties([]);
+      }
 
-      // Проверяем разные варианты структуры ответа
-      const counterpartiesList =
-        counterpartiesResponse?.data?.data?.counterparties ||
-        counterpartiesResponse?.data?.counterparties ||
-        counterpartiesResponse?.data?.data ||
-        counterpartiesResponse?.data ||
-        [];
+      if (settingsResult.status === "fulfilled") {
+        const settingsResponse = settingsResult.value;
+        const settingsArray = Array.isArray(settingsResponse?.data)
+          ? settingsResponse.data
+          : Array.isArray(settingsResponse?.data?.data)
+            ? settingsResponse.data.data
+            : Array.isArray(settingsResponse)
+              ? settingsResponse
+              : [];
+        const defaultCounterpartySetting = settingsArray.find(
+          (s) => s.key === "default_counterparty_id",
+        );
 
-      setCounterparties(counterpartiesList);
-
-      // Загружаем настройки
-      const settingsResponse = await settingsService.getSettings();
-
-      // Проверяем структуру ответа
-      const settingsArray =
-        settingsResponse?.data?.data || settingsResponse?.data || [];
-      const defaultCounterpartySetting = settingsArray.find(
-        (s) => s.key === "default_counterparty_id",
-      );
-
-      if (defaultCounterpartySetting && defaultCounterpartySetting.value) {
-        form.setFieldsValue({
-          defaultCounterpartyId: defaultCounterpartySetting.value,
-        });
+        if (defaultCounterpartySetting?.value) {
+          form.setFieldsValue({
+            defaultCounterpartyId: defaultCounterpartySetting.value,
+          });
+        }
+      } else {
+        console.error("Error loading settings:", settingsResult.reason);
+        message.error("Ошибка загрузки настроек");
       }
     } catch (error) {
       console.error("Error loading settings:", error);

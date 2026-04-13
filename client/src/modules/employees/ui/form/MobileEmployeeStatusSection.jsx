@@ -6,12 +6,12 @@ const { Title } = Typography;
 export const buildMobileEmployeeStatusSection = ({
   employee,
   user,
-  defaultCounterpartyId,
+  defaultCounterpartyId: _defaultCounterpartyId,
   fireLoading,
   activateLoading,
   onFire,
   onReinstate,
-  onDeactivate,
+  onDeactivate: _onDeactivate,
   onActivate,
 }) => {
   if (!employee?.id || !canManageEmployeeStatuses(user?.role)) {

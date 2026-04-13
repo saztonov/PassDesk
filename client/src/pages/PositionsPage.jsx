@@ -23,6 +23,11 @@ import positionService from "../services/positionService";
 import { useAuthStore } from "../store/authStore";
 import * as XLSX from "xlsx";
 import { canManageAdministrativeData } from "@/shared/lib/accessControl";
+import {
+  ensureExcelRowLimit,
+  validateExcelImportFile,
+  XLSX_READ_SAFE_OPTIONS,
+} from "@/shared/lib/xlsxSecurity";
 
 const PAGE_SIZE = 50;
 const { Title } = Typography;
@@ -274,14 +279,28 @@ const PositionsPage = () => {
   }, [currentPage, fetchPositions, message, searchText]);
 
   const handleImportExcel = (file) => {
+    try {
+      validateExcelImportFile(file);
+    } catch (validationError) {
+      message.error(validationError.message || "Некорректный Excel-файл");
+      return false;
+    }
+
     const reader = new FileReader();
 
     reader.onload = async (e) => {
       try {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: "array" });
+        const data = e.target?.result;
+        if (!data) {
+          throw new Error("Не удалось прочитать файл");
+        }
+        const workbook = XLSX.read(data, {
+          type: "array",
+          ...XLSX_READ_SAFE_OPTIONS,
+        });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+        ensureExcelRowLimit(jsonData);
 
         const positionNames = jsonData
           .map((row) => row[0])

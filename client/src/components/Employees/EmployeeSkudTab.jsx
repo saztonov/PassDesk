@@ -152,7 +152,7 @@ const EmployeeSkudTab = ({ employee }) => {
     employeeApi.getById(employee.id)
       .then((res) => setFreshEmployee(res?.data || res || null))
       .catch(() => {});
-  }, [employee?.id]);
+  }, [employee?.id, employee?.employeeCounterpartyMappings]);
 
   // инициализация из данных сотрудника (только при смене сотрудника)
   useEffect(() => {
@@ -166,7 +166,6 @@ const EmployeeSkudTab = ({ employee }) => {
     // внутреннее подразделение
     const deptId = mappings[0]?.departmentId || null;
     setSelectedInternalDeptId(deptId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveEmployee?.id, effectiveEmployee?.employeeCounterpartyMappings]);
 
   // загрузка всех объектов

@@ -18,7 +18,6 @@ import {
 import { Op } from "sequelize";
 import sequelize from "../config/database.js";
 import storageProvider from "../config/storage.js";
-import { buildEmployeeFilePath } from "../utils/transliterate.js";
 import {
   checkEmployeeAccess,
   getAccessibleEmployeeIds,
@@ -1385,8 +1384,6 @@ export const getAllEmployees = async (req, res, next) => {
       hasZupUploadedAtRangeFilter ||
       (requestedDocumentExpiryFilters.length > 0 &&
         !canUseSqlDocumentExpiryFiltering);
-    const searchAndConditions = [];
-
     if (hasSearchQuery) {
       // Условия разных типов поиска объединяются через OR:
       // достаточно совпадения по любому из типов (цифры, документ, текст).
@@ -1514,16 +1511,8 @@ export const getAllEmployees = async (req, res, next) => {
       "status_processed",
     ];
 
-    // Статусы, которые исключаем из выгрузки (только если activeOnly = true)
+    // Флаг activeOnly используется в SQL-предикатах ниже.
     const isActiveOnly = activeOnly === "true";
-    const excludedStatuses = [
-      "status_hr_fired_compl",
-      "status_hr_new_compl",
-      "status_draft",
-      "status_active_inactive",
-      "status_secure_block",
-      "status_secure_block_compl",
-    ];
 
     // Статусы для фильтрации по дате (если указан фильтр)
     const dateFilterStatuses = [
@@ -2358,14 +2347,14 @@ export const createEmployee = async (req, res, next) => {
       // ✅ ШАГ 2: Обновляем данные сотрудника (если они были изменены)
       // Удаляем служебные поля и employeeId
       const {
-        employeeId: _,
-        counterpartyId,
-        constructionSiteId,
-        statusActive,
-        status,
-        statusCard,
-        statusSecure,
-        isDraft,
+        employeeId: _employeeId,
+        counterpartyId: _counterpartyId,
+        constructionSiteId: _constructionSiteId,
+        statusActive: _statusActive,
+        status: _status,
+        statusCard: _statusCard,
+        statusSecure: _statusSecure,
+        isDraft: _isDraft,
         ...cleanEmployeeData
       } = req.body;
 
@@ -2434,10 +2423,10 @@ export const createEmployee = async (req, res, next) => {
       counterpartyId,
       constructionSiteId,
       isDraft,
-      statusActive,
-      status,
-      statusCard,
-      statusSecure,
+      statusActive: _statusActive,
+      status: _status,
+      statusCard: _statusCard,
+      statusSecure: _statusSecure,
       ...cleanEmployeeData
     } = req.body;
 
@@ -2456,6 +2445,30 @@ export const createEmployee = async (req, res, next) => {
       }
     }
 
+    // Определяем контрагента: из body (если передан) или текущего пользователя, иначе дефолтный
+    const defaultCounterpartyId = await Setting.getSetting(
+      "default_counterparty_id",
+    );
+    const targetCounterpartyId =
+      counterpartyId || req.user.counterpartyId || defaultCounterpartyId;
+
+    if (!targetCounterpartyId) {
+      throw new AppError("Контрагент не определен", 400);
+    }
+
+    // Защита от несогласованности settings/default_counterparty_id и справочника counterparties.
+    // Без этой проверки получаем FK 500 при создании employee_counterparty_mapping.
+    const targetCounterparty = await Counterparty.findByPk(targetCounterpartyId, {
+      attributes: ["id"],
+    });
+
+    if (!targetCounterparty) {
+      throw new AppError(
+        "Не найден контрагент для нового сотрудника. Проверьте настройку default_counterparty_id.",
+        400,
+      );
+    }
+
     const employeeData = {
       ...applyEmployeeSensitiveFieldEncryption(cleanEmployeeData),
       createdBy: req.user.id,
@@ -2468,17 +2481,6 @@ export const createEmployee = async (req, res, next) => {
       employee.id,
       req.user.id,
     );
-
-    // Определяем контрагента: из body (если передан) или текущего пользователя, иначе дефолтный
-    const defaultCounterpartyId = await Setting.getSetting(
-      "default_counterparty_id",
-    );
-    const targetCounterpartyId =
-      counterpartyId || req.user.counterpartyId || defaultCounterpartyId;
-
-    if (!targetCounterpartyId) {
-      throw new AppError("Контрагент не определен", 400);
-    }
 
     // Создаём запись в маппинге (сотрудник-контрагент-объект)
     await EmployeeCounterpartyMapping.create({
@@ -5581,7 +5583,6 @@ export const validateEmployeesImport = async (req, res, next) => {
  */
 export const importEmployees = async (req, res, next) => {
   const startTime = Date.now();
-  let auditLogId = null;
 
   try {
     const { employees, conflictResolutions } = req.body;
@@ -5593,7 +5594,7 @@ export const importEmployees = async (req, res, next) => {
     }
 
     // 📝 AUDIT LOG: Начало импорта
-    const auditLog = await AuditLog.create({
+    await AuditLog.create({
       userId: userId,
       action: "EMPLOYEE_IMPORT_START",
       entityType: "employee",
@@ -5607,8 +5608,6 @@ export const importEmployees = async (req, res, next) => {
       userAgent: req.get("user-agent"),
       status: "success",
     });
-    auditLogId = auditLog.id;
-
     const { importEmployees: executeImport } =
       await import("../services/employeeImportService.js");
     const results = await executeImport(

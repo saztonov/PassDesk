@@ -7,6 +7,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "lint": "eslint \"src/**/*.js\"",
+    "test": "node --test src/routes/managerPermissionsConsistency.test.js src/services/fileDownloadTokenService.test.js src/services/encryptionService.test.js src/utils/employeeSorting.test.js src/middleware/auth.test.js src/middleware/upload.test.js",
+    "test:all": "node --test \"src/**/*.test.js\"",
     "db:check": "node src/database/check-connection.js",
     "db:migrate": "node src/database/runMigrations.js",
     "encryption:clear-legacy-plaintext": "node src/scripts/clearEmployeeSensitiveLegacyPlaintext.js",
@@ -22,19 +25,19 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.500.0",
-    "@aws-sdk/s3-request-presigner": "^3.500.0",
+    "@aws-sdk/client-s3": "^3.1029.0",
+    "@aws-sdk/s3-request-presigner": "^3.1029.0",
     "archiver": "^7.0.1",
-    "axios": "^1.6.2",
+    "axios": "^1.15.0",
     "bcryptjs": "^2.4.3",
     "browser-image-compression": "^2.0.2",
+    "bullmq": "^5.58.5",
     "compression": "^1.7.4",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "docx": "^9.5.1",
     "dotenv": "^16.3.1",
-    "bullmq": "^5.58.5",
-    "express": "^4.18.2",
+    "express": "^4.22.1",
     "express-rate-limit": "^7.1.5",
     "express-validator": "^7.0.1",
     "form-data": "^4.0.0",
@@ -47,11 +50,12 @@
     "pg": "^8.11.3",
     "pg-hstore": "^2.3.4",
     "qrcode": "^1.5.4",
-    "sequelize": "^6.35.1",
+    "sequelize": "^6.37.8",
     "telegraf": "^4.16.3",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "eslint": "^8.57.1",
     "nodemon": "^3.0.2"
   }
 }

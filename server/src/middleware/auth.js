@@ -5,6 +5,7 @@ import { getTranslator } from "../i18n/index.js";
 import { resolveMobileEmployeeSession } from "../services/mobileEmployeeAccessService.js";
 
 const SUPPORTED_LANGUAGES = new Set(["ru", "uz", "tj", "kz"]);
+const JWT_VERIFY_OPTIONS = Object.freeze({ algorithms: ["HS256"] });
 
 const normalizeLanguage = (lng) => {
   if (!lng) return "ru";
@@ -24,7 +25,7 @@ export const authenticate = async (req, res, next) => {
     const token = authHeader.split(" ")[1];
 
     // Проверяем токен
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, JWT_VERIFY_OPTIONS);
 
     // Загружаем пользователя с counterpartyId и identificationNumber
     const user = await User.findByPk(decoded.id, {
@@ -49,8 +50,9 @@ export const authenticate = async (req, res, next) => {
     // Проверяем, активен ли пользователь
     if (!user.isActive) {
       throw new AppError(
-        "Ваш аккаунт не активирован администратором. УИН: " +
-          user.identificationNumber || "не указан",
+        `Ваш аккаунт не активирован администратором. УИН: ${
+          user.identificationNumber || "не указан"
+        }`,
         403,
       );
     }
@@ -92,7 +94,7 @@ export const authenticateWithoutActivationCheck = async (req, res, next) => {
     const token = authHeader.split(" ")[1];
 
     // Проверяем токен
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, JWT_VERIFY_OPTIONS);
 
     // Загружаем пользователя с counterpartyId и identificationNumber
     const user = await User.findByPk(decoded.id, {
@@ -157,7 +159,7 @@ export const authenticateForLogout = async (req, res, next) => {
 
     // Пытаемся декодировать токен (если успешно)
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET, JWT_VERIFY_OPTIONS);
       const user = await User.findByPk(decoded.id, {
         attributes: ["id", "role", "counterpartyId"],
       });

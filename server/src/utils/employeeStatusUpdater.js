@@ -67,7 +67,6 @@ export const updateEmployeeStatusesByCompleteness = async (
   );
 
   // Обновляем или создаем статус (основной)
-  let statusMapping;
   let statusCreated = false;
   const existingStatus = await EmployeeStatusMapping.findOne({
     where: {
@@ -83,9 +82,8 @@ export const updateEmployeeStatusesByCompleteness = async (
       updatedBy: userId,
       updatedAt: new Date()
     });
-    statusMapping = existingStatus;
   } else {
-    statusMapping = await EmployeeStatusMapping.create({
+    await EmployeeStatusMapping.create({
       employeeId: employee.id,
       statusId: statusMap[targetStatuses.status],
       statusGroup: 'status',
@@ -110,7 +108,6 @@ export const updateEmployeeStatusesByCompleteness = async (
   );
 
   // Обновляем или создаем статус карточки
-  let statusCardMapping;
   let statusCardCreated = false;
   const existingStatusCard = await EmployeeStatusMapping.findOne({
     where: {
@@ -126,9 +123,8 @@ export const updateEmployeeStatusesByCompleteness = async (
       updatedBy: userId,
       updatedAt: new Date()
     });
-    statusCardMapping = existingStatusCard;
   } else {
-    statusCardMapping = await EmployeeStatusMapping.create({
+    await EmployeeStatusMapping.create({
       employeeId: employee.id,
       statusId: statusMap[targetStatuses.statusCard],
       statusGroup: 'status_card',

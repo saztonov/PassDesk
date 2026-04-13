@@ -206,6 +206,7 @@ export const useEmployeeFormSaveHandlers = ({
       employee,
       form,
       formatEmployeeFormPayload,
+      getTouchedFieldNames,
       onSuccess,
       resetFormStateAfterSave,
       setLoading,
@@ -250,7 +251,6 @@ export const useEmployeeFormSaveHandlers = ({
 
       const values = form.getFieldsValue(["inn", "lastName", "firstName"]);
       const rawInn = values?.inn ? values.inn.replace(/[^\d]/g, "") : "";
-      const hasValidInn = rawInn.length === 10 || rawInn.length === 12;
       const normalizedLastName = values?.lastName?.trim() || "";
       const normalizedFirstName = values?.firstName?.trim() || "";
       const hasMinFields = normalizedLastName.length >= 2 && normalizedFirstName.length >= 2;

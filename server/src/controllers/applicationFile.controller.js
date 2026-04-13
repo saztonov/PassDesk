@@ -74,7 +74,6 @@ export const uploadApplicationFiles = async (req, res, next) => {
       application.counterparty.name,
       application.applicationNumber,
     ).replace(/^\/+/, "");
-    const fullPath = storageProvider.resolvePath(relativePath);
 
     const uploadedFiles = [];
     const errors = [];

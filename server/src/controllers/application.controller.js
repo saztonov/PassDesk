@@ -20,7 +20,6 @@ import {
 import { Op } from "sequelize";
 import storageProvider from "../config/storage.js";
 import { generateApplicationDocument } from "../services/documentService.js";
-import EmployeeStatusService from "../services/employeeStatusService.js";
 import { getAccessibleEmployeeIds } from "../utils/permissionUtils.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { sanitizeFileName } from "../utils/transliterate.js";
@@ -1066,7 +1065,7 @@ export const updateApplication = async (req, res, next) => {
     }
 
     // Обновляем данные заявки (не перезаписываем counterpartyId)
-    const { counterpartyId, ...updateData } = updates;
+    const { counterpartyId: _counterpartyId, ...updateData } = updates;
 
     const targetConstructionSiteId =
       updateData.constructionSiteId ?? application.constructionSiteId;

@@ -10,7 +10,6 @@ const EmployeeActionButtons = ({
   onCancel,
   userRole,
 }) => {
-  const [loadingFire, setLoadingFire] = useState(false);
   const [loadingReinstate, setLoadingReinstate] = useState(false);
 
   const isInactive =
@@ -63,25 +62,6 @@ const EmployeeActionButtons = ({
   //     setLoadingReinstate(false);
   //   }
   // };
-
-  const handleDeactivate = async () => {
-    try {
-      setLoadingFire(true);
-      await employeeStatusService.deactivateEmployee(employee.id);
-      invalidateCache(`employees:getById:${employee.id}`);
-      messageApi.success(
-        `Сотрудник ${employee.lastName} ${employee.firstName} деактивирован`,
-      );
-      setTimeout(() => {
-        onCancel && onCancel();
-      }, 500);
-    } catch (error) {
-      console.error("Error deactivating employee:", error);
-      messageApi.error("Ошибка при деактивации сотрудника");
-    } finally {
-      setLoadingFire(false);
-    }
-  };
 
   const handleActivate = async () => {
     try {

@@ -19,20 +19,21 @@ export const FullNameFilterDropdown = ({
 }) => {
   const selectedValues = Array.isArray(selectedKeys) ? selectedKeys : [];
   const [searchText, setSearchText] = useState("");
-  const availableFullNames = Array.isArray(uniqueFilterFullNames)
-    ? uniqueFilterFullNames
-    : [];
 
   useEffect(() => {
     setSearchText("");
   }, [resetTrigger]);
 
   const filteredFullNames = useMemo(
-    () =>
-      availableFullNames.filter((name) =>
+    () => {
+      const availableFullNames = Array.isArray(uniqueFilterFullNames)
+        ? uniqueFilterFullNames
+        : [];
+      return availableFullNames.filter((name) =>
         name.toLowerCase().includes(searchText.toLowerCase()),
-      ),
-    [availableFullNames, searchText],
+      );
+    },
+    [uniqueFilterFullNames, searchText],
   );
 
   const handleReset = () => {

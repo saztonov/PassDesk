@@ -3,7 +3,6 @@ import {
   Employee,
   Counterparty,
   EmployeeCounterpartyMapping,
-  Setting,
 } from "../models/index.js";
 import storageProvider from "../config/storage.js";
 import archiver from "archiver";
@@ -30,6 +29,31 @@ import {
   enqueueEmployeeOcrJob,
   listEmployeeOcrQueue,
 } from "../queues/employeeOcr/queue.js";
+
+const VALID_DOCUMENT_TYPES = [
+  "passport",
+  "passport_translation",
+  "inn_document",
+  "patent_front",
+  "patent_back",
+  "visa",
+  "consent",
+  "biometric_consent",
+  "biometric_consent_developer",
+  "bank_details",
+  "snils_card",
+  "kig",
+  "diploma",
+  "migration_card",
+  "arrival_notice",
+  "patent_payment_receipt",
+  "insurance_policy",
+  "memo_approval",
+  "employment_history_stdr",
+  "registration_amina",
+  "military_id",
+  "other",
+];
 
 /**
  * Helper: Загрузить сотрудника с маппингами для проверки прав
@@ -91,34 +115,9 @@ export const uploadEmployeeFiles = async (req, res, next) => {
       throw new AppError("Пользователь не аутентифицирован", 401);
     }
 
-    // Валидация типа документа (опционально)
-    const validDocumentTypes = [
-      "passport",
-      "passport_translation",
-      "inn_document",
-      "patent_front",
-      "patent_back",
-      "visa",
-      "consent",
-      "biometric_consent",
-      "biometric_consent_developer",
-      "bank_details",
-      "snils_card",
-      "kig",
-      "diploma",
-      "migration_card",
-      "arrival_notice",
-      "patent_payment_receipt",
-      "insurance_policy",
-      "memo_approval",
-      "employment_history_stdr",
-      "registration_amina",
-      "military_id",
-      "other",
-    ];
-    if (documentType && !validDocumentTypes.includes(documentType)) {
+    if (documentType && !VALID_DOCUMENT_TYPES.includes(documentType)) {
       throw new AppError(
-        `Неверный тип документа. Допустимые значения: ${validDocumentTypes.join(", ")}`,
+        `Неверный тип документа. Допустимые значения: ${VALID_DOCUMENT_TYPES.join(", ")}`,
         400,
       );
     }
@@ -376,33 +375,9 @@ export const enqueueEmployeeFiles = async (req, res, next) => {
       throw new AppError("Пользователь не аутентифицирован", 401);
     }
 
-    const validDocumentTypes = [
-      "passport",
-      "passport_translation",
-      "inn_document",
-      "patent_front",
-      "patent_back",
-      "visa",
-      "consent",
-      "biometric_consent",
-      "biometric_consent_developer",
-      "bank_details",
-      "snils_card",
-      "kig",
-      "diploma",
-      "migration_card",
-      "arrival_notice",
-      "patent_payment_receipt",
-      "insurance_policy",
-      "memo_approval",
-      "employment_history_stdr",
-      "registration_amina",
-      "military_id",
-      "other",
-    ];
-    if (documentType && !validDocumentTypes.includes(documentType)) {
+    if (documentType && !VALID_DOCUMENT_TYPES.includes(documentType)) {
       throw new AppError(
-        `Неверный тип документа. Допустимые значения: ${validDocumentTypes.join(", ")}`,
+        `Неверный тип документа. Допустимые значения: ${VALID_DOCUMENT_TYPES.join(", ")}`,
         400,
       );
     }

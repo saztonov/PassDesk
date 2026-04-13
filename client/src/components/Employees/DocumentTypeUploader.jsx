@@ -11,98 +11,14 @@ import {
   normalizeDocumentTypes,
   splitIntoColumns,
 } from "@/modules/employees/lib/documentTypeUploaderUtils";
+import {
+  MAX_QUEUE_BATCH_SIZE,
+  getSeenOcrResultKeysForEmployee,
+  rememberSeenOcrResultKey,
+  prepareFileForUpload,
+} from "@/modules/employees/lib/documentTypeUploaderAiUtils";
 import { applyDocumentTypeProfile } from "@/modules/employees/lib/documentTypeProfiles";
 import { SUPPORTED_FORMATS } from "@/shared/constants/fileTypes";
-import {
-  createAiScannedDocument,
-  isAiDocumentScanEnabled,
-} from "@/shared/lib/aiDocumentScanner";
-
-const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
-const MAX_GLOBAL_OCR_RESULT_KEYS = 1000;
-const MAX_QUEUE_BATCH_SIZE = 100;
-const seenOcrResultKeysByEmployee = new Map();
-
-const getSeenOcrResultKeysForEmployee = (employeeId) => {
-  const normalizedEmployeeId = String(employeeId || "").trim();
-  if (!normalizedEmployeeId) {
-    return null;
-  }
-  let keys = seenOcrResultKeysByEmployee.get(normalizedEmployeeId);
-  if (!keys) {
-    keys = new Set();
-    seenOcrResultKeysByEmployee.set(normalizedEmployeeId, keys);
-  }
-  return keys;
-};
-
-const rememberSeenOcrResultKey = (employeeId, key) => {
-  const keys = getSeenOcrResultKeysForEmployee(employeeId);
-  if (!keys || !key) {
-    return;
-  }
-  keys.add(key);
-  if (keys.size <= MAX_GLOBAL_OCR_RESULT_KEYS) {
-    return;
-  }
-  const stale = Array.from(keys).slice(0, keys.size - MAX_GLOBAL_OCR_RESULT_KEYS);
-  stale.forEach((item) => keys.delete(item));
-};
-
-const resolveFileExtension = (fileName = "") =>
-  String(fileName || "")
-    .trim()
-    .toLowerCase()
-    .split(".")
-    .pop();
-
-const isImageFile = (file) => {
-  const mimeType = String(file?.type || "")
-    .trim()
-    .toLowerCase();
-  const extension = resolveFileExtension(file?.name);
-
-  return mimeType.startsWith("image/") || IMAGE_EXTENSIONS.has(extension);
-};
-
-const prepareFileForUpload = async ({ file, documentType, messageApi }) => {
-  if (!isAiDocumentScanEnabled() || !isImageFile(file)) {
-    return file;
-  }
-
-  const messageKey = `ai-scan-${documentType}-${file.name}-${file.size}`;
-  messageApi.loading({
-    content: `AI: подготавливаем scan-копию (${file.name})...`,
-    key: messageKey,
-    duration: 0,
-  });
-
-  try {
-    const scannedFile = await createAiScannedDocument({
-      file,
-      documentType,
-    });
-    messageApi.success({
-      content: `AI: scan-копия готова (${file.name})`,
-      key: messageKey,
-      duration: 2,
-    });
-    return scannedFile;
-  } catch (scanError) {
-    console.error("AI scan failed:", scanError);
-    const fallbackMessage =
-      scanError?.userMessage ||
-      scanError?.response?.data?.message ||
-      scanError?.message ||
-      "AI scan не сработал";
-    messageApi.warning({
-      content: `${fallbackMessage}. Загружаем исходное фото (${file.name})`,
-      key: messageKey,
-      duration: 3,
-    });
-    return file;
-  }
-};
 
 /**
  * Компонент для загрузки документов по типам с автоматической загрузкой
@@ -122,7 +38,7 @@ const DocumentTypeUploader = ({
   viewerMode = "modal",
   columnsCount = 3,
   showInfoBanner = true,
-  embeddedViewerHeight = 360,
+  embeddedViewerHeight: _embeddedViewerHeight = 360,
   compact = false,
 }) => {
   const { message } = App.useApp();
@@ -367,7 +283,7 @@ const DocumentTypeUploader = ({
     } catch (error) {
       console.error("Failed to load OCR queue:", error);
     }
-  }, [effectiveEmployeeId, fetchAllFiles]);
+  }, [effectiveEmployeeId, fetchAllFiles, getDocumentTypeLabel, message]);
 
   useEffect(() => {
     fetchUploadQueue();
@@ -382,27 +298,16 @@ const DocumentTypeUploader = ({
       return;
     }
 
+    const hasActiveJobs = uploadQueue.length > 0 || ocrQueue.length > 0;
+    const intervalMs = hasActiveJobs ? 2000 : 8000;
+
     const interval = setInterval(() => {
       fetchUploadQueue();
       fetchOcrQueue();
-    }, 2000);
+    }, intervalMs);
 
     return () => clearInterval(interval);
-  }, [effectiveEmployeeId, fetchUploadQueue, fetchOcrQueue]);
-
-  useEffect(() => {
-    if (!effectiveEmployeeId) {
-      return;
-    }
-    if (uploadQueue.length === 0 && ocrQueue.length === 0) {
-      return;
-    }
-    const interval = setInterval(() => {
-      fetchAllFiles(effectiveEmployeeId, { force: true });
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [effectiveEmployeeId, fetchAllFiles, uploadQueue.length, ocrQueue.length]);
+  }, [effectiveEmployeeId, fetchUploadQueue, fetchOcrQueue, uploadQueue.length, ocrQueue.length]);
 
   useEffect(() => {
     if (typeof onOcrActivityChange !== "function") {
@@ -516,7 +421,7 @@ const DocumentTypeUploader = ({
         });
       }
     }
-  }, [allFiles]);
+  }, [allFiles, getDocumentTypeLabel, message]);
 
   useEffect(() => {
     if (!effectiveEmployeeId) {
@@ -543,11 +448,6 @@ const DocumentTypeUploader = ({
     if (newOcrFiles.length > 0) {
       seenOcrResultsRef.current = nextProcessedKeys;
       newOcrFiles.forEach((file) => {
-        const label =
-          file?.originalName ||
-          file?.fileName ||
-          getDocumentTypeLabel(file?.documentType) ||
-          "Документ";
         if (typeof onUploadComplete === "function") {
           onUploadComplete({
             file,
@@ -558,7 +458,7 @@ const DocumentTypeUploader = ({
         }
       });
     }
-  }, [allFiles, effectiveEmployeeId, getDocumentTypeLabel, message, onUploadComplete]);
+  }, [allFiles, effectiveEmployeeId, onUploadComplete]);
 
   const handleUploadSubmit = async (fileList, documentType) => {
     if (!Array.isArray(fileList) || fileList.length === 0) {

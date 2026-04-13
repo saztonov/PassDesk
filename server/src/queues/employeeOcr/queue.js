@@ -1,5 +1,5 @@
-import IORedis from "ioredis";
 import { Queue, Worker } from "bullmq";
+import { createRedisConnection } from "../../config/redis.js";
 import axios from "axios";
 import { File } from "../../models/index.js";
 import storageProvider from "../../config/storage.js";
@@ -18,9 +18,6 @@ const toBool = (value, fallback = true) => {
 
 const ocrQueueConfig = {
   enabled: toBool(process.env.OCR_QUEUE_ENABLED, true),
-  redisHost: String(process.env.REDIS_HOST || "redis").trim(),
-  redisPort: Number.parseInt(String(process.env.REDIS_PORT || "6379"), 10),
-  redisPassword: String(process.env.REDIS_PASSWORD || "").trim(),
   concurrency: Math.max(1, Number.parseInt(String(process.env.OCR_QUEUE_CONCURRENCY || "2"), 10)),
   retryLimit: Math.max(1, Number.parseInt(String(process.env.OCR_QUEUE_RETRY_LIMIT || "3"), 10)),
 };
@@ -42,14 +39,7 @@ let workersStarted = false;
 
 const getRedisConnection = () => {
   if (!redisConnection) {
-    redisConnection = new IORedis({
-      host: ocrQueueConfig.redisHost,
-      port: ocrQueueConfig.redisPort,
-      password: ocrQueueConfig.redisPassword || undefined,
-      maxRetriesPerRequest: null,
-      enableReadyCheck: true,
-      lazyConnect: true,
-    });
+    redisConnection = createRedisConnection();
   }
   return redisConnection;
 };
@@ -150,8 +140,8 @@ export const enqueueEmployeeOcrJob = async ({
     {
       attempts: ocrQueueConfig.retryLimit,
       backoff: { type: "exponential", delay: 2000 },
-      removeOnComplete: 2000,
-      removeOnFail: 3000,
+      removeOnComplete: { count: 100 },
+      removeOnFail: { count: 200 },
     },
   );
 

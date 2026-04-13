@@ -96,6 +96,8 @@ const UsersPage = () => {
   const [editingUser, setEditingUser] = useState(null);
   const { user: currentUser } = useAuthStore();
   const [pagination, setPagination] = useState({ current: 1, pageSize: 100, total: 0 });
+  const currentPage = pagination.current;
+  const pageSize = pagination.pageSize;
   const debounceTimerRef = useRef(null);
 
   // Debounce поиска (350мс, как на странице сотрудников)
@@ -117,8 +119,8 @@ const UsersPage = () => {
     setLoading(true);
     try {
       const params = {
-        page: pagination.current,
-        limit: pagination.pageSize,
+        page: currentPage,
+        limit: pageSize,
       };
       if (debouncedSearch) params.search = debouncedSearch;
       if (roleFilter) params.role = roleFilter;
@@ -127,14 +129,16 @@ const UsersPage = () => {
       const response = await userService.getAll(params);
       setUsers(response?.data?.users || []);
       const total = response?.data?.pagination?.total ?? response?.data?.users?.length ?? 0;
-      setPagination((prev) => ({ ...prev, total }));
+      setPagination((prev) =>
+        prev.total === total ? prev : { ...prev, total },
+      );
     } catch (error) {
       console.error("Error fetching users:", error);
       setUsers([]);
     } finally {
       setLoading(false);
     }
-  }, [pagination.current, pagination.pageSize, debouncedSearch, roleFilter, isActiveFilter]);
+  }, [currentPage, pageSize, debouncedSearch, roleFilter, isActiveFilter]);
 
   useEffect(() => {
     fetchUsers();

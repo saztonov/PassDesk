@@ -14,6 +14,7 @@ import { startTelegramBot } from "./telegram/bot.js";
 import { startSkudWorkers } from "./queues/skud/queue.js";
 import { startUploadWorkers } from "./queues/employeeUploads/queue.js";
 import { startOcrWorkers } from "./queues/employeeOcr/queue.js";
+import { cleanupStaleTempFiles } from "./middleware/upload.js";
 import { isSkudEnabled, skudConfig } from "./services/skud/skudConfig.js";
 import { runSkudEventsPull } from "./controllers/skud.controller.js";
 
@@ -47,6 +48,8 @@ if (
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || "50mb";
+const URLENCODED_BODY_LIMIT = process.env.URLENCODED_BODY_LIMIT || "50mb";
 let skudEventsPullTimer = null;
 let skudEventsPullInFlight = false;
 
@@ -129,23 +132,37 @@ const mutationApiLimiter = rateLimit({
 
 // Middleware
 app.use(helmet());
+const normalizeOrigin = (value) => String(value || "").trim().replace(/\/$/, "");
+const allowedCorsOrigins = new Set(
+  [
+    "http://localhost:5173",
+    "https://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://127.0.0.1:5173",
+    process.env.CLIENT_URL, // Для VPS используется переменная окружения
+  ]
+    .filter(Boolean)
+    .map(normalizeOrigin),
+);
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://localhost:5173",
-      "http://127.0.0.1:5173",
-      "https://127.0.0.1:5173",
-      process.env.CLIENT_URL, // Для VPS используется переменная окружения
-    ].filter(Boolean), // Убираем undefined если CLIENT_URL не установлен
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      callback(null, allowedCorsOrigins.has(normalizeOrigin(origin)));
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    maxAge: 600,
   }),
 );
 app.use(compression());
 app.use(morgan("dev"));
 // Увеличиваем лимиты для больших загрузок (импорт больших файлов Excel)
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: URLENCODED_BODY_LIMIT }));
 app.use(cookieParser());
 app.use(attachTranslator);
 
@@ -245,7 +262,10 @@ const startServer = async () => {
               `✅ SKUD events auto-pull: fetched=${result?.fetched || 0}, imported=${result?.imported || 0}`,
             );
           } catch (error) {
-            console.error("❌ SKUD events auto-pull failed:", error?.message || error);
+            console.error(
+              "❌ SKUD events auto-pull failed:",
+              error?.message || error,
+            );
           } finally {
             skudEventsPullInFlight = false;
           }
@@ -261,7 +281,9 @@ const startServer = async () => {
           skudEventsPullTimer.unref();
         }
 
-        console.log(`✅ SKUD events auto-pull scheduled every ${pullIntervalMs} ms`);
+        console.log(
+          `✅ SKUD events auto-pull scheduled every ${pullIntervalMs} ms`,
+        );
 
         runAutoPull().catch(() => {
           // noop: all errors are handled inside runAutoPull
@@ -276,6 +298,8 @@ const startServer = async () => {
         process.once("SIGINT", stopSkudEventsPull);
         process.once("SIGTERM", stopSkudEventsPull);
       }
+
+      cleanupStaleTempFiles();
 
       startUploadWorkers()
         .then(() => {

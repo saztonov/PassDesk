@@ -181,13 +181,8 @@ const EmployeeFileUpload = ({
     const maxRetries = 2;
 
     try {
-      while (true) {
-        const nextItem = queueRef.current.find(
-          (item) => item.status === "queued",
-        );
-        if (!nextItem) {
-          break;
-        }
+      let nextItem = queueRef.current.find((item) => item.status === "queued");
+      while (nextItem) {
 
         updateQueueItem(nextItem.id, {
           status: "uploading",
@@ -221,11 +216,12 @@ const EmployeeFileUpload = ({
             });
           }
         }
+        nextItem = queueRef.current.find((item) => item.status === "queued");
       }
     } finally {
       processingRef.current = false;
     }
-  }, [employeeId, fetchFiles, updateQueueItem, uploadQueue]);
+  }, [employeeId, fetchFiles, updateQueueItem]);
 
   useEffect(() => {
     if (uploadQueue.some((item) => item.status === "queued")) {

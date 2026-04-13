@@ -33,6 +33,7 @@ export const issueFileProxyToken = ({ fileId, disposition = "attachment" }) => {
     },
     process.env.JWT_SECRET,
     {
+      algorithm: "HS256",
       expiresIn: getTokenTtlSeconds(),
       issuer: TOKEN_ISSUER,
       subject: String(fileId),
@@ -46,6 +47,7 @@ export const verifyFileProxyToken = (token) => {
   }
   const decoded = jwt.verify(token, process.env.JWT_SECRET, {
     issuer: TOKEN_ISSUER,
+    algorithms: ["HS256"],
   });
 
   if (!decoded || decoded.purpose !== TOKEN_PURPOSE || !decoded.fileId) {

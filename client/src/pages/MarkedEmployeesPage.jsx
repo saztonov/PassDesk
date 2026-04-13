@@ -34,7 +34,7 @@ const MarkedEmployeesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [pagination.current, pagination.pageSize, search, message]);
+  }, [pagination, search, message]);
 
   useEffect(() => {
     fetchData();

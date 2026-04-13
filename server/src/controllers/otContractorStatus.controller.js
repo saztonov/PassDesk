@@ -1,7 +1,6 @@
 import {
   Counterparty,
   CounterpartyConstructionSiteMapping,
-  OtContractorStatus,
 } from "../models/index.js";
 import { AppError } from "../middleware/errorHandler.js";
 import {
@@ -18,7 +17,7 @@ import {
 
 export const getOtContractorStatuses = async (req, res, next) => {
   try {
-    const { isAdmin, isStaff } = await assertOtAccess(req.user);
+    const { isStaff } = await assertOtAccess(req.user);
 
     const { constructionSiteId, counterpartyId: counterpartyIdQuery } =
       req.query;

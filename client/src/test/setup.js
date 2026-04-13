@@ -26,6 +26,6 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
-global.ResizeObserver = ResizeObserverMock;
+globalThis.ResizeObserver = ResizeObserverMock;
 window.ResizeObserver = ResizeObserverMock;
 window.scrollTo = vi.fn();

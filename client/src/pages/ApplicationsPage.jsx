@@ -74,7 +74,7 @@ const ApplicationsPage = () => {
         },
       }),
     );
-  }, [searchText, pagination.current, pagination.pageSize]);
+  }, [searchText, pagination]);
 
   const fetchData = async () => {
     setLoading(true);

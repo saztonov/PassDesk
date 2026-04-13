@@ -37,139 +37,17 @@ import userProfileService from "@/services/userProfileService";
 import { citizenshipService } from "@/services/citizenshipService";
 import { capitalizeFirstLetter, filterCyrillicOnly } from "@/utils/formatters";
 import { useAuthStore } from "@/store/authStore";
+import {
+  formatDateInput,
+  formatPhoneNumber,
+  formatSnils,
+  formatKig,
+  formatInn,
+} from "@/modules/user-profile/lib/inputMasks";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { useBreakpoint } = Grid;
-
-// Функция для форматирования даты с автоматическими точками
-const formatDateInput = (value) => {
-  // Убираем все нецифровые символы (точки, запятые и т.д.)
-  const numbers = value.replace(/\D/g, "");
-
-  // Форматируем с точками: ДД.ММ.ГГГГ
-  let result = "";
-
-  for (let i = 0; i < numbers.length && i < 8; i++) {
-    if (i === 2 || i === 4) {
-      result += ".";
-    }
-    result += numbers[i];
-  }
-
-  return result;
-};
-
-// Маска для телефона: форматирует ввод в +7 (123) 456-78-90
-const formatPhoneNumber = (value) => {
-  if (!value) return value;
-
-  // Убираем все символы кроме цифр
-  const phoneNumber = value.replace(/[^\d]/g, "");
-
-  // Ограничиваем длину до 11 цифр
-  const phoneNumberLength = phoneNumber.length;
-
-  // Если число начинается с 8, заменяем на 7
-  let formattedNumber = phoneNumber;
-  if (phoneNumber.startsWith("8")) {
-    formattedNumber = "7" + phoneNumber.slice(1);
-  }
-
-  // Форматируем: +7 (123) 456-78-90
-  if (phoneNumberLength < 2) {
-    return formattedNumber;
-  }
-  if (phoneNumberLength < 5) {
-    return `+7 (${formattedNumber.slice(1)}`;
-  }
-  if (phoneNumberLength < 8) {
-    return `+7 (${formattedNumber.slice(1, 4)}) ${formattedNumber.slice(4)}`;
-  }
-  if (phoneNumberLength < 10) {
-    return `+7 (${formattedNumber.slice(1, 4)}) ${formattedNumber.slice(4, 7)}-${formattedNumber.slice(7)}`;
-  }
-  return `+7 (${formattedNumber.slice(1, 4)}) ${formattedNumber.slice(4, 7)}-${formattedNumber.slice(7, 9)}-${formattedNumber.slice(9, 11)}`;
-};
-
-// Маска для СНИЛС: форматирует ввод в 123-456-789 00
-const formatSnils = (value) => {
-  if (!value) return value;
-
-  // Убираем все символы кроме цифр
-  const snils = value.replace(/[^\d]/g, "");
-
-  // Ограничиваем длину до 11 цифр
-  const snilsLength = snils.length;
-
-  if (snilsLength < 4) {
-    return snils;
-  }
-  if (snilsLength < 7) {
-    return `${snils.slice(0, 3)}-${snils.slice(3)}`;
-  }
-  if (snilsLength < 10) {
-    return `${snils.slice(0, 3)}-${snils.slice(3, 6)}-${snils.slice(6)}`;
-  }
-  return `${snils.slice(0, 3)}-${snils.slice(3, 6)}-${snils.slice(6, 9)} ${snils.slice(9, 11)}`;
-};
-
-// Маска для КИГ: форматирует ввод в АА 1234567 (только латинские буквы)
-const formatKig = (value) => {
-  if (!value) return value;
-
-  // Преобразуем в верхний регистр
-  let kig = value.toUpperCase();
-
-  // Убираем все символы кроме латинских букв и цифр
-  kig = kig.replace(/[^A-Z0-9]/g, "");
-
-  // Разделяем на буквы и цифры
-  const letters = kig.replace(/[^A-Z]/g, "");
-  const numbers = kig.replace(/[^0-9]/g, "");
-
-  // Ограничиваем: 2 буквы + 7 цифр
-  const limitedLetters = letters.slice(0, 2);
-  const limitedNumbers = numbers.slice(0, 7);
-
-  // Форматируем: АА 1234567
-  if (limitedLetters.length === 0) {
-    return "";
-  }
-  if (limitedNumbers.length === 0) {
-    return limitedLetters;
-  }
-  return `${limitedLetters} ${limitedNumbers}`;
-};
-
-// Маска для ИНН: форматирует ввод в XXXX-XXXXX-X (10 цифр) или XXXX-XXXXXX-XX (12 цифр)
-const formatInn = (value) => {
-  if (!value) return value;
-
-  // Убираем все символы кроме цифр
-  const inn = value.replace(/[^\d]/g, "");
-
-  // Ограничиваем длину до 12 цифр
-  const innLength = inn.length;
-
-  if (innLength <= 4) {
-    return inn;
-  }
-  if (innLength <= 9) {
-    // Начинаем форматировать для 10-значного ИНН
-    return `${inn.slice(0, 4)}-${inn.slice(4)}`;
-  }
-  if (innLength === 10) {
-    // 10-значный ИНН: XXXX-XXXXX-X
-    return `${inn.slice(0, 4)}-${inn.slice(4, 9)}-${inn.slice(9)}`;
-  }
-  if (innLength <= 10) {
-    // Промежуточное состояние для 12-значного ИНН
-    return `${inn.slice(0, 4)}-${inn.slice(4, 10)}`;
-  }
-  // 12-значный ИНН: XXXX-XXXXXX-XX
-  return `${inn.slice(0, 4)}-${inn.slice(4, 10)}-${inn.slice(10, 12)}`;
-};
 
 const UserProfilePage = () => {
   const screens = useBreakpoint();

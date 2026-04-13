@@ -269,13 +269,17 @@ const TrashPage = () => {
     search: userSearch,
     pagination: userPagination,
   } = userState;
+  const employeeCurrentPage = employeePagination.current;
+  const employeePageSize = employeePagination.pageSize;
+  const userCurrentPage = userPagination.current;
+  const userPageSize = userPagination.pageSize;
 
   const fetchEmployees = useCallback(async () => {
     setEmployeeState((prev) => ({ ...prev, loading: true }));
     try {
       const { data } = await employeeService.getDeleted({
-        page: employeePagination.current,
-        limit: employeePagination.pageSize,
+        page: employeeCurrentPage,
+        limit: employeePageSize,
         search: employeeSearch,
       });
       setEmployeeState((prev) => ({
@@ -283,7 +287,10 @@ const TrashPage = () => {
         items: data.employees || [],
         pagination: {
           ...prev.pagination,
-          total: data.pagination?.total || 0,
+          total:
+            prev.pagination.total === (data.pagination?.total || 0)
+              ? prev.pagination.total
+              : data.pagination?.total || 0,
         },
       }));
       setSelectedEmployeeIds([]);
@@ -292,19 +299,14 @@ const TrashPage = () => {
     } finally {
       setEmployeeState((prev) => ({ ...prev, loading: false }));
     }
-  }, [
-    employeePagination.current,
-    employeePagination.pageSize,
-    employeeSearch,
-    message,
-  ]);
+  }, [employeeCurrentPage, employeePageSize, employeeSearch, message]);
 
   const fetchUsers = useCallback(async () => {
     setUserState((prev) => ({ ...prev, loading: true }));
     try {
       const { data } = await userService.getDeleted({
-        page: userPagination.current,
-        limit: userPagination.pageSize,
+        page: userCurrentPage,
+        limit: userPageSize,
         search: userSearch,
       });
       setUserState((prev) => ({
@@ -312,7 +314,10 @@ const TrashPage = () => {
         items: data.users || [],
         pagination: {
           ...prev.pagination,
-          total: data.pagination?.total || 0,
+          total:
+            prev.pagination.total === (data.pagination?.total || 0)
+              ? prev.pagination.total
+              : data.pagination?.total || 0,
         },
       }));
       setSelectedUserIds([]);
@@ -321,7 +326,7 @@ const TrashPage = () => {
     } finally {
       setUserState((prev) => ({ ...prev, loading: false }));
     }
-  }, [userPagination.current, userPagination.pageSize, userSearch, message]);
+  }, [userCurrentPage, userPageSize, userSearch, message]);
 
   useEffect(() => {
     fetchEmployees();

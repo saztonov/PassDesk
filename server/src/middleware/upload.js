@@ -34,9 +34,45 @@ const decodeFilename = (filename) => {
 const TMP_UPLOAD_DIR = process.env.UPLOAD_TMP_DIR
   ? path.resolve(process.env.UPLOAD_TMP_DIR)
   : path.join(os.tmpdir(), "passdesk-uploads");
+const parsePositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+export const MAX_FILE_SIZE_BYTES = parsePositiveInt(
+  process.env.MAX_FILE_SIZE,
+  20 * 1024 * 1024,
+);
 
 const ensureTmpDir = () => {
   fs.mkdirSync(TMP_UPLOAD_DIR, { recursive: true });
+};
+
+const STALE_FILE_AGE_MS = 4 * 60 * 60 * 1000; // 4 часа
+
+export const cleanupStaleTempFiles = async () => {
+  try {
+    await fsp.mkdir(TMP_UPLOAD_DIR, { recursive: true });
+    const files = await fsp.readdir(TMP_UPLOAD_DIR);
+    const now = Date.now();
+    let removed = 0;
+    for (const file of files) {
+      const filePath = path.join(TMP_UPLOAD_DIR, file);
+      try {
+        const stat = await fsp.stat(filePath);
+        if (now - stat.mtimeMs > STALE_FILE_AGE_MS) {
+          await fsp.unlink(filePath);
+          removed++;
+        }
+      } catch {
+        // файл уже удалён или нет доступа — пропускаем
+      }
+    }
+    if (removed > 0) {
+      console.log(`🧹 Cleaned up ${removed} stale temp upload file(s)`);
+    }
+  } catch (error) {
+    console.warn("⚠️ Failed to clean up temp upload dir:", error?.message);
+  }
 };
 
 const getUploadedFiles = (req) => {
@@ -210,14 +246,14 @@ const fileFilter = (req, file, cb) => {
 };
 
 export const MAX_FILES_PER_REQUEST =
-  parseInt(process.env.MAX_FILES_PER_REQUEST) || 100;
+  parsePositiveInt(process.env.MAX_FILES_PER_REQUEST, 100);
 
 // Конфигурация multer
 const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 20 * 1024 * 1024, // 20MB default
+    fileSize: MAX_FILE_SIZE_BYTES, // 20MB default
     files: MAX_FILES_PER_REQUEST,
   },
 });
@@ -248,6 +284,15 @@ export const validateUploadedFiles = async (req, _res, next) => {
     for (const file of files) {
       if (!file.path) {
         throw new AppError("Загруженный файл не содержит временный путь", 400);
+      }
+      if (!Number.isFinite(file.size) || file.size <= 0) {
+        throw new AppError(`Пустой файл: ${file.originalname}`, 400);
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        throw new AppError(
+          `Размер файла превышает лимит (${Math.floor(MAX_FILE_SIZE_BYTES / 1024 / 1024)} MB): ${file.originalname}`,
+          400,
+        );
       }
 
       const header = await readFileHeader(file.path, 32);

@@ -49,7 +49,7 @@ export const SIGUR_RESET = null;
 export const mapEmployeeToSigur = ({
   employee,
   externalEmpId = null,
-  counterpartyName = "",
+  counterpartyName: _counterpartyName = "",
   departmentId = null,
   positionId = null,
   positionName = undefined,
@@ -86,7 +86,7 @@ export const mapEmployeeToSigur = ({
   };
 };
 
-export const mapCardToSigur = ({ cardNumber, cardType = "rfid" }) => {
+export const mapCardToSigur = ({ cardNumber, cardType: _cardType = "rfid" }) => {
   const normalizedCardNumber = trim(cardNumber).replace(/\s+/g, "");
   const format = W26_CARD_RE.test(normalizedCardNumber) ? "W26" : "UID";
   const sigurValue = format === "W26"

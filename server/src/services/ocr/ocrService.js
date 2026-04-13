@@ -118,17 +118,26 @@ export const PROMPT_KEYS = [
 export const FALLBACK_PROMPT_KEYS = ["fallback_inn", "fallback_snils"];
 
 const PROMPTS_SETTING_KEY = "ocr_prompts";
+const PROMPTS_CACHE_TTL_MS = 60_000;
+
+let promptsCache = { value: null, expiresAt: 0 };
+
+export const invalidatePromptsCache = () => {
+  promptsCache = { value: null, expiresAt: 0 };
+};
 
 const loadPromptsFromSettings = async () => {
+  if (promptsCache.value !== null && Date.now() < promptsCache.expiresAt) {
+    return promptsCache.value;
+  }
   try {
     const raw = await Setting.getSetting(PROMPTS_SETTING_KEY);
-    if (!raw) {
-      return {};
-    }
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
+    const parsed = raw ? JSON.parse(raw) : {};
+    const value = parsed && typeof parsed === "object" ? parsed : {};
+    promptsCache = { value, expiresAt: Date.now() + PROMPTS_CACHE_TTL_MS };
+    return value;
   } catch (error) {
-    return {};
+    return promptsCache.value ?? {};
   }
 };
 
@@ -192,6 +201,7 @@ export const saveOcrPromptsState = async (nextPrompts = {}) => {
     JSON.stringify(payload),
     "OCR prompts overrides",
   );
+  invalidatePromptsCache();
   const setting = await Setting.findOne({ where: { key: PROMPTS_SETTING_KEY } });
   return {
     storage: "settings",

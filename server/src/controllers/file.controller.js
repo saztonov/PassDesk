@@ -18,7 +18,6 @@ const checkFileAccess = async (file, user) => {
   }
 
   const {
-    File,
     Employee,
     Application,
     EmployeeCounterpartyMapping,

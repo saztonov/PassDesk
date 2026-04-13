@@ -11,71 +11,14 @@ import {
 } from "../models/index.js";
 import { Op } from "sequelize";
 import {
-  ENCRYPTED_EMPLOYEE_FIELDS,
-  hashForSearch,
-  isFieldEncryptionEnabled,
-} from "../services/encryptionService.js";
-
-const normalizeCitizenshipLookupValue = (value) =>
-  String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-
-const CITIZENSHIP_LOOKUP_ALIASES = {
-  россия: "российская федерация",
-  рф: "российская федерация",
-};
-
-const NON_PATENT_CITIZENSHIPS = new Set([
-  "российская федерация",
-  "россия",
-  "рф",
-  "армения",
-  "беларусь",
-  "казахстан",
-  "киргизия",
-  "кыргызстан",
-]);
-
-const toTitleCase = (value) =>
-  String(value || "")
-    .toLowerCase()
-    .replace(/(^|[\s-])([a-zа-яё])/giu, (_, prefix, char) =>
-      `${prefix}${char.toUpperCase()}`,
-    );
-
-const formatCitizenshipDisplayName = (value) =>
-  String(value || "")
-    .trim()
-    .split(",")
-    .map((part) => toTitleCase(part.trim()))
-    .join(", ");
-
-const inferCitizenshipRequiresPatent = (citizenshipName) =>
-  !NON_PATENT_CITIZENSHIPS.has(
-    CITIZENSHIP_LOOKUP_ALIASES[normalizeCitizenshipLookupValue(citizenshipName)] ||
-      normalizeCitizenshipLookupValue(citizenshipName),
-  );
-
-const doesCitizenshipRequirePatent = (citizenship) =>
-  citizenship?.requiresPatent !== false && citizenship?.isEaeu !== true;
-
-const shouldSkipPatentValidation = (employeeData) =>
-  employeeData?.isClosedBrigade === true ||
-  String(employeeData?.employmentStatus || "").trim().toLowerCase() === "fired";
-
-const buildLastNameHash = (lastName) => {
-  if (!lastName || !isFieldEncryptionEnabled()) {
-    return null;
-  }
-
-  try {
-    return hashForSearch(ENCRYPTED_EMPLOYEE_FIELDS.LAST_NAME, lastName);
-  } catch {
-    return null;
-  }
-};
+  buildLastNameHash,
+  doesCitizenshipRequirePatent,
+  formatCitizenshipDisplayName,
+  inferCitizenshipRequiresPatent,
+  normalizeCitizenshipLookupValue,
+  resolveCitizenshipAlias,
+  shouldSkipPatentValidation,
+} from "./importValidationHelpers.js";
 
 /**
  * Валидирует ИНН (10 или 12 цифр)
@@ -271,8 +214,7 @@ export const validateKig = (kig) => {
 export const findCitizenshipByName = async (citizenshipName) => {
   if (!citizenshipName) return null;
 
-  const normalizedName = normalizeCitizenshipLookupValue(citizenshipName);
-  const name = CITIZENSHIP_LOOKUP_ALIASES[normalizedName] || normalizedName;
+  const name = resolveCitizenshipAlias(citizenshipName);
 
   // Сначала ищем точное совпадение
   let citizenship = await Citizenship.findOne({
@@ -303,8 +245,7 @@ export const findCitizenshipByNameFromCache = (
 ) => {
   if (!citizenshipName) return null;
 
-  const normalizedName = normalizeCitizenshipLookupValue(citizenshipName);
-  const name = CITIZENSHIP_LOOKUP_ALIASES[normalizedName] || normalizedName;
+  const name = resolveCitizenshipAlias(citizenshipName);
 
   // Ищем точное совпадение
   let citizenship = citizenshipsCache.find(
@@ -341,8 +282,7 @@ const ensureCitizenshipFromCache = async (
     return existing;
   }
 
-  const normalizedName = normalizeCitizenshipLookupValue(citizenshipName);
-  const aliasedName = CITIZENSHIP_LOOKUP_ALIASES[normalizedName] || normalizedName;
+  const aliasedName = resolveCitizenshipAlias(citizenshipName);
 
   if (newCitizenshipsMap?.has(aliasedName)) {
     return newCitizenshipsMap.get(aliasedName);
@@ -504,7 +444,7 @@ export const validateCounterpartyAndKppFromCache = (
 /**
  * Валидирует все поля сотрудника для импорта
  */
-export const validateEmployeeForImport = async (employeeData, rowIndex) => {
+export const validateEmployeeForImport = async (employeeData, _rowIndex) => {
   const errors = [];
   const warnings = [];
 

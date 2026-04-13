@@ -1,4 +1,4 @@
-import { ExcelColumnSet, Counterparty, User } from '../models/index.js';
+import { ExcelColumnSet, User } from '../models/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { Op } from 'sequelize';
 
@@ -7,7 +7,6 @@ import { Op } from 'sequelize';
  */
 export const getAll = async (req, res, next) => {
   try {
-    const userId = req.user.id;
     const userCounterpartyId = req.user.counterpartyId;
 
     if (!userCounterpartyId) {
@@ -328,4 +327,3 @@ export const setDefault = async (req, res, next) => {
     next(error);
   }
 };
-

@@ -13,7 +13,7 @@ export const useApplicationRequestModal = ({
   userRole,
   userCounterpartyId,
   defaultCounterpartyId,
-  userId,
+  userId: _userId,
   onCancel,
   messageApi,
 }) => {
@@ -66,8 +66,7 @@ export const useApplicationRequestModal = ({
     return params;
   }, [
     includeFired,
-    pagination.current,
-    pagination.pageSize,
+    pagination,
     selectedCounterparty,
     selectedSite,
   ]);

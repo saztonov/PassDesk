@@ -352,7 +352,7 @@ const useOccupationalSafety = () => {
     loadObjectStatuses(selectedConstructionSiteId);
   }, [selectedConstructionSiteId, isStaff]);
 
-  const loadAllSiteSummaries = async () => {
+  const loadAllSiteSummaries = useCallback(async () => {
     if (!isStaff) return;
 
     const requestId = allSiteRequestRef.current + 1;
@@ -420,13 +420,13 @@ const useOccupationalSafety = () => {
         setAllSiteLoading(false);
       }
     }
-  };
+  }, [constructionSites, isStaff]);
 
   useEffect(() => {
     if (!isStaff) return;
     if (!constructionSites.length) return;
     loadAllSiteSummaries();
-  }, [isStaff, constructionSites]);
+  }, [isStaff, constructionSites, loadAllSiteSummaries]);
 
   const contractorTree = useMemo(() => {
     if (!contractorCategories.length) return [];

@@ -12,105 +12,27 @@ import {
   applyLegacySensitivePlaintextPolicy,
   buildEmployeeSensitiveFieldsPatch,
 } from "./employeeSensitiveFieldService.js";
-
-const normalizeString = (value) => String(value || "").trim();
-
-const isMissingRelationError = (error, relationName) => {
-  const message = String(error?.original?.message || error?.message || "");
-  if (!message) {
-    return false;
-  }
-
-  return (
-    message.includes(`relation "${relationName}" does not exist`) ||
-    message.includes(`relation '${relationName}' does not exist`)
-  );
-};
-
-const DOCUMENT_TYPE_LABELS = {
-  passport: "Паспорт",
-  passport_translation: "Перевод паспорта",
-  inn_document: "ИНН",
-  bank_details: "Реквизиты счета",
-  snils_card: "СНИЛС",
-  patent_front: "Патент (лицевая)",
-  patent_back: "Патент (оборот)",
-  visa: "Виза",
-  kig: "КИГ",
-};
-
-const EMPLOYEE_CARD_SOURCE = "employee_card";
-const EMPLOYEE_CARD_LABEL = "Карточка сотрудника";
-
-const getEmployeeFullName = (employee) =>
-  [employee?.lastName, employee?.firstName, employee?.middleName]
-    .filter(Boolean)
-    .join(" ")
-    .trim() || "Сотрудник";
-
-const getCounterpartyName = (employee) =>
-  employee?.employeeCounterpartyMappings?.[0]?.counterparty?.name || "Без контрагента";
-
-const getCounterpartyIds = (employee) => [
-  ...new Set(
-    (employee?.employeeCounterpartyMappings || [])
-      .map((mapping) => normalizeString(mapping?.counterparty?.id || mapping?.counterpartyId))
-      .filter(Boolean),
-  ),
-];
-
-const DATE_FIELDS = new Set([
-  "birthDate",
-  "passportDate",
-  "passportExpiryDate",
-  "kigEndDate",
-  "patentIssueDate",
-  "insurancePolicyDate",
-]);
-
-const DIGITS_ONLY_FIELDS = new Map([
-  ["inn", 12],
-  ["snils", 11],
-  ["bankAccountNumber", 20],
-]);
-
-const FIO_FIELDS = [
-  { fieldName: "lastName", fieldLabel: "Фамилия" },
-  { fieldName: "firstName", fieldLabel: "Имя" },
-  { fieldName: "middleName", fieldLabel: "Отчество" },
-];
-const FIO_FIELD_NAMES = new Set(FIO_FIELDS.map((item) => item.fieldName));
-
-const OCR_FIO_DOCUMENT_TYPES = new Set([
-  "passport",
-  "passport_translation",
-  "inn_document",
-  "snils_card",
-  "kig",
-  "patent_front",
-  "patent_back",
-  "patent_payment_receipt",
-  "bank_details",
-]);
-
-const PASSPORT_DOCUMENT_TYPES = new Set(["passport"]);
-const PASSPORT_TRANSLATION_DOCUMENT_TYPE = "passport_translation";
-
-const normalizeComparableText = (value) =>
-  String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/ё/g, "е")
-    .replace(/\s+/g, " ");
-
-const getTimestampValue = (value) => {
-  if (!value) {
-    return 0;
-  }
-
-  const timestamp = new Date(value).getTime();
-  return Number.isFinite(timestamp) ? timestamp : 0;
-};
+import {
+  DATE_FIELDS,
+  DIGITS_ONLY_FIELDS,
+  DOCUMENT_TYPE_LABELS,
+  EMPLOYEE_CARD_LABEL,
+  EMPLOYEE_CARD_SOURCE,
+  FIO_FIELDS,
+  FIO_FIELD_NAMES,
+  OCR_FIO_DOCUMENT_TYPES,
+  PASSPORT_DOCUMENT_TYPES,
+  PASSPORT_TRANSLATION_DOCUMENT_TYPE,
+  getCounterpartyIds,
+  getCounterpartyName,
+  getEmployeeFullName,
+  getTimestampValue,
+  isMissingRelationError,
+  normalizeComparableText,
+  normalizePassportDepartmentCode,
+  normalizeString,
+  parseDateValue,
+} from "./ocrConflictService.constants.js";
 
 const parseOcrResultPayload = (value) => {
   if (!value) {
@@ -318,38 +240,6 @@ const employeeHasPassportTranslation = async (employeeId) => {
   return employeeIdsWithTranslation.has(normalizeString(employeeId));
 };
 
-const parseDateValue = (value) => {
-  const normalized = normalizeString(value);
-  if (!normalized) return null;
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
-    return normalized;
-  }
-
-  if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(normalized)) {
-    const [day, month, year] = normalized.split(".");
-    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-  }
-
-  const parsed = new Date(normalized);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  return parsed.toISOString().slice(0, 10);
-};
-
-const normalizePassportDepartmentCode = (value) => {
-  const digits = normalizeString(value).replace(/[^\d]/g, "").slice(0, 6);
-  if (!digits) {
-    return null;
-  }
-  if (digits.length <= 3) {
-    return digits;
-  }
-  return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-};
-
 const normalizeConflictValueForEmployeeField = (fieldName, value) => {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -451,7 +341,7 @@ export const saveEmployeeOcrConflicts = async ({
   const normalizedConflicts = conflicts
     .map(toConflictPayload)
     .filter(Boolean)
-    .filter((conflict) => {
+    .filter(() => {
       if (!hasPassportTranslation) {
         return true;
       }

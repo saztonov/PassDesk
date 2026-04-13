@@ -1,5 +1,5 @@
-import IORedis from "ioredis";
 import { Queue, Worker } from "bullmq";
+import { createRedisConnection } from "../../config/redis.js";
 import fs from "fs/promises";
 import {
   File,
@@ -31,9 +31,6 @@ const toBool = (value, fallback = true) => {
 
 const uploadQueueConfig = {
   enabled: toBool(process.env.UPLOAD_QUEUE_ENABLED, true),
-  redisHost: String(process.env.REDIS_HOST || "redis").trim(),
-  redisPort: Number.parseInt(String(process.env.REDIS_PORT || "6379"), 10),
-  redisPassword: String(process.env.REDIS_PASSWORD || "").trim(),
   concurrency: Math.max(1, Number.parseInt(String(process.env.UPLOAD_QUEUE_CONCURRENCY || "2"), 10)),
   retryLimit: Math.max(1, Number.parseInt(String(process.env.UPLOAD_QUEUE_RETRY_LIMIT || "3"), 10)),
 };
@@ -44,14 +41,7 @@ let workersStarted = false;
 
 const getRedisConnection = () => {
   if (!redisConnection) {
-    redisConnection = new IORedis({
-      host: uploadQueueConfig.redisHost,
-      port: uploadQueueConfig.redisPort,
-      password: uploadQueueConfig.redisPassword || undefined,
-      maxRetriesPerRequest: null,
-      enableReadyCheck: true,
-      lazyConnect: true,
-    });
+    redisConnection = createRedisConnection();
   }
   return redisConnection;
 };
@@ -116,8 +106,8 @@ export const enqueueEmployeeFileUpload = async ({
     {
       attempts: uploadQueueConfig.retryLimit,
       backoff: { type: "exponential", delay: 1500 },
-      removeOnComplete: 1000,
-      removeOnFail: 2000,
+      removeOnComplete: { count: 100 },
+      removeOnFail: { count: 200 },
     },
   );
 

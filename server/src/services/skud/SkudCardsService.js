@@ -5,7 +5,7 @@ import {
   SkudPersonBinding,
   SkudSyncJob,
 } from "../../models/index.js";
-import { mapCardToSigur, mapEmployeeToSigur } from "../../integrations/skud/providers/sigur/SigurMapper.js";
+import { mapCardToSigur } from "../../integrations/skud/providers/sigur/SigurMapper.js";
 import { getSkudProvider } from "../../integrations/skud/SkudProviderRegistry.js";
 import { enqueueSkudCardsJob } from "../../queues/skud/queue.js";
 import { ensureEmployeeBindingInSkud, syncEmployeeAccessPoints } from "./SkudSyncService.js";

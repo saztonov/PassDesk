@@ -112,7 +112,7 @@ const PASSAGE_EVENT_TYPES = ["PASS_DETECTED", "PASS_GRANTED", "PASS_DENIED", "PA
 const RAW_PASSAGE_EVENT_TYPE = 6;
 
 const SKUD_SITE_ACCESS_POINTS_TABLE = "skud_site_access_points";
-const SKUD_PERSON_BINDINGS_TABLE = "skud_person_bindings";
+const _SKUD_PERSON_BINDINGS_TABLE = "skud_person_bindings";
 const TABLE_EXISTS_CACHE_TTL_MS = 60 * 1000;
 const tableExistsCache = new Map();
 
@@ -1713,7 +1713,7 @@ const getLatestSkudPullCursor = async () => {
   };
 };
 
-const getDefaultSkudPullFrom = () => {
+const _getDefaultSkudPullFrom = () => {
   const date = new Date();
   date.setDate(date.getDate() - 1);
   return date.toISOString();
@@ -1971,7 +1971,7 @@ export const runSkudEventsPull = async (params = {}) => {
   return pullSkudEventsInternal(merged);
 };
 
-const buildProviderEventView = async ({
+const _buildProviderEventView = async ({
   from,
   to,
   employeeId,

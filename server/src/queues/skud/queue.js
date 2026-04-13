@@ -1,5 +1,5 @@
-import IORedis from "ioredis";
 import { Queue, Worker } from "bullmq";
+import { createRedisConnection } from "../../config/redis.js";
 import { skudConfig } from "../../services/skud/skudConfig.js";
 import { processSyncEmployeeJob } from "./processors/syncEmployeeProcessor.js";
 import { processBlockUnblockJob } from "./processors/blockUnblockProcessor.js";
@@ -22,14 +22,7 @@ const isQueueEnabled = () => skudConfig.enabled;
 
 const getRedisConnection = () => {
   if (!redisConnection) {
-    redisConnection = new IORedis({
-      host: skudConfig.queue.redisHost,
-      port: skudConfig.queue.redisPort,
-      password: skudConfig.queue.redisPassword || undefined,
-      maxRetriesPerRequest: null,
-      enableReadyCheck: true,
-      lazyConnect: true,
-    });
+    redisConnection = createRedisConnection();
   }
 
   return redisConnection;

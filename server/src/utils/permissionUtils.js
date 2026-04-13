@@ -109,7 +109,7 @@ export const checkEmployeeAccess = async (
 export const getAccessibleEmployeeIds = async (
   user,
   employeeIds,
-  operation = "write",
+  _operation = "write",
   transaction = null,
 ) => {
   const uniqueIds = [...new Set((employeeIds || []).filter(Boolean))];

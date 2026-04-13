@@ -1,4 +1,3 @@
-import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { AppError } from "../middleware/errorHandler.js";
@@ -16,6 +15,7 @@ import {
 // Генерация JWT токена
 const generateToken = (userId, role) => {
   return jwt.sign({ id: userId, role }, process.env.JWT_SECRET, {
+    algorithm: "HS256",
     expiresIn: process.env.JWT_EXPIRE || "7d",
   });
 };
@@ -26,6 +26,7 @@ const generateRefreshToken = (userId) => {
     { id: userId, jti: crypto.randomUUID() },
     process.env.JWT_REFRESH_SECRET,
     {
+      algorithm: "HS256",
       expiresIn: process.env.JWT_REFRESH_EXPIRE || "30d",
     },
   );
@@ -130,21 +131,6 @@ const generateUniqueUIN = async () => {
   throw new AppError("Не удалось сгенерировать уникальный УИН", 500);
 };
 
-/**
- * Парсинг ФИО из строки
- * @param {string} fullName - ФИО в формате "Фамилия Имя Отчество"
- * @returns {object} - { lastName, firstName, middleName }
- */
-const parseFullName = (fullName) => {
-  const parts = fullName.trim().split(/\s+/);
-
-  return {
-    lastName: parts[0] || "",
-    firstName: parts[1] || "",
-    middleName: parts.slice(2).join(" ") || null,
-  };
-};
-
 export const register = async (req, res, next) => {
   const transaction = await sequelize.transaction();
 
@@ -169,9 +155,6 @@ export const register = async (req, res, next) => {
       throw new AppError(getForbiddenPasswordMessage(), 400);
     }
 
-    // Парсим ФИО
-    const { lastName, firstName, middleName } = parseFullName(fullName);
-
     // Проверяем, существует ли пользователь
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
@@ -180,8 +163,6 @@ export const register = async (req, res, next) => {
 
     // Определяем контрагента
     let counterpartyId;
-    let isDefaultCounterparty = false;
-
     if (registrationCode) {
       // Регистрация по коду контрагента
       const counterparty = await Counterparty.findOne({
@@ -193,7 +174,6 @@ export const register = async (req, res, next) => {
       }
 
       counterpartyId = counterparty.id;
-      isDefaultCounterparty = false;
     } else {
       // Регистрация с контрагентом по умолчанию
       const defaultCounterpartyId = await Setting.getSetting(
@@ -208,7 +188,6 @@ export const register = async (req, res, next) => {
       }
 
       counterpartyId = defaultCounterpartyId;
-      isDefaultCounterparty = true;
     }
 
     // Генерируем УИН
@@ -393,7 +372,9 @@ export const refreshToken = async (req, res, next) => {
     }
 
     // Проверяем refresh token
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, {
+      algorithms: ["HS256"],
+    });
     const storedToken = await RefreshToken.findOne({
       where: { tokenHash: hashToken(refreshToken) },
     });

@@ -82,7 +82,6 @@ const buildDbConfig = (prefix, fallback) => ({
 });
 
 const normalizeText = (value) => String(value || "").trim().toLowerCase();
-const iso = (value) => (value ? new Date(value).toISOString() : null);
 const unique = (items) => [...new Set(items.filter(Boolean))];
 
 const isTestEmployee = (employee) => {

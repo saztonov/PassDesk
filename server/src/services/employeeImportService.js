@@ -17,9 +17,7 @@ import {
   CounterpartySubcounterpartyMapping,
 } from "../models/index.js";
 import {
-  validateEmployeeForImport,
   validateEmployeeForImportOptimized,
-  checkEmployeeConflict,
   checkEmployeeConflictFromCache,
   validateKppConsistency,
 } from "../utils/importValidation.js";
@@ -1309,7 +1307,7 @@ export const importEmployees = async (
             });
 
             // Обновляем статусы на основе полноты карточки
-            const { isComplete, statusNames, missingFields } =
+            const { isComplete, missingFields } =
               await updateEmployeeStatusesByCompleteness(
                 employee,
                 formConfig,
