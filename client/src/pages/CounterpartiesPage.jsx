@@ -157,14 +157,45 @@ const CounterpartiesPage = () => {
         : [];
 
       const nextRows = hasSearchQuery
-        ? responseRows.filter((item) => {
-            const nameValue = String(item?.name || "").toLowerCase();
-            const innValue = String(item?.inn || "").toLowerCase();
-            return (
-              nameValue.includes(normalizedSearch) ||
-              innValue.includes(normalizedSearch)
+        ? (() => {
+            const matchedIds = new Set();
+            const parentIdsFromMatches = new Set();
+
+            responseRows.forEach((item) => {
+              const id = String(item?.id || "").trim();
+              if (!id) return;
+
+              const nameValue = String(item?.name || "").toLowerCase();
+              const innValue = String(item?.inn || "").toLowerCase();
+              const isMatch =
+                nameValue.includes(normalizedSearch) ||
+                innValue.includes(normalizedSearch);
+
+              if (!isMatch) return;
+
+              matchedIds.add(id);
+              const parentId = String(item?.parentCounterparty?.id || "").trim();
+              if (parentId) {
+                parentIdsFromMatches.add(parentId);
+              }
+            });
+
+            const visibleIds = new Set([...matchedIds, ...parentIdsFromMatches]);
+
+            // Если совпал родитель, показываем и его дочерние записи в результатах поиска.
+            responseRows.forEach((item) => {
+              const id = String(item?.id || "").trim();
+              const parentId = String(item?.parentCounterparty?.id || "").trim();
+              if (!id || !parentId) return;
+              if (visibleIds.has(parentId)) {
+                visibleIds.add(id);
+              }
+            });
+
+            return responseRows.filter((item) =>
+              visibleIds.has(String(item?.id || "").trim()),
             );
-          })
+          })()
         : responseRows;
 
       setData(nextRows);
