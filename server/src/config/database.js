@@ -52,9 +52,39 @@ const dbPoolEvictMs = parsePoolInt(process.env.DB_POOL_EVICT_MS, 5000, {
   min: 1000,
 });
 
-if (dbPoolMax < 10) {
+const dbPoolRole = String(process.env.DB_POOL_ROLE || "api")
+  .trim()
+  .toLowerCase();
+const dbPoolRoleKey = dbPoolRole === "worker" ? "WORKER" : "API";
+const dbPoolMaxByRole = parsePoolInt(
+  process.env[`DB_POOL_MAX_${dbPoolRoleKey}`],
+  dbPoolMax,
+  { min: 1 },
+);
+const dbPoolMinByRole = parsePoolInt(
+  process.env[`DB_POOL_MIN_${dbPoolRoleKey}`],
+  dbPoolMin,
+  { min: 0 },
+);
+const dbPoolAcquireByRole = parsePoolInt(
+  process.env[`DB_POOL_ACQUIRE_MS_${dbPoolRoleKey}`],
+  dbPoolAcquireMs,
+  { min: 1000 },
+);
+const dbPoolIdleByRole = parsePoolInt(
+  process.env[`DB_POOL_IDLE_MS_${dbPoolRoleKey}`],
+  dbPoolIdleMs,
+  { min: 1000 },
+);
+const dbPoolEvictByRole = parsePoolInt(
+  process.env[`DB_POOL_EVICT_MS_${dbPoolRoleKey}`],
+  dbPoolEvictMs,
+  { min: 1000 },
+);
+
+if (dbPoolMaxByRole < 10) {
   console.warn(
-    `[db] DB_POOL_MAX=${dbPoolMax} может быть узким местом под нагрузкой API + workers`,
+    `[db] DB_POOL_MAX_${dbPoolRoleKey}=${dbPoolMaxByRole} может быть узким местом под нагрузкой`,
   );
 }
 
@@ -70,11 +100,11 @@ const config = {
   },
   logging: process.env.NODE_ENV === 'development' ? console.log : false,
   pool: {
-    max: Math.max(dbPoolMax, dbPoolMin),
-    min: Math.min(dbPoolMin, dbPoolMax),
-    acquire: dbPoolAcquireMs,
-    idle: dbPoolIdleMs,
-    evict: dbPoolEvictMs,
+    max: Math.max(dbPoolMaxByRole, dbPoolMinByRole),
+    min: Math.min(dbPoolMinByRole, dbPoolMaxByRole),
+    acquire: dbPoolAcquireByRole,
+    idle: dbPoolIdleByRole,
+    evict: dbPoolEvictByRole,
   },
   define: {
     timestamps: true,

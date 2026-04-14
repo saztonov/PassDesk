@@ -77,6 +77,7 @@ services:
       DB_POOL_ACQUIRE_MS: ${DB_POOL_ACQUIRE_MS:-60000}
       DB_POOL_IDLE_MS: ${DB_POOL_IDLE_MS:-20000}
       DB_POOL_EVICT_MS: ${DB_POOL_EVICT_MS:-5000}
+      DB_POOL_ROLE: ${DB_POOL_ROLE:-api}
       JWT_SECRET: ${JWT_SECRET:-change_me_change_me_change_me_32chars}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_change_me_change_me_other_32chars}
       STORAGE_PROVIDER: cloudru
