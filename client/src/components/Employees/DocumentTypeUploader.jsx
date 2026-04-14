@@ -400,20 +400,6 @@ const DocumentTypeUploader = ({
   }, [effectiveEmployeeId, fetchAllFiles, ocrQueue.length]);
 
   useEffect(() => {
-    if (!initializedFilesRef.current) {
-      const initialIds = new Set();
-      const initialOcrResults = new Set();
-      for (const file of allFiles) {
-        if (file?.id) initialIds.add(file.id);
-        if (file?.id && file?.ocrVerifiedAt) {
-          initialOcrResults.add(`${file.id}:${file.ocrVerifiedAt}`);
-        }
-      }
-      seenFileIdsRef.current = initialIds;
-      seenOcrResultsRef.current = initialOcrResults;
-      initializedFilesRef.current = true;
-    }
-
     const nextCounts = {};
     for (const file of allFiles) {
       if (!file?.documentType) continue;
@@ -480,7 +466,7 @@ const DocumentTypeUploader = ({
       return;
     }
 
-    if (!initializedFilesRef.current) {
+    if (!initializedFilesRef.current && allFiles.length > 0) {
       const initialIds = new Set();
       const initialOcrResults = new Set();
       for (const file of allFiles) {
@@ -494,6 +480,10 @@ const DocumentTypeUploader = ({
       seenFileIdsRef.current = initialIds;
       seenOcrResultsRef.current = initialOcrResults;
       initializedFilesRef.current = true;
+      return;
+    }
+
+    if (!initializedFilesRef.current) {
       return;
     }
 
