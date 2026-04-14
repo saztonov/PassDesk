@@ -107,22 +107,6 @@ export default defineConfig(({ mode }) => {
               return "xlsx";
             }
 
-            if (
-              id.includes("/antd/")
-              || id.includes("/@ant-design/")
-              || id.includes("/rc-")
-            ) {
-              return "antd";
-            }
-
-            if (id.includes("/react-router-dom/")) {
-              return "router";
-            }
-
-            if (id.includes("/dayjs/") || id.includes("/date-fns/")) {
-              return "date-utils";
-            }
-
             return "vendor";
           },
         },
