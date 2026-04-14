@@ -19,12 +19,10 @@ const isTrue = (value) => String(value || "false").toLowerCase() === "true";
 
 const resolveMigrationSslConfig = () => {
   const sslEnabled = isTrue(process.env.DB_SSL);
-  const isProduction = process.env.NODE_ENV === "production";
-
   if (!sslEnabled) {
-    if (isProduction) {
-      throw new Error(
-        "DB_SSL must be enabled for migration runner in production environment",
+    if (process.env.NODE_ENV === "production") {
+      console.warn(
+        "[db:migrate] DB_SSL отключен в production. Это небезопасно.",
       );
     }
     return false;
