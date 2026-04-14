@@ -96,6 +96,37 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: "dist",
       sourcemap: false,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes("node_modules")) {
+              return undefined;
+            }
+
+            if (id.includes("/xlsx/")) {
+              return "xlsx";
+            }
+
+            if (
+              id.includes("/antd/")
+              || id.includes("/@ant-design/")
+              || id.includes("/rc-")
+            ) {
+              return "antd";
+            }
+
+            if (id.includes("/react-router-dom/")) {
+              return "router";
+            }
+
+            if (id.includes("/dayjs/") || id.includes("/date-fns/")) {
+              return "date-utils";
+            }
+
+            return "vendor";
+          },
+        },
+      },
     },
     worker: {
       format: "iife",

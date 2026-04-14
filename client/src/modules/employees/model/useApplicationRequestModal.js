@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
-import * as XLSX from "xlsx";
 import { useExcelColumns } from "@/hooks/useExcelColumns";
 import { applicationService } from "@/services/applicationService";
 import { constructionSiteService } from "@/services/constructionSiteService";
@@ -332,6 +331,8 @@ export const useApplicationRequestModal = ({
           employees: employeesToExport,
           selectedColumns,
         });
+
+      const XLSX = await import("xlsx");
 
       const worksheet = XLSX.utils.json_to_sheet(rows);
       const colWidths = [];

@@ -313,15 +313,61 @@ const DocumentTypeUploader = ({
     if (typeof onOcrActivityChange !== "function") {
       return undefined;
     }
-    const hasActiveOcrJobs = ocrQueue.some(
-      (item) =>
-        !["completed", "done", "failed", "error"].includes(
-          String(item?.status || "").toLowerCase(),
-        ),
+    const isTerminalStatus = (status) =>
+      ["completed", "done", "failed", "error"].includes(status);
+
+    const normalizedStatuses = ocrQueue.map((item) =>
+      String(item?.status || "").toLowerCase(),
     );
-    onOcrActivityChange(hasActiveOcrJobs);
+    const hasActiveOcrJobs = normalizedStatuses.some(
+      (status) => !isTerminalStatus(status),
+    );
+    const retryingCount = ocrQueue.filter((item) => {
+      const status = String(item?.status || "").toLowerCase();
+      if (status !== "active" && status !== "waiting" && status !== "delayed") {
+        return false;
+      }
+      return Number(item?.attempts || 0) > 0;
+    }).length;
+    const staleWaitingCount = ocrQueue.filter((item) => {
+      const status = String(item?.status || "").toLowerCase();
+      const ageMs = Number(item?.ageMs || 0);
+      return (
+        (status === "waiting" || status === "delayed") &&
+        Number.isFinite(ageMs) &&
+        ageMs >= 120000
+      );
+    }).length;
+    const waitingCount = normalizedStatuses.filter(
+      (status) => status === "waiting" || status === "delayed",
+    ).length;
+    const activeCount = normalizedStatuses.filter(
+      (status) => status === "active" || status === "uploading",
+    ).length;
+    const failedCount = normalizedStatuses.filter(
+      (status) => status === "failed" || status === "error",
+    ).length;
+
+    onOcrActivityChange({
+      active: hasActiveOcrJobs,
+      total: ocrQueue.length,
+      activeCount,
+      waitingCount,
+      retryingCount,
+      staleWaitingCount,
+      failedCount,
+    });
+
     return () => {
-      onOcrActivityChange(false);
+      onOcrActivityChange({
+        active: false,
+        total: 0,
+        activeCount: 0,
+        waitingCount: 0,
+        retryingCount: 0,
+        staleWaitingCount: 0,
+        failedCount: 0,
+      });
     };
   }, [ocrQueue, onOcrActivityChange]);
 
@@ -691,6 +737,20 @@ const DocumentTypeUploader = ({
     [columnsCount, profileDocumentTypes],
   );
 
+  const staleOcrQueueItems = useMemo(
+    () =>
+      ocrQueue.filter((item) => {
+        const status = String(item?.status || "").toLowerCase();
+        const ageMs = Number(item?.ageMs || 0);
+        return (
+          (status === "waiting" || status === "delayed") &&
+          Number.isFinite(ageMs) &&
+          ageMs >= 120000
+        );
+      }),
+    [ocrQueue],
+  );
+
   const colSpan = useMemo(() => {
     if (columnsCount === 1) return { xs: 24, sm: 24, lg: 24 };
     if (columnsCount === 2) return { xs: 24, sm: 12, lg: 12 };
@@ -734,21 +794,39 @@ const DocumentTypeUploader = ({
   );
 
   const renderQueueStatus = (item, mode = "upload") => {
-    if (item.status === "uploading" || item.status === "active") {
+    const status = String(item?.status || "").toLowerCase();
+    const attempts = Number(item?.attempts || 0);
+    const maxAttempts = Number(item?.maxAttempts || 0);
+    const hasRetryMeta = Number.isFinite(maxAttempts) && maxAttempts > 0;
+    const retryLabel = hasRetryMeta
+      ? `Ретрай ${attempts}/${maxAttempts}`
+      : `Повтор ${attempts}`;
+
+    if (status === "uploading" || status === "active") {
+      if (mode === "ocr" && attempts > 0) {
+        return <Tag color="orange">{retryLabel}</Tag>;
+      }
       return (
         <Tag color="blue">
           {mode === "ocr" ? "Распознается…" : "Загрузка…"}
         </Tag>
       );
     }
-    if (item.status === "done" || item.status === "completed") {
+    if (status === "done" || status === "completed") {
       return <Tag color="green">Готово</Tag>;
     }
-    if (item.status === "error" || item.status === "failed") {
+    if (status === "error" || status === "failed") {
       return <Tag color="red">Ошибка</Tag>;
     }
-    if (item.attempts > 0) {
-      return <Tag color="orange">Повтор {item.attempts}</Tag>;
+    if (
+      mode === "ocr" &&
+      (status === "waiting" || status === "delayed") &&
+      attempts > 0
+    ) {
+      return <Tag color="orange">{retryLabel}</Tag>;
+    }
+    if (attempts > 0) {
+      return <Tag color="orange">{retryLabel}</Tag>;
     }
     return <Tag>В очереди</Tag>;
   };
@@ -907,6 +985,14 @@ const DocumentTypeUploader = ({
           }}
         >
           <div style={{ fontWeight: 600, marginBottom: 8 }}>Очередь OCR</div>
+          {staleOcrQueueItems.length > 0 && (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 8 }}
+              message={`OCR очередь долго в ожидании (${staleOcrQueueItems.length}). Проверьте worker/Redis.`}
+            />
+          )}
           <List
             size="small"
             dataSource={ocrQueue}
@@ -924,6 +1010,15 @@ const DocumentTypeUploader = ({
                   </Space>
                   <Space style={{ color: "#8c8c8c", fontSize: 12 }}>
                     <span>{getDocumentTypeLabel(item.documentType)}</span>
+                    {Number(item?.maxAttempts) > 0 && (
+                      <>
+                        <span>•</span>
+                        <span>
+                          попытка {Number(item?.attempts || 0)}/
+                          {Number(item?.maxAttempts)}
+                        </span>
+                      </>
+                    )}
                     {item.error && (
                       <>
                         <span>•</span>

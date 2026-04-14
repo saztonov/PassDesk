@@ -630,7 +630,8 @@ class EmployeeStatusService {
   /**
    * Инициализировать статусы для нового сотрудника
    */
-  static async initializeEmployeeStatuses(employeeId, userId) {
+  static async initializeEmployeeStatuses(employeeId, userId, options = {}) {
+    const { transaction = null } = options;
     console.log("=== INITIALIZING EMPLOYEE STATUSES ===");
     console.log("Employee ID:", employeeId);
     console.log("User ID:", userId);
@@ -652,6 +653,7 @@ class EmployeeStatusService {
           [Op.in]: statusNameSet,
         },
       },
+      ...(transaction ? { transaction } : {}),
     });
 
     const statusByGroupAndName = new Map(
@@ -678,7 +680,10 @@ class EmployeeStatusService {
       };
     });
 
-    const mappings = await EmployeeStatusMapping.bulkCreate(rowsToCreate);
+    const mappings = await EmployeeStatusMapping.bulkCreate(
+      rowsToCreate,
+      transaction ? { transaction } : undefined,
+    );
     mappings.forEach((mapping) => {
       console.log(`✓ Created mapping for ${mapping.statusGroup}:`, mapping.id);
     });

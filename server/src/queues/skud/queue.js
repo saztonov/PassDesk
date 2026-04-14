@@ -17,6 +17,8 @@ export const SKUD_QUEUE_NAMES = {
 let redisConnection = null;
 const queues = new Map();
 let workersStarted = false;
+let workers = [];
+let workerConnections = [];
 
 const isQueueEnabled = () => skudConfig.enabled;
 
@@ -102,56 +104,127 @@ export const startSkudWorkers = async () => {
     return;
   }
 
-  const connection = getRedisConnection();
-  await connection.connect();
+  const createdWorkers = [];
+  const createdConnections = [];
 
-  const workerOptions = {
-    connection,
-    concurrency: skudConfig.queue.concurrency,
+  const createWorkerOptions = async (concurrency = skudConfig.queue.concurrency) => {
+    const connection = createRedisConnection();
+    await connection.connect();
+    createdConnections.push(connection);
+    return {
+      connection,
+      concurrency,
+    };
   };
 
-  const syncWorker = new Worker(
-    SKUD_QUEUE_NAMES.sync,
-    async (job) => processSyncEmployeeJob(job),
-    workerOptions,
+  try {
+    const syncWorkerOptions = await createWorkerOptions();
+
+    const syncWorker = new Worker(
+      SKUD_QUEUE_NAMES.sync,
+      async (job) => processSyncEmployeeJob(job),
+      syncWorkerOptions,
+    );
+    createdWorkers.push(syncWorker);
+
+    const blockUnblockWorkerOptions = await createWorkerOptions(
+      Math.max(1, skudConfig.queue.concurrency),
+    );
+
+    const blockUnblockWorker = new Worker(
+      SKUD_QUEUE_NAMES.blockUnblock,
+      async (job) => processBlockUnblockJob(job),
+      blockUnblockWorkerOptions,
+    );
+    createdWorkers.push(blockUnblockWorker);
+
+    const cardsWorkerOptions = await createWorkerOptions();
+
+    const cardsWorker = new Worker(
+      SKUD_QUEUE_NAMES.cards,
+      async (job) => processCardsJob(job),
+      cardsWorkerOptions,
+    );
+    createdWorkers.push(cardsWorker);
+
+    const eventsWorkerOptions = await createWorkerOptions();
+
+    const eventsWorker = new Worker(
+      SKUD_QUEUE_NAMES.eventsIngest,
+      async (job) => processEventsIngestJob(job),
+      eventsWorkerOptions,
+    );
+    createdWorkers.push(eventsWorker);
+
+    const qrAuditWorkerOptions = await createWorkerOptions();
+
+    const qrAuditWorker = new Worker(
+      SKUD_QUEUE_NAMES.qrAudit,
+      async (job) => processEventsIngestJob(job),
+      qrAuditWorkerOptions,
+    );
+    createdWorkers.push(qrAuditWorker);
+
+    const logWorkerError = (name) => (error) => {
+      console.error(`SKUD queue worker error [${name}]:`, error?.message || error);
+    };
+
+    syncWorker.on("error", logWorkerError("sync"));
+    blockUnblockWorker.on("error", logWorkerError("block-unblock"));
+    cardsWorker.on("error", logWorkerError("cards"));
+    eventsWorker.on("error", logWorkerError("events"));
+    qrAuditWorker.on("error", logWorkerError("qr-audit"));
+
+    workers = createdWorkers;
+    workerConnections = createdConnections;
+    workersStarted = true;
+  } catch (error) {
+    await Promise.allSettled(createdWorkers.map((worker) => worker.close()));
+    await Promise.allSettled(
+      createdConnections.map(async (connection) => {
+        try {
+          await connection.quit();
+        } catch {
+          connection.disconnect();
+        }
+      }),
+    );
+    throw error;
+  }
+};
+
+export const stopSkudWorkers = async () => {
+  if (!workersStarted && workers.length === 0) {
+    return;
+  }
+
+  await Promise.allSettled(workers.map((worker) => worker.close()));
+  workers = [];
+
+  await Promise.allSettled(
+    Array.from(queues.values()).map((queue) => queue.close()),
   );
+  queues.clear();
 
-  const blockUnblockWorker = new Worker(
-    SKUD_QUEUE_NAMES.blockUnblock,
-    async (job) => processBlockUnblockJob(job),
-    {
-      ...workerOptions,
-      concurrency: Math.max(1, skudConfig.queue.concurrency),
-    },
+  await Promise.allSettled(
+    workerConnections.map(async (connection) => {
+      try {
+        await connection.quit();
+      } catch {
+        connection.disconnect();
+      }
+    }),
   );
+  workerConnections = [];
 
-  const cardsWorker = new Worker(
-    SKUD_QUEUE_NAMES.cards,
-    async (job) => processCardsJob(job),
-    workerOptions,
-  );
+  if (redisConnection) {
+    try {
+      await redisConnection.quit();
+    } catch {
+      redisConnection.disconnect();
+    }
+    redisConnection = null;
+  }
 
-  const eventsWorker = new Worker(
-    SKUD_QUEUE_NAMES.eventsIngest,
-    async (job) => processEventsIngestJob(job),
-    workerOptions,
-  );
-
-  const qrAuditWorker = new Worker(
-    SKUD_QUEUE_NAMES.qrAudit,
-    async (job) => processEventsIngestJob(job),
-    workerOptions,
-  );
-
-  const logWorkerError = (name) => (error) => {
-    console.error(`SKUD queue worker error [${name}]:`, error?.message || error);
-  };
-
-  syncWorker.on("error", logWorkerError("sync"));
-  blockUnblockWorker.on("error", logWorkerError("block-unblock"));
-  cardsWorker.on("error", logWorkerError("cards"));
-  eventsWorker.on("error", logWorkerError("events"));
-  qrAuditWorker.on("error", logWorkerError("qr-audit"));
-
-  workersStarted = true;
+  workersStarted = false;
 };

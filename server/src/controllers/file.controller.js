@@ -5,6 +5,7 @@ import { decryptFileBuffer } from "../services/fileEncryptionService.js";
 import {
   verifyFileProxyToken,
   buildFileProxyUrl,
+  buildFileProxyRequesterFingerprint,
 } from "../services/fileDownloadTokenService.js";
 
 /**
@@ -94,27 +95,65 @@ const ensureStorageSupportsBufferRead = () => {
   }
 };
 
+const logFileProxySecurityEvent = (req, reason, details = {}) => {
+  const userAgent = req.get("user-agent") || "";
+  console.warn("[file-proxy] access denied", {
+    reason,
+    fileId: details.fileId || null,
+    tokenUserId: details.tokenUserId || null,
+    ip: req.ip || req.connection?.remoteAddress || null,
+    userAgent: userAgent.slice(0, 180),
+  });
+};
+
 export const proxyFile = async (req, res, next) => {
   try {
     const { fileId } = req.params;
-    const { token } = req.query;
+    const queryToken = req.query?.token;
+    const pathToken = req.params?.token;
+    const headerToken = req.get("x-file-proxy-token");
+    if (typeof queryToken === "string" && queryToken.trim().length > 0) {
+      logFileProxySecurityEvent(req, "query_token_not_allowed", { fileId });
+      throw new AppError(
+        "Token в query string не поддерживается. Используйте signed path или заголовок x-file-proxy-token.",
+        400,
+      );
+    }
+
+    const token =
+      typeof headerToken === "string" && headerToken.trim().length > 0
+        ? headerToken.trim()
+        : pathToken;
 
     if (!token || typeof token !== "string") {
+      logFileProxySecurityEvent(req, "token_missing", { fileId });
       throw new AppError("Требуется token для доступа к файлу", 401);
     }
 
     let tokenPayload;
     try {
-      tokenPayload = verifyFileProxyToken(token);
+      tokenPayload = verifyFileProxyToken(token, {
+        requesterFingerprint: buildFileProxyRequesterFingerprint(req),
+      });
     } catch (error) {
+      logFileProxySecurityEvent(req, "token_invalid", { fileId });
       throw new AppError("Недействительный token для доступа к файлу", 401);
     }
 
     if (String(tokenPayload.fileId) !== String(fileId)) {
+      logFileProxySecurityEvent(req, "token_file_mismatch", {
+        fileId,
+        tokenUserId: tokenPayload.requestedByUserId,
+      });
       throw new AppError("Token не соответствует файлу", 403);
     }
 
-    const { File } = await import("../models/index.js");
+    if (!tokenPayload.requestedByUserId) {
+      logFileProxySecurityEvent(req, "token_missing_user_binding", { fileId });
+      throw new AppError("Недействительный token для доступа к файлу", 401);
+    }
+
+    const { File, User } = await import("../models/index.js");
     const file = await File.findOne({
       where: {
         id: fileId,
@@ -124,6 +163,34 @@ export const proxyFile = async (req, res, next) => {
 
     if (!file) {
       throw new AppError("Файл не найден", 404);
+    }
+
+    const requesterUser = await User.findOne({
+      where: {
+        id: tokenPayload.requestedByUserId,
+        isDeleted: false,
+      },
+      attributes: ["id", "role", "counterpartyId", "isActive", "isDeleted"],
+    });
+
+    if (!requesterUser) {
+      logFileProxySecurityEvent(req, "token_user_not_found", {
+        fileId,
+        tokenUserId: tokenPayload.requestedByUserId,
+      });
+      throw new AppError("Недействительный token для доступа к файлу", 401);
+    }
+
+    try {
+      await checkFileAccess(file, requesterUser);
+    } catch (error) {
+      if (error instanceof AppError && error.statusCode === 403) {
+        logFileProxySecurityEvent(req, "acl_denied", {
+          fileId,
+          tokenUserId: requesterUser.id,
+        });
+      }
+      throw error;
     }
 
     ensureStorageSupportsBufferRead();

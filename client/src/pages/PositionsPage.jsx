@@ -21,7 +21,6 @@ import {
 } from "@ant-design/icons";
 import positionService from "../services/positionService";
 import { useAuthStore } from "../store/authStore";
-import * as XLSX from "xlsx";
 import { canManageAdministrativeData } from "@/shared/lib/accessControl";
 import {
   ensureExcelRowLimit,
@@ -294,6 +293,7 @@ const PositionsPage = () => {
         if (!data) {
           throw new Error("Не удалось прочитать файл");
         }
+        const XLSX = await import("xlsx");
         const workbook = XLSX.read(data, {
           type: "array",
           ...XLSX_READ_SAFE_OPTIONS,

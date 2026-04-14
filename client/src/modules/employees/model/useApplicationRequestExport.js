@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
 import dayjs from "dayjs";
-import * as XLSX from "xlsx";
 import { applicationService } from "@/services/applicationService";
 import { formatApplicationRequestCell } from "@/modules/employees/lib/applicationRequestExcel";
 
@@ -54,6 +53,8 @@ export const useApplicationRequestExport = ({
 
         return row;
       });
+
+      const XLSX = await import("xlsx");
 
       const worksheet = XLSX.utils.json_to_sheet(excelData);
       const columnWidths = [];

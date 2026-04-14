@@ -22,6 +22,14 @@ const uploadRateLimiter = rateLimit({
 });
 
 router.get(
+  "/proxy/:fileId/:token",
+  param("fileId").isUUID().withMessage("fileId должен быть UUID"),
+  param("token").isString().notEmpty().withMessage("token обязателен"),
+  validate,
+  fileController.proxyFile,
+);
+
+router.get(
   "/proxy/:fileId",
   param("fileId").isUUID().withMessage("fileId должен быть UUID"),
   validate,

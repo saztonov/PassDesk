@@ -15,6 +15,7 @@ import {
   EmployeeStatusMapping,
   Setting,
   CounterpartySubcounterpartyMapping,
+  sequelize,
 } from "../models/index.js";
 import {
   validateEmployeeForImportOptimized,
@@ -542,6 +543,7 @@ export const importEmployees = async (
   const findOrCreateDepartmentForCounterparty = async (
     counterpartyId,
     departmentName,
+    transaction = null,
   ) => {
     const normalizedName = normalizeDepartmentName(departmentName);
     if (!counterpartyId || !normalizedName) {
@@ -558,13 +560,17 @@ export const importEmployees = async (
         counterpartyId,
         name: { [Op.iLike]: normalizedName },
       },
+      ...(transaction ? { transaction } : {}),
     });
 
     if (!department) {
-      department = await Department.create({
-        counterpartyId,
-        name: normalizedName,
-      });
+      department = await Department.create(
+        {
+          counterpartyId,
+          name: normalizedName,
+        },
+        transaction ? { transaction } : undefined,
+      );
       console.log(`   ✨ Создано подразделение: ${normalizedName}`);
     }
 
@@ -572,7 +578,11 @@ export const importEmployees = async (
     return department;
   };
 
-  const upsertImportedPassForEmployee = async (employeeId, passNumber) => {
+  const upsertImportedPassForEmployee = async (
+    employeeId,
+    passNumber,
+    transaction = null,
+  ) => {
     const normalizedPassNumber = normalizePassNumber(passNumber);
     if (!employeeId || !normalizedPassNumber) {
       return null;
@@ -582,6 +592,7 @@ export const importEmployees = async (
     let pass = await Pass.findOne({
       where: { passNumber: normalizedPassNumber },
       order: [["updatedAt", "DESC"]],
+      ...(transaction ? { transaction } : {}),
     });
 
     if (pass) {
@@ -602,7 +613,7 @@ export const importEmployees = async (
         updates.validUntil = IMPORTED_PASS_VALID_UNTIL;
       }
       if (Object.keys(updates).length > 0) {
-        await pass.update(updates);
+        await pass.update(updates, transaction ? { transaction } : undefined);
       }
       return pass;
     }
@@ -610,33 +621,44 @@ export const importEmployees = async (
     pass = await Pass.findOne({
       where: { employeeId },
       order: [["updatedAt", "DESC"], ["createdAt", "DESC"]],
+      ...(transaction ? { transaction } : {}),
     });
 
     if (pass) {
-      await pass.update({
-        passNumber: normalizedPassNumber,
-        passType: "contractor",
-        status: "active",
-        validFrom: pass.validFrom || now,
-        validUntil: pass.validUntil || IMPORTED_PASS_VALID_UNTIL,
-      });
+      await pass.update(
+        {
+          passNumber: normalizedPassNumber,
+          passType: "contractor",
+          status: "active",
+          validFrom: pass.validFrom || now,
+          validUntil: pass.validUntil || IMPORTED_PASS_VALID_UNTIL,
+        },
+        transaction ? { transaction } : undefined,
+      );
       return pass;
     }
 
-    return Pass.create({
-      employeeId,
-      passNumber: normalizedPassNumber,
-      passType: "contractor",
-      validFrom: now,
-      validUntil: IMPORTED_PASS_VALID_UNTIL,
-      status: "active",
-      accessZones: [],
-      issuedBy: userId,
-      notes: "Imported from 1C employee Excel",
-    });
+    return Pass.create(
+      {
+        employeeId,
+        passNumber: normalizedPassNumber,
+        passType: "contractor",
+        validFrom: now,
+        validUntil: IMPORTED_PASS_VALID_UNTIL,
+        status: "active",
+        accessZones: [],
+        issuedBy: userId,
+        notes: "Imported from 1C employee Excel",
+      },
+      transaction ? { transaction } : undefined,
+    );
   };
 
-  const revokeImportedPassForEmployee = async (employeeId, passNumber) => {
+  const revokeImportedPassForEmployee = async (
+    employeeId,
+    passNumber,
+    transaction = null,
+  ) => {
     if (!employeeId) {
       return null;
     }
@@ -648,6 +670,7 @@ export const importEmployees = async (
       pass = await Pass.findOne({
         where: { passNumber: normalizedPassNumber },
         order: [["updatedAt", "DESC"]],
+        ...(transaction ? { transaction } : {}),
       });
     }
 
@@ -655,6 +678,7 @@ export const importEmployees = async (
       pass = await Pass.findOne({
         where: { employeeId },
         order: [["updatedAt", "DESC"], ["createdAt", "DESC"]],
+        ...(transaction ? { transaction } : {}),
       });
     }
 
@@ -683,7 +707,7 @@ export const importEmployees = async (
     }
 
     if (Object.keys(updates).length > 0) {
-      await pass.update(updates);
+      await pass.update(updates, transaction ? { transaction } : undefined);
     }
 
     return pass;
@@ -715,7 +739,11 @@ export const importEmployees = async (
     return employeeData?.dismissalDate || null;
   };
 
-  const syncImportedEmployeeStatuses = async (employeeId, employeeData) => {
+  const syncImportedEmployeeStatuses = async (
+    employeeId,
+    employeeData,
+    transaction = null,
+  ) => {
     if (!employeeId) {
       return null;
     }
@@ -725,6 +753,7 @@ export const importEmployees = async (
     const currentActiveStatus = await EmployeeStatusService.getCurrentStatus(
       employeeId,
       "status_active",
+      { transaction },
     );
     const currentActiveStatusName = currentActiveStatus?.status?.name || null;
 
@@ -741,6 +770,7 @@ export const importEmployees = async (
             employeeId,
             statusGroup: "status_hr",
           },
+          ...(transaction ? { transaction } : {}),
         },
       );
     }
@@ -752,6 +782,7 @@ export const importEmployees = async (
       const firedOffStatus = await Status.findOne({
         where: { name: "status_hr_fired_off" },
         attributes: ["id"],
+        ...(transaction ? { transaction } : {}),
       });
 
       if (firedOffStatus) {
@@ -768,6 +799,7 @@ export const importEmployees = async (
               statusGroup: "status_hr",
               statusId: { [Op.ne]: firedOffStatus.id },
             },
+            ...(transaction ? { transaction } : {}),
           },
         );
         await EmployeeStatusService.activateOrCreateStatus(
@@ -775,6 +807,7 @@ export const importEmployees = async (
           "status_hr_fired_off",
           userId,
           false,
+          { transaction },
         );
       }
     }
@@ -786,11 +819,16 @@ export const importEmployees = async (
           ? "status_active_inactive"
           : "status_active_employed";
 
-    await EmployeeStatusService.setStatusByName(employeeId, statusName, userId);
+    await EmployeeStatusService.setStatusByName(
+      employeeId,
+      statusName,
+      userId,
+      { transaction },
+    );
     return statusName;
   };
 
-  const markEmployeeUploadedToZup = async (employeeId) => {
+  const markEmployeeUploadedToZup = async (employeeId, transaction = null) => {
     if (!employeeId) {
       return 0;
     }
@@ -806,6 +844,7 @@ export const importEmployees = async (
           employeeId,
           isActive: true,
         },
+        ...(transaction ? { transaction } : {}),
       },
     );
 
@@ -823,9 +862,17 @@ export const importEmployees = async (
 
   for (let i = 0; i < validatedEmployees.length; i += batchSize) {
     const batch = validatedEmployees.slice(i, i + batchSize);
+    const batchResults = {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+    };
+    const batchErrors = [];
 
-    await Promise.all(
-      batch.map(async (emp) => {
+    try {
+      await sequelize.transaction(async (transaction) => {
+        await Promise.all(
+          batch.map(async (emp) => {
         try {
           console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
           console.log(
@@ -860,6 +907,7 @@ export const importEmployees = async (
             console.log(`   🔍 Ищем по id_all`);
             existingEmployee = await Employee.findOne({
               where: { idAll: emp.idAll },
+              transaction,
             });
 
             if (existingEmployee) {
@@ -880,6 +928,7 @@ export const importEmployees = async (
             console.log(`   🔍 Ищем по ИНН`);
             existingEmployee = await Employee.findOne({
               where: { inn: emp.inn },
+              transaction,
             });
 
             if (existingEmployee) {
@@ -925,6 +974,7 @@ export const importEmployees = async (
 
             const candidateEmployees = await Employee.findAll({
               where: candidateWhere,
+              transaction,
             });
 
             console.log(
@@ -943,6 +993,7 @@ export const importEmployees = async (
                     counterpartyId: userCounterparty.id,
                   },
                   attributes: ["employeeId"],
+                  transaction,
                 });
 
               const mappedEmployeeIds = new Set(
@@ -983,7 +1034,7 @@ export const importEmployees = async (
             // Проверяем разрешение конфликта
             if (resolution === "skip") {
               console.log(`   ⏭️  Пользователь выбрал "Пропустить"`);
-              results.skipped++;
+              batchResults.skipped++;
               return;
             }
 
@@ -1162,15 +1213,15 @@ export const importEmployees = async (
               await existingEmployee.update({
                 ...encryptedUpdateData,
                 updatedBy: userId,
-              });
+              }, { transaction });
               console.log(
                 `   ✅ ОБНОВЛЕНО полей: ${Object.keys(updateData).length - 1}`,
               );
               console.log(`   📝 Изменения:`, changes);
-              results.updated++;
+              batchResults.updated++;
             } else {
               console.log(`   ℹ️  Нет изменений - данные совпадают`);
-              results.skipped++;
+              batchResults.skipped++;
             }
 
             employee = existingEmployee;
@@ -1202,11 +1253,12 @@ export const importEmployees = async (
               blankNumber: emp.blankNumber,
               createdBy: userId,
             });
-            employee = await Employee.create(createPayload);
+            employee = await Employee.create(createPayload, { transaction });
             isCreated = true;
             await EmployeeStatusService.initializeEmployeeStatuses(
               employee.id,
               userId,
+              { transaction },
             );
             console.log(`   ✅ СОЗДАН новый сотрудник:`, {
               id: employee.id,
@@ -1214,7 +1266,7 @@ export const importEmployees = async (
               inn: employee.inn,
               snils: employee.snils,
             });
-            results.created++;
+            batchResults.created++;
           }
 
           // 🔗 КРИТИЧЕСКИ ВАЖНО: Создаем маппинг сотрудник-контрагент
@@ -1229,6 +1281,7 @@ export const importEmployees = async (
           const targetDepartment = await findOrCreateDepartmentForCounterparty(
             targetCounterpartyId,
             importedEmploymentStatus === "fired" ? null : emp.department,
+            transaction,
           );
 
           console.log(
@@ -1239,16 +1292,20 @@ export const importEmployees = async (
               employeeId: employee.id,
               counterpartyId: targetCounterpartyId,
             },
+            transaction,
           });
 
           if (!existingMapping) {
-            await EmployeeCounterpartyMapping.create({
-              employeeId: employee.id,
-              counterpartyId: targetCounterpartyId,
-              departmentId: targetDepartment?.id || null,
-              dismissedAt: importedDismissalDate,
-              createdBy: userId,
-            });
+            await EmployeeCounterpartyMapping.create(
+              {
+                employeeId: employee.id,
+                counterpartyId: targetCounterpartyId,
+                departmentId: targetDepartment?.id || null,
+                dismissedAt: importedDismissalDate,
+                createdBy: userId,
+              },
+              { transaction },
+            );
             console.log(
               `   ✅ СОЗДАН маппинг сотрудник → контрагент (ID: ${targetCounterpartyId}, ${targetCounterparty.name})`,
             );
@@ -1263,10 +1320,13 @@ export const importEmployees = async (
               (targetDepartment?.id || null) !==
               (existingMapping.departmentId || null)
             ) {
-              await existingMapping.update({
-                departmentId: targetDepartment?.id || null,
-                dismissedAt: importedDismissalDate,
-              });
+              await existingMapping.update(
+                {
+                  departmentId: targetDepartment?.id || null,
+                  dismissedAt: importedDismissalDate,
+                },
+                { transaction },
+              );
               console.log(
                 `   ✅ ОБНОВЛЕН маппинг: подразделение=${targetDepartment?.name || "пусто"}, дата увольнения=${importedDismissalDate || "пусто"}`,
               );
@@ -1278,8 +1338,16 @@ export const importEmployees = async (
 
           const importedPass =
             importedEmploymentStatus === "fired"
-              ? await revokeImportedPassForEmployee(employee.id, emp.passNumber)
-              : await upsertImportedPassForEmployee(employee.id, emp.passNumber);
+              ? await revokeImportedPassForEmployee(
+                  employee.id,
+                  emp.passNumber,
+                  transaction,
+                )
+              : await upsertImportedPassForEmployee(
+                  employee.id,
+                  emp.passNumber,
+                  transaction,
+                );
           if (importedPass) {
             console.log(
               importedEmploymentStatus === "fired"
@@ -1291,6 +1359,7 @@ export const importEmployees = async (
           const importedStatusName = await syncImportedEmployeeStatuses(
             employee.id,
             emp,
+            transaction,
           );
           console.log(`   🏷️ Статус активности синхронизирован: ${importedStatusName}`);
 
@@ -1304,6 +1373,7 @@ export const importEmployees = async (
                   as: "citizenship",
                 },
               ],
+              transaction,
             });
 
             // Обновляем статусы на основе полноты карточки
@@ -1313,6 +1383,7 @@ export const importEmployees = async (
                 formConfig,
                 statusMap,
                 userId,
+                { transaction },
               );
 
             // Логируем результаты проверки полноты
@@ -1350,6 +1421,7 @@ export const importEmployees = async (
           try {
             const updatedUploadStatuses = await markEmployeeUploadedToZup(
               employee.id,
+              transaction,
             );
             console.log(
               `   ☁️ Флаг "загружен в ЗУП" обновлен для активных статусов: ${updatedUploadStatuses}`,
@@ -1363,7 +1435,7 @@ export const importEmployees = async (
           // Обновляем КПП контрагента если нужно (некритичная операция)
           if (emp.kppToUpdate && !userCounterparty.kpp) {
             try {
-              await userCounterparty.update({ kpp: emp.kppToUpdate });
+              await userCounterparty.update({ kpp: emp.kppToUpdate }, { transaction });
               console.log(`   ✅ Обновлен КПП контрагента: ${emp.kppToUpdate}`);
             } catch (kppError) {
               console.warn(
@@ -1383,7 +1455,7 @@ export const importEmployees = async (
             error.message,
           );
           console.error(`   Stack:`, error.stack);
-          results.errors.push({
+          batchErrors.push({
             rowIndex: emp.rowIndex,
             lastName: emp.lastName,
             error:
@@ -1392,8 +1464,40 @@ export const importEmployees = async (
                 : "Внутренняя ошибка при обработке записи",
           });
         }
-      }),
-    );
+          }),
+        );
+
+        if (batchErrors.length > 0) {
+          const batchError = new Error(
+            `Ошибка импорта батча: ${batchErrors.length} записей`,
+          );
+          batchError.batchErrors = batchErrors;
+          throw batchError;
+        }
+      });
+
+      results.created += batchResults.created;
+      results.updated += batchResults.updated;
+      results.skipped += batchResults.skipped;
+    } catch (batchError) {
+      const rollbackErrors =
+        Array.isArray(batchError?.batchErrors) && batchError.batchErrors.length > 0
+          ? batchError.batchErrors
+          : batch.map((emp) => ({
+              rowIndex: emp.rowIndex,
+              lastName: emp.lastName,
+              error:
+                process.env.NODE_ENV === "development"
+                  ? batchError?.message || "Ошибка импорта батча"
+                  : "Внутренняя ошибка при обработке батча",
+            }));
+
+      results.errors.push(...rollbackErrors);
+      departmentCache.clear();
+      console.error(
+        `❌ БАТЧ ${Math.floor(i / batchSize) + 1} ОТКАТЕН: ${rollbackErrors.length} ошибок`,
+      );
+    }
   }
 
   console.log("✅ Импорт завершен:", results);

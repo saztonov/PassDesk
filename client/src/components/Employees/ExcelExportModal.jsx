@@ -16,7 +16,6 @@ import { resolvePreferredEmployeeCounterpartyMapping } from "@/modules/employees
 import { formatPassportDepartmentCode } from "@/modules/employees/lib/employeeFormFormatters";
 import { formatSnils } from "@/utils/formatters";
 import dayjs from "dayjs";
-import * as XLSX from "xlsx";
 
 const EMPTY_EMPLOYEES = [];
 const DEFAULT_PAGE_SIZE = 100;
@@ -378,6 +377,8 @@ const ExcelExportModal = ({
         message.warning("Не удалось собрать данные выбранных сотрудников для выгрузки");
         return;
       }
+
+      const XLSX = await import("xlsx");
 
       const excelData = allSelectedEmployees.map((employee) => {
         const counterpartyMapping = resolvePreferredEmployeeCounterpartyMapping(employee);

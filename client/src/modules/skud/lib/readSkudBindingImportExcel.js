@@ -1,4 +1,3 @@
-import * as XLSX from "xlsx";
 import {
   ensureExcelRowLimit,
   validateExcelImportFile,
@@ -16,12 +15,13 @@ export const readSkudBindingImportExcel = (file) =>
 
     const reader = new FileReader();
 
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const data = event.target?.result;
         if (!data) {
           throw new Error("Не удалось прочитать Excel-файл");
         }
+        const XLSX = await import("xlsx");
         const workbook = XLSX.read(data, {
           type: "array",
           ...XLSX_READ_SAFE_OPTIONS,

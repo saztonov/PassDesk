@@ -11,9 +11,12 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import routes from "./routes/index.js";
 import { attachTranslator } from "./middleware/i18n.js";
 import { startTelegramBot } from "./telegram/bot.js";
-import { startSkudWorkers } from "./queues/skud/queue.js";
-import { startUploadWorkers } from "./queues/employeeUploads/queue.js";
-import { startOcrWorkers } from "./queues/employeeOcr/queue.js";
+import { startSkudWorkers, stopSkudWorkers } from "./queues/skud/queue.js";
+import {
+  startUploadWorkers,
+  stopUploadWorkers,
+} from "./queues/employeeUploads/queue.js";
+import { startOcrWorkers, stopOcrWorkers } from "./queues/employeeOcr/queue.js";
 import { cleanupStaleTempFiles } from "./middleware/upload.js";
 import { isSkudEnabled, skudConfig } from "./services/skud/skudConfig.js";
 import { runSkudEventsPull } from "./controllers/skud.controller.js";
@@ -52,6 +55,74 @@ const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || "50mb";
 const URLENCODED_BODY_LIMIT = process.env.URLENCODED_BODY_LIMIT || "50mb";
 let skudEventsPullTimer = null;
 let skudEventsPullInFlight = false;
+let httpServer = null;
+let isShuttingDown = false;
+
+const stopSkudEventsPull = () => {
+  if (skudEventsPullTimer) {
+    clearInterval(skudEventsPullTimer);
+    skudEventsPullTimer = null;
+  }
+};
+
+const shutdown = async (signal) => {
+  if (isShuttingDown) {
+    return;
+  }
+  isShuttingDown = true;
+
+  console.log(`🛑 Received ${signal}. Starting graceful shutdown...`);
+  stopSkudEventsPull();
+
+  const workerShutdownResults = await Promise.allSettled([
+    stopSkudWorkers(),
+    stopUploadWorkers(),
+    stopOcrWorkers(),
+  ]);
+  workerShutdownResults.forEach((result, index) => {
+    if (result.status === "rejected") {
+      const name = ["skud", "upload", "ocr"][index];
+      console.error(
+        `❌ Failed to stop ${name} workers:`,
+        result.reason?.message || result.reason,
+      );
+    }
+  });
+
+  if (httpServer) {
+    await new Promise((resolve) => {
+      httpServer.close((error) => {
+        if (error) {
+          console.error("❌ HTTP server close failed:", error.message);
+        }
+        resolve();
+      });
+    });
+    httpServer = null;
+  }
+
+  try {
+    await sequelize.close();
+  } catch (error) {
+    console.error("❌ Sequelize close failed:", error?.message || error);
+  }
+
+  process.exit(0);
+};
+
+process.once("SIGINT", () => {
+  shutdown("SIGINT").catch((error) => {
+    console.error("❌ Graceful shutdown failed:", error?.message || error);
+    process.exit(1);
+  });
+});
+
+process.once("SIGTERM", () => {
+  shutdown("SIGTERM").catch((error) => {
+    console.error("❌ Graceful shutdown failed:", error?.message || error);
+    process.exit(1);
+  });
+});
 
 // ======================================
 // TRUST PROXY - Для работы за Nginx
@@ -225,7 +296,7 @@ const startServer = async () => {
     // Изменения в БД делаются только через миграции с явным запуском
 
     // Start server - слушаем на всех сетевых интерфейсах
-    app.listen(PORT, "0.0.0.0", () => {
+    httpServer = app.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📝 Environment: ${process.env.NODE_ENV}`);
       console.log(
@@ -289,14 +360,6 @@ const startServer = async () => {
           // noop: all errors are handled inside runAutoPull
         });
 
-        const stopSkudEventsPull = () => {
-          if (skudEventsPullTimer) {
-            clearInterval(skudEventsPullTimer);
-            skudEventsPullTimer = null;
-          }
-        };
-        process.once("SIGINT", stopSkudEventsPull);
-        process.once("SIGTERM", stopSkudEventsPull);
       }
 
       cleanupStaleTempFiles();

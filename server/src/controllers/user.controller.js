@@ -10,6 +10,15 @@ import {
   getPasswordMinLengthMessage,
 } from "../utils/passwordPolicy.js";
 
+const clearRefreshCookie = (res) => {
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: `/api/${process.env.API_VERSION || "v1"}/auth`,
+  });
+};
+
 /**
  * Генерация уникального УИН (6-значный)
  */
@@ -584,10 +593,15 @@ export const changeMyPassword = async (req, res, next) => {
 
     // Обновляем пароль
     await user.update({ password: newPassword });
+    await RefreshToken.update(
+      { revokedAt: new Date() },
+      { where: { userId, revokedAt: null } },
+    );
+    clearRefreshCookie(res);
 
     res.json({
       success: true,
-      message: "Пароль успешно изменен",
+      message: "Пароль успешно изменен. Выполните повторный вход.",
     });
   } catch (error) {
     next(error);

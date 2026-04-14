@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import axios from "axios";
 import { Op, col, fn, where } from "sequelize";
 import {
   Employee,
@@ -30,11 +31,39 @@ const SESSION_LIMIT_PER_EMPLOYEE = Math.max(
 const DELIVERY_MODE = String(process.env.MOBILE_ACCESS_DELIVERY_MODE || "log")
   .trim()
   .toLowerCase();
-const DEBUG_RETURN_CODE = String(
+const isDevelopmentEnv = String(process.env.NODE_ENV || "").trim() === "development";
+const isProductionEnv = String(process.env.NODE_ENV || "").trim() === "production";
+const DEBUG_RETURN_CODE_ENABLED = String(
   process.env.MOBILE_ACCESS_DEBUG_RETURN_CODE || "false",
 )
   .trim()
   .toLowerCase() === "true";
+const DEBUG_RETURN_CODE = isDevelopmentEnv && DEBUG_RETURN_CODE_ENABLED;
+const SMS_WEBHOOK_URL = String(
+  process.env.MOBILE_ACCESS_SMS_WEBHOOK_URL || "",
+).trim();
+const SMS_WEBHOOK_TOKEN = String(
+  process.env.MOBILE_ACCESS_SMS_WEBHOOK_TOKEN || "",
+).trim();
+const PUSH_WEBHOOK_URL = String(
+  process.env.MOBILE_ACCESS_PUSH_WEBHOOK_URL || "",
+).trim();
+const PUSH_WEBHOOK_TOKEN = String(
+  process.env.MOBILE_ACCESS_PUSH_WEBHOOK_TOKEN || "",
+).trim();
+
+const ensureOtpDeliveryModeAllowed = () => {
+  if (!isProductionEnv) {
+    return;
+  }
+
+  if (DELIVERY_MODE === "log" || DELIVERY_MODE === "debug") {
+    throw new AppError(
+      "OTP выдача в production через log/debug запрещена. Настройте MOBILE_ACCESS_DELIVERY_MODE=sms или push",
+      503,
+    );
+  }
+};
 
 const hashValue = (value) =>
   crypto.createHash("sha256").update(String(value || "")).digest("hex");
@@ -165,15 +194,68 @@ const invalidateActiveCodes = async (employeeId, phoneNormalized) => {
 };
 
 const deliverOtpCode = async ({ employee, normalizedPhone, code }) => {
+  ensureOtpDeliveryModeAllowed();
+
   if (DELIVERY_MODE === "log" || DELIVERY_MODE === "debug") {
+    // Логирование OTP допустимо только вне production для локальной отладки.
     console.log(
       `[mobile-access] OTP for ${buildEmployeeFullName(employee)} (${normalizedPhone}): ${code}`,
+    );
+
+    return {
+      channel: DELIVERY_MODE,
+      delivered: true,
+    };
+  }
+
+  if (DELIVERY_MODE !== "sms" && DELIVERY_MODE !== "push") {
+    throw new AppError(
+      `Неизвестный канал OTP доставки: ${DELIVERY_MODE}. Допустимо: sms, push, log, debug`,
+      500,
+    );
+  }
+
+  const channel = DELIVERY_MODE;
+  const webhookUrl = channel === "sms" ? SMS_WEBHOOK_URL : PUSH_WEBHOOK_URL;
+  const webhookToken = channel === "sms" ? SMS_WEBHOOK_TOKEN : PUSH_WEBHOOK_TOKEN;
+
+  if (!webhookUrl) {
+    throw new AppError(
+      `Канал OTP (${channel}) не настроен: отсутствует webhook URL`,
+      503,
+    );
+  }
+
+  const payload = {
+    channel,
+    phone: normalizedPhone,
+    message: `Ваш код входа: ${code}`,
+    code,
+    ttlMinutes: OTP_TTL_MINUTES,
+    employee: {
+      id: employee?.id || null,
+      fullName: buildEmployeeFullName(employee),
+    },
+  };
+
+  try {
+    await axios.post(webhookUrl, payload, {
+      timeout: 10_000,
+      headers: {
+        "Content-Type": "application/json",
+        ...(webhookToken ? { Authorization: `Bearer ${webhookToken}` } : {}),
+      },
+    });
+  } catch (error) {
+    throw new AppError(
+      `Не удалось отправить OTP через ${channel}`,
+      503,
     );
   }
 
   return {
-    channel: DELIVERY_MODE,
-    delivered: DELIVERY_MODE === "log" || DELIVERY_MODE === "debug",
+    channel,
+    delivered: true,
   };
 };
 
@@ -306,6 +388,8 @@ export const requestMobileAccessCode = async ({
   requestIp = null,
   deviceLabel = "",
 }) => {
+  ensureOtpDeliveryModeAllowed();
+
   const { employee, normalizedPhone } = await findEmployeeByPhone(phone);
   await invalidateActiveCodes(employee.id, normalizedPhone);
 

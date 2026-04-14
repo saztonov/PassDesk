@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
-import * as XLSX from "xlsx";
 import { useEmployees } from "@/entities/employee";
 import { constructionSiteService } from "@/services/constructionSiteService";
 import { counterpartyService } from "@/services/counterpartyService";
@@ -164,6 +163,8 @@ export const useExportToExcelModal = ({
         constructionSiteId,
         counterpartyId,
       });
+
+      const XLSX = await import("xlsx");
 
       const worksheet = XLSX.utils.json_to_sheet(rows);
       const workbook = XLSX.utils.book_new();

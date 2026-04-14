@@ -35,7 +35,6 @@ import {
 } from "@ant-design/icons";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
-import * as XLSX from "xlsx";
 import { employeeService } from "@/services/employeeService";
 import { passService } from "@/services/passService";
 import { departmentService } from "@/services/departmentService";
@@ -2538,12 +2537,14 @@ const SkudAdminSection = () => {
   const totalEventsCount = Number(state.events?.pagination?.total || 0);
   const loadedEventsCount = Array.isArray(state.events?.items) ? state.events.items.length : 0;
   const displayedEventItems = Array.isArray(state.events?.items) ? state.events.items : [];
-  const handleExportEventsToExcel = useCallback(() => {
+  const handleExportEventsToExcel = useCallback(async () => {
     const items = Array.isArray(state.events?.items) ? state.events.items : [];
     if (items.length === 0) {
       message.warning("Нет данных для экспорта");
       return;
     }
+
+    const XLSX = await import("xlsx");
 
     const rows = items.map((record) => ({
       "Время события": record?.eventTime

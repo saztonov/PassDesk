@@ -38,6 +38,7 @@ const uploadQueueConfig = {
 let redisConnection = null;
 let uploadQueue = null;
 let workersStarted = false;
+let uploadWorker = null;
 
 const getRedisConnection = () => {
   if (!redisConnection) {
@@ -312,5 +313,33 @@ export const startUploadWorkers = async () => {
     console.error("Upload queue worker error:", error?.message || error);
   });
 
+  uploadWorker = worker;
   workersStarted = true;
+};
+
+export const stopUploadWorkers = async () => {
+  if (!workersStarted && !uploadWorker) {
+    return;
+  }
+
+  if (uploadWorker) {
+    await uploadWorker.close().catch(() => null);
+    uploadWorker = null;
+  }
+
+  if (uploadQueue) {
+    await uploadQueue.close().catch(() => null);
+    uploadQueue = null;
+  }
+
+  if (redisConnection) {
+    try {
+      await redisConnection.quit();
+    } catch {
+      redisConnection.disconnect();
+    }
+    redisConnection = null;
+  }
+
+  workersStarted = false;
 };

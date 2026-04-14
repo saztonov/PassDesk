@@ -8,6 +8,8 @@ import {
   normalizeDocumentType,
   recognizeDocument,
 } from "../../services/ocr/ocrService.js";
+import { assertRequiredOcrFields } from "./resultValidation.js";
+import { convertPdfFirstPageToImageDataUrl } from "../../services/pdf/pdfToImageService.js";
 
 export const OCR_QUEUE_NAME = "employee.files.ocr";
 
@@ -22,11 +24,15 @@ const ocrQueueConfig = {
   retryLimit: Math.max(1, Number.parseInt(String(process.env.OCR_QUEUE_RETRY_LIMIT || "3"), 10)),
 };
 
-const OCR_SUPPORTED_MIME_TYPES = new Set([
+const OCR_SUPPORTED_IMAGE_MIME_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
   "image/png",
   "image/webp",
+]);
+const OCR_SUPPORTED_SOURCE_MIME_TYPES = new Set([
+  ...OCR_SUPPORTED_IMAGE_MIME_TYPES,
+  "application/pdf",
 ]);
 
 const MAX_IMAGE_SIZE_BYTES = Number(
@@ -36,6 +42,7 @@ const MAX_IMAGE_SIZE_BYTES = Number(
 let redisConnection = null;
 let ocrQueue = null;
 let workersStarted = false;
+let ocrWorker = null;
 
 const getRedisConnection = () => {
   if (!redisConnection) {
@@ -55,9 +62,10 @@ const getQueue = async () => {
 
 const getQueueKey = (employeeId) => `employee_ocr_queue:${employeeId}`;
 
-const ensureSupportedImageMimeType = (mimeType = "") => {
-  if (!OCR_SUPPORTED_MIME_TYPES.has(String(mimeType).toLowerCase())) {
-    throw new Error("OCR поддерживает только фото (jpg, jpeg, png, webp)");
+const ensureSupportedOcrMimeType = (mimeType = "") => {
+  const normalizedMimeType = String(mimeType).toLowerCase();
+  if (!OCR_SUPPORTED_SOURCE_MIME_TYPES.has(normalizedMimeType)) {
+    throw new Error("OCR поддерживает только фото/PDF (jpg, jpeg, png, webp, pdf)");
   }
 };
 
@@ -170,14 +178,40 @@ export const listEmployeeOcrQueue = async (employeeId) => {
       continue;
     }
     const state = await job.getState();
+    const attempts = Number(job.attemptsMade || 0);
+    const maxAttempts = Number(job.opts?.attempts || ocrQueueConfig.retryLimit);
+    const createdAt = Number.isFinite(job.timestamp)
+      ? new Date(job.timestamp).toISOString()
+      : null;
+    const processedAt = Number.isFinite(job.processedOn)
+      ? new Date(job.processedOn).toISOString()
+      : null;
+    const finishedAt = Number.isFinite(job.finishedOn)
+      ? new Date(job.finishedOn).toISOString()
+      : null;
+    const ageMs = Number.isFinite(job.timestamp)
+      ? Math.max(0, Date.now() - job.timestamp)
+      : null;
+    const skipReason =
+      job.returnvalue &&
+      typeof job.returnvalue === "object" &&
+      job.returnvalue.skipped
+        ? String(job.returnvalue.reason || "skipped")
+        : null;
     results.push({
       id: String(job.id),
       fileId: job.data?.fileId || null,
       fileName: job.data?.fileName || null,
       documentType: job.data?.documentType || "other",
       status: state,
-      attempts: job.attemptsMade,
+      attempts,
+      maxAttempts,
       error: job.failedReason || null,
+      createdAt,
+      processedAt,
+      finishedAt,
+      ageMs,
+      skipReason,
     });
   }
 
@@ -218,14 +252,33 @@ const processOcrJob = async (job) => {
     return { skipped: true, reason: "unsupported_document_type" };
   }
 
-  ensureSupportedImageMimeType(fileRecord.mimeType || "");
+  const normalizedMimeType = String(fileRecord.mimeType || "").toLowerCase();
+  ensureSupportedOcrMimeType(normalizedMimeType);
   ensureFileSize(fileRecord.fileSize || 0);
 
   const storedBuffer = await fetchStoredFileBuffer(fileRecord.filePath);
   const decryptedBuffer = await tryDecryptFileBuffer(storedBuffer, fileRecord);
+  const imageDataUrl =
+    normalizedMimeType === "application/pdf"
+      ? await (async () => {
+          try {
+            return await convertPdfFirstPageToImageDataUrl({
+              pdfBuffer: decryptedBuffer,
+            });
+          } catch (error) {
+            throw new Error(
+              `PDF OCR preprocessing failed: ${error?.message || "unknown error"}`,
+            );
+          }
+        })()
+      : buildImageDataUrl(decryptedBuffer, fileRecord.mimeType);
   const result = await recognizeDocument({
     documentType: normalizedDocumentType,
-    imageDataUrl: buildImageDataUrl(decryptedBuffer, fileRecord.mimeType),
+    imageDataUrl,
+  });
+  assertRequiredOcrFields({
+    documentType: normalizedDocumentType,
+    normalized: result?.normalized || {},
   });
 
   const normalizedResult =
@@ -295,7 +348,17 @@ export const startOcrWorkers = async () => {
     const attempts = job.attemptsMade || 0;
     const maxAttempts = job.opts?.attempts || ocrQueueConfig.retryLimit;
     if (attempts >= maxAttempts && employeeId) {
-      await connection.srem(getQueueKey(employeeId), String(job.id));
+      // Keep failed job visible a bit longer so UI can show final error state.
+      const timer = setTimeout(async () => {
+        try {
+          await connection.srem(getQueueKey(employeeId), String(job.id));
+        } catch {
+          // ignore transient cleanup errors
+        }
+      }, 12000);
+      if (typeof timer.unref === "function") {
+        timer.unref();
+      }
     }
   });
 
@@ -303,5 +366,33 @@ export const startOcrWorkers = async () => {
     console.error("OCR queue worker error:", error?.message || error);
   });
 
+  ocrWorker = worker;
   workersStarted = true;
+};
+
+export const stopOcrWorkers = async () => {
+  if (!workersStarted && !ocrWorker) {
+    return;
+  }
+
+  if (ocrWorker) {
+    await ocrWorker.close().catch(() => null);
+    ocrWorker = null;
+  }
+
+  if (ocrQueue) {
+    await ocrQueue.close().catch(() => null);
+    ocrQueue = null;
+  }
+
+  if (redisConnection) {
+    try {
+      await redisConnection.quit();
+    } catch {
+      redisConnection.disconnect();
+    }
+    redisConnection = null;
+  }
+
+  workersStarted = false;
 };

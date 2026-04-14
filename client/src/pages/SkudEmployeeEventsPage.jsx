@@ -20,7 +20,6 @@ import {
 } from "@ant-design/icons";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
-import * as XLSX from "xlsx";
 import skudService from "@/services/skudService";
 
 const { RangePicker } = DatePicker;
@@ -506,11 +505,13 @@ const SkudEmployeeEventsPage = () => {
 
   const employeeLabel = employeeNameHint || "Сотрудник";
 
-  const exportToExcel = useCallback(() => {
+  const exportToExcel = useCallback(async () => {
     if (!events.length) {
       message.warning("Нет данных для экспорта");
       return;
     }
+
+    const XLSX = await import("xlsx");
 
     const rows = events.map((record) => ({
       "Время события": record?.eventTime

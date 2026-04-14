@@ -310,6 +310,10 @@ export const useEmployeeFormSaveHandlers = ({
       }
 
       await onSuccess(payload);
+      // Save completed explicitly: disable any pending draft cleanup paths.
+      isAutoCreatedRef.current = false;
+      draftEmployeeIdRef.current = null;
+      lastAutoSavedHashRef.current = null;
 
       if (shouldStayOpenAfterSave(linkingMode)) {
         message.success("Сотрудник успешно привязан к вашему профилю");
@@ -375,6 +379,10 @@ export const useEmployeeFormSaveHandlers = ({
   }, [saveDraft]);
 
   const discardDraftOnClose = useCallback(async () => {
+    if (isExplicitlySavedRef.current) {
+      return false;
+    }
+
     if (startedWithExistingEmployeeRef.current) {
       return false;
     }

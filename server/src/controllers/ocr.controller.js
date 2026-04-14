@@ -16,6 +16,7 @@ import {
   getOcrPromptsState,
   saveOcrPromptsState,
 } from "../services/ocr/ocrService.js";
+import { convertPdfFirstPageToImageDataUrl } from "../services/pdf/pdfToImageService.js";
 import {
   applyEmployeeOcrConflict,
   getEmployeeOcrConflictSummary,
@@ -28,11 +29,15 @@ import {
 const MAX_IMAGE_SIZE_BYTES = Number(
   process.env.OCR_MAX_FILE_SIZE || 12 * 1024 * 1024,
 );
-const OCR_SUPPORTED_MIME_TYPES = new Set([
+const OCR_SUPPORTED_IMAGE_MIME_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
   "image/png",
   "image/webp",
+]);
+const OCR_SUPPORTED_SOURCE_MIME_TYPES = new Set([
+  ...OCR_SUPPORTED_IMAGE_MIME_TYPES,
+  "application/pdf",
 ]);
 
 const fetchEmployeeWithMappings = async (employeeId) => {
@@ -82,10 +87,10 @@ const fetchFileWithEmployee = async (fileId) => {
   });
 };
 
-const ensureSupportedImageMimeType = (mimeType = "") => {
-  if (!OCR_SUPPORTED_MIME_TYPES.has(String(mimeType).toLowerCase())) {
+const ensureSupportedOcrMimeType = (mimeType = "") => {
+  if (!OCR_SUPPORTED_SOURCE_MIME_TYPES.has(String(mimeType).toLowerCase())) {
     throw new AppError(
-      "OCR поддерживает только фото (jpg, jpeg, png, webp)",
+      "OCR поддерживает только фото/PDF (jpg, jpeg, png, webp, pdf)",
       400,
     );
   }
@@ -204,7 +209,7 @@ const getImageSource = async (req) => {
     await checkEmployeeAccess(req.user, employee);
 
     const uploadedBuffer = await readUploadedFileBuffer(req.file);
-    ensureSupportedImageMimeType(req.file.mimetype || "");
+    ensureSupportedOcrMimeType(req.file.mimetype || "");
     ensureFileSize(uploadedBuffer.length);
 
     return {
@@ -230,7 +235,7 @@ const getImageSource = async (req) => {
 
   await checkEmployeeAccess(req.user, fileRecord.employee);
 
-  ensureSupportedImageMimeType(fileRecord.mimeType || "");
+  ensureSupportedOcrMimeType(fileRecord.mimeType || "");
   ensureFileSize(fileRecord.fileSize || 0);
 
   const storedBuffer = await fetchStoredFileBuffer(fileRecord.filePath);
@@ -255,10 +260,22 @@ export const recognizeDocumentFromImage = async (req, res, next) => {
       throw new AppError("documentType обязателен", 400);
     }
 
-    const imageDataUrl = buildImageDataUrl(
-      imageSource.buffer,
-      imageSource.mimeType,
-    );
+    const normalizedMimeType = String(imageSource.mimeType || "").toLowerCase();
+    let imageDataUrl;
+    if (normalizedMimeType === "application/pdf") {
+      try {
+        imageDataUrl = await convertPdfFirstPageToImageDataUrl({
+          pdfBuffer: imageSource.buffer,
+        });
+      } catch (error) {
+        throw new AppError(
+          `Не удалось обработать PDF для OCR: ${error?.message || "unknown error"}`,
+          422,
+        );
+      }
+    } else {
+      imageDataUrl = buildImageDataUrl(imageSource.buffer, imageSource.mimeType);
+    }
 
     const result = await recognizeDocument({
       documentType: resolvedDocumentType,
@@ -287,7 +304,12 @@ export const scanDocumentImage = async (req, res, next) => {
     }
 
     const uploadedBuffer = await readUploadedFileBuffer(req.file);
-    ensureSupportedImageMimeType(req.file.mimetype || "");
+    if (!OCR_SUPPORTED_IMAGE_MIME_TYPES.has(String(req.file.mimetype || "").toLowerCase())) {
+      throw new AppError(
+        "AI scan поддерживает только фото (jpg, jpeg, png, webp)",
+        400,
+      );
+    }
     ensureFileSize(uploadedBuffer.length);
 
     const result = await detectDocumentScan({

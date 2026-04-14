@@ -102,7 +102,15 @@ const EmployeeFormModal = ({
   const [transferModalVisible, setTransferModalVisible] = useState(false); // Модальное окно перевода сотрудника
   const [availableCounterparties, setAvailableCounterparties] = useState([]); // Доступные контрагенты
   const [loadingCounterparties, setLoadingCounterparties] = useState(false); // Загрузка контрагентов
-  const [isOcrQueueActive, setIsOcrQueueActive] = useState(false);
+  const [ocrQueueActivity, setOcrQueueActivity] = useState({
+    active: false,
+    total: 0,
+    activeCount: 0,
+    waitingCount: 0,
+    retryingCount: 0,
+    staleWaitingCount: 0,
+    failedCount: 0,
+  });
   const [pageDocsWidth, setPageDocsWidth] = useState(560);
   const [isResizingPageLayout, setIsResizingPageLayout] = useState(false);
   const pageSplitContainerRef = useRef(null);
@@ -125,13 +133,14 @@ const EmployeeFormModal = ({
         autoFillPatch || {},
         "passportType",
       );
-      if (!hasPassportType) {
-        return;
+      if (hasPassportType) {
+        const nextPassportType =
+          nextValues?.passportType ?? autoFillPatch?.passportType ?? null;
+        setPassportType(nextPassportType || null);
       }
 
-      const nextPassportType =
-        nextValues?.passportType ?? autoFillPatch?.passportType ?? null;
-      setPassportType(nextPassportType || null);
+      // AntD form.setFieldsValue does not trigger onFieldsChange, so force tab validation refresh.
+      scheduleValidation();
     },
     messageApi: message,
     employeeId: employee?.id || null,
@@ -185,8 +194,24 @@ const EmployeeFormModal = ({
     [employee?.id, message],
   );
 
-  const handleOcrActivityChange = useCallback((active) => {
-    setIsOcrQueueActive(Boolean(active));
+  const handleOcrActivityChange = useCallback((payload) => {
+    if (payload && typeof payload === "object") {
+      setOcrQueueActivity({
+        active: Boolean(payload.active),
+        total: Number(payload.total || 0),
+        activeCount: Number(payload.activeCount || 0),
+        waitingCount: Number(payload.waitingCount || 0),
+        retryingCount: Number(payload.retryingCount || 0),
+        staleWaitingCount: Number(payload.staleWaitingCount || 0),
+        failedCount: Number(payload.failedCount || 0),
+      });
+      return;
+    }
+
+    setOcrQueueActivity((prev) => ({
+      ...prev,
+      active: Boolean(payload),
+    }));
   }, []);
 
   const {
@@ -605,12 +630,18 @@ const EmployeeFormModal = ({
           </>
         )}
       >
-        {(isOcrProcessing || isOcrQueueActive) && (
+        {(isOcrProcessing || ocrQueueActivity.active) && (
           <Alert
             type="info"
             showIcon
             style={{ marginBottom: 12 }}
-            message="Идет распознавание документа..."
+            message={
+              ocrQueueActivity.staleWaitingCount > 0
+                ? "OCR очередь не двигается (долгое ожидание). Проверьте worker/Redis."
+                : ocrQueueActivity.retryingCount > 0
+                  ? `Идет распознавание документа... (ретраи: ${ocrQueueActivity.retryingCount})`
+                  : "Идет распознавание документа..."
+            }
           />
         )}
         <OcrConflictSummaryNotice

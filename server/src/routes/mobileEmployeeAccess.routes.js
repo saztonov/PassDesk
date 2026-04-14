@@ -2,7 +2,11 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import { body } from "express-validator";
 import * as mobileEmployeeAccessController from "../controllers/mobileEmployeeAccess.controller.js";
-import { authenticateMobileEmployeeSession } from "../middleware/auth.js";
+import {
+  authenticate,
+  authorize,
+  authenticateMobileEmployeeSession,
+} from "../middleware/auth.js";
 import { validate } from "../middleware/validator.js";
 
 const router = express.Router();
@@ -61,6 +65,8 @@ router.post(
 
 router.post(
   "/quick-qr",
+  authenticate,
+  authorize("admin", "manager"),
   quickQrLimiter,
   body("phone").isString().trim().notEmpty(),
   body("deviceLabel").optional().isString().trim(),

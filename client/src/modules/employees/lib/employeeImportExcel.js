@@ -1,6 +1,5 @@
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
-import * as XLSX from "xlsx";
 import {
   ensureExcelRowLimit,
   validateExcelImportFile,
@@ -8,6 +7,22 @@ import {
 } from "@/shared/lib/xlsxSecurity";
 
 dayjs.extend(customParseFormat);
+
+let xlsxModule = null;
+let xlsxModulePromise = null;
+
+const loadXlsxModule = async () => {
+  if (xlsxModule) {
+    return xlsxModule;
+  }
+
+  if (!xlsxModulePromise) {
+    xlsxModulePromise = import("xlsx");
+  }
+
+  xlsxModule = await xlsxModulePromise;
+  return xlsxModule;
+};
 
 const normalizeValue = (value) => {
   if (value === null || value === undefined) {
@@ -62,15 +77,29 @@ const normalizeDepartmentName = (value) =>
     .replace(/\s+/g, " ")
     .trim();
 
+const parseExcelSerialDate = (value) => {
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+
+  const excelEpoch = Date.UTC(1899, 11, 30);
+  const millisPerDay = 24 * 60 * 60 * 1000;
+  const date = new Date(excelEpoch + Math.round(value) * millisPerDay);
+  return Number.isNaN(date.getTime()) ? null : dayjs(date).format("YYYY-MM-DD");
+};
+
 const parseExcelDate = (value) => {
   if (!value) {
     return null;
   }
 
   if (typeof value === "number") {
-    const parsedDate = XLSX.SSF.parse_date_code(value);
+    const parsedDate =
+      xlsxModule?.SSF && typeof xlsxModule.SSF.parse_date_code === "function"
+        ? xlsxModule.SSF.parse_date_code(value)
+        : null;
     if (!parsedDate) {
-      return null;
+      return parseExcelSerialDate(value);
     }
     return dayjs(new Date(parsedDate.y, parsedDate.m - 1, parsedDate.d)).format(
       "YYYY-MM-DD",
@@ -306,12 +335,13 @@ export const readEmployeesFromExcelFile = (file) =>
 
     const reader = new FileReader();
 
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const data = event.target?.result;
         if (!data) {
           throw new Error("Не удалось прочитать Excel-файл");
         }
+        const XLSX = await loadXlsxModule();
         const workbook = XLSX.read(data, {
           type: "array",
           ...XLSX_READ_SAFE_OPTIONS,

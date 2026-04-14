@@ -22,6 +22,7 @@ export const updateEmployeeStatusesByCompleteness = async (
   options = {},
 ) => {
   const forceDraft = options?.forceDraft === true;
+  const transaction = options?.transaction || null;
   // Импортируем функцию получения недостающих полей
   const { getMissingRequiredFields } = await import('./employeeFieldsConfig.js');
   
@@ -58,12 +59,13 @@ export const updateEmployeeStatusesByCompleteness = async (
   // Деактивируем все старые статусы группы 'status' и 'draft'
   await EmployeeStatusMapping.update(
     { isActive: false, updatedBy: userId, updatedAt: new Date() },
-    { 
+    {
       where: { 
         employeeId: employee.id,
         statusGroup: ['status', 'draft'] // Учитываем старые группы
-      }
-    }
+      },
+      ...(transaction ? { transaction } : {}),
+    },
   );
 
   // Обновляем или создаем статус (основной)
@@ -73,7 +75,8 @@ export const updateEmployeeStatusesByCompleteness = async (
       employeeId: employee.id,
       statusGroup: 'status',
       statusId: statusMap[targetStatuses.status]
-    }
+    },
+    ...(transaction ? { transaction } : {}),
   });
 
   if (existingStatus) {
@@ -81,16 +84,19 @@ export const updateEmployeeStatusesByCompleteness = async (
       isActive: true,
       updatedBy: userId,
       updatedAt: new Date()
-    });
+    }, transaction ? { transaction } : undefined);
   } else {
-    await EmployeeStatusMapping.create({
-      employeeId: employee.id,
-      statusId: statusMap[targetStatuses.status],
-      statusGroup: 'status',
-      isActive: true,
-      createdBy: userId,
-      updatedBy: userId
-    });
+    await EmployeeStatusMapping.create(
+      {
+        employeeId: employee.id,
+        statusId: statusMap[targetStatuses.status],
+        statusGroup: 'status',
+        isActive: true,
+        createdBy: userId,
+        updatedBy: userId
+      },
+      transaction ? { transaction } : undefined,
+    );
     statusCreated = true;
   }
 
@@ -99,12 +105,13 @@ export const updateEmployeeStatusesByCompleteness = async (
   // Деактивируем все старые статусы группы 'status_card' и 'card draft'
   await EmployeeStatusMapping.update(
     { isActive: false, updatedBy: userId, updatedAt: new Date() },
-    { 
+    {
       where: { 
         employeeId: employee.id,
         statusGroup: ['status_card', 'card draft'] // Учитываем старые группы
-      }
-    }
+      },
+      ...(transaction ? { transaction } : {}),
+    },
   );
 
   // Обновляем или создаем статус карточки
@@ -114,7 +121,8 @@ export const updateEmployeeStatusesByCompleteness = async (
       employeeId: employee.id,
       statusGroup: 'status_card',
       statusId: statusMap[targetStatuses.statusCard]
-    }
+    },
+    ...(transaction ? { transaction } : {}),
   });
 
   if (existingStatusCard) {
@@ -122,16 +130,19 @@ export const updateEmployeeStatusesByCompleteness = async (
       isActive: true,
       updatedBy: userId,
       updatedAt: new Date()
-    });
+    }, transaction ? { transaction } : undefined);
   } else {
-    await EmployeeStatusMapping.create({
-      employeeId: employee.id,
-      statusId: statusMap[targetStatuses.statusCard],
-      statusGroup: 'status_card',
-      isActive: true,
-      createdBy: userId,
-      updatedBy: userId
-    });
+    await EmployeeStatusMapping.create(
+      {
+        employeeId: employee.id,
+        statusId: statusMap[targetStatuses.statusCard],
+        statusGroup: 'status_card',
+        isActive: true,
+        createdBy: userId,
+        updatedBy: userId
+      },
+      transaction ? { transaction } : undefined,
+    );
     statusCardCreated = true;
   }
 
