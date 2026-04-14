@@ -7,6 +7,7 @@ import {
   authorize,
   authenticateMobileEmployeeSession,
 } from "../middleware/auth.js";
+import { AppError } from "../middleware/errorHandler.js";
 import { validate } from "../middleware/validator.js";
 
 const router = express.Router();
@@ -44,6 +45,22 @@ const quickQrLimiter = rateLimit({
   },
 });
 
+export const ensureQuickQrReleaseGate = (_req, _res, next) => {
+  const isReleased =
+    String(process.env.MOBILE_ACCESS_QUICK_QR_RELEASED || "")
+      .trim()
+      .toLowerCase() === "true";
+  if (!isReleased) {
+    return next(
+      new AppError(
+        "Quick QR выключен до прохождения security gate",
+        403,
+      ),
+    );
+  }
+  return next();
+};
+
 router.post(
   "/request-code",
   requestCodeLimiter,
@@ -67,6 +84,7 @@ router.post(
   "/quick-qr",
   authenticate,
   authorize("admin", "manager"),
+  ensureQuickQrReleaseGate,
   quickQrLimiter,
   body("phone").isString().trim().notEmpty(),
   body("deviceLabel").optional().isString().trim(),

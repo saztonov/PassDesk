@@ -365,6 +365,9 @@ const DEFAULT_EVENT_LOAD_LIMIT = 20;
 const MIN_EVENT_LOAD_LIMIT = 20;
 const MAX_EVENT_LOAD_LIMIT = 200;
 const SKUD_TAB_KEYS = new Set(["events", "employees", "qr", "site-access-points"]);
+const EMPLOYEE_OPTIONS_LIMIT = 50;
+const EMPLOYEE_SEARCH_MIN = 2;
+const EMPLOYEE_SEARCH_DEBOUNCE_MS = 300;
 
 const resolveSkudTab = (value) => {
   const normalized = String(value || "").trim();
@@ -481,6 +484,8 @@ const SkudAdminSection = () => {
   const loadDataRequestIdRef = useRef(0);
   const wsRef = useRef(null);
   const handleAssignCardRef = useRef(null);
+  const cardEmployeeRequestIdRef = useRef(0);
+  const qrEmployeeRequestIdRef = useRef(0);
   const [_wsConnected, setWsConnected] = useState(false);
   const [uidFormat, _setUidFormat] = useState("w26");
   const [state, setState] = useState({
@@ -1017,38 +1022,20 @@ const SkudAdminSection = () => {
   }, [eventsPage, eventsPageSize, state.events?.pagination?.total]);
 
   const fetchEmployeeOptions = useCallback(async (search = "") => {
-    const limit = 200;
-    const maxPages = 50;
-    let page = 1;
-    let totalPages = 1;
-    const itemsById = new Map();
-
-    while (page <= totalPages && page <= maxPages) {
-      const response = await employeeService.getAll({
-        page,
-        limit,
-        activeOnly: "true",
-        ...(search ? { search } : {}),
-      });
-      const items = Array.isArray(response?.data?.employees)
-        ? response.data.employees
-        : [];
-      totalPages = Number(response?.data?.pagination?.pages || 1);
-
-      items.forEach((employee) => {
-        if (employee?.id) {
-          itemsById.set(employee.id, employee);
-        }
-      });
-
-      if (items.length < limit) {
-        break;
-      }
-
-      page += 1;
+    const normalizedSearch = String(search || "").trim();
+    if (normalizedSearch && normalizedSearch.length < EMPLOYEE_SEARCH_MIN) {
+      return [];
     }
 
-    return Array.from(itemsById.values()).map((employee) => ({
+    const response = await employeeService.getAll({
+      page: 1,
+      limit: EMPLOYEE_OPTIONS_LIMIT,
+      activeOnly: "true",
+      ...(normalizedSearch ? { search: normalizedSearch } : {}),
+    });
+    const items = Array.isArray(response?.data?.employees) ? response.data.employees : [];
+
+    return items.map((employee) => ({
       value: employee.id,
       label:
         buildEmployeeName(employee) ||
@@ -1339,15 +1326,21 @@ const SkudAdminSection = () => {
 
   const loadCardEmployees = useCallback(
     async (search = "") => {
+      const requestId = cardEmployeeRequestIdRef.current + 1;
+      cardEmployeeRequestIdRef.current = requestId;
       setCardEmployeeOptionsLoading(true);
       try {
         const options = await fetchEmployeeOptions(search);
-        setCardEmployeeOptions(options);
+        if (cardEmployeeRequestIdRef.current === requestId) {
+          setCardEmployeeOptions(options);
+        }
       } catch (error) {
         console.error("Failed to load card employee options:", error);
         message.error("Не удалось загрузить сотрудников");
       } finally {
-        setCardEmployeeOptionsLoading(false);
+        if (cardEmployeeRequestIdRef.current === requestId) {
+          setCardEmployeeOptionsLoading(false);
+        }
       }
     },
     [fetchEmployeeOptions, message],
@@ -1355,15 +1348,21 @@ const SkudAdminSection = () => {
 
   const loadQrEmployees = useCallback(
     async (search = "") => {
+      const requestId = qrEmployeeRequestIdRef.current + 1;
+      qrEmployeeRequestIdRef.current = requestId;
       setQrEmployeeOptionsLoading(true);
       try {
         const options = await fetchEmployeeOptions(search);
-        setQrEmployeeOptions(options);
+        if (qrEmployeeRequestIdRef.current === requestId) {
+          setQrEmployeeOptions(options);
+        }
       } catch (error) {
         console.error("Failed to load QR employee options:", error);
         message.error("Не удалось загрузить сотрудников");
       } finally {
-        setQrEmployeeOptionsLoading(false);
+        if (qrEmployeeRequestIdRef.current === requestId) {
+          setQrEmployeeOptionsLoading(false);
+        }
       }
     },
     [fetchEmployeeOptions, message],
@@ -1373,7 +1372,13 @@ const SkudAdminSection = () => {
     if (activeTab !== "cards") {
       return;
     }
-    loadCardEmployees(cardEmployeeSearch);
+    const timeoutId = window.setTimeout(() => {
+      loadCardEmployees(cardEmployeeSearch);
+    }, EMPLOYEE_SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [activeTab, cardEmployeeSearch, loadCardEmployees]);
 
   useEffect(() => {
@@ -1428,7 +1433,13 @@ const SkudAdminSection = () => {
     if (activeTab !== "qr") {
       return;
     }
-    loadQrEmployees(qrEmployeeSearch);
+    const timeoutId = window.setTimeout(() => {
+      loadQrEmployees(qrEmployeeSearch);
+    }, EMPLOYEE_SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [activeTab, loadQrEmployees, qrEmployeeSearch]);
 
   const handleBindingImportFileSelect = useCallback(
