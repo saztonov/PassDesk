@@ -82,6 +82,12 @@ const DocumentTypeUploader = ({
     selectedSampleDocType,
   } = uiState;
 
+  useEffect(() => {
+    initializedFilesRef.current = false;
+    seenFileIdsRef.current = new Set();
+    seenOcrResultsRef.current = new Set();
+  }, [effectiveEmployeeId]);
+
   // server-backed queue
   const profileDocumentTypes = useMemo(
     () =>
@@ -471,6 +477,23 @@ const DocumentTypeUploader = ({
 
   useEffect(() => {
     if (!effectiveEmployeeId) {
+      return;
+    }
+
+    if (!initializedFilesRef.current) {
+      const initialIds = new Set();
+      const initialOcrResults = new Set();
+      for (const file of allFiles) {
+        if (file?.id) initialIds.add(file.id);
+        if (file?.id && file?.ocrVerifiedAt) {
+          const key = `${file.id}:${file.ocrVerifiedAt}`;
+          initialOcrResults.add(key);
+          rememberSeenOcrResultKey(effectiveEmployeeId, key);
+        }
+      }
+      seenFileIdsRef.current = initialIds;
+      seenOcrResultsRef.current = initialOcrResults;
+      initializedFilesRef.current = true;
       return;
     }
 
