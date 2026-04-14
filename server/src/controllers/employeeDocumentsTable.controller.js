@@ -684,36 +684,27 @@ const fetchDocumentRows = async ({ req, withPagination }) => {
 
   const rowsQuery = `
     ${cte}
-    SELECT *
+    SELECT
+      bd.*,
+      COUNT(*) OVER()::int AS total_count
     FROM base_data bd
     ${statusClause}
     ORDER BY bd.first_name ASC, bd.middle_name ASC, bd.document_type_name ASC
     ${withPagination ? "LIMIT :limit OFFSET :offset" : ""}
   `;
 
-  const countQuery = `
-    ${cte}
-    SELECT COUNT(*)::int AS total
-    FROM base_data bd
-    ${statusClause}
-  `;
-
   const rowReplacements = withPagination
     ? { ...replacements, limit, offset }
     : replacements;
 
-  const [rawRows, countRows] = await Promise.all([
-    sequelize.query(rowsQuery, {
-      replacements: rowReplacements,
-      type: QueryTypes.SELECT,
-    }),
-    sequelize.query(countQuery, {
-      replacements,
-      type: QueryTypes.SELECT,
-    }),
-  ]);
+  const rawRows = await sequelize.query(rowsQuery, {
+    replacements: rowReplacements,
+    type: QueryTypes.SELECT,
+  });
 
-  const total = Number(countRows?.[0]?.total || 0);
+  const total = withPagination
+    ? Number(rawRows?.[0]?.total_count || 0)
+    : rawRows.length;
   return {
     rows: rawRows.map(mapRow),
     total,

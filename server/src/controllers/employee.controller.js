@@ -1847,30 +1847,34 @@ export const getAllEmployees = async (req, res, next) => {
           ]
         : [[sqlSortField, `${resolvedSortOrder} NULLS LAST`]];
 
-    // В режиме in-memory пагинации сначала делаем scan, затем загружаем
+    // В режиме in-memory пагинации сначала делаем ID scan, затем загружаем
     // полные данные только для текущей страницы.
     let rows;
     if (canUseLightIdScan) {
+      const countInclude = buildMinimalCountInclude(employeeInclude);
+      totalCount = await Employee.count({
+        where,
+        include: countInclude,
+        distinct: true,
+        col: "id",
+      });
+
       const idOnlyRows = await Employee.findAll({
         where,
+        limit: parseInt(limit),
+        offset: parseInt(offset),
         order: queryOrder,
         include: employeeInclude,
         attributes: ["id"],
+        distinct: true,
         subQuery: false,
         raw: false,
         nest: true,
       });
 
-      const seenIds = new Set();
       rows = idOnlyRows
         .map((item) => item?.id)
-        .filter((id) => {
-          if (!id || seenIds.has(id)) {
-            return false;
-          }
-          seenIds.add(id);
-          return true;
-        })
+        .filter(Boolean)
         .map((id) => ({ id }));
     } else {
       rows = await Employee.findAll({
