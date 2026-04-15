@@ -20,6 +20,7 @@ export const useMobileEmployeeFormInteractions = ({
   const lastAutoSavedHashRef = useRef(null);
   const draftEmployeeIdRef = useRef(employee?.id || null);
   const startedWithExistingEmployeeRef = useRef(Boolean(isExistingSession));
+  const isExplicitlySavedRef = useRef(false);
   const canSaveTimeoutRef = useRef(null);
   const latinErrorTimeoutRef = useRef(null);
   const [canSave, setCanSave] = useState(false);
@@ -43,7 +44,11 @@ export const useMobileEmployeeFormInteractions = ({
       clearTimeout(innCheckTimeoutRef.current);
     }
     isFormResetRef.current = true;
+    isExplicitlySavedRef.current = true;
     await handleSave({ draftEmployeeId: draftEmployeeIdRef.current });
+    // Save completed explicitly: disable any pending draft cleanup paths.
+    draftEmployeeIdRef.current = null;
+    lastAutoSavedHashRef.current = null;
     lastSavedSnapshotRef.current = JSON.stringify(form.getFieldsValue(true));
   }, [form, handleSave, lastSavedSnapshotRef]);
 
@@ -52,6 +57,7 @@ export const useMobileEmployeeFormInteractions = ({
       clearTimeout(innCheckTimeoutRef.current);
     }
     isFormResetRef.current = true;
+    isExplicitlySavedRef.current = true;
     const saved = await handleSaveDraft({
       draftEmployeeId: draftEmployeeIdRef.current,
     });
@@ -211,10 +217,15 @@ export const useMobileEmployeeFormInteractions = ({
   }, [form, lastSavedSnapshotRef]);
 
   const saveDraftBeforeClose = useCallback(async () => {
+    isExplicitlySavedRef.current = true;
     return handleSaveDraftWithReset();
   }, [handleSaveDraftWithReset]);
 
   const discardDraftOnClose = useCallback(async () => {
+    if (isExplicitlySavedRef.current) {
+      return false;
+    }
+
     if (startedWithExistingEmployeeRef.current) {
       return false;
     }
