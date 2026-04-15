@@ -356,12 +356,12 @@ export const confirmRecognizedDocument = async (req, res, next) => {
     await File.sequelize.query(
       `UPDATE files
        SET ocr_verified = TRUE,
-           ocr_verified_at = NOW(),
-           ocr_provider = :provider,
-           ocr_result_json = CASE
+           ocr_verified_at = COALESCE(ocr_verified_at, NOW()),
+           ocr_provider = COALESCE(ocr_provider, :provider),
+           ocr_result_json = COALESCE(ocr_result_json, CASE
              WHEN :resultJson IS NULL THEN NULL
              ELSE CAST(:resultJson AS jsonb)
-           END
+           END)
        WHERE id = :fileId`,
       {
         replacements: {

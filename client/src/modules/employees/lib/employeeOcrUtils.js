@@ -148,8 +148,8 @@ const normalizeGenderForCompare = (value) => {
 
 const mapOcrSexToFormGender = (ocrValue) => {
   const normalized = normalizeString(ocrValue).toUpperCase();
-  if (normalized === "M") return "male";
-  if (normalized === "F") return "female";
+  if (["M", "MALE", "М", "МУЖ", "МУЖ.", "МУЖСКОЙ", "МУЖЧИНА"].includes(normalized)) return "male";
+  if (["F", "FEMALE", "Ж", "ЖЕН", "ЖЕН.", "ЖЕНСКИЙ", "ЖЕНЩИНА"].includes(normalized)) return "female";
   return null;
 };
 
@@ -473,7 +473,7 @@ export const resolveOcrDocumentTypeByFile = (
     return passportTypeValue === "foreign" ? "foreign_passport" : "passport_rf";
   }
   if (normalized === "passport_translation") {
-    return "foreign_passport";
+    return "passport_translation";
   }
   if (
     normalized === "patent" ||

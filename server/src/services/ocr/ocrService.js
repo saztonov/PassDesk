@@ -23,6 +23,7 @@ const DEFAULT_PROMPTS = {
     "Распознай паспорт РФ на фото, даже при плохом качестве, шуме, перспективных искажениях и частичных засветах. " +
     NAME_CASE_INSTRUCTION +
     DATE_FORMAT_INSTRUCTION +
+    "Поле sex: верни строго 'M' если мужской пол, 'F' если женский. Не используй другие варианты. " +
     "Верни строго JSON без markdown и пояснений. Поля: surname, givenNames, middleName, birthDate, sex, nationality, " +
     "passportSeries, passportNumber, issueDate, authority, departmentCode, birthPlace, expiryDate.",
   foreign_passport:
@@ -30,9 +31,24 @@ const DEFAULT_PROMPTS = {
     "Если в поле имени указаны имя и отчество вместе (например 'БИЛОЛ ТИМУРОВИЧ'), раздели их: в givenNames пиши только имя (Билол), в middleName — только отчество (Тимурович). " +
     NAME_CASE_INSTRUCTION +
     DATE_FORMAT_INSTRUCTION +
+    "Поле sex: верни строго 'M' если мужской пол, 'F' если женский. Не используй другие варианты. " +
     "Поле expiryDate: срок действия иностранного паспорта обычно составляет 5 или 10 лет от даты выдачи. Если дата окончания явно указана в документе — бери её. " +
+    "Поле birthPlace: если указано только название страны без конкретного города или населённого пункта — верни null. Заполняй birthPlace ТОЛЬКО если указан конкретный город или населённый пункт. " +
     "Верни строго JSON без markdown и пояснений. Поля: surname, givenNames, middleName, birthDate, sex, nationality, " +
     "passportNumber, issueDate, authority, expiryDate, birthPlace.",
+  passport_translation:
+    "На фото нотариальный перевод иностранного паспорта на русский язык. " +
+    "Это НЕ оригинал паспорта, а его перевод — страницы содержат русские подписи полей ('Фамилия', 'Имя', 'Гражданство', 'Дата рождения', 'Место рождения', 'Место жительства' и т.д.). " +
+    "В шапке документа может быть написано название страны выдачи паспорта (например 'РЕСПУБЛИКА МОЛДОВА', 'АРМЕНИЯ') — НЕ используй это как гражданство и НЕ путай с данными полей. " +
+    "Гражданство бери ТОЛЬКО из поля с подписью 'Гражданство' или 'Гражданин(ка)'. " +
+    "Место жительства или регистрации бери ТОЛЬКО из поля с подписью 'Место жительства', 'Место проживания', 'Адрес регистрации' или 'Зарегистрирован(а)' — если такого поля нет, верни null для registrationAddress. " +
+    "Поле birthPlace: бери ТОЛЬКО из поля с подписью 'Место рождения'. " +
+    "ВАЖНО: если в поле 'Место рождения' указано только название страны или республики (например 'РЕСПУБЛИКА МОЛДОВА', 'АРМЕНИЯ', 'УКРАИНА') без конкретного города или населённого пункта — верни null для birthPlace. Заполняй birthPlace ТОЛЬКО если указан конкретный город, район или населённый пункт. " +
+    NAME_CASE_INSTRUCTION +
+    DATE_FORMAT_INSTRUCTION +
+    "Поле sex: верни строго 'M' если мужской пол, 'F' если женский. Не используй другие варианты. " +
+    "Верни строго JSON без markdown и пояснений. Поля: surname, givenNames, middleName, birthDate, sex, nationality, " +
+    "passportNumber, issueDate, authority, expiryDate, birthPlace, registrationAddress.",
   patent:
     "Распознай патент на работу на фото (включая сложные условия съемки). " +
     "Если это оборотная сторона и виден номер бланка вида 2 буквы + 7 цифр, верни его в поле blankNumber и НЕ записывай его в patentNumber. " +
@@ -104,6 +120,7 @@ const DEFAULT_PROMPTS = {
 export const PROMPT_KEYS = [
   "passport_rf",
   "foreign_passport",
+  "passport_translation",
   "patent",
   "kig",
   "kig_back",
@@ -300,6 +317,7 @@ const resolveCloseUpScanPromptByDocumentType = async (documentType) => {
 const SUPPORTED_DOCUMENT_TYPES = new Set([
   "passport_rf",
   "foreign_passport",
+  "passport_translation",
   "patent",
   "kig",
   "kig_back",
@@ -330,7 +348,7 @@ export const normalizeDocumentType = (value) => {
 
   if (!normalized) return "";
   if (normalized === "passport") return "passport_rf";
-  if (normalized === "passport_translation") return "foreign_passport";
+  if (normalized === "passport_translation") return "passport_translation";
   if (
     normalized === "foreignpassport" ||
     normalized === "foreign-passport" ||
@@ -952,6 +970,51 @@ const normalizeForeignPassport = (parsedJson = {}) => ({
   ),
 });
 
+const normalizePassportTranslation = (parsedJson = {}) => ({
+  lastName: valueFrom(parsedJson, ["surname", "lastName", "last_name"]),
+  firstName: valueFrom(parsedJson, ["givenNames", "firstName", "first_name"]),
+  middleName: valueFrom(parsedJson, ["middleName", "middle_name", "patronymic"]),
+  birthDate: normalizeDate(
+    valueFrom(parsedJson, ["birthDate", "birth_date", "dateOfBirth"]),
+  ),
+  sex: normalizeSex(valueFrom(parsedJson, ["sex", "gender"])),
+  citizenship: normalizeCitizenship(
+    valueFrom(parsedJson, ["nationality", "citizenship"]),
+  ),
+  passportSeries: null,
+  passportNumber: normalizeAlphaNumeric(
+    valueFrom(parsedJson, [
+      "passportNumber",
+      "passport_number",
+      "number",
+      "documentNumber",
+      "document_number",
+    ]),
+    16,
+  ),
+  passportIssuedAt: normalizeDate(
+    valueFrom(parsedJson, ["issueDate", "issue_date", "passportIssueDate"]),
+  ),
+  passportIssuedBy: valueFrom(parsedJson, [
+    "authority",
+    "issuedBy",
+    "passportIssuedBy",
+  ]),
+  passportDepartmentCode: null,
+  birthPlace: valueFrom(parsedJson, ["birthPlace", "birth_place"]),
+  passportExpiryDate: normalizeDate(
+    valueFrom(parsedJson, ["expiryDate", "expiry_date", "passportExpiryDate"]),
+  ),
+  registrationAddress: valueFrom(parsedJson, [
+    "registrationAddress",
+    "registration_address",
+    "residenceAddress",
+    "residence_address",
+    "placeOfResidence",
+    "place_of_residence",
+  ]),
+});
+
 const normalizePatent = (parsedJson = {}) => {
   const rawPatentNumber = valueFrom(parsedJson, [
     "patentNumber",
@@ -1188,6 +1251,9 @@ const normalizeResponseByDocumentType = (documentType, parsedJson) => {
   if (documentType === "passport_rf") return normalizePassportRf(parsedJson);
   if (documentType === "foreign_passport") {
     return normalizeForeignPassport(parsedJson);
+  }
+  if (documentType === "passport_translation") {
+    return normalizePassportTranslation(parsedJson);
   }
   if (documentType === "patent") return normalizePatent(parsedJson);
   if (documentType === "kig") return normalizeKig(parsedJson);

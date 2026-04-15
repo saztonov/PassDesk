@@ -194,7 +194,7 @@ export const useEmployeeOcrHandlers = ({
   }, [employeeId, refreshConflictSummary, visible]);
 
   const handleUploadedFileForOcr = useCallback(
-    async ({ file, employeeId, fileDocumentType, ocrResult }) => {
+    async ({ file, employeeId, fileDocumentType, ocrResult, isRerun = false }) => {
       const fileId = normalizeString(file?.id);
       const docType = normalizeString(
         fileDocumentType || file?.documentType || file?.document_type,
@@ -268,6 +268,7 @@ export const useEmployeeOcrHandlers = ({
         let normalized = toNormalizedPayload(responseData);
 
         if (
+          !hasPersistedOcrMetadata &&
           docType === "passport" &&
           effectiveOcrDocumentType === "foreign_passport" &&
           normalized &&
@@ -366,13 +367,23 @@ export const useEmployeeOcrHandlers = ({
         }
 
         const currentValues = form.getFieldsValue(true);
+        const isPassportDocument =
+          effectiveOcrDocumentType === "passport_rf" ||
+          effectiveOcrDocumentType === "foreign_passport" ||
+          effectiveOcrDocumentType === "passport_translation";
         const { autoFillPatch, conflicts } = buildOcrApplyPlan({
           currentValues,
           ocrPatch: formPatch,
-          overwriteFields: docType === "passport_translation" ? Object.keys(formPatch) : [],
+          overwriteFields: [
+            ...(docType === "passport_translation" ? Object.keys(formPatch) : []),
+            ...(isPassportDocument && formPatch.gender ? ["gender"] : []),
+          ],
         });
 
-        if (effectiveOcrDocumentType === "foreign_passport") {
+        if (
+          effectiveOcrDocumentType === "foreign_passport" ||
+          effectiveOcrDocumentType === "passport_translation"
+        ) {
           autoFillPatch.passportType = "foreign";
           delete conflicts.passportType;
         } else if (
@@ -383,7 +394,7 @@ export const useEmployeeOcrHandlers = ({
           delete conflicts.passportType;
         }
 
-        if (Object.keys(autoFillPatch).length > 0) {
+        if (!isRerun && Object.keys(autoFillPatch).length > 0) {
           form.setFieldsValue(autoFillPatch);
           if (typeof onAutofillApplied === "function") {
             try {
@@ -394,7 +405,7 @@ export const useEmployeeOcrHandlers = ({
           }
         }
 
-        const autoFillCount = Object.keys(autoFillPatch).length;
+        const autoFillCount = isRerun ? 0 : Object.keys(autoFillPatch).length;
         if (autoFillCount > 0) {
           messageApi?.success?.(
             `OCR: заполнено полей ${autoFillCount}`,
@@ -409,17 +420,15 @@ export const useEmployeeOcrHandlers = ({
           const provider = toProvider(responseData);
           const resultFileId = toFileId(responseData, fileId);
 
-          if (!hasPersistedOcrMetadata) {
-            await ocrService.confirmFileOcr({
-              fileId: resultFileId,
-              provider,
-              result: {
-                documentType: effectiveOcrDocumentType,
-                normalized,
-              },
-              conflicts: Object.values(conflicts || {}),
-            });
-          }
+          await ocrService.confirmFileOcr({
+            fileId: resultFileId,
+            provider,
+            result: {
+              documentType: effectiveOcrDocumentType,
+              normalized,
+            },
+            conflicts: Object.values(conflicts || {}),
+          });
           const summary = await refreshConflictSummary(employeeId);
           if (summary?.hasConflicts) {
             messageApi?.warning?.(
