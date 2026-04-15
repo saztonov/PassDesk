@@ -117,6 +117,7 @@ const EmployeeFormModal = ({
   const pageFormPanelRef = useRef(null);
   const [pageFormWidth, setPageFormWidth] = useState(0);
   const closeConfirmOpenRef = useRef(false);
+  const scheduleValidationRef = useRef(() => {});
   const {
     conflictSummary,
     handleUploadedFileForOcr,
@@ -140,7 +141,7 @@ const EmployeeFormModal = ({
       }
 
       // AntD form.setFieldsValue does not trigger onFieldsChange, so force tab validation refresh.
-      scheduleValidation();
+      scheduleValidationRef.current?.();
     },
     messageApi: message,
     employeeId: employee?.id || null,
@@ -258,6 +259,10 @@ const EmployeeFormModal = ({
     const validation = computeValidation();
     setTabsValidation(validation);
   }, [computeValidation]);
+
+  useEffect(() => {
+    scheduleValidationRef.current = scheduleValidation;
+  }, [scheduleValidation]);
 
   useEmployeeFormInitialization({
     visible,
