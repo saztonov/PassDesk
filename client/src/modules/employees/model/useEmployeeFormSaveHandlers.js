@@ -321,7 +321,9 @@ export const useEmployeeFormSaveHandlers = ({
       } else if (!employee) {
         resetFormStateAfterSave();
       } else {
-        onCancel();
+        // Save succeeded: tell the parent's onCancel to skip discardDraft cleanup
+        // (useAddEmployeePage.handleCancel would otherwise delete the just-saved record).
+        onCancel({ skipDraftCleanup: true });
       }
     } catch (error) {
       console.error("Validation or save error:", error);
