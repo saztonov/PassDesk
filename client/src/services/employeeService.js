@@ -142,6 +142,16 @@ export const employeeService = {
     return response.data;
   },
 
+  // P0.2 step 2: OCR payload выведен из общего списка файлов в отдельный
+  // endpoint с audit-log. Клиент запрашивает только когда нужно (автозаполнение
+  // формы после upload), не грузит массово.
+  getFileOcrResult: async (employeeId, fileId) => {
+    const response = await api.get(
+      `/employees/${employeeId}/files/${fileId}/ocr-result`,
+    );
+    return response.data;
+  },
+
   // Получить файлы сотрудника
   getFiles: async (employeeId, { force = false } = {}) => {
     if (force) {

@@ -14,6 +14,9 @@ export const AUDIT_EVENT_TYPES = Object.freeze({
   PASS_ASSIGNED: "pass_assigned",
   PASS_UNBOUND: "pass_unbound",
   COUNTERPARTY_SITES_SYNCED: "counterparty_sites_synced",
+  // P0.2 step 2: audit-лог доступа к OCR-payload (PII паспортных данных).
+  // Раньше ocr_result_json попадал в каждый ответ getEmployeeFiles без трекинга.
+  OCR_RESULT_ACCESSED: "ocr_result_accessed",
 });
 
 export const getEmployeeCounterpartyAuditDetails = async (

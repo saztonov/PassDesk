@@ -546,13 +546,14 @@ export const getEmployeeFiles = async (req, res, next) => {
     await checkEmployeeAccess(req.user, employee);
 
     // Получаем все файлы сотрудника.
-    // SEC-NEW-2: filePath и publicUrl УДАЛЕНЫ из whitelist — они утекали
-    // внутренний storage-путь и direct URL, что обходит proxy/ACL слой.
-    // Для скачивания клиент должен использовать /files/proxy/:fileId.
-    // ocrResultJson пока оставлен — используется DocumentTypeUploader для
-    // автозаполнения формы после upload. TODO: вынести в отдельный
-    // role-gated endpoint GET /files/:fileId/ocr-result с audit-log.
-    const files = await File.findAll({
+    // SEC-NEW-2: filePath, publicUrl, ocrResultJson УДАЛЕНЫ из whitelist.
+    //   - filePath / publicUrl утекали внутренний storage-путь и direct URL
+    //     (обходили proxy/ACL). Для скачивания используется /files/proxy/:fileId.
+    //   - ocrResultJson содержит PII паспортных данных. Теперь возвращается
+    //     boolean-флаг hasOcrResult; полный payload — отдельным endpoint'ом
+    //     GET /employees/:employeeId/files/:fileId/ocr-result (role-gated,
+    //     с audit-log каждого доступа).
+    const rawFiles = await File.findAll({
       where: {
         entityType: "employee",
         entityId: employeeId,
@@ -571,13 +572,107 @@ export const getEmployeeFiles = async (req, res, next) => {
         "ocrVerified",
         "ocrVerifiedAt",
         "ocrProvider",
+        // ocrResultJson включён, чтобы вычислить hasOcrResult, но в ответ не уходит.
         "ocrResultJson",
       ],
+    });
+
+    const files = rawFiles.map((file) => {
+      const plain = file.get({ plain: true });
+      const { ocrResultJson, ...rest } = plain;
+      return {
+        ...rest,
+        hasOcrResult: Boolean(ocrResultJson),
+      };
     });
 
     res.json({
       success: true,
       data: files,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * P0.2 step 2: Отдельный endpoint для получения OCR-payload конкретного файла.
+ *
+ * Причины выделения из getEmployeeFiles:
+ *   1. OCR JSON содержит PII (паспортные номера, даты, адреса).
+ *      В bulk-списке он утекал каждому, у кого есть доступ к сотруднику.
+ *   2. Теперь каждый доступ логируется в audit_logs (OCR_RESULT_ACCESSED) —
+ *      есть аудитный след.
+ *   3. Клиент запрашивает payload только в момент, когда реально нужен
+ *      (autofill формы после upload), а не грузит массово.
+ *
+ * Использует существующий access-control (checkEmployeeAccess через
+ * fetchEmployeeWithMappings). Admin видит любой, остальные — только
+ * в своей области видимости.
+ */
+export const getEmployeeFileOcrResult = async (req, res, next) => {
+  try {
+    const { employeeId, fileId } = req.params;
+
+    const employee = await fetchEmployeeWithMappings(employeeId);
+    if (!employee) {
+      throw new AppError("Сотрудник не найден", 404);
+    }
+    await checkEmployeeAccess(req.user, employee);
+
+    const file = await File.findOne({
+      where: {
+        id: fileId,
+        entityType: "employee",
+        entityId: employeeId,
+        isDeleted: false,
+      },
+      attributes: [
+        "id",
+        "documentType",
+        "ocrVerified",
+        "ocrVerifiedAt",
+        "ocrProvider",
+        "ocrResultJson",
+      ],
+    });
+
+    if (!file) {
+      throw new AppError("Файл не найден", 404);
+    }
+
+    // Audit log записывается всегда (success), даже если payload null —
+    // факт попытки доступа к OCR-данным уже значим.
+    await logAuditEvent({
+      userId: req.user.id,
+      eventType: AUDIT_EVENT_TYPES.OCR_RESULT_ACCESSED,
+      entityType: "file",
+      entityId: file.id,
+      details: {
+        employeeId,
+        documentType: file.documentType || null,
+        ocrProvider: file.ocrProvider || null,
+        hasOcrResult: Boolean(file.ocrResultJson),
+      },
+      req,
+    }).catch((err) => {
+      // Audit log не должен ломать ответ; просто лог в консоль.
+      console.warn(
+        "[ocr-result] audit log failed:",
+        err?.message || String(err),
+      );
+    });
+
+    res.json({
+      success: true,
+      data: {
+        id: file.id,
+        documentType: file.documentType,
+        ocrVerified: file.ocrVerified,
+        ocrVerifiedAt: file.ocrVerifiedAt,
+        ocrProvider: file.ocrProvider,
+        ocrResult: file.ocrResultJson || null,
+      },
     });
   } catch (error) {
     next(error);

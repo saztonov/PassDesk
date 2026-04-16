@@ -437,6 +437,14 @@ router.get(
   employeeIdParamValidation,
   employeeFileController.getEmployeeFiles,
 );
+// P0.2 step 2: OCR payload (PII паспортных данных) выведен из общего списка
+// файлов в отдельный endpoint. Доступ проходит ту же проверку прав, что и
+// файлы сотрудника, но дополнительно пишется audit-log.
+router.get(
+  "/:employeeId/files/:fileId/ocr-result",
+  employeeFileParamsValidation,
+  employeeFileController.getEmployeeFileOcrResult,
+);
 router.get(
   "/:employeeId/files/zip",
   employeeIdParamValidation,

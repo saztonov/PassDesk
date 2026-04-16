@@ -497,7 +497,12 @@ const DocumentTypeUploader = ({
     const newOcrFiles = [];
 
     for (const file of allFiles) {
-      if (!file?.id || !file?.ocrResultJson || !file?.ocrVerifiedAt) {
+      // P0.2 step 2: ocrResultJson больше не приходит в списке файлов.
+      // Признаком готового OCR теперь служит флаг hasOcrResult
+      // (fallback на ocrResultJson оставлен для обратной совместимости —
+      // если сервер ещё не обновлён, старое поле работает).
+      const hasOcr = Boolean(file?.hasOcrResult || file?.ocrResultJson);
+      if (!file?.id || !hasOcr || !file?.ocrVerifiedAt) {
         continue;
       }
       const key = `${file.id}:${file.ocrVerifiedAt}`;
@@ -512,16 +517,43 @@ const DocumentTypeUploader = ({
 
     if (newOcrFiles.length > 0) {
       seenOcrResultsRef.current = nextProcessedKeys;
+      // OCR payload теперь загружается лениво — по одному запросу на каждый
+      // свежий файл. Это секвенциально, но в практике новых файлов за одну
+      // итерацию единицы, так что latency не критичен.
+      // Fallback: если pre-fetched ocrResultJson ещё присутствует
+      // (старая версия API), используем его без лишнего запроса.
       newOcrFiles.forEach(({ file, isRerun }) => {
-        if (typeof onUploadComplete === "function") {
-          onUploadComplete({
-            file,
-            employeeId: effectiveEmployeeId,
-            fileDocumentType: file?.documentType,
-            ocrResult: file?.ocrResultJson,
-            isRerun,
-          });
+        const notify = (ocrResult) => {
+          if (typeof onUploadComplete === "function") {
+            onUploadComplete({
+              file,
+              employeeId: effectiveEmployeeId,
+              fileDocumentType: file?.documentType,
+              ocrResult,
+              isRerun,
+            });
+          }
+        };
+
+        if (file?.ocrResultJson) {
+          notify(file.ocrResultJson);
+          return;
         }
+
+        employeeService
+          .getFileOcrResult(effectiveEmployeeId, file.id)
+          .then((response) => {
+            const ocrResult = response?.data?.ocrResult ?? null;
+            notify(ocrResult);
+          })
+          .catch((error) => {
+            // Не блокируем UI — показываем файл без автозаполнения.
+            console.warn(
+              "[DocumentTypeUploader] failed to fetch OCR result:",
+              error?.message || error,
+            );
+            notify(null);
+          });
       });
     }
   }, [allFiles, effectiveEmployeeId, onUploadComplete]);
