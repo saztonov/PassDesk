@@ -51,8 +51,14 @@ if (
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || "50mb";
-const URLENCODED_BODY_LIMIT = process.env.URLENCODED_BODY_LIMIT || "50mb";
+// P1.4: Глобальный лимит снижен с 50MB до 2MB.
+// 50MB на auth/read endpoints — DoS-амплификатор (unauthenticated парсер
+// буферизует 50MB перед любой проверкой прав). File uploads проходят через
+// multer и не используют express.json. Реальные JSON payloads API — <100KB.
+// Override через env JSON_BODY_LIMIT / URLENCODED_BODY_LIMIT возможен для
+// специфичных окружений, но не рекомендуется глобально.
+const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || "2mb";
+const URLENCODED_BODY_LIMIT = process.env.URLENCODED_BODY_LIMIT || "2mb";
 let skudEventsPullTimer = null;
 let skudEventsPullInFlight = false;
 let httpServer = null;
@@ -237,11 +243,91 @@ app.use(express.urlencoded({ extended: true, limit: URLENCODED_BODY_LIMIT }));
 app.use(cookieParser());
 app.use(attachTranslator);
 
-// Health check (без лимитов)
+// ======================================
+// HEALTH CHECKS
+// ======================================
+// ARCH-4: раньше /health возвращал статичный "OK" и не проверял зависимости.
+// Docker healthcheck считал контейнер "healthy" при мёртвой БД/Redis.
+//
+// Kubernetes/Docker convention:
+//   /health/live   — процесс жив (liveness). Всегда 200. Фейл => kill и перезапуск.
+//   /health/ready  — готовность принимать трафик (readiness). 503 при деградации
+//                    зависимостей. Используется для удаления из LB.
+//   /health        — alias для /health/live (обратная совместимость с существующими
+//                    Docker healthcheck'ами, которые ходят сюда).
+
+app.get("/health/live", (req, res) => {
+  res.json({ status: "OK", timestamp: new Date().toISOString() });
+});
+
+// Backward-compatible alias. Важно: используется в docker-compose
+// healthcheck по пути /health — смена на /health/live без переходного
+// периода сломала бы оркестрацию. Поэтому оставляем /health как
+// liveness-endpoint.
 app.get("/health", (req, res) => {
-  res.json({
-    status: "OK",
+  res.json({ status: "OK", timestamp: new Date().toISOString() });
+});
+
+const withTimeout = (promise, ms, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label}_timeout`)), ms),
+    ),
+  ]);
+
+const checkDatabase = async () => {
+  const start = Date.now();
+  try {
+    await withTimeout(sequelize.authenticate(), 2000, "db");
+    return { status: "ok", latencyMs: Date.now() - start };
+  } catch (error) {
+    return {
+      status: "down",
+      latencyMs: Date.now() - start,
+      error: error?.message || String(error),
+    };
+  }
+};
+
+let readinessRedisClient = null;
+const checkRedis = async () => {
+  const start = Date.now();
+  try {
+    // Ленивая инициализация отдельного клиента для health-checks —
+    // не мешаем BullMQ worker connections. lazyConnect=true в config.
+    if (!readinessRedisClient) {
+      const { createRedisConnection } = await import("./config/redis.js");
+      readinessRedisClient = createRedisConnection();
+      readinessRedisClient.on("error", () => {
+        // заглушаем noise — status проверяется только через ping
+      });
+    }
+    const result = await withTimeout(
+      readinessRedisClient.ping(),
+      1000,
+      "redis",
+    );
+    if (String(result).toUpperCase() !== "PONG") {
+      throw new Error(`unexpected_ping_response:${result}`);
+    }
+    return { status: "ok", latencyMs: Date.now() - start };
+  } catch (error) {
+    return {
+      status: "down",
+      latencyMs: Date.now() - start,
+      error: error?.message || String(error),
+    };
+  }
+};
+
+app.get("/health/ready", async (req, res) => {
+  const [db, redis] = await Promise.all([checkDatabase(), checkRedis()]);
+  const allOk = db.status === "ok" && redis.status === "ok";
+  res.status(allOk ? 200 : 503).json({
+    status: allOk ? "READY" : "NOT_READY",
     timestamp: new Date().toISOString(),
+    checks: { db, redis },
   });
 });
 
@@ -280,20 +366,16 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log("✅ Database connected successfully");
 
-    // Hotfix compatibility: ensure new employee date column exists
-    // so API doesn't fail when app code is newer than DB schema.
-    await sequelize.query(`
-      ALTER TABLE public.employees
-      ADD COLUMN IF NOT EXISTS planned_exit_date date;
-    `);
-    await sequelize.query(`
-      CREATE INDEX IF NOT EXISTS idx_employees_planned_exit_date
-      ON public.employees USING btree (planned_exit_date);
-    `);
-
-    // НЕ синхронизируем модели автоматически!
-    // Таблицы создаются только явно через: npm run db:init
-    // Изменения в БД делаются только через миграции с явным запуском
+    // P1.5: УДАЛЕНО — startup DDL (ALTER TABLE + CREATE INDEX для planned_exit_date).
+    // Колонка создаётся миграцией `2026-04-06_add_employee_planned_exit_date.sql`,
+    // а индекс `idx_employees_planned_exit_date` удалён как dead в миграции
+    // `2026-04-16_drop_dead_indexes_small.sql` (0 scans, не использовался).
+    // Ранее startup DDL брал ACCESS EXCLUSIVE lock на employees при каждом
+    // рестарте И пересоздавал бы dead индекс после применения миграции 2.
+    //
+    // НЕ синхронизируем модели автоматически (sync без alter):
+    // таблицы создаются только явно через npm run db:init,
+    // изменения схемы — только через миграции (npm run db:migrate).
 
     // Start server - слушаем на всех сетевых интерфейсах
     httpServer = app.listen(PORT, "0.0.0.0", () => {

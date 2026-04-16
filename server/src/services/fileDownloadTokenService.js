@@ -124,6 +124,36 @@ export const verifyFileProxyToken = (token, { requesterFingerprint } = {}) => {
   };
 };
 
+/**
+ * Origin для proxy-URL берётся из server-side env SERVER_URL, НЕ из
+ * req.get("host"). Host-header контролируется клиентом и при misconfig
+ * Nginx (без явного proxy_set_header Host) может быть подменён, что
+ * приводит к выдаче URL с фишингового хоста.
+ *
+ * Порядок fallback:
+ *   1. SERVER_URL — прод (e.g. "https://passdesk.example.ru")
+ *   2. CLIENT_URL — если настроен как same-origin
+ *   3. req.protocol + req.get("host") — legacy/dev, warning в логах
+ */
+const resolveFileProxyOrigin = (req) => {
+  const serverUrl = String(process.env.SERVER_URL || "").trim();
+  if (serverUrl) {
+    return serverUrl.replace(/\/+$/, "");
+  }
+  const clientUrl = String(process.env.CLIENT_URL || "").trim();
+  if (clientUrl) {
+    return clientUrl.replace(/\/+$/, "");
+  }
+  // Dev/legacy fallback — спокойно для локальной разработки,
+  // но в production должен быть SERVER_URL.
+  if (process.env.NODE_ENV === "production") {
+    console.warn(
+      "[file-proxy] SERVER_URL не задан в production, origin будет взят из Host-header (potentially spoofable).",
+    );
+  }
+  return `${req.protocol}://${req.get("host")}`;
+};
+
 export const buildFileProxyUrl = (req, fileId, disposition = "attachment") => {
   const token = issueFileProxyToken({
     fileId,
@@ -131,7 +161,7 @@ export const buildFileProxyUrl = (req, fileId, disposition = "attachment") => {
     requestedByUserId: req?.user?.id || null,
     requesterFingerprint: buildFileProxyRequesterFingerprint(req),
   });
-  const origin = `${req.protocol}://${req.get("host")}`;
+  const origin = resolveFileProxyOrigin(req);
   const apiVersion = process.env.API_VERSION || "v1";
   return `${origin}/api/${apiVersion}/files/proxy/${fileId}/${encodeURIComponent(token)}`;
 };

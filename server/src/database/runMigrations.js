@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import { resolveDbSslConfig } from "../config/dbSslConfig.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,47 +16,18 @@ dotenv.config({ path: path.join(serverRoot, ".env"), override: false });
 
 const migrationsDir = path.resolve(__dirname, "..", "..", "migrations");
 
-const isTrue = (value) => String(value || "false").toLowerCase() === "true";
-
-const resolveMigrationSslConfig = () => {
-  const sslEnabled = isTrue(process.env.DB_SSL);
-  if (!sslEnabled) {
-    if (process.env.NODE_ENV === "production") {
-      console.warn(
-        "[db:migrate] DB_SSL отключен в production. Это небезопасно.",
-      );
-    }
-    return false;
-  }
-
-  const caFromEnv = process.env.DB_SSL_CA
-    ? process.env.DB_SSL_CA.replace(/\\n/g, "\n")
-    : null;
-  const certPath = process.env.DB_SSL_CA_PATH
-    ? path.resolve(process.env.DB_SSL_CA_PATH)
-    : path.resolve(serverRoot, "cert", "root.crt");
-
-  if (!caFromEnv && !fs.existsSync(certPath)) {
-    throw new Error(
-      `DB_SSL=true but no CA certificate configured for migration runner. Provide DB_SSL_CA or DB_SSL_CA_PATH (checked path: ${certPath})`,
-    );
-  }
-
-  return {
-    require: true,
-    rejectUnauthorized: true,
-    ca: caFromEnv || fs.readFileSync(certPath, "utf8"),
-  };
-};
-
 const getDbConfig = () => {
+  // Единый helper с runtime: требует DB_SSL=true в production (иначе throw),
+  // проверяет CA-сертификат, поддерживает emergency bypass DB_SSL_ALLOW_INSECURE=true.
+  // Ранее здесь был только console.warn — это поведение было регрессией.
+  const ssl = resolveDbSslConfig({ scope: "migration" });
   return {
     host: process.env.DB_HOST || "localhost",
     port: Number(process.env.DB_PORT || 5432),
     database: process.env.DB_NAME || "passdesk",
     user: process.env.DB_USER || "admin",
     password: process.env.DB_PASSWORD || "",
-    ssl: resolveMigrationSslConfig(),
+    ssl,
   };
 };
 

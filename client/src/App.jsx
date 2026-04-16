@@ -139,6 +139,12 @@ function App() {
     String(user.counterpartyId) === String(defaultCounterpartyId);
   const isDebugRoutesEnabled =
     import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEBUG_ROUTES === "true";
+  // P1.2: QR/mobile-access модуль закрыт release-gate на бэкенде. Пока не выкачен,
+  // frontend-маршрут /qr-access не должен быть частью production bundle.
+  // Включается явным флагом VITE_MOBILE_ACCESS_ENABLED=true (в dev — всегда on).
+  const isMobileAccessEnabled =
+    import.meta.env.DEV ||
+    import.meta.env.VITE_MOBILE_ACCESS_ENABLED === "true";
 
   return (
     <ConfigProvider theme={antdTheme} locale={ruRU}>
@@ -196,15 +202,17 @@ function App() {
               />
 
               {/* Routes for admin and user - требуют активации */}
-              <Route
-                path="qr-access"
-                element={withRouteBoundary(
-                  "qr-access-page",
-                  <ProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <QrAccessPage />
-                  </ProtectedRoute>
-                )}
-              />
+              {isMobileAccessEnabled && (
+                <Route
+                  path="qr-access"
+                  element={withRouteBoundary(
+                    "qr-access-page",
+                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <QrAccessPage />
+                    </ProtectedRoute>
+                  )}
+                />
+              )}
               <Route
                 path="employees"
                 element={withRouteBoundary(

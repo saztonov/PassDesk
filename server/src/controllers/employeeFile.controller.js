@@ -545,7 +545,13 @@ export const getEmployeeFiles = async (req, res, next) => {
     // ПРОВЕРКА ПРАВ ДОСТУПА
     await checkEmployeeAccess(req.user, employee);
 
-    // Получаем все файлы сотрудника
+    // Получаем все файлы сотрудника.
+    // SEC-NEW-2: filePath и publicUrl УДАЛЕНЫ из whitelist — они утекали
+    // внутренний storage-путь и direct URL, что обходит proxy/ACL слой.
+    // Для скачивания клиент должен использовать /files/proxy/:fileId.
+    // ocrResultJson пока оставлен — используется DocumentTypeUploader для
+    // автозаполнения формы после upload. TODO: вынести в отдельный
+    // role-gated endpoint GET /files/:fileId/ocr-result с audit-log.
     const files = await File.findAll({
       where: {
         entityType: "employee",
@@ -560,8 +566,6 @@ export const getEmployeeFiles = async (req, res, next) => {
         "originalName",
         "mimeType",
         "fileSize",
-        "filePath",
-        "publicUrl",
         "documentType",
         "createdAt",
         "ocrVerified",

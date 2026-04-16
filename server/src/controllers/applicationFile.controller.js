@@ -188,7 +188,9 @@ export const getApplicationFiles = async (req, res, next) => {
       throw new AppError("Заявка не найдена", 404);
     }
 
-    // Получаем все файлы заявки
+    // Получаем все файлы заявки.
+    // SEC-NEW-2: filePath и publicUrl удалены из whitelist — утекали
+    // внутренний storage-путь и direct URL. Скачивание через /files/proxy/:fileId.
     const files = await File.findAll({
       where: {
         entityType: "application",
@@ -203,8 +205,6 @@ export const getApplicationFiles = async (req, res, next) => {
         "originalName",
         "mimeType",
         "fileSize",
-        "filePath",
-        "publicUrl",
         "createdAt",
       ],
     });

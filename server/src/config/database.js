@@ -1,36 +1,14 @@
 import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { resolveDbSslConfig } from './dbSslConfig.js';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const isSslEnabled = process.env.DB_SSL === 'true';
-const caFromEnv = process.env.DB_SSL_CA
-  ? process.env.DB_SSL_CA.replace(/\\n/g, '\n')
-  : null;
-const certPath = process.env.DB_SSL_CA_PATH
-  ? path.resolve(process.env.DB_SSL_CA_PATH)
-  : path.join(__dirname, '../../cert/root.crt');
-const hasCertificate = fs.existsSync(certPath);
-
-if (isSslEnabled && !caFromEnv && !hasCertificate) {
-  throw new Error(
-    `DB_SSL=true, but no CA certificate configured. Provide DB_SSL_CA or DB_SSL_CA_PATH (checked path: ${certPath})`
-  );
-}
-
-const sslConfig = isSslEnabled
-  ? {
-      require: true,
-      rejectUnauthorized: true,
-      ca: caFromEnv || fs.readFileSync(certPath).toString(),
-    }
-  : false;
+// TLS-конфиг: единый helper, который (1) требует DB_SSL=true в production,
+// (2) поддерживает explicit bypass через DB_SSL_ALLOW_INSECURE=true с warning,
+// (3) требует CA-сертификат когда SSL включён.
+// Падение здесь = отказ стартовать сервер, что намеренно для production.
+const sslConfig = resolveDbSslConfig({ scope: "runtime" });
 
 const parsePoolInt = (value, fallback, { min = 0 } = {}) => {
   const parsed = Number.parseInt(String(value ?? ''), 10);

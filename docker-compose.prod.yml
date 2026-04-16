@@ -166,8 +166,10 @@ services:
       SKUD_SYNC_CONCURRENCY: ${SKUD_SYNC_CONCURRENCY:-2}
       SKUD_SYNC_RETRY_LIMIT: ${SKUD_SYNC_RETRY_LIMIT:-5}
 
+    # ARCH-5: npm ci выполняется в Dockerfile (build stage), а не в runtime.
+    # Рестарт контейнера НЕ должен обращаться к npm registry.
     command: >
-      sh -c "npm ci --omit=dev && npm run db:migrate && npm run start"
+      sh -c "npm run db:migrate && npm run start"
     ports:
       - "5003:5000"
     volumes:

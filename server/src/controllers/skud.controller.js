@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { Op, QueryTypes } from "sequelize";
 import {
   Employee,
@@ -2763,6 +2764,39 @@ const parseBasicAuthHeader = (headerValue) => {
   };
 };
 
+/**
+ * Constant-time string equality. Защита от timing side-channel:
+ * обычное `!==` возвращает результат как только обнаружена первая несовпадающая
+ * byte-позиция, что позволяет атакующему через измерение latency восстанавливать
+ * secret посимвольно.
+ *
+ * timingSafeEqual требует одинаковой длины. Для неравных длин возвращаем false
+ * НО тратим примерно то же время на сравнение (constant-time на фиктивном буфере),
+ * чтобы не leak'ать длину ожидаемого secret.
+ */
+const constantTimeEqual = (actual, expected) => {
+  const actualBuf = Buffer.from(String(actual ?? ""), "utf8");
+  const expectedBuf = Buffer.from(String(expected ?? ""), "utf8");
+
+  if (actualBuf.length !== expectedBuf.length) {
+    // Сравниваем фиктивный buffer той же длины что expected, чтобы
+    // время выполнения не зависело от длины actual.
+    const dummy = Buffer.alloc(expectedBuf.length);
+    try {
+      timingSafeEqual(dummy, expectedBuf);
+    } catch {
+      /* noop — всё равно возвращаем false */
+    }
+    return false;
+  }
+
+  try {
+    return timingSafeEqual(actualBuf, expectedBuf);
+  } catch {
+    return false;
+  }
+};
+
 const assertWebhookAccess = (req) => {
   ensureSkudModuleEnabled();
 
@@ -2781,12 +2815,18 @@ const assertWebhookAccess = (req) => {
     throw new AppError("SKUD webhook auth не настроен", 500);
   }
 
+  // P1.1: constant-time сравнение вместо `!==`.
+  // Обе проверки выполняются всегда — чтобы не leak какая именно часть (user
+  // или password) не совпала через количество выполненных операций.
   const parsed = parseBasicAuthHeader(req.headers.authorization);
-  if (
-    !parsed ||
-    parsed.username !== requiredUser ||
-    parsed.password !== requiredPass
-  ) {
+  const usernameValid = parsed
+    ? constantTimeEqual(parsed.username, requiredUser)
+    : false;
+  const passwordValid = parsed
+    ? constantTimeEqual(parsed.password, requiredPass)
+    : false;
+
+  if (!parsed || !usernameValid || !passwordValid) {
     throw new AppError("Неверные учетные данные webhook", 401);
   }
 };
