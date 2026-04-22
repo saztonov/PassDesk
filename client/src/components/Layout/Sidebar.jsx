@@ -167,7 +167,14 @@ const Sidebar = () => {
     },
   ];
 
-  const otAdminMenuItems = [...engineerMenuItems];
+  const otAdminMenuItems = [
+    ...engineerMenuItems,
+    {
+      key: "/directories",
+      icon: <BankOutlined />,
+      label: "Справочники",
+    },
+  ];
   const laborerMenuItems = [
     {
       key: "/cabinet",
