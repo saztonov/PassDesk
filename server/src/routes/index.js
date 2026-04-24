@@ -21,6 +21,7 @@ import mobileEmployeeAccessRoutes from "./mobileEmployeeAccess.routes.js";
 import skudRoutes, {
   webhookRouter as skudWebhookRoutes,
 } from "./skud.routes.js";
+import sync1cRoutes from "./sync1c.routes.js";
 
 const router = express.Router();
 
@@ -46,5 +47,6 @@ router.use("/ocr", ocrRoutes);
 router.use("/mobile-access", mobileEmployeeAccessRoutes);
 router.use("/skud", skudRoutes);
 router.use("/integrations/skud", skudWebhookRoutes);
+router.use("/sync/1c", sync1cRoutes);
 
 export default router;
