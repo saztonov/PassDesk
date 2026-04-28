@@ -151,13 +151,13 @@ const detectProtectedFieldConflicts = (employee, record) => {
 };
 
 // Синхронизирует пропуск сотрудника: обновляет номер или создаёт pending-пропуск
-const syncPassNumber = async (employeeId, passNumber) => {
+const syncPassNumber = async (employeeId, passNumber, t) => {
   if (!passNumber) return;
 
-  const existing = await Pass.findOne({ where: { employeeId } });
+  const existing = await Pass.findOne({ where: { employeeId }, transaction: t });
   if (existing) {
     if (existing.passNumber !== passNumber) {
-      await existing.update({ passNumber });
+      await existing.update({ passNumber }, { transaction: t });
     }
     return;
   }
@@ -173,7 +173,7 @@ const syncPassNumber = async (employeeId, passNumber) => {
     validFrom: now,
     validUntil: farFuture,
     status: "pending",
-  });
+  }, { transaction: t });
 };
 
 // ─── POST /sync/1c/employees ────────────────────────────────────────────────
@@ -190,71 +190,87 @@ export const receiveEmployees = async (req, res, next) => {
     const logs = [];
     const result = { runId, created: 0, updated: 0, skipped: 0, conflicts: [] };
 
-    for (const record of employees) {
-      const idAll = record["Физлицо_id_all"];
-      if (!idAll) {
-        logs.push({ runId, direction: "from_1c", entityType: "employee", entityId: "unknown", status: "error", detail: { reason: "Отсутствует Физлицо_id_all" } });
-        continue;
-      }
-
-      const changedAt1c = record["ДатаИзменения"] ? new Date(record["ДатаИзменения"]) : null;
-
-      const existing = await Employee.findOne({ where: { idAll } });
-
-      if (existing) {
-        // Если в портале запись новее — пропускаем (портал — источник истины)
-        if (changedAt1c && existing.updatedAt > changedAt1c) {
-          result.skipped++;
-          logs.push({ runId, direction: "from_1c", entityType: "employee", entityId: idAll, status: "skipped", detail: { reason: "portal_newer" } });
+    await sequelize.transaction(async (t) => {
+      for (const record of employees) {
+        const idAll = record["Физлицо_id_all"];
+        if (!idAll) {
+          logs.push({ runId, direction: "from_1c", entityType: "employee", entityId: "unknown", status: "error", detail: { reason: "Отсутствует Физлицо_id_all" } });
           continue;
         }
 
-        // Проверяем конфликты по защищённым полям
-        const conflicts = detectProtectedFieldConflicts(existing, record);
-        if (conflicts.length > 0) {
-          result.conflicts.push({ idAll, name: record["ФизЛицо"], fields: conflicts });
-          logs.push({ runId, direction: "from_1c", entityType: "employee", entityId: idAll, status: "conflict", detail: { conflicts } });
-          continue;
+        const changedAt1c = record["ДатаИзменения"] ? new Date(record["ДатаИзменения"]) : null;
+
+        const existing = await Employee.findOne({ where: { idAll }, transaction: t });
+
+        if (existing) {
+          // Если в портале запись новее — пропускаем (портал — источник истины)
+          if (changedAt1c && existing.updatedAt > changedAt1c) {
+            result.skipped++;
+            logs.push({ runId, direction: "from_1c", entityType: "employee", entityId: idAll, status: "skipped", detail: { reason: "portal_newer" } });
+            continue;
+          }
+
+          // Проверяем конфликты по защищённым полям
+          const conflicts = detectProtectedFieldConflicts(existing, record);
+          if (conflicts.length > 0) {
+            result.conflicts.push({ idAll, name: record["ФизЛицо"], fields: conflicts });
+            logs.push({ runId, direction: "from_1c", entityType: "employee", entityId: idAll, status: "conflict", detail: { conflicts } });
+            continue;
+          }
+
+          const fields = await buildEmployeeFields(record, syncUserId);
+          delete fields._departmentId;
+          await existing.update(fields, { transaction: t });
+          await syncPassNumber(existing.id, record["НомерПропуска"], t);
+          result.updated++;
+          logs.push({ runId, direction: "from_1c", entityType: "employee", entityId: idAll, status: "updated" });
+        } else {
+          // Создаём нового сотрудника
+          const fields = await buildEmployeeFields(record, syncUserId);
+          const inn = normalizeInn(record["ИНН"]);
+          const snils = normalizeSnils(record["СтраховойНомерПФР"]);
+
+          try {
+            const created = await Employee.create({
+              ...fields,
+              idAll,
+              inn: inn ?? undefined,
+              snils: snils ?? undefined,
+              createdBy: syncUserId,
+            }, { transaction: t });
+            await syncPassNumber(created.id, record["НомерПропуска"], t);
+            result.created++;
+            logs.push({ runId, direction: "from_1c", entityType: "employee", entityId: idAll, status: "created" });
+          } catch (err) {
+            // R2: параллельный запрос мог уже создать эту запись — обновляем вместо падения
+            if (err.name !== "SequelizeUniqueConstraintError") throw err;
+            const concurrent = await Employee.findOne({ where: { idAll }, transaction: t });
+            if (concurrent) {
+              delete fields._departmentId;
+              await concurrent.update(fields, { transaction: t });
+              await syncPassNumber(concurrent.id, record["НомерПропуска"], t);
+              result.updated++;
+              logs.push({ runId, direction: "from_1c", entityType: "employee", entityId: idAll, status: "updated", detail: { reason: "race_resolved" } });
+            }
+          }
         }
-
-        const fields = await buildEmployeeFields(record, syncUserId);
-        delete fields._departmentId;
-        await existing.update(fields);
-        await syncPassNumber(existing.id, record["НомерПропуска"]);
-        result.updated++;
-        logs.push({ runId, direction: "from_1c", entityType: "employee", entityId: idAll, status: "updated" });
-      } else {
-        // Создаём нового сотрудника
-        const fields = await buildEmployeeFields(record, syncUserId);
-        const inn = normalizeInn(record["ИНН"]);
-        const snils = normalizeSnils(record["СтраховойНомерПФР"]);
-
-        const created = await Employee.create({
-          ...fields,
-          idAll,
-          inn: inn ?? undefined,
-          snils: snils ?? undefined,
-          createdBy: syncUserId,
-        });
-        await syncPassNumber(created.id, record["НомерПропуска"]);
-        result.created++;
-        logs.push({ runId, direction: "from_1c", entityType: "employee", entityId: idAll, status: "created" });
       }
-    }
 
-    // Пишем журнал одним батчем
-    if (logs.length > 0) {
-      await sequelize.query(
-        `INSERT INTO sync_1c_log (run_id, direction, entity_type, entity_id, status, detail)
-         VALUES ${logs.map(() => "(?, ?, ?, ?, ?, ?)").join(",")}`,
-        {
-          replacements: logs.flatMap((l) => [
-            l.runId, l.direction, l.entityType, l.entityId, l.status,
-            l.detail ? JSON.stringify(l.detail) : null,
-          ]),
-        }
-      );
-    }
+      // Пишем журнал одним батчем (R1: ?::jsonb для колонки JSONB)
+      if (logs.length > 0) {
+        await sequelize.query(
+          `INSERT INTO sync_1c_log (run_id, direction, entity_type, entity_id, status, detail)
+           VALUES ${logs.map(() => "(?, ?, ?, ?, ?, ?::jsonb)").join(",")}`,
+          {
+            replacements: logs.flatMap((l) => [
+              l.runId, l.direction, l.entityType, l.entityId, l.status,
+              l.detail ? JSON.stringify(l.detail) : null,
+            ]),
+            transaction: t,
+          }
+        );
+      }
+    });
 
     res.json(result);
   } catch (err) {
