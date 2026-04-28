@@ -297,16 +297,34 @@ export const getChanges = async (req, res, next) => {
         updatedAt: { [Op.gt]: sinceDate },
         isDeleted: false,
       },
-      attributes: [
-        "idAll", "firstName", "lastName", "middleName", "birthDate",
-        "inn", "snils", "phone", "passportType", "passportNumber",
-        "passportDate", "passportIssuer", "passportDepartmentCode",
-        "passportExpiryDate", "registrationAddress", "patentNumber",
-        "blankNumber", "patentIssueDate", "kig", "updatedAt", "isActive",
-      ],
+      // Без ограничения attributes — Sequelize загружает *Enc-поля, геттеры расшифровывают
     });
 
-    res.json({ count: employees.length, employees });
+    const serialized = employees.map((e) => ({
+      idAll: e.idAll,
+      firstName: e.firstName,
+      lastName: e.lastName,
+      middleName: e.middleName,
+      birthDate: e.birthDate,
+      inn: e.inn,
+      snils: e.snils,
+      phone: e.phone,
+      passportType: e.passportType,
+      passportNumber: e.passportNumber,
+      passportDate: e.passportDate,
+      passportIssuer: e.passportIssuer,
+      passportDepartmentCode: e.passportDepartmentCode,
+      passportExpiryDate: e.passportExpiryDate,
+      registrationAddress: e.registrationAddress,
+      patentNumber: e.patentNumber,
+      blankNumber: e.blankNumber,
+      patentIssueDate: e.patentIssueDate,
+      kig: e.kig,
+      updatedAt: e.updatedAt,
+      isActive: e.isActive,
+    }));
+
+    res.json({ count: serialized.length, employees: serialized });
   } catch (err) {
     next(err);
   }
