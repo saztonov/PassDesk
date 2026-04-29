@@ -34,7 +34,7 @@ export const EMPLOYEE_FIELDS = [
   { key: 'insurancePolicyDate', label: 'Дата выдачи полиса', group: 'documents', defaultRequired: false, defaultVisible: true },
   
   // Патент и КИГ (видимость зависит от гражданства, но глобально можно отключить)
-  { key: 'kig', label: 'КИГ (Карта иностранного гражданина)', group: 'patent', defaultRequired: true, defaultVisible: true },
+  { key: 'kig', label: 'КИГ (Карта иностранного гражданина)', group: 'patent', defaultRequired: false, defaultVisible: true },
   { key: 'kigEndDate', label: 'Дата окончания КИГ', group: 'patent', defaultRequired: false, defaultVisible: true },
   { key: 'patentNumber', label: 'Номер патента', group: 'patent', defaultRequired: true, defaultVisible: true },
   { key: 'patentIssueDate', label: 'Дата выдачи патента', group: 'patent', defaultRequired: true, defaultVisible: true },

@@ -37,7 +37,7 @@ export const EMPLOYEE_FIELDS = [
   { key: 'insurancePolicyDate', defaultRequired: false, defaultVisible: true },
   
   // Патент и КИГ
-  { key: 'kig', defaultRequired: true, defaultVisible: true },
+  { key: 'kig', defaultRequired: false, defaultVisible: true },
   { key: 'kigEndDate', defaultRequired: false, defaultVisible: true },
   { key: 'patentNumber', defaultRequired: true, defaultVisible: true },
   { key: 'patentIssueDate', defaultRequired: true, defaultVisible: true },
