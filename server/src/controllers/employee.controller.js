@@ -1859,22 +1859,31 @@ export const getAllEmployees = async (req, res, next) => {
         col: "id",
       });
 
+      // ID-скан без SQL LIMIT/OFFSET: с subQuery:false и hasMany-JOIN'ами
+      // (EmployeeStatusMapping, EmployeeCounterpartyMapping и т.д.) LIMIT
+      // обрезает декартово произведение, а не уникальных Employee — давая
+      // на странице 100 заметно меньше pageSize строк. Пагинация выполняется
+      // далее по уникальным ID через .slice() в in-memory ветке.
       const idOnlyRows = await Employee.findAll({
         where,
-        limit: parseInt(limit),
-        offset: parseInt(offset),
         order: queryOrder,
         include: employeeInclude,
         attributes: ["id"],
-        distinct: true,
         subQuery: false,
         raw: false,
         nest: true,
       });
 
+      const seenIds = new Set();
       rows = idOnlyRows
         .map((item) => item?.id)
-        .filter(Boolean)
+        .filter((id) => {
+          if (!id || seenIds.has(id)) {
+            return false;
+          }
+          seenIds.add(id);
+          return true;
+        })
         .map((id) => ({ id }));
     } else {
       rows = await Employee.findAll({
