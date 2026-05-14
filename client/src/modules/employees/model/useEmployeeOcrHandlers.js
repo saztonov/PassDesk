@@ -194,7 +194,7 @@ export const useEmployeeOcrHandlers = ({
   }, [employeeId, refreshConflictSummary, visible]);
 
   const handleUploadedFileForOcr = useCallback(
-    async ({ file, employeeId, fileDocumentType, ocrResult, isRerun = false }) => {
+    async ({ file, employeeId, fileDocumentType, ocrResult }) => {
       const fileId = normalizeString(file?.id);
       const docType = normalizeString(
         fileDocumentType || file?.documentType || file?.document_type,
@@ -394,7 +394,7 @@ export const useEmployeeOcrHandlers = ({
           delete conflicts.passportType;
         }
 
-        if (!isRerun && Object.keys(autoFillPatch).length > 0) {
+        if (Object.keys(autoFillPatch).length > 0) {
           form.setFieldsValue(autoFillPatch);
           if (typeof onAutofillApplied === "function") {
             try {
@@ -405,7 +405,7 @@ export const useEmployeeOcrHandlers = ({
           }
         }
 
-        const autoFillCount = isRerun ? 0 : Object.keys(autoFillPatch).length;
+        const autoFillCount = Object.keys(autoFillPatch).length;
         if (autoFillCount > 0) {
           messageApi?.success?.(
             `OCR: заполнено полей ${autoFillCount}`,

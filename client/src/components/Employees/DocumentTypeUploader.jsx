@@ -62,7 +62,6 @@ const DocumentTypeUploader = ({
   const [lastUploadEvents, setLastUploadEvents] = useState([]);
   const seenFileIdsRef = useRef(new Set());
   const seenOcrResultsRef = useRef(new Set());
-  const seenOcrFileIdsRef = useRef(new Set());
   const initializedFilesRef = useRef(false);
   const [uiState, setUiState] = useState({
     viewerVisible: false,
@@ -87,7 +86,6 @@ const DocumentTypeUploader = ({
     initializedFilesRef.current = false;
     seenFileIdsRef.current = new Set();
     seenOcrResultsRef.current = new Set();
-    seenOcrFileIdsRef.current = new Set();
   }, [effectiveEmployeeId]);
 
   // server-backed queue
@@ -471,19 +469,16 @@ const DocumentTypeUploader = ({
     if (!initializedFilesRef.current && allFiles.length > 0) {
       const initialIds = new Set();
       const initialOcrResults = new Set();
-      const initialOcrFileIds = new Set();
       for (const file of allFiles) {
         if (file?.id) initialIds.add(file.id);
         if (file?.id && file?.ocrVerifiedAt) {
           const key = `${file.id}:${file.ocrVerifiedAt}`;
           initialOcrResults.add(key);
-          initialOcrFileIds.add(file.id);
           rememberSeenOcrResultKey(effectiveEmployeeId, key);
         }
       }
       seenFileIdsRef.current = initialIds;
       seenOcrResultsRef.current = initialOcrResults;
-      seenOcrFileIdsRef.current = initialOcrFileIds;
       initializedFilesRef.current = true;
       return;
     }
@@ -511,8 +506,7 @@ const DocumentTypeUploader = ({
       }
       nextProcessedKeys.add(key);
       rememberSeenOcrResultKey(effectiveEmployeeId, key);
-      newOcrFiles.push({ file, isRerun: seenOcrFileIdsRef.current.has(file.id) });
-      seenOcrFileIdsRef.current.add(file.id);
+      newOcrFiles.push({ file });
     }
 
     if (newOcrFiles.length > 0) {
@@ -522,7 +516,7 @@ const DocumentTypeUploader = ({
       // итерацию единицы, так что latency не критичен.
       // Fallback: если pre-fetched ocrResultJson ещё присутствует
       // (старая версия API), используем его без лишнего запроса.
-      newOcrFiles.forEach(({ file, isRerun }) => {
+      newOcrFiles.forEach(({ file }) => {
         const notify = (ocrResult) => {
           if (typeof onUploadComplete === "function") {
             onUploadComplete({
@@ -530,7 +524,6 @@ const DocumentTypeUploader = ({
               employeeId: effectiveEmployeeId,
               fileDocumentType: file?.documentType,
               ocrResult,
-              isRerun,
             });
           }
         };
