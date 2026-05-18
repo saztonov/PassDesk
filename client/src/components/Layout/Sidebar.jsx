@@ -90,6 +90,12 @@ const Sidebar = () => {
     defaultCounterpartyId &&
     String(user.counterpartyId) === String(defaultCounterpartyId);
 
+  const isSubcontractorUser =
+    user?.role === "user" &&
+    user?.counterpartyId &&
+    defaultCounterpartyId &&
+    String(user.counterpartyId) !== String(defaultCounterpartyId);
+
   const showOtMenu = canAccessOt({
     role: user?.role,
     isDefaultCounterpartyUser,
@@ -98,29 +104,41 @@ const Sidebar = () => {
   });
 
   // Меню для обычных пользователей (role: user)
-  const userMenuItems = [
-    {
-      key: "/employees",
-      icon: <TeamOutlined />,
-      label: t("menu.employees"),
-    },
-  ];
+  let userMenuItems;
+  if (isSubcontractorUser) {
+    // Субподрядчику доступен только раздел «Охрана труда»
+    userMenuItems = [
+      {
+        key: "/ot",
+        icon: <SafetyCertificateOutlined />,
+        label: t("menu.ot"),
+      },
+    ];
+  } else {
+    userMenuItems = [
+      {
+        key: "/employees",
+        icon: <TeamOutlined />,
+        label: t("menu.employees"),
+      },
+    ];
 
-  if (showOtMenu) {
-    userMenuItems.push({
-      key: "/ot",
-      icon: <SafetyCertificateOutlined />,
-      label: t("menu.ot"),
-    });
-  }
+    if (showOtMenu) {
+      userMenuItems.push({
+        key: "/ot",
+        icon: <SafetyCertificateOutlined />,
+        label: t("menu.ot"),
+      });
+    }
 
-  // Добавляем Справочники для user (не default)
-  if (showCounterpartiesMenu) {
-    userMenuItems.push({
-      key: "/counterparties",
-      icon: <ShopOutlined />,
-      label: t("menu.counterparties"),
-    });
+    // Добавляем Справочники для user (не default)
+    if (showCounterpartiesMenu) {
+      userMenuItems.push({
+        key: "/counterparties",
+        icon: <ShopOutlined />,
+        label: t("menu.counterparties"),
+      });
+    }
   }
 
   // Меню для администраторов

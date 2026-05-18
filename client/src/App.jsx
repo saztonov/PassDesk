@@ -90,7 +90,7 @@ const withRouteBoundary = (name, element) => (
   </ErrorBoundary>
 );
 
-const RoleBasedRedirect = () => {
+const RoleBasedRedirect = ({ isSubcontractorUser = false }) => {
   const { user } = useAuthStore();
 
   if (user?.role === "laborer") {
@@ -98,6 +98,10 @@ const RoleBasedRedirect = () => {
   }
 
   if (user?.role === "ot_engineer" || user?.role === "ot_admin") {
+    return <Navigate to="/ot" replace />;
+  }
+
+  if (isSubcontractorUser) {
     return <Navigate to="/ot" replace />;
   }
 
@@ -137,6 +141,11 @@ function App() {
     user?.counterpartyId &&
     defaultCounterpartyId &&
     String(user.counterpartyId) === String(defaultCounterpartyId);
+  const isSubcontractorUser =
+    user?.role === "user" &&
+    user?.counterpartyId &&
+    defaultCounterpartyId &&
+    String(user.counterpartyId) !== String(defaultCounterpartyId);
   const isDebugRoutesEnabled =
     import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEBUG_ROUTES === "true";
   // P1.2: QR/mobile-access модуль закрыт release-gate на бэкенде. Пока не выкачен,
@@ -176,7 +185,14 @@ function App() {
                 </ProtectedRoute>
               }
             >
-              <Route index element={<RoleBasedRedirect />} />
+              <Route
+                index
+                element={
+                  <RoleBasedRedirect
+                    isSubcontractorUser={isSubcontractorUser}
+                  />
+                }
+              />
 
               {/* Profile route - доступен всем авторизованным (даже неактивным) */}
               <Route
@@ -218,7 +234,11 @@ function App() {
                 element={withRouteBoundary(
                   "employees-page",
                   <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
-                    <EmployeesPage />
+                    {isSubcontractorUser ? (
+                      <Navigate to="/ot" replace />
+                    ) : (
+                      <EmployeesPage />
+                    )}
                   </ProtectedRoute>
                 )}
               />
@@ -227,7 +247,11 @@ function App() {
                 element={withRouteBoundary(
                   "employees-add-page",
                   <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
-                    <AddEmployeePage />
+                    {isSubcontractorUser ? (
+                      <Navigate to="/ot" replace />
+                    ) : (
+                      <AddEmployeePage />
+                    )}
                   </ProtectedRoute>
                 )}
               />
@@ -236,7 +260,11 @@ function App() {
                 element={withRouteBoundary(
                   "employees-edit-page",
                   <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
-                    <AddEmployeePage />
+                    {isSubcontractorUser ? (
+                      <Navigate to="/ot" replace />
+                    ) : (
+                      <AddEmployeePage />
+                    )}
                   </ProtectedRoute>
                 )}
               />
@@ -245,7 +273,11 @@ function App() {
                 element={withRouteBoundary(
                   "employees-request-page",
                   <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
-                    <ApplicationRequestPage />
+                    {isSubcontractorUser ? (
+                      <Navigate to="/ot" replace />
+                    ) : (
+                      <ApplicationRequestPage />
+                    )}
                   </ProtectedRoute>
                 )}
               />
@@ -286,6 +318,8 @@ function App() {
                   <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
                     {user?.role === "admin" || user?.role === "manager" ? (
                       <Navigate to="/directories?tab=counterparties" replace />
+                    ) : isSubcontractorUser ? (
+                      <Navigate to="/ot" replace />
                     ) : (
                       <CounterpartiesPage />
                     )}
@@ -312,7 +346,11 @@ function App() {
                 path="counterparty-documents"
                 element={
                   <ProtectedRoute allowedRoles={["admin", "manager", "user"]}>
-                    <CounterpartyDocumentsPage />
+                    {isSubcontractorUser ? (
+                      <Navigate to="/ot" replace />
+                    ) : (
+                      <CounterpartyDocumentsPage />
+                    )}
                   </ProtectedRoute>
                 }
               />
