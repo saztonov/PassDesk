@@ -8,7 +8,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "lint": "eslint \"src/**/*.js\"",
-    "test": "node --test src/routes/managerPermissionsConsistency.test.js src/services/fileDownloadTokenService.test.js src/services/encryptionService.test.js src/utils/employeeSorting.test.js src/middleware/auth.test.js src/middleware/upload.test.js src/routes/mobileEmployeeAccess.routes.test.js",
+    "test": "node --test src/routes/managerPermissionsConsistency.test.js src/services/fileDownloadTokenService.test.js src/services/encryptionService.test.js src/utils/employeeSorting.test.js src/middleware/auth.test.js src/middleware/upload.test.js src/routes/mobileEmployeeAccess.routes.test.js src/services/ocr/ocrService.test.js",
     "test:all": "node --test \"src/**/*.test.js\"",
     "db:check": "node src/database/check-connection.js",
     "db:migrate": "node src/database/runMigrations.js",

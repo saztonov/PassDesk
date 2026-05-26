@@ -275,6 +275,7 @@ const processOcrJob = async (job) => {
   const result = await recognizeDocument({
     documentType: normalizedDocumentType,
     imageDataUrl,
+    fileId,
   });
   assertRequiredOcrFields({
     documentType: normalizedDocumentType,

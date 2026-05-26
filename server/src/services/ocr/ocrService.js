@@ -1,4 +1,5 @@
 import axios from "axios";
+import { randomUUID, createHash } from "node:crypto";
 import { AppError } from "../../middleware/errorHandler.js";
 import { Setting } from "../../models/index.js";
 
@@ -1470,6 +1471,17 @@ const ensureOcrEnabled = () => {
   }
 };
 
+const buildIdempotencyKey = ({ fileId, documentType, prompt }) => {
+  const idempVer = process.env.OCR_IDEMPOTENCY_VERSION || "v1";
+  const promptHash = createHash("sha256")
+    .update(String(prompt || ""))
+    .digest("hex")
+    .slice(0, 16);
+  const fileKey = fileId ? `f:${fileId}` : "f:unknown";
+  const raw = `${fileKey}:${documentType || "unknown"}:${promptHash}:${idempVer}`;
+  return createHash("sha256").update(raw).digest("hex");
+};
+
 const getOcrConfig = () => {
   const provider = (process.env.OCR_PROVIDER || "openrouter")
     .trim()
@@ -1666,7 +1678,7 @@ const postOpenRouterPayload = async ({
 }) => {
   try {
     return await axios.post(config.endpoint, payload, {
-      headers,
+      headers: { ...headers, "X-Request-Id": randomUUID() },
       timeout: config.timeoutMs,
     });
   } catch (error) {
@@ -1790,6 +1802,7 @@ export const recognizeDocument = async ({
   imageDataUrl,
   model,
   prompt,
+  fileId,
 }) => {
   ensureOcrEnabled();
 
@@ -1815,6 +1828,11 @@ export const recognizeDocument = async ({
   const headers = {
     Authorization: `Bearer ${config.apiKey}`,
     "Content-Type": "application/json",
+    "X-Idempotency-Key": buildIdempotencyKey({
+      fileId,
+      documentType: normalizedDocumentType,
+      prompt: selectedPrompt,
+    }),
   };
 
   if (config.referer) {
@@ -1999,6 +2017,7 @@ export const detectDocumentScan = async ({
   documentType,
   model,
   prompt,
+  fileId,
 }) => {
   ensureOcrEnabled();
 
@@ -2044,6 +2063,11 @@ export const detectDocumentScan = async ({
   const headers = {
     Authorization: `Bearer ${config.apiKey}`,
     "Content-Type": "application/json",
+    "X-Idempotency-Key": buildIdempotencyKey({
+      fileId,
+      documentType: normalizedDocumentType,
+      prompt: baseScanPrompt,
+    }),
   };
 
   if (config.referer) {
