@@ -4,9 +4,11 @@ import sequelize from "../config/database.js";
 import {
   Employee,
   Pass,
+  Counterparty,
   Citizenship,
   CitizenshipSynonym,
   Department,
+  EmployeeCounterpartyMapping,
   Position,
 } from "../models/index.js";
 import {
@@ -176,6 +178,30 @@ const syncPassNumber = async (employeeId, passNumber, t) => {
   }, { transaction: t });
 };
 
+const formatGenderFor1c = (gender) => {
+  if (gender === "male") return "М";
+  if (gender === "female") return "Ж";
+  return gender ?? null;
+};
+
+const serializeCitizenshipRef = (citizenship) =>
+  citizenship
+    ? {
+        id: citizenship.id,
+        name: citizenship.name,
+        code: citizenship.code,
+      }
+    : null;
+
+const getActiveCounterpartyMapping = (employee) => {
+  const mappings = employee.employeeCounterpartyMappings || [];
+  return (
+    mappings.find((mapping) => !mapping.dismissedAt) ||
+    mappings[0] ||
+    null
+  );
+};
+
 // ─── POST /sync/1c/employees ────────────────────────────────────────────────
 
 export const receiveEmployees = async (req, res, next) => {
@@ -297,32 +323,102 @@ export const getChanges = async (req, res, next) => {
         updatedAt: { [Op.gt]: sinceDate },
         isDeleted: false,
       },
+      include: [
+        {
+          model: Citizenship,
+          as: "citizenship",
+          attributes: ["id", "name", "code"],
+          required: false,
+        },
+        {
+          model: Citizenship,
+          as: "birthCountry",
+          attributes: ["id", "name", "code"],
+          required: false,
+        },
+        {
+          model: Position,
+          as: "position",
+          attributes: ["id", "name"],
+          required: false,
+        },
+        {
+          model: EmployeeCounterpartyMapping,
+          as: "employeeCounterpartyMappings",
+          attributes: ["id", "counterpartyId", "dismissedAt"],
+          required: false,
+          include: [
+            {
+              model: Counterparty,
+              as: "counterparty",
+              attributes: ["id", "name", "inn", "kpp"],
+              required: false,
+            },
+          ],
+        },
+      ],
+      order: [
+        ["updatedAt", "ASC"],
+        [
+          {
+            model: EmployeeCounterpartyMapping,
+            as: "employeeCounterpartyMappings",
+          },
+          "dismissedAt",
+          "ASC",
+        ],
+      ],
       // Без ограничения attributes — Sequelize загружает *Enc-поля, геттеры расшифровывают
     });
 
-    const serialized = employees.map((e) => ({
-      idAll: e.idAll,
-      firstName: e.firstName,
-      lastName: e.lastName,
-      middleName: e.middleName,
-      birthDate: e.birthDate,
-      inn: e.inn,
-      snils: e.snils,
-      phone: e.phone,
-      passportType: e.passportType,
-      passportNumber: e.passportNumber,
-      passportDate: e.passportDate,
-      passportIssuer: e.passportIssuer,
-      passportDepartmentCode: e.passportDepartmentCode,
-      passportExpiryDate: e.passportExpiryDate,
-      registrationAddress: e.registrationAddress,
-      patentNumber: e.patentNumber,
-      blankNumber: e.blankNumber,
-      patentIssueDate: e.patentIssueDate,
-      kig: e.kig,
-      updatedAt: e.updatedAt,
-      isActive: e.isActive,
-    }));
+    const serialized = employees.map((e) => {
+      const activeMapping = getActiveCounterpartyMapping(e);
+      const counterparty = activeMapping?.counterparty || null;
+      const citizenship = serializeCitizenshipRef(e.citizenship);
+      const birthCountry = serializeCitizenshipRef(e.birthCountry);
+
+      return {
+        id: e.id,
+        idAll: e.idAll,
+        firstName: e.firstName,
+        lastName: e.lastName,
+        middleName: e.middleName,
+        gender: e.gender,
+        genderLabel: formatGenderFor1c(e.gender),
+        birthDate: e.birthDate,
+        birthCountry: birthCountry?.code || citizenship?.code || null,
+        birthCountryName: birthCountry?.name || citizenship?.name || null,
+        birthCountryCode: birthCountry?.code || citizenship?.code || null,
+        birthRegion: e.birthRegion,
+        birthCity: e.birthCity,
+        inn: e.inn,
+        snils: e.snils,
+        phone: e.phone,
+        passportType: e.passportType,
+        passportNumber: e.passportNumber,
+        passportDate: e.passportDate,
+        passportIssuer: e.passportIssuer,
+        passportDepartmentCode: e.passportDepartmentCode,
+        passportExpiryDate: e.passportExpiryDate,
+        registrationAddress: e.registrationAddress,
+        patentNumber: e.patentNumber,
+        blankNumber: e.blankNumber,
+        patentIssueDate: e.patentIssueDate,
+        kig: e.kig,
+        kigEndDate: e.kigEndDate,
+        citizenship: citizenship?.name || null,
+        citizenshipCode: citizenship?.code || null,
+        position: e.position?.name || null,
+        organization: counterparty?.name || null,
+        organizationInn: counterparty?.inn || null,
+        organizationKpp: counterparty?.kpp || null,
+        counterpartyId: counterparty?.id || null,
+        bankAccountNumber: e.bankAccountNumber,
+        bankBik: e.bankBik,
+        updatedAt: e.updatedAt,
+        isActive: e.isActive,
+      };
+    });
 
     res.json({ count: serialized.length, employees: serialized });
   } catch (err) {
