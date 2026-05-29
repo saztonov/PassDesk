@@ -233,6 +233,14 @@ const getImageSource = async (req) => {
     throw new AppError("Файл не привязан к сотруднику", 400);
   }
 
+  // Канал 1.2b: если клиент передал employeeId и он не совпадает с
+  // владельцем файла — это cross-employee запрос (например, stale callback
+  // от другой карточки). Отбиваем явной 409, чтобы расхождение попало
+  // в логи и клиент мог его перехватить.
+  if (employeeId && String(employeeId) !== String(fileRecord.employee.id)) {
+    throw new AppError("Файл принадлежит другому сотруднику", 409);
+  }
+
   await checkEmployeeAccess(req.user, fileRecord.employee);
 
   ensureSupportedOcrMimeType(fileRecord.mimeType || "");
@@ -278,11 +286,22 @@ export const recognizeDocumentFromImage = async (req, res, next) => {
     }
 
     const result = await recognizeDocument({
+      fileId: imageSource.fileRecord?.id || null,
       documentType: resolvedDocumentType,
       imageDataUrl,
       model: body.model,
       prompt: body.prompt,
     });
+
+    // Канал 3.3: если все попытки провалили quality gate, recognizeDocument
+    // возвращает кандидата с qualityGate: "failed". Синхронному клиенту
+    // отдаём 422, чтобы он не применял подозрительные данные в форму.
+    if (result?.qualityGate === "failed") {
+      throw new AppError(
+        "OCR-перевод низкого качества: не удалось извлечь ФИО и подтверждающие поля. Загрузите более чёткий скан.",
+        422,
+      );
+    }
 
     return res.json({
       success: true,
@@ -330,7 +349,7 @@ export const scanDocumentImage = async (req, res, next) => {
 
 export const confirmRecognizedDocument = async (req, res, next) => {
   try {
-    const { fileId, provider, result, conflicts } = req.body || {};
+    const { fileId, provider, result, conflicts, employeeId } = req.body || {};
 
     if (!fileId) {
       throw new AppError("fileId обязателен", 400);
@@ -342,6 +361,11 @@ export const confirmRecognizedDocument = async (req, res, next) => {
     }
     if (!fileRecord.employee) {
       throw new AppError("Файл не привязан к сотруднику", 400);
+    }
+
+    // Канал 1.2b: 409 на расхождении владельца — диагностика stale callback.
+    if (employeeId && String(employeeId) !== String(fileRecord.employee.id)) {
+      throw new AppError("Файл принадлежит другому сотруднику", 409);
     }
 
     await checkEmployeeAccess(req.user, fileRecord.employee);

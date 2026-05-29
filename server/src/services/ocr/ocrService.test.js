@@ -201,6 +201,73 @@ test("X-Idempotency-Key различается при разных documentType"
   }
 });
 
+test("X-Idempotency-Key различается при разных imageDataUrl даже без fileId", async () => {
+  setupEnv();
+  const stub = installFailingAxiosPost();
+  const ALT_PNG_DATA_URL =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+  try {
+    await callRecognizeIgnoringError({
+      fileId: null,
+      imageDataUrl: TINY_PNG_DATA_URL,
+    });
+    const splitAt = stub.calls.length;
+    await callRecognizeIgnoringError({
+      fileId: null,
+      imageDataUrl: ALT_PNG_DATA_URL,
+    });
+
+    const keysA = new Set(
+      stub.calls
+        .slice(0, splitAt)
+        .map(([, , options]) => options.headers["X-Idempotency-Key"]),
+    );
+    const keysB = new Set(
+      stub.calls
+        .slice(splitAt)
+        .map(([, , options]) => options.headers["X-Idempotency-Key"]),
+    );
+
+    assert.strictEqual(keysA.size, 1);
+    assert.strictEqual(keysB.size, 1);
+    assert.notStrictEqual(
+      [...keysA][0],
+      [...keysB][0],
+      "разные imageDataUrl с одинаковым fileId=null должны давать разные ключи (защита от коллизии f:unknown)",
+    );
+  } finally {
+    stub.restore();
+  }
+});
+
+test("X-Idempotency-Key стабилен при одинаковом imageDataUrl и fileId", async () => {
+  setupEnv();
+  const stub = installFailingAxiosPost();
+  try {
+    await callRecognizeIgnoringError({
+      fileId: "stable-file",
+      imageDataUrl: TINY_PNG_DATA_URL,
+    });
+    const splitAt = stub.calls.length;
+    await callRecognizeIgnoringError({
+      fileId: "stable-file",
+      imageDataUrl: TINY_PNG_DATA_URL,
+    });
+
+    const allKeys = new Set(
+      stub.calls.map(([, , options]) => options.headers["X-Idempotency-Key"]),
+    );
+    assert.strictEqual(
+      allKeys.size,
+      1,
+      "одинаковые fileId+imageDataUrl должны давать один ключ (легитимная идемпотентность)",
+    );
+    assert.ok(stub.calls.length >= splitAt * 2);
+  } finally {
+    stub.restore();
+  }
+});
+
 test("axios.post идёт в OCR_OPENROUTER_ENDPOINT с Authorization Bearer OCR_API_KEY", async () => {
   setupEnv();
   const stub = installFailingAxiosPost();

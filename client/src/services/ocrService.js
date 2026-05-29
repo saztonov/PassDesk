@@ -124,12 +124,20 @@ export const ocrService = {
     return response.data;
   },
 
-  confirmFileOcr: async ({ fileId, provider, result, conflicts = [] }) => {
+  confirmFileOcr: async ({
+    fileId,
+    provider,
+    result,
+    conflicts = [],
+    employeeId,
+  }) => {
+    const normalizedEmployeeId = String(employeeId || "").trim();
     const response = await api.post("/ocr/confirm", {
       fileId,
       provider,
       result,
       conflicts,
+      ...(normalizedEmployeeId ? { employeeId: normalizedEmployeeId } : {}),
     });
     return response.data;
   },

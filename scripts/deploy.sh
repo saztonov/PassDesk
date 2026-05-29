@@ -5,7 +5,11 @@ set -euo pipefail
 umask 022
 
 # --- Параметры (overridable через env) ---------------------------------------
-: "${DEPLOY_COMPOSE_PROJECT:=passdesk}"
+# Прод на VPS поднят в compose-проекте "portal" (по имени каталога ~/portal).
+: "${DEPLOY_COMPOSE_PROJECT:=portal}"
+# БД — внешняя Yandex Managed PostgreSQL. server.yml тоже работает, но его
+# postgres-контейнер приложением не используется (idle); "чистый" внешний
+# вариант без своего postgres — docker-compose.prod.yml (требует REDIS_PASSWORD).
 : "${DEPLOY_COMPOSE_FILE:=docker-compose.server.yml}"
 : "${DEPLOY_BRANCH:=main}"
 : "${DEPLOY_SERVER_TIMEOUT:=180}"
@@ -14,12 +18,13 @@ umask 022
 : "${DEPLOY_COLOR:=auto}"
 : "${DEPLOY_SERVER_CONTAINER:=passdesk_server}"
 : "${DEPLOY_CLIENT_CONTAINER:=passdesk_client}"
-: "${DEPLOY_DB_CONTAINER:=passdesk_postgres}"
+# Образ-клиент для сетевого pg_dump/psql внешней БД (--backup / restore-hint).
+: "${DEPLOY_PGDUMP_IMAGE:=postgres:17-alpine}"
 
 # --- Парсинг CLI -------------------------------------------------------------
 DO_PULL=1
 DO_BUILD=1
-DO_BACKUP=1
+DO_BACKUP=0
 print_usage() {
   cat <<'EOF'
 Usage: scripts/deploy.sh [options]
@@ -27,7 +32,8 @@ Usage: scripts/deploy.sh [options]
 Options:
   --no-pull       Пропустить git fetch + reset --hard (статус SKIPPED).
   --skip-build    Пропустить docker compose build (быстрый recreate).
-  --no-backup     Пропустить pg_dump перед миграциями.
+  --backup        Снять pre-deploy pg_dump внешней БД (по умолчанию ВЫКЛ —
+                  штатные бэкапы и PITR делает Yandex Managed PostgreSQL).
   -h, --help      Показать эту справку и выйти.
 
 Env overrides:
@@ -42,7 +48,7 @@ while (($#)); do
   case "$1" in
     --no-pull)    DO_PULL=0 ;;
     --skip-build) DO_BUILD=0 ;;
-    --no-backup)  DO_BACKUP=0 ;;
+    --backup)     DO_BACKUP=1 ;;
     -h|--help)    print_usage; exit 0 ;;
     *)            echo "Unknown option: $1" >&2; print_usage >&2; exit 2 ;;
   esac
@@ -224,10 +230,12 @@ git_step() {
   set_step_info "${n} commits (${before:0:7}→${after:0:7})"
 }
 
-# DB credentials из .env (только эти переменные нужны)
+# DB connection из .env (для сетевого pg_dump внешней БД)
 load_db_env() {
   # shellcheck disable=SC1091
   set -a; source ./.env; set +a
+  : "${DB_HOST:?DB_HOST missing in .env}"
+  : "${DB_PORT:=5432}"
   : "${DB_USER:?DB_USER missing in .env}"
   : "${DB_NAME:?DB_NAME missing in .env}"
   : "${DB_PASSWORD:?DB_PASSWORD missing in .env}"
@@ -239,21 +247,33 @@ backup_step() {
   fi
   load_db_env
 
-  if ! docker inspect "$DEPLOY_DB_CONTAINER" >/dev/null 2>&1; then
-    LAST_ERR="container $DEPLOY_DB_CONTAINER not running — нечем делать pg_dump"
-    return 1
-  fi
-  if [[ "$(docker inspect --format='{{.State.Running}}' "$DEPLOY_DB_CONTAINER" 2>/dev/null)" != "true" ]]; then
-    LAST_ERR="$DEPLOY_DB_CONTAINER is not running"
-    return 1
-  fi
-
   local f="backups/predeploy-${TS}.sql.gz"
-  log_dim "  pg_dump → ${f}"
-  if ! docker exec -e PGPASSWORD="$DB_PASSWORD" "$DEPLOY_DB_CONTAINER" \
-      pg_dump -U "$DB_USER" -d "$DB_NAME" --no-owner --no-acl \
-    | gzip -9 > "$f"; then
-    LAST_ERR="pg_dump failed"
+  log_dim "  pg_dump ${DB_HOST}:${DB_PORT}/${DB_NAME} → ${f}"
+
+  # Сетевой дамп ВНЕШНЕЙ БД (Yandex MPG) через одноразовый клиентский контейнер.
+  # SSL — той же моделью, что у сервера: DB_SSL=true → verify-full + CA cert/root.crt.
+  local -a run_args=(run --rm -e "PGPASSWORD=${DB_PASSWORD}")
+  if [[ "${DB_SSL:-false}" == "true" ]]; then
+    if [[ ! -f cert/root.crt ]]; then
+      LAST_ERR="DB_SSL=true, но cert/root.crt не найден в корне репо"
+      return 1
+    fi
+    run_args+=(-e "PGSSLMODE=verify-full" -e "PGSSLROOTCERT=/cert/root.crt"
+               -v "${REPO_ROOT}/cert/root.crt:/cert/root.crt:ro")
+  else
+    run_args+=(-e "PGSSLMODE=prefer")
+  fi
+  run_args+=("$DEPLOY_PGDUMP_IMAGE"
+             pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+                     --no-owner --no-acl)
+
+  if ! docker "${run_args[@]}" 2>>"$LOGFILE" | gzip -9 > "$f"; then
+    LAST_ERR="pg_dump (network) failed — см. $LOGFILE"
+    rm -f "$f"
+    return 1
+  fi
+  if [[ ! -s "$f" ]]; then
+    LAST_ERR="pg_dump produced empty file — см. $LOGFILE"
     rm -f "$f"
     return 1
   fi
@@ -299,8 +319,11 @@ up_step() {
   set_step_info "recreated up to ${total} services"
 }
 
-# Подсчёт и сверка миграций — заполняет глобальные MIG_*
-MIG_NEW=0; MIG_FAILED=0; MIG_DB=0; MIG_TOTAL=0
+# Сверка миграций по логам раннера — заполняет глобальные MIG_*.
+# БД здесь НЕ опрашиваем: сервер стартует только при успешном `npm run db:migrate`
+# (иначе runMigrations.js → process.exit(1) → контейнер не поднимется → healthcheck
+# не пройдёт). Поэтому фатальны лишь явные ошибки миграций в логах сервера.
+MIG_NEW=0; MIG_FAILED=0; MIG_TOTAL=0
 verify_migrations() {
   local started_raw started
   started_raw="$(docker inspect --format='{{.State.StartedAt}}' "$DEPLOY_SERVER_CONTAINER" 2>/dev/null || true)"
@@ -314,23 +337,15 @@ verify_migrations() {
     MIG_NEW=$(docker logs --since "$started" "$DEPLOY_SERVER_CONTAINER" 2>&1 \
               | grep -c '✅ Applied migration:' || true)
     MIG_FAILED=$(docker logs --since "$started" "$DEPLOY_SERVER_CONTAINER" 2>&1 \
-                 | grep -c '❌ Migration failed:' || true)
+                 | grep -cE '❌ Migration failed:|❌ Migration runner error:' || true)
   else
     MIG_NEW=0
     MIG_FAILED=0
   fi
 
-  load_db_env
-  MIG_DB=$(docker exec -e PGPASSWORD="$DB_PASSWORD" "$DEPLOY_DB_CONTAINER" \
-           psql -U "$DB_USER" -d "$DB_NAME" -tA \
-           -c "SELECT COUNT(*) FROM schema_migrations" 2>/dev/null \
-           | tr -d '[:space:]' || echo 0)
-  [[ -z "$MIG_DB" ]] && MIG_DB=0
-
   MIG_TOTAL=$(find server/migrations -maxdepth 1 -name '*.sql' 2>/dev/null | wc -l | tr -d ' ')
 
   if (( MIG_FAILED > 0 )); then return 1; fi
-  if (( MIG_DB != MIG_TOTAL )); then return 2; fi
   return 0
 }
 
@@ -339,10 +354,10 @@ wait_server_step() {
     return 1   # die() уже вышел через trap, сюда не дойдём
   fi
   if verify_migrations; then
-    set_step_info "${MIG_NEW} new · ${MIG_DB}/${MIG_TOTAL} total · all OK"
+    set_step_info "${MIG_NEW} applied · ${MIG_TOTAL} files · all OK"
   else
     local rc=$?
-    set_step_info "${MIG_NEW} new · ${MIG_FAILED} failed · ${MIG_DB}/${MIG_TOTAL} in DB"
+    set_step_info "${MIG_NEW} applied · ${MIG_FAILED} failed (${MIG_TOTAL} files)"
     {
       echo "--- migrations log tail ---"
       docker logs --tail 200 "$DEPLOY_SERVER_CONTAINER" 2>&1 \
@@ -462,12 +477,15 @@ report() {
     local latest_backup
     latest_backup="$(ls -1t backups/predeploy-*.sql.gz 2>/dev/null | head -1 || true)"
     if [[ -n "$latest_backup" ]]; then
-      local r1="Restore: gunzip -c ${latest_backup} \\"
-      local r2="         | docker exec -i ${DEPLOY_DB_CONTAINER} psql -U \$DB_USER -d \$DB_NAME"
-      printf "║ %s ║\n" "$(pad_cell "$r1" $((total_w - 2)))" \
-        | tee -a >(strip_ansi >> "$LOGFILE")
-      printf "║ %s ║\n" "$(pad_cell "$r2" $((total_w - 2)))" \
-        | tee -a >(strip_ansi >> "$LOGFILE")
+      local r1="Restore (внешняя БД, +PGSSLMODE при DB_SSL=true):"
+      local r2="  gunzip -c ${latest_backup} | docker run --rm -i \\"
+      local r3="    -e PGPASSWORD=\$DB_PASSWORD ${DEPLOY_PGDUMP_IMAGE} \\"
+      local r4="    psql -h \$DB_HOST -p \$DB_PORT -U \$DB_USER -d \$DB_NAME"
+      local rl
+      for rl in "$r1" "$r2" "$r3" "$r4"; do
+        printf "║ %s ║\n" "$(pad_cell "$rl" $((total_w - 2)))" \
+          | tee -a >(strip_ansi >> "$LOGFILE")
+      done
     fi
   fi
 
@@ -510,7 +528,7 @@ fi
 if (( DO_BACKUP )); then
   run_step "DB backup" backup_step
 else
-  skip_step "DB backup" "--no-backup"
+  skip_step "DB backup" "Yandex MPG (--backup для дампа)"
 fi
 
 if (( DO_BUILD )); then

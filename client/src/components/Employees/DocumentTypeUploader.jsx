@@ -517,10 +517,19 @@ const DocumentTypeUploader = ({
       // Fallback: если pre-fetched ocrResultJson ещё присутствует
       // (старая версия API), используем его без лишнего запроса.
       newOcrFiles.forEach(({ file }) => {
+        // Канал 1.2a: проставляем employeeId владельца файла прямо в payload
+        // (на основе текущей карточки, в которой файл подтянулся через
+        // /employees/:id/files — это и есть владелец). Это даёт стабильное
+        // поле для owner-check в useEmployeeOcrHandlers и защищает от
+        // cross-employee применения, если callback дорезолвится после
+        // переключения карточки.
+        const fileWithOwner = file?.employeeId
+          ? file
+          : { ...(file || {}), employeeId: effectiveEmployeeId };
         const notify = (ocrResult) => {
           if (typeof onUploadComplete === "function") {
             onUploadComplete({
-              file,
+              file: fileWithOwner,
               employeeId: effectiveEmployeeId,
               fileDocumentType: file?.documentType,
               ocrResult,

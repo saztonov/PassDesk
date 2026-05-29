@@ -146,6 +146,12 @@ export const useEmployeeOcrHandlers = ({
   const runningFileIdsRef = useRef(new Set());
   const processedOcrEventKeysRef = useRef(new Set());
   const lastHandledAtByFileRef = useRef(new Map());
+  // Защита от stale async callback: фиксируем «версию» активной карточки
+  // (employeeId + generation), чтобы дорезолвившийся в фоне OCR-промис
+  // от предыдущей карточки не писал данные в форму новой карточки.
+  const activeEmployeeIdRef = useRef(employeeId || null);
+  const activeGenerationRef = useRef(0);
+  const visibleRef = useRef(visible);
 
   const refreshConflictSummary = useCallback(
     async (targetEmployeeId = employeeId) => {
@@ -177,7 +183,13 @@ export const useEmployeeOcrHandlers = ({
     processedOcrEventKeysRef.current = new Set();
     runningFileIdsRef.current = new Set();
     lastHandledAtByFileRef.current = new Map();
+    activeEmployeeIdRef.current = employeeId || null;
+    activeGenerationRef.current += 1;
   }, [employeeId]);
+
+  useEffect(() => {
+    visibleRef.current = visible;
+  }, [visible]);
 
   useEffect(() => {
     if (!visible) {
@@ -229,6 +241,32 @@ export const useEmployeeOcrHandlers = ({
         return;
       }
 
+      // Канал 1.1: фиксируем «версию» карточки на старте обработки.
+      // Если пользователь переключится на другого сотрудника, пока висит
+      // await recognizeDocument, isStillActive() вернёт false и мы не будем
+      // писать чужие данные в форму новой карточки.
+      const handlerEmployeeId = normalizeString(employeeId);
+      const handlerGeneration = activeGenerationRef.current;
+      const isStillActive = () =>
+        activeGenerationRef.current === handlerGeneration &&
+        normalizeString(activeEmployeeIdRef.current) === handlerEmployeeId &&
+        visibleRef.current !== false;
+
+      // Канал 1.2a: owner-check на клиенте — если payload-файл уже знает
+      // своего владельца и он не совпадает с employeeId хука, это
+      // cross-employee применение, бросаем сразу.
+      const ownerEmployeeId = normalizeString(
+        file?.employeeId || file?.employee_id || file?.ownerEmployeeId,
+      );
+      if (ownerEmployeeId && ownerEmployeeId !== handlerEmployeeId) {
+        console.warn("[OCR] skip cross-employee apply", {
+          fileId,
+          ownerEmployeeId,
+          handlerEmployeeId,
+        });
+        return;
+      }
+
       const lastHandledAt = lastHandledAtByFileRef.current.get(fileId) || 0;
       if (!ocrEventKey && Date.now() - lastHandledAt < 10000) {
         return;
@@ -258,6 +296,13 @@ export const useEmployeeOcrHandlers = ({
           ocrResult && typeof ocrResult === "object" ? ocrResult : null;
 
         if (!responseData) {
+          if (!isStillActive()) {
+            console.warn("[OCR] stale callback dropped before recognize", {
+              fileId,
+              handlerEmployeeId,
+            });
+            return;
+          }
           const response = await ocrService.recognizeDocument({
             fileId,
             employeeId,
@@ -275,6 +320,13 @@ export const useEmployeeOcrHandlers = ({
           shouldRetryPassportAsRussian(normalized)
         ) {
           try {
+            if (!isStillActive()) {
+              console.warn("[OCR] stale callback dropped before russian fallback", {
+                fileId,
+                handlerEmployeeId,
+              });
+              return;
+            }
             const russianResponse = await ocrService.recognizeDocument({
               fileId,
               employeeId,
@@ -395,6 +447,14 @@ export const useEmployeeOcrHandlers = ({
         }
 
         if (Object.keys(autoFillPatch).length > 0) {
+          if (!isStillActive()) {
+            console.warn("[OCR] stale callback dropped before setFieldsValue", {
+              fileId,
+              handlerEmployeeId,
+              activeEmployeeId: normalizeString(activeEmployeeIdRef.current),
+            });
+            return;
+          }
           form.setFieldsValue(autoFillPatch);
           if (typeof onAutofillApplied === "function") {
             try {
@@ -417,11 +477,20 @@ export const useEmployeeOcrHandlers = ({
         }
 
         try {
+          if (!isStillActive()) {
+            console.warn("[OCR] stale callback dropped before confirmFileOcr", {
+              fileId,
+              handlerEmployeeId,
+            });
+            handledSuccessfully = true;
+            return;
+          }
           const provider = toProvider(responseData);
           const resultFileId = toFileId(responseData, fileId);
 
           await ocrService.confirmFileOcr({
             fileId: resultFileId,
+            employeeId,
             provider,
             result: {
               documentType: effectiveOcrDocumentType,

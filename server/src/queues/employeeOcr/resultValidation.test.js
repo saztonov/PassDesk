@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   getMissingRequiredOcrFields,
   assertRequiredOcrFields,
+  passesPassportTranslationQualityGate,
 } from "./resultValidation.js";
 
 test("snils OCR requires snils field", () => {
@@ -47,5 +48,75 @@ test("assertRequiredOcrFields throws on missing required snils", () => {
       }),
     /missing required fields/i,
   );
+});
+
+test("passport_translation quality gate: ФИО без якорей не проходит", () => {
+  assert.strictEqual(
+    passesPassportTranslationQualityGate({
+      lastName: "Иванов",
+      firstName: "Иван",
+      middleName: "Иванович",
+    }),
+    false,
+  );
+});
+
+test("passport_translation quality gate: ФИО + birthDate проходит", () => {
+  assert.strictEqual(
+    passesPassportTranslationQualityGate({
+      lastName: "Иванов",
+      firstName: "Иван",
+      birthDate: "1990-01-01",
+    }),
+    true,
+  );
+});
+
+test("passport_translation quality gate: ФИО + passportNumber проходит", () => {
+  assert.strictEqual(
+    passesPassportTranslationQualityGate({
+      lastName: "Абдурахманов",
+      firstName: "Алишер",
+      passportNumber: "AB1234567",
+    }),
+    true,
+  );
+});
+
+test("passport_translation quality gate: только lastName без firstName не проходит", () => {
+  assert.strictEqual(
+    passesPassportTranslationQualityGate({
+      lastName: "Иванов",
+      birthDate: "1990-01-01",
+      passportNumber: "AB1234567",
+    }),
+    false,
+  );
+});
+
+test("passport_translation quality gate: пустой/невалидный input не проходит", () => {
+  assert.strictEqual(passesPassportTranslationQualityGate(null), false);
+  assert.strictEqual(passesPassportTranslationQualityGate({}), false);
+  assert.strictEqual(passesPassportTranslationQualityGate("not an object"), false);
+});
+
+test("getMissingRequiredOcrFields для passport_translation возвращает quality-маркер при провале gate", () => {
+  const missing = getMissingRequiredOcrFields({
+    documentType: "passport_translation",
+    normalized: { lastName: "Иванов", firstName: "Иван" },
+  });
+  assert.deepEqual(missing, ["passport_translation_quality"]);
+});
+
+test("getMissingRequiredOcrFields для passport_translation проходит когда gate ok", () => {
+  const missing = getMissingRequiredOcrFields({
+    documentType: "passport_translation",
+    normalized: {
+      lastName: "Иванов",
+      firstName: "Иван",
+      birthDate: "1990-01-01",
+    },
+  });
+  assert.deepEqual(missing, []);
 });
 

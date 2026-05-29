@@ -1,7 +1,7 @@
 import { Queue, Worker } from "bullmq";
 import { createRedisConnection } from "../../config/redis.js";
 import axios from "axios";
-import { File } from "../../models/index.js";
+import { Employee, File } from "../../models/index.js";
 import storageProvider from "../../config/storage.js";
 import {
   isOcrSupportedDocumentType,
@@ -244,9 +244,34 @@ const processOcrJob = async (job) => {
     return { skipped: true, reason: "already_verified" };
   }
 
-  const normalizedDocumentType = normalizeDocumentType(
+  let normalizedDocumentType = normalizeDocumentType(
     documentType || fileRecord.documentType,
   );
+
+  // Канал 3.2: для file.documentType === "passport" нормализация даёт
+  // "passport_rf" по умолчанию. Но если сотрудник иностранец, OCR должен
+  // идти как foreign_passport (без ФИО, см. фикс 3.1). Выбираем по
+  // employee.passportType.
+  if (normalizedDocumentType === "passport_rf") {
+    const employeeIdForType =
+      employeeId || fileRecord.employeeId || fileRecord.entityId;
+    if (employeeIdForType) {
+      try {
+        const employee = await Employee.findOne({
+          where: { id: employeeIdForType, isDeleted: false },
+          attributes: ["id", "passportType"],
+        });
+        if (employee?.passportType === "foreign") {
+          normalizedDocumentType = "foreign_passport";
+        }
+      } catch (error) {
+        console.warn("[ocr] failed to resolve passportType for OCR routing", {
+          employeeId: employeeIdForType,
+          message: error?.message || "unknown error",
+        });
+      }
+    }
+  }
 
   if (!isOcrSupportedDocumentType(normalizedDocumentType)) {
     return { skipped: true, reason: "unsupported_document_type" };
@@ -277,15 +302,51 @@ const processOcrJob = async (job) => {
     imageDataUrl,
     fileId,
   });
-  assertRequiredOcrFields({
-    documentType: normalizedDocumentType,
-    normalized: result?.normalized || {},
-  });
+
+  // Канал 3.3: если quality gate провален (сейчас актуально только для
+  // passport_translation), записываем JSON для диагностики, но НЕ помечаем
+  // ocr_verified=TRUE. Клиент при следующем polling не подтянет это как
+  // готовый OCR и не применит подозрительные ФИО в форму.
+  const gateFailed = result?.qualityGate === "failed";
+
+  if (!gateFailed) {
+    assertRequiredOcrFields({
+      documentType: normalizedDocumentType,
+      normalized: result?.normalized || {},
+    });
+  }
 
   const normalizedResult =
     result && typeof result === "object" && !Array.isArray(result)
       ? JSON.stringify(result)
       : null;
+
+  if (gateFailed) {
+    await File.sequelize.query(
+      `UPDATE files
+       SET ocr_verified = FALSE,
+           ocr_provider = :provider,
+           ocr_result_json = CASE
+             WHEN :resultJson IS NULL THEN NULL
+             ELSE CAST(:resultJson AS jsonb)
+           END
+       WHERE id = :fileId`,
+      {
+        replacements: {
+          fileId: fileRecord.id,
+          provider: result?.provider || null,
+          resultJson: normalizedResult,
+        },
+      },
+    );
+    return {
+      fileId: fileRecord.id,
+      employeeId: employeeId || fileRecord.employeeId,
+      documentType: normalizedDocumentType,
+      skipped: true,
+      reason: "quality_gate_failed",
+    };
+  }
 
   await File.sequelize.query(
     `UPDATE files

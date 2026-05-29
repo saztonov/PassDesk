@@ -73,7 +73,7 @@ PassDesk не ходит в OpenRouter напрямую. Все LLM-вызовы
 | --- | --- |
 | `OCR_OPENROUTER_ENDPOINT` | `https://proxy.example.com/api/v1/chat/completions` — URL прокси, OpenAI-совместимый. |
 | `OCR_API_KEY` | `PROXY_INBOUND_TOKEN`. **НЕ ключ OpenRouter** — токен прокси. |
-| `OCR_IDEMPOTENCY_VERSION` | `v1` по умолчанию. Поднять до `v2`, `v3` и т. д. при изменении промпта или схемы распознавания, чтобы старые `X-Idempotency-Key` не конфликтовали с новой логикой. |
+| `OCR_IDEMPOTENCY_VERSION` | `v2` рекомендуется (после фикса формулы ключа, см. ниже). Поднимать до `v3`, `v4` и т. д. при изменении промпта или схемы распознавания, чтобы старые `X-Idempotency-Key` не конфликтовали с новой логикой. |
 
 ### Переменные, которые формально остаются, но фактически игнорируются прокси
 
@@ -90,7 +90,7 @@ PassDesk не ходит в OpenRouter напрямую. Все LLM-вызовы
 ### Служебные заголовки, которые добавляет PassDesk
 
 - `X-Request-Id` — UUID, уникальный для каждой HTTP-попытки (включая внутренние fallback в `recognizeDocument` и scan-цепочку). Используется для трассировки на прокси.
-- `X-Idempotency-Key` — `sha256(fileId : documentType : sha256(prompt) : OCR_IDEMPOTENCY_VERSION)`. Стабилен между ретраями BullMQ одной OCR-задачи, различается между задачами. На прокси можно дедуплицировать повторные запросы.
+- `X-Idempotency-Key` — `sha256(fileId : documentType : sha256(prompt)[:16] : i:sha256(imageDataUrl)[:16] : OCR_IDEMPOTENCY_VERSION)`. Стабилен между ретраями BullMQ одной OCR-задачи, различается между задачами и между разными изображениями (даже при `fileId=null` или коллизии fileId). На прокси можно дедуплицировать повторные запросы.
 
 ### Удалить из старого `.env`
 

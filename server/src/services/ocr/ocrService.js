@@ -2,6 +2,7 @@ import axios from "axios";
 import { randomUUID, createHash } from "node:crypto";
 import { AppError } from "../../middleware/errorHandler.js";
 import { Setting } from "../../models/index.js";
+import { passesQualityGate } from "./qualityGate.js";
 
 const DEFAULT_OPENROUTER_ENDPOINT =
   "https://openrouter.ai/api/v1/chat/completions";
@@ -29,13 +30,14 @@ const DEFAULT_PROMPTS = {
     "passportSeries, passportNumber, issueDate, authority, departmentCode, birthPlace, expiryDate.",
   foreign_passport:
     "Распознай иностранный паспорт на фото, включая кривую перспективу и шум. " +
-    "Если в поле имени указаны имя и отчество вместе (например 'БИЛОЛ ТИМУРОВИЧ'), раздели их: в givenNames пиши только имя (Билол), в middleName — только отчество (Тимурович). " +
-    NAME_CASE_INSTRUCTION +
+    "ВАЖНО: ФИО на оригинале иностранного паспорта написано латиницей или MRZ. " +
+    "Для полей surname, givenNames, middleName ВСЕГДА верни null — ФИО берутся ТОЛЬКО из отдельного нотариального перевода паспорта (документ типа passport_translation). " +
+    "Распознай только не-ФИО поля. " +
     DATE_FORMAT_INSTRUCTION +
     "Поле sex: верни строго 'M' если мужской пол, 'F' если женский. Не используй другие варианты. " +
     "Поле expiryDate: срок действия иностранного паспорта обычно составляет 5 или 10 лет от даты выдачи. Если дата окончания явно указана в документе — бери её. " +
     "Поле birthPlace: если указано только название страны без конкретного города или населённого пункта — верни null. Заполняй birthPlace ТОЛЬКО если указан конкретный город или населённый пункт. " +
-    "Верни строго JSON без markdown и пояснений. Поля: surname, givenNames, middleName, birthDate, sex, nationality, " +
+    "Верни строго JSON без markdown и пояснений. Поля: surname (null), givenNames (null), middleName (null), birthDate, sex, nationality, " +
     "passportNumber, issueDate, authority, expiryDate, birthPlace.",
   passport_translation:
     "На фото нотариальный перевод иностранного паспорта на русский язык. " +
@@ -931,9 +933,12 @@ const normalizePassportRf = (parsedJson = {}) => {
 };
 
 const normalizeForeignPassport = (parsedJson = {}) => ({
-  lastName: valueFrom(parsedJson, ["surname", "lastName", "last_name"]),
-  firstName: valueFrom(parsedJson, ["givenNames", "firstName", "first_name"]),
-  middleName: valueFrom(parsedJson, ["middleName", "middle_name", "patronymic"]),
+  // ФИО из оригинала иностранного паспорта (латиница/MRZ) НЕ попадают
+  // в карточку сотрудника — источник ФИО только passport_translation.
+  // Если provider всё-таки вернул surname/givenNames — игнорируем.
+  lastName: null,
+  firstName: null,
+  middleName: null,
   birthDate: normalizeDate(
     valueFrom(parsedJson, ["birthDate", "birth_date", "dateOfBirth"]),
   ),
@@ -1471,14 +1476,20 @@ const ensureOcrEnabled = () => {
   }
 };
 
-const buildIdempotencyKey = ({ fileId, documentType, prompt }) => {
+const buildIdempotencyKey = ({ fileId, documentType, prompt, imageDataUrl }) => {
   const idempVer = process.env.OCR_IDEMPOTENCY_VERSION || "v1";
   const promptHash = createHash("sha256")
     .update(String(prompt || ""))
     .digest("hex")
     .slice(0, 16);
+  const imageHash = imageDataUrl
+    ? createHash("sha256")
+        .update(String(imageDataUrl))
+        .digest("hex")
+        .slice(0, 16)
+    : "noimg";
   const fileKey = fileId ? `f:${fileId}` : "f:unknown";
-  const raw = `${fileKey}:${documentType || "unknown"}:${promptHash}:${idempVer}`;
+  const raw = `${fileKey}:${documentType || "unknown"}:${promptHash}:i:${imageHash}:${idempVer}`;
   return createHash("sha256").update(raw).digest("hex");
 };
 
@@ -1832,6 +1843,7 @@ export const recognizeDocument = async ({
       fileId,
       documentType: normalizedDocumentType,
       prompt: selectedPrompt,
+      imageDataUrl,
     }),
   };
 
@@ -1866,6 +1878,7 @@ export const recognizeDocument = async ({
   let lastEmptyResponseMeta = null;
   let lastNoDataMeta = null;
   let lastProviderError = null;
+  let lastGateFailedResult = null;
 
   for (const attempt of attempts) {
     const payload = buildOpenRouterPayload({
@@ -1979,6 +1992,34 @@ export const recognizeDocument = async ({
       continue;
     }
 
+    // Канал 3.3: quality gate (сейчас активен только для passport_translation).
+    // Если результат не прошёл — пробуем следующую попытку: возможно loose-json
+    // или fallback-model вытащит больше якорей. Если все attempts провалили
+    // gate, дальше за циклом бросим 422.
+    if (!passesQualityGate(normalizedDocumentType, normalized)) {
+      console.warn("[ocr] quality gate failed", {
+        documentType: normalizedDocumentType,
+        model: attempt.model,
+        attempt: attempt.label,
+      });
+      // Сохраняем последний кандидат — если все attempts провалят gate,
+      // вернём его с флагом qualityGate: "failed" (для диагностики +
+      // чтобы клиент / очередь могли явно решить, что делать).
+      lastGateFailedResult = {
+        documentType: normalizedDocumentType,
+        provider: config.provider,
+        model: attempt.model,
+        normalized,
+        qualityGate: "failed",
+        raw: {
+          content,
+          json: parsedJson,
+          fallback: fallbackRaw,
+        },
+      };
+      continue;
+    }
+
     return {
       documentType: normalizedDocumentType,
       provider: config.provider,
@@ -1990,6 +2031,12 @@ export const recognizeDocument = async ({
         fallback: fallbackRaw,
       },
     };
+  }
+
+  if (lastGateFailedResult) {
+    // Возвращаем кандидата с явным флагом — controller отдаст 422,
+    // очередь сохранит JSON для диагностики без ocr_verified=TRUE.
+    return lastGateFailedResult;
   }
 
   if (lastEmptyResponseMeta) {
@@ -2067,6 +2114,7 @@ export const detectDocumentScan = async ({
       fileId,
       documentType: normalizedDocumentType,
       prompt: baseScanPrompt,
+      imageDataUrl,
     }),
   };
 
