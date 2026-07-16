@@ -60,6 +60,9 @@ const callRecognizeIgnoringError = async (overrides = {}) => {
   }
 };
 
+const idempotencyKeysOf = (calls) =>
+  calls.map(([, , options]) => options.headers["X-Idempotency-Key"]);
+
 test("postOpenRouterPayload генерирует уникальный X-Request-Id для каждой HTTP-попытки", async () => {
   setupEnv();
   const stub = installFailingAxiosPost();
@@ -99,16 +102,15 @@ test("X-Idempotency-Key стабилен между двумя вызовами 
     const firstBatchSize = stub.calls.length;
     await callRecognizeIgnoringError({ fileId: "stable-file" });
 
-    const keys = stub.calls.map(
-      ([, , options]) => options.headers["X-Idempotency-Key"],
-    );
+    const keys = idempotencyKeysOf(stub.calls);
     assert.ok(keys.length >= firstBatchSize * 2);
-    assert.strictEqual(
-      new Set(keys).size,
-      1,
-      `X-Idempotency-Key должен быть один на все вызовы, получено: ${[
-        ...new Set(keys),
-      ].join(", ")}`,
+
+    // Ключ обязан совпадать попытка-в-попытку: именно на это опирается
+    // дедуп прокси при ретрае той же задачи из BullMQ.
+    assert.deepStrictEqual(
+      keys.slice(firstBatchSize, firstBatchSize * 2),
+      keys.slice(0, firstBatchSize),
+      "повтор той же задачи должен дать те же ключи попытка-в-попытку",
     );
     keys.forEach((key) => {
       assert.match(
@@ -122,6 +124,26 @@ test("X-Idempotency-Key стабилен между двумя вызовами 
   }
 });
 
+test("X-Idempotency-Key различается между попытками внутри одного вызова", async () => {
+  setupEnv();
+  const stub = installFailingAxiosPost();
+  try {
+    await callRecognizeIgnoringError({ fileId: "attempt-variants" });
+
+    const keys = idempotencyKeysOf(stub.calls);
+    assert.ok(keys.length >= 2, "нужно минимум две попытки для проверки");
+    // strict-json и loose-json шлют разный payload (response_format), значит это
+    // разные задачи — прокси не должен схлопнуть их дедупом в один вызов.
+    assert.strictEqual(
+      new Set(keys).size,
+      keys.length,
+      `у каждой попытки должен быть свой ключ, получено: ${keys.join(", ")}`,
+    );
+  } finally {
+    stub.restore();
+  }
+});
+
 test("X-Idempotency-Key различается при смене fileId", async () => {
   setupEnv();
   const stub = installFailingAxiosPost();
@@ -130,24 +152,18 @@ test("X-Idempotency-Key различается при смене fileId", async 
     const splitAt = stub.calls.length;
     await callRecognizeIgnoringError({ fileId: "file-B" });
 
-    const keysA = new Set(
-      stub.calls
-        .slice(0, splitAt)
-        .map(([, , options]) => options.headers["X-Idempotency-Key"]),
-    );
-    const keysB = new Set(
-      stub.calls
-        .slice(splitAt)
-        .map(([, , options]) => options.headers["X-Idempotency-Key"]),
-    );
+    const keys = idempotencyKeysOf(stub.calls);
+    const keysA = keys.slice(0, splitAt);
+    const keysB = keys.slice(splitAt);
 
-    assert.strictEqual(keysA.size, 1);
-    assert.strictEqual(keysB.size, 1);
-    assert.notStrictEqual(
-      [...keysA][0],
-      [...keysB][0],
-      "X-Idempotency-Key должен различаться для разных fileId",
-    );
+    assert.strictEqual(keysA.length, keysB.length);
+    keysA.forEach((keyA, idx) => {
+      assert.notStrictEqual(
+        keyA,
+        keysB[idx],
+        `X-Idempotency-Key должен различаться для разных fileId (попытка #${idx})`,
+      );
+    });
   } finally {
     stub.restore();
   }
@@ -217,24 +233,18 @@ test("X-Idempotency-Key различается при разных imageDataUrl 
       imageDataUrl: ALT_PNG_DATA_URL,
     });
 
-    const keysA = new Set(
-      stub.calls
-        .slice(0, splitAt)
-        .map(([, , options]) => options.headers["X-Idempotency-Key"]),
-    );
-    const keysB = new Set(
-      stub.calls
-        .slice(splitAt)
-        .map(([, , options]) => options.headers["X-Idempotency-Key"]),
-    );
+    const keys = idempotencyKeysOf(stub.calls);
+    const keysA = keys.slice(0, splitAt);
+    const keysB = keys.slice(splitAt);
 
-    assert.strictEqual(keysA.size, 1);
-    assert.strictEqual(keysB.size, 1);
-    assert.notStrictEqual(
-      [...keysA][0],
-      [...keysB][0],
-      "разные imageDataUrl с одинаковым fileId=null должны давать разные ключи (защита от коллизии f:unknown)",
-    );
+    assert.strictEqual(keysA.length, keysB.length);
+    keysA.forEach((keyA, idx) => {
+      assert.notStrictEqual(
+        keyA,
+        keysB[idx],
+        `разные imageDataUrl с одинаковым fileId=null должны давать разные ключи (защита от коллизии f:unknown, попытка #${idx})`,
+      );
+    });
   } finally {
     stub.restore();
   }
@@ -254,15 +264,13 @@ test("X-Idempotency-Key стабилен при одинаковом imageDataUr
       imageDataUrl: TINY_PNG_DATA_URL,
     });
 
-    const allKeys = new Set(
-      stub.calls.map(([, , options]) => options.headers["X-Idempotency-Key"]),
-    );
-    assert.strictEqual(
-      allKeys.size,
-      1,
-      "одинаковые fileId+imageDataUrl должны давать один ключ (легитимная идемпотентность)",
-    );
+    const keys = idempotencyKeysOf(stub.calls);
     assert.ok(stub.calls.length >= splitAt * 2);
+    assert.deepStrictEqual(
+      keys.slice(splitAt, splitAt * 2),
+      keys.slice(0, splitAt),
+      "одинаковые fileId+imageDataUrl должны давать те же ключи попытка-в-попытку (легитимная идемпотентность)",
+    );
   } finally {
     stub.restore();
   }
@@ -287,5 +295,229 @@ test("axios.post идёт в OCR_OPENROUTER_ENDPOINT с Authorization Bearer OCR
     );
   } finally {
     stub.restore();
+  }
+});
+
+// --- Контракт прокси proxy_llm ---
+
+test("без OCR_MODEL в payload уходит заглушка proxy, а не реальный слаг", async () => {
+  setupEnv();
+  delete process.env.OCR_MODEL;
+  delete process.env.OCR_OPENROUTER_MODEL;
+  const stub = installFailingAxiosPost();
+  try {
+    await callRecognizeIgnoringError();
+    assert.ok(stub.calls.length >= 1);
+
+    for (const [, payload] of stub.calls) {
+      assert.strictEqual(
+        payload.model,
+        "proxy",
+        "по умолчанию модель не выбираем — прокси подставит дефолт клиента + fallback",
+      );
+    }
+  } finally {
+    stub.restore();
+  }
+});
+
+test("OCR_MODEL с реальным слагом уходит как явный выбор модели", async () => {
+  setupEnv();
+  delete process.env.OCR_OPENROUTER_MODEL;
+  process.env.OCR_MODEL = "google/gemini-2.5-flash";
+  const stub = installFailingAxiosPost();
+  try {
+    await callRecognizeIgnoringError();
+    assert.ok(stub.calls.length >= 1);
+    assert.strictEqual(stub.calls[0][1].model, "google/gemini-2.5-flash");
+  } finally {
+    stub.restore();
+    delete process.env.OCR_MODEL;
+  }
+});
+
+test("без OCR_OPENROUTER_ENDPOINT — ошибка конфигурации, а не запрос в openrouter.ai", async () => {
+  setupEnv();
+  delete process.env.OCR_OPENROUTER_ENDPOINT;
+  const stub = installFailingAxiosPost();
+  try {
+    await assert.rejects(
+      () =>
+        recognizeDocument({
+          documentType: "passport_rf",
+          imageDataUrl: TINY_PNG_DATA_URL,
+          fileId: "no-endpoint",
+        }),
+      /OCR_OPENROUTER_ENDPOINT/,
+      "без endpoint должна быть явная ошибка конфигурации",
+    );
+    assert.strictEqual(
+      stub.calls.length,
+      0,
+      "не должно быть ни одного исходящего запроса",
+    );
+  } finally {
+    stub.restore();
+  }
+});
+
+test("payload не содержит stream и полей, которые прокси вырезает", async () => {
+  setupEnv();
+  const stub = installFailingAxiosPost();
+  try {
+    await callRecognizeIgnoringError();
+    assert.ok(stub.calls.length >= 1);
+
+    for (const [, payload] of stub.calls) {
+      for (const banned of [
+        "stream",
+        "stream_options",
+        "models",
+        "provider",
+        "route",
+        "transforms",
+        "plugins",
+        "debug",
+      ]) {
+        assert.ok(
+          !(banned in payload),
+          `поле ${banned} не должно уходить на прокси`,
+        );
+      }
+    }
+  } finally {
+    stub.restore();
+  }
+});
+
+test("400 model_not_allowed не ретраится и сообщает список разрешённых моделей", async () => {
+  setupEnv();
+  process.env.OCR_MODEL = "no/such-model";
+  const calls = [];
+  const original = axios.post;
+  axios.post = async (...args) => {
+    calls.push(args);
+    const err = new Error("mock model_not_allowed");
+    err.response = {
+      status: 400,
+      headers: {},
+      data: {
+        error: {
+          code: "model_not_allowed",
+          message: "model not allowed",
+          allowed: ["google/gemini-2.5-flash"],
+        },
+      },
+    };
+    throw err;
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        recognizeDocument({
+          documentType: "passport_rf",
+          imageDataUrl: TINY_PNG_DATA_URL,
+          fileId: "model-not-allowed",
+        }),
+      (error) => {
+        assert.match(error.message, /model_not_allowed/);
+        assert.match(
+          error.message,
+          /google\/gemini-2\.5-flash/,
+          "список allowed обязан попасть в сообщение — иначе конфиг не починить по логам",
+        );
+        assert.deepStrictEqual(error.allowedModels, [
+          "google/gemini-2.5-flash",
+        ]);
+        return true;
+      },
+    );
+    assert.strictEqual(
+      calls.length,
+      1,
+      "это конфиг, а не сбой: перебирать остальные попытки нельзя",
+    );
+  } finally {
+    axios.post = original;
+    delete process.env.OCR_MODEL;
+  }
+});
+
+test("503 queue_full прерывает перебор попыток и отдаёт Retry-After наверх", async () => {
+  setupEnv();
+  const calls = [];
+  const original = axios.post;
+  axios.post = async (...args) => {
+    calls.push(args);
+    const err = new Error("mock queue_full");
+    err.response = {
+      status: 503,
+      headers: { "retry-after": "10" },
+      data: { error: { code: "queue_full", message: "queue is full" } },
+    };
+    throw err;
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        recognizeDocument({
+          documentType: "passport_rf",
+          imageDataUrl: TINY_PNG_DATA_URL,
+          fileId: "queue-full",
+        }),
+      (error) => {
+        assert.strictEqual(error.isProxyBackpressure, true);
+        assert.strictEqual(error.isTransientProviderFailure, true);
+        assert.strictEqual(
+          error.retryAfterMs,
+          10_000,
+          "Retry-After: 10 → 10000 мс для backoff BullMQ",
+        );
+        return true;
+      },
+    );
+    assert.strictEqual(
+      calls.length,
+      1,
+      "очередь прокси от модели не зависит — добивать её остальными попытками нельзя",
+    );
+  } finally {
+    axios.post = original;
+  }
+});
+
+test("фактическая модель берётся из ответа прокси, а не из запроса", async () => {
+  setupEnv();
+  delete process.env.OCR_MODEL;
+  delete process.env.OCR_OPENROUTER_MODEL;
+  const original = axios.post;
+  axios.post = async () => ({
+    status: 200,
+    headers: {
+      "x-proxy-request-id": "proxy-req-1",
+      "x-openrouter-request-id": "gen-abc123",
+    },
+    data: {
+      model: "google/gemini-2.5-flash",
+      choices: [{ message: { content: '{"surname":"Иванов"}' } }],
+    },
+  });
+
+  try {
+    const result = await recognizeDocument({
+      documentType: "passport_rf",
+      imageDataUrl: TINY_PNG_DATA_URL,
+      fileId: "effective-model",
+    });
+    assert.strictEqual(
+      result.model,
+      "google/gemini-2.5-flash",
+      "при заглушке в запросе только ответ показывает, что реально отработало",
+    );
+    assert.strictEqual(result.normalized.lastName, "Иванов");
+  } finally {
+    axios.post = original;
   }
 });

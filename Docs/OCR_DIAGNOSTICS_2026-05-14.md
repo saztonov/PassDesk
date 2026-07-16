@@ -34,15 +34,23 @@ docker logs -f --tail=50 passdesk_server 2>&1 | grep -i "\[ocr\]"
 |---|---|---|
 | `[ocr] empty provider response` | OpenRouter вернул пустой content. Обычно — плохое фото (засветы, blur). | Переснять документ при хорошем освещении. |
 | `[ocr] no structured fields extracted` | JSON распарсился, но все поля пустые/null. Модель «увидела» документ, но не смогла прочитать поля. | То же — качество фото. Иногда — попробовать другой тип документа в форме. |
-| `[ocr] provider request failed` | OpenRouter недоступен / 5xx / таймаут. | Подождать; проверить ключ `OCR_API_KEY` и квоту OpenRouter. |
+| `[ocr] provider request failed` | Прокси/OpenRouter недоступен, 5xx или таймаут. В полях лога — `providerErrorCode`, `upstreamStatus`, `allowedModels`, `proxyRequestId`, `openrouterRequestId`. | Смотреть `providerErrorCode` (см. таблицу ниже); проверить токен `OCR_API_KEY` и доступность прокси. |
+| `providerErrorCode: "model_not_allowed"` | Задан `OCR_MODEL` со слагом, который оператор прокси нам не разрешил. Не ретраится — это конфиг, а не сбой. | Взять модель из `allowedModels` в логе либо вернуть `OCR_MODEL=proxy` (заглушка «модель не выбираю»). |
+| `providerErrorCode: "queue_full"` / `"dedup_full"` | Очередь прокси переполнена (503). Перебор попыток прерывается сразу, BullMQ ретраит с учётом `Retry-After`. | Обычно саморассасывается. Если постоянно — просить оператора поднять `maxConcurrency`. |
+| `providerErrorCode: "deadline_exceeded"` | Прокси не уложился в свой дедлайн ~190 с (504). | Ретрай автоматический. Если часто — уменьшить размер изображения. |
 | `[ocr] identifier fallback failed` | Не получилось добрать ИНН/СНИЛС вторым запросом. | Не критично, основной результат обычно есть. |
 | `[ocr] decrypt failed` | Файл зашифрован, расшифровка упала. | Очень редко — проверять `APP_FILE_ENCRYPTION_KEYS`. |
-| `axios timeout` / `ETIMEDOUT` рядом с `[ocr]` | Провайдер не уложился в `OCR_REQUEST_TIMEOUT_MS` (60000 мс). | Слишком большой PDF; переслать как JPG первой страницы. |
+| `axios timeout` / `ETIMEDOUT` рядом с `[ocr]` | Не уложились в `OCR_REQUEST_TIMEOUT_MS` (200000 мс). Он намеренно больше дедлайна прокси (~190 с), поэтому обычно раньше приходит 504 `deadline_exceeded`. | Слишком большой PDF; переслать как JPG первой страницы. |
+
+Успешное распознавание пишется как `[ocr] recognized` с полями `model` (фактически отработавшая модель, выбранная прокси), `usage`, `proxyRequestId` и `openrouterRequestId` (`gen-…` — по нему вызов ищется в биллинге OpenRouter).
 
 ```bash
 # найти все «плохие» события за последние сутки
 docker logs --since=24h passdesk_server 2>&1 \
-  | grep -E "\[ocr\] (empty provider response|no structured fields extracted|provider request failed|identifier fallback failed|decrypt failed)"
+  | grep -E "\[ocr\] (empty provider response|no structured fields extracted|provider request failed|scan request failed|identifier fallback failed|decrypt failed)"
+
+# какие модели прокси реально выбирал за сутки
+docker logs --since=24h passdesk_server 2>&1 | grep "\[ocr\] recognized"
 ```
 
 ## 4. Сбор файла для отправки LLM

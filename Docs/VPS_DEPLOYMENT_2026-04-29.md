@@ -70,7 +70,7 @@
 | **PostgreSQL** | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Внешняя **Yandex Managed PostgreSQL**. SSL: `DB_SSL=true` + CA `DB_SSL_CA_PATH=/app/cert/root.crt`. Пул: `DB_POOL_MAX=20`, `DB_POOL_MIN=2`, роль `api`. **Бэкапы/PITR — на стороне Yandex MPG** (deploy.sh свой дамп делает только по `--backup`). |
 | **S3** (основной) | `STORAGE_PROVIDER=cloudru`, `CLOUDRU_S3_*` | Бакет на beget.cloud (`s3.ru1.storage.beget.cloud`, регион `ru1`). |
 | **S3** (резерв) | `YANDEX_S3_*` | Yandex Object Storage. |
-| **OCR** | `OCR_PROVIDER=openrouter`, `OCR_API_KEY`/`OCR_OPENROUTER_API_KEY` | Модель по умолчанию `qwen/qwen3.5-35b-a3b`, scan-fallback `google/gemini-3.1-flash-lite-preview`. |
+| **OCR** | `OCR_PROVIDER=openrouter`, `OCR_OPENROUTER_ENDPOINT`, `OCR_API_KEY` | Не OpenRouter напрямую, а прокси **`proxy_llm`**: `OCR_OPENROUTER_ENDPOINT` = URL прокси (обязателен, дефолта нет), `OCR_API_KEY` = токен прокси. Модель по умолчанию не выбираем: `OCR_MODEL=proxy` — заглушка, роутинг и fallback за прокси. Подробности — README, раздел «OCR через прокси-сервис `proxy_llm`». |
 | **SKUD** | `SKUD_PROVIDER=sigur`, `SKUD_*` | По умолчанию `SKUD_ENABLED=false`. Webhook auth — basic + IP allowlist. |
 | **Telegram** | `TELEGRAM_BOT_*`, `MOBILE_ACCESS_*` | По умолчанию `TELEGRAM_BOT_ENABLED=false`. Используется для laborer-кабинета и mobile-access. |
 | **Redis** (внутр.) | `REDIS_HOST=redis`, `REDIS_PORT=6379`, `REDIS_PASSWORD` | `redis:7-alpine` в той же compose-сети, AOF persistence (volume `redis_data`). |

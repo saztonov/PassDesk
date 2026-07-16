@@ -9,6 +9,11 @@ import {
   recognizeDocument,
 } from "../../services/ocr/ocrService.js";
 import { assertRequiredOcrFields } from "./resultValidation.js";
+import {
+  OCR_BACKOFF_BASE_MS,
+  OCR_BACKOFF_TYPE,
+  ocrBackoffStrategy,
+} from "./backoff.js";
 import { convertPdfFirstPageToImageDataUrl } from "../../services/pdf/pdfToImageService.js";
 
 export const OCR_QUEUE_NAME = "employee.files.ocr";
@@ -23,6 +28,7 @@ const ocrQueueConfig = {
   concurrency: Math.max(1, Number.parseInt(String(process.env.OCR_QUEUE_CONCURRENCY || "2"), 10)),
   retryLimit: Math.max(1, Number.parseInt(String(process.env.OCR_QUEUE_RETRY_LIMIT || "3"), 10)),
 };
+
 
 const OCR_SUPPORTED_IMAGE_MIME_TYPES = new Set([
   "image/jpeg",
@@ -147,7 +153,7 @@ export const enqueueEmployeeOcrJob = async ({
     },
     {
       attempts: ocrQueueConfig.retryLimit,
-      backoff: { type: "exponential", delay: 2000 },
+      backoff: { type: OCR_BACKOFF_TYPE, delay: OCR_BACKOFF_BASE_MS },
       removeOnComplete: { count: 100 },
       removeOnFail: { count: 200 },
     },
@@ -385,6 +391,7 @@ export const startOcrWorkers = async () => {
   const worker = new Worker(OCR_QUEUE_NAME, async (job) => processOcrJob(job), {
     connection,
     concurrency: ocrQueueConfig.concurrency,
+    settings: { backoffStrategy: ocrBackoffStrategy },
   });
 
   worker.on("completed", async (job) => {
