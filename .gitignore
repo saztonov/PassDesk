@@ -78,3 +78,7 @@ backups/
 /db-audit-questions.txt
 /employee-form-modal-plan.txt
 /frontend-audit.txt
+
+# Cursor AI rules with sensitive data (SSH keys, IPs, server access)
+.cursor/rules/
+!.cursor/rules/.gitkeep
