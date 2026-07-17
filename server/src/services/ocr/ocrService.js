@@ -4,14 +4,21 @@ import { AppError } from "../../middleware/errorHandler.js";
 import { Setting } from "../../models/index.js";
 import { passesQualityGate } from "./qualityGate.js";
 
-const DEFAULT_OPENROUTER_ENDPOINT =
-  "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_OPENROUTER_MODEL = "qwen/qwen3.5-35b-a3b";
-const DEFAULT_SCAN_MODEL_CHAIN = [
-  "mistralai/mistral-small-3.2-24b-instruct-2506",
-  "meta-llama/llama-3.2-11b-vision-instruct",
-  DEFAULT_OPENROUTER_MODEL,
-];
+// Заглушка «модель не выбираю»: прокси подставит дефолтную модель клиента и её
+// fallback-цепочку. Реальный слаг здесь — это явный выбор, который переопределит
+// роутинг и биллинг и ОТКЛЮЧИТ fallback прокси, как только оператор разрешит
+// нам выбор моделей (allowedModels). Держим слаги только в env, не в коде.
+const PROXY_MODEL_STUB = "proxy";
+
+// Больше серверного дедлайна прокси (~190 с): прокси успевает сделать до двух
+// upstream-попыток внутри дедлайна и вернуть 504, а мы не рвём связь раньше и
+// не выбрасываем работу, за которую уже заплатили.
+const DEFAULT_REQUEST_TIMEOUT_MS = 200_000;
+
+const toPositiveInt = (value, defaultValue) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : defaultValue;
+};
 
 const NAME_CASE_INSTRUCTION =
   "Поля surname, givenNames, middleName пиши строго на кириллице и с заглавной буквы (Titlecase), например: Иванов, Иван, Иванович. " +
@@ -1476,7 +1483,19 @@ const ensureOcrEnabled = () => {
   }
 };
 
-const buildIdempotencyKey = ({ fileId, documentType, prompt, imageDataUrl }) => {
+// Ключ должен совпадать между ретраями одной задачи и различаться между разными
+// входами/промптами. variant разделяет попытки внутри одного вызова (strict-json,
+// loose-json, identifier-fallback, close-up scan) — у них разные промпты и payload,
+// а значит это разные задачи, которые прокси не должен схлопнуть в один вызов.
+// Стабильность между ретраями BullMQ сохраняется: fileId стабилен, порядок попыток
+// детерминирован.
+const buildIdempotencyKey = ({
+  fileId,
+  documentType,
+  prompt,
+  imageDataUrl,
+  variant = "",
+}) => {
   const idempVer = process.env.OCR_IDEMPOTENCY_VERSION || "v1";
   const promptHash = createHash("sha256")
     .update(String(prompt || ""))
@@ -1489,7 +1508,8 @@ const buildIdempotencyKey = ({ fileId, documentType, prompt, imageDataUrl }) => 
         .slice(0, 16)
     : "noimg";
   const fileKey = fileId ? `f:${fileId}` : "f:unknown";
-  const raw = `${fileKey}:${documentType || "unknown"}:${promptHash}:i:${imageHash}:${idempVer}`;
+  const variantKey = variant ? `:v:${variant}` : "";
+  const raw = `${fileKey}:${documentType || "unknown"}:${promptHash}:i:${imageHash}${variantKey}:${idempVer}`;
   return createHash("sha256").update(raw).digest("hex");
 };
 
@@ -1498,17 +1518,19 @@ const getOcrConfig = () => {
     .trim()
     .toLowerCase();
   const apiKey = process.env.OCR_API_KEY || process.env.OCR_OPENROUTER_API_KEY;
-  const endpoint =
-    process.env.OCR_OPENROUTER_ENDPOINT || DEFAULT_OPENROUTER_ENDPOINT;
+  const endpoint = String(process.env.OCR_OPENROUTER_ENDPOINT || "").trim();
   const defaultModel =
     process.env.OCR_MODEL ||
     process.env.OCR_OPENROUTER_MODEL ||
-    DEFAULT_OPENROUTER_MODEL;
+    PROXY_MODEL_STUB;
   const fallbackModel =
     process.env.OCR_FALLBACK_MODEL ||
     process.env.OCR_OPENROUTER_FALLBACK_MODEL ||
     "";
-  const timeoutMs = Number(process.env.OCR_REQUEST_TIMEOUT_MS || 60000);
+  const timeoutMs = toPositiveInt(
+    process.env.OCR_REQUEST_TIMEOUT_MS,
+    DEFAULT_REQUEST_TIMEOUT_MS,
+  );
   const referer = process.env.OCR_OPENROUTER_HTTP_REFERER || "";
   const appTitle = process.env.OCR_OPENROUTER_APP_TITLE || "";
 
@@ -1518,6 +1540,12 @@ const getOcrConfig = () => {
 
   if (!apiKey) {
     throw new AppError("На сервере не задан OCR_API_KEY", 500);
+  }
+
+  // Дефолта нет намеренно: раньше при потере переменной сервис молча уходил
+  // напрямую в openrouter.ai с токеном прокси и получал 401 по чужому ключу.
+  if (!endpoint) {
+    throw new AppError("На сервере не задан OCR_OPENROUTER_ENDPOINT", 500);
   }
 
   return {
@@ -1533,14 +1561,17 @@ const getOcrConfig = () => {
 };
 
 const getScanTimeoutMs = (defaultTimeoutMs) => {
-  const override = Number(process.env.OCR_SCAN_REQUEST_TIMEOUT_MS);
-  if (Number.isFinite(override) && override > 0) {
+  const override = toPositiveInt(process.env.OCR_SCAN_REQUEST_TIMEOUT_MS, 0);
+  if (override) {
     return override;
   }
 
-  return Math.max(defaultTimeoutMs, 180000);
+  return Math.max(defaultTimeoutMs, DEFAULT_REQUEST_TIMEOUT_MS);
 };
 
+// Пусто по умолчанию — цепочку моделей подставляет прокси (fallbackModels
+// клиента). Непустой OCR_SCAN_MODELS = осознанный перебор моделей у себя;
+// он требует разрешённого оператором allowedModels и отключает fallback прокси.
 const getScanModels = ({ model, config }) => {
   const explicitModel = String(model || "").trim();
   const configuredModels = String(process.env.OCR_SCAN_MODELS || "")
@@ -1552,7 +1583,6 @@ const getScanModels = ({ model, config }) => {
   const orderedCandidates = [
     explicitModel,
     ...configuredModels,
-    ...DEFAULT_SCAN_MODEL_CHAIN,
     fallbackModel,
   ].filter(Boolean);
 
@@ -1642,6 +1672,44 @@ const buildOpenRouterPayload = ({
   return payload;
 };
 
+const parseRetryAfterMs = (error) => {
+  const raw = error?.response?.headers?.["retry-after"];
+  const seconds = Number(raw);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : null;
+};
+
+const buildBaseHeaders = (config) => {
+  const headers = {
+    Authorization: `Bearer ${config.apiKey}`,
+    "Content-Type": "application/json",
+  };
+
+  if (config.referer) {
+    headers["HTTP-Referer"] = config.referer;
+  }
+  if (config.appTitle) {
+    headers["X-Title"] = config.appTitle;
+  }
+
+  return headers;
+};
+
+// Прокси отвечает стандартным OpenAI JSON, где data.model — фактически
+// отработавшая модель. Когда в запросе ушла заглушка, это единственный способ
+// узнать, что именно выбрал прокси, поэтому в логи и результат идёт она, а не
+// то, что мы просили.
+const resolveResponseModel = (response, requestedModel) =>
+  String(response?.data?.model || "").trim() || requestedModel;
+
+// x-openrouter-request-id (gen-…) — по нему вызов ищется в биллинге OpenRouter.
+const extractProxyIds = (response) => ({
+  proxyRequestId: response?.headers?.["x-proxy-request-id"] || null,
+  openrouterRequestId: response?.headers?.["x-openrouter-request-id"] || null,
+});
+
+// Ошибки, сгенерированные самим прокси, приходят как {error:{code,message}}.
+// Настоящие ошибки OpenRouter прокси пробрасывает КАК ЕСТЬ, без этой обёртки,
+// поэтому proxyErrorCode — уточнение, а решения принимаем по HTTP-статусу.
 const buildProviderErrorMeta = (error) => {
   const upstreamStatus = Number(error?.response?.status) || null;
   const upstreamData = error?.response?.data || null;
@@ -1650,24 +1718,35 @@ const buildProviderErrorMeta = (error) => {
     upstreamData?.message ||
     error?.message ||
     "Неизвестная ошибка OCR-провайдера";
-  const errorCode = String(error?.code || "").trim().toUpperCase();
+  // error.code у axios — транспортный код (ECONNABORTED и т.п.), а не код прокси.
+  const transportErrorCode = String(error?.code || "").trim().toUpperCase();
+  const proxyErrorCode = String(upstreamData?.error?.code || "").trim();
+  const allowedModels = Array.isArray(upstreamData?.error?.allowed)
+    ? upstreamData.error.allowed
+    : null;
 
   return {
     upstreamStatus,
     upstreamData,
     providerMessage,
-    errorCode,
+    transportErrorCode,
+    proxyErrorCode,
+    allowedModels,
+    retryAfterMs: parseRetryAfterMs(error),
+    proxyRequestId: error?.response?.headers?.["x-proxy-request-id"] || null,
+    openrouterRequestId:
+      error?.response?.headers?.["x-openrouter-request-id"] || null,
   };
 };
 
 const isTransientProviderFailure = ({
   upstreamStatus,
-  errorCode,
+  transportErrorCode,
 }) => {
   if (
-    errorCode === "ECONNABORTED" ||
-    errorCode === "ETIMEDOUT" ||
-    errorCode === "ECONNRESET"
+    transportErrorCode === "ECONNABORTED" ||
+    transportErrorCode === "ETIMEDOUT" ||
+    transportErrorCode === "ECONNRESET"
   ) {
     return true;
   }
@@ -1681,6 +1760,12 @@ const isTransientProviderFailure = ({
   );
 };
 
+// Очередь прокси общая и от модели не зависит: перебирать на queue_full
+// остальные попытки бессмысленно — это лишние запросы в переполненную очередь.
+// Отдаём ошибку наверх, ретраем занимается внешний слой (BullMQ backoff).
+const isProxyBackpressure = (proxyErrorCode) =>
+  proxyErrorCode === "queue_full" || proxyErrorCode === "dedup_full";
+
 const postOpenRouterPayload = async ({
   config,
   payload,
@@ -1693,18 +1778,33 @@ const postOpenRouterPayload = async ({
       timeout: config.timeoutMs,
     });
   } catch (error) {
-    const { upstreamStatus, providerMessage, errorCode } =
-      buildProviderErrorMeta(error);
+    const meta = buildProviderErrorMeta(error);
+    const {
+      upstreamStatus,
+      providerMessage,
+      transportErrorCode,
+      proxyErrorCode,
+      allowedModels,
+    } = meta;
     const transient = isTransientProviderFailure({
       upstreamStatus,
-      errorCode,
+      transportErrorCode,
     });
 
     let message = `Ошибка ${errorLabel} провайдера`;
     if (upstreamStatus) {
       message += ` (${upstreamStatus})`;
     }
+    if (proxyErrorCode) {
+      message += ` [${proxyErrorCode}]`;
+    }
     message += `: ${providerMessage}`;
+    // Конфиг, а не сбой: без списка allowed эту ошибку невозможно чинить по логам.
+    if (proxyErrorCode === "model_not_allowed") {
+      message += `. Модель ${payload?.model} запрещена прокси, разрешены: ${
+        allowedModels?.join(", ") || "(список не передан)"
+      }. Уберите OCR_MODEL или задайте модель из списка.`;
+    }
 
     const appError = new AppError(
       message,
@@ -1712,8 +1812,14 @@ const postOpenRouterPayload = async ({
     );
     appError.upstreamStatus = upstreamStatus;
     appError.providerMessage = providerMessage;
-    appError.providerErrorCode = errorCode || null;
+    appError.providerErrorCode = proxyErrorCode || transportErrorCode || null;
+    appError.proxyErrorCode = proxyErrorCode || null;
+    appError.allowedModels = allowedModels;
+    appError.retryAfterMs = meta.retryAfterMs;
+    appError.proxyRequestId = meta.proxyRequestId;
+    appError.openrouterRequestId = meta.openrouterRequestId;
     appError.isTransientProviderFailure = transient;
+    appError.isProxyBackpressure = isProxyBackpressure(proxyErrorCode);
     throw appError;
   }
 };
@@ -1836,23 +1942,7 @@ export const recognizeDocument = async ({
     prompt,
   );
 
-  const headers = {
-    Authorization: `Bearer ${config.apiKey}`,
-    "Content-Type": "application/json",
-    "X-Idempotency-Key": buildIdempotencyKey({
-      fileId,
-      documentType: normalizedDocumentType,
-      prompt: selectedPrompt,
-      imageDataUrl,
-    }),
-  };
-
-  if (config.referer) {
-    headers["HTTP-Referer"] = config.referer;
-  }
-  if (config.appTitle) {
-    headers["X-Title"] = config.appTitle;
-  }
+  const baseHeaders = buildBaseHeaders(config);
 
   const attempts = [
     {
@@ -1894,7 +1984,16 @@ export const recognizeDocument = async ({
       response = await postOpenRouterPayload({
         config,
         payload,
-        headers,
+        headers: {
+          ...baseHeaders,
+          "X-Idempotency-Key": buildIdempotencyKey({
+            fileId,
+            documentType: normalizedDocumentType,
+            prompt: selectedPrompt,
+            imageDataUrl,
+            variant: attempt.label,
+          }),
+        },
         errorLabel: "OCR",
       });
     } catch (error) {
@@ -1906,9 +2005,18 @@ export const recognizeDocument = async ({
         message: error?.message || "Ошибка OCR провайдера",
         upstreamStatus: error?.upstreamStatus || null,
         providerErrorCode: error?.providerErrorCode || null,
+        allowedModels: error?.allowedModels || null,
+        retryAfterMs: error?.retryAfterMs || null,
+        proxyRequestId: error?.proxyRequestId || null,
+        openrouterRequestId: error?.openrouterRequestId || null,
         isTransientProviderFailure: Boolean(error?.isTransientProviderFailure),
       };
       console.warn("[ocr] provider request failed", lastProviderError);
+
+      // Очередь прокси не зависит от модели — остальные попытки только добьют её.
+      if (error?.isProxyBackpressure) {
+        throw error;
+      }
 
       if (error?.isTransientProviderFailure) {
         continue;
@@ -1917,15 +2025,20 @@ export const recognizeDocument = async ({
       throw error;
     }
 
+    const effectiveModel = resolveResponseModel(response, attempt.model);
+    const proxyIds = extractProxyIds(response);
+
     const content = extractResponseContent(response.data);
     if (!String(content || "").trim()) {
       lastEmptyResponseMeta = {
         documentType: normalizedDocumentType,
-        model: attempt.model,
+        model: effectiveModel,
+        requestedModel: attempt.model,
         attempt: attempt.label,
         provider: config.provider,
         finishReason: response?.data?.choices?.[0]?.finish_reason || null,
         usage: response?.data?.usage || null,
+        ...proxyIds,
       };
       console.warn("[ocr] empty provider response", lastEmptyResponseMeta);
       continue;
@@ -1954,7 +2067,16 @@ export const recognizeDocument = async ({
           const fallbackResponse = await postOpenRouterPayload({
             config,
             payload: fallbackPayload,
-            headers,
+            headers: {
+              ...baseHeaders,
+              "X-Idempotency-Key": buildIdempotencyKey({
+                fileId,
+                documentType: normalizedDocumentType,
+                prompt: fallbackPrompt,
+                imageDataUrl,
+                variant: `identifier-fallback:${attempt.label}`,
+              }),
+            },
             errorLabel: "OCR fallback",
           });
 
@@ -1973,8 +2095,10 @@ export const recognizeDocument = async ({
         } catch (error) {
           console.warn("[ocr] identifier fallback failed", {
             documentType: normalizedDocumentType,
-            model: attempt.model,
+            model: effectiveModel,
             message: error?.message || "unknown fallback error",
+            providerErrorCode: error?.providerErrorCode || null,
+            proxyRequestId: error?.proxyRequestId || null,
           });
         }
       }
@@ -1983,10 +2107,12 @@ export const recognizeDocument = async ({
     if (!hasMeaningfulNormalizedData(normalized)) {
       lastNoDataMeta = {
         documentType: normalizedDocumentType,
-        model: attempt.model,
+        model: effectiveModel,
+        requestedModel: attempt.model,
         attempt: attempt.label,
         provider: config.provider,
         rawContentPreview: String(content).slice(0, 500),
+        ...proxyIds,
       };
       console.warn("[ocr] no structured fields extracted", lastNoDataMeta);
       continue;
@@ -1999,8 +2125,9 @@ export const recognizeDocument = async ({
     if (!passesQualityGate(normalizedDocumentType, normalized)) {
       console.warn("[ocr] quality gate failed", {
         documentType: normalizedDocumentType,
-        model: attempt.model,
+        model: effectiveModel,
         attempt: attempt.label,
+        ...proxyIds,
       });
       // Сохраняем последний кандидат — если все attempts провалят gate,
       // вернём его с флагом qualityGate: "failed" (для диагностики +
@@ -2008,7 +2135,7 @@ export const recognizeDocument = async ({
       lastGateFailedResult = {
         documentType: normalizedDocumentType,
         provider: config.provider,
-        model: attempt.model,
+        model: effectiveModel,
         normalized,
         qualityGate: "failed",
         raw: {
@@ -2020,10 +2147,18 @@ export const recognizeDocument = async ({
       continue;
     }
 
+    console.info("[ocr] recognized", {
+      documentType: normalizedDocumentType,
+      model: effectiveModel,
+      attempt: attempt.label,
+      usage: response?.data?.usage || null,
+      ...proxyIds,
+    });
+
     return {
       documentType: normalizedDocumentType,
       provider: config.provider,
-      model: attempt.model,
+      model: effectiveModel,
       normalized,
       raw: {
         content,
@@ -2107,25 +2242,10 @@ export const detectDocumentScan = async ({
     });
   }
 
-  const headers = {
-    Authorization: `Bearer ${config.apiKey}`,
-    "Content-Type": "application/json",
-    "X-Idempotency-Key": buildIdempotencyKey({
-      fileId,
-      documentType: normalizedDocumentType,
-      prompt: baseScanPrompt,
-      imageDataUrl,
-    }),
-  };
-
-  if (config.referer) {
-    headers["HTTP-Referer"] = config.referer;
-  }
-  if (config.appTitle) {
-    headers["X-Title"] = config.appTitle;
-  }
+  const baseHeaders = buildBaseHeaders(config);
 
   let lastResult = null;
+  let lastProviderError = null;
 
   for (const attempt of attempts) {
     const payload = buildOpenRouterPayload({
@@ -2138,12 +2258,44 @@ export const detectDocumentScan = async ({
       enforceJson: attempt.enforceJson,
     });
 
-    const response = await postOpenRouterPayload({
-      config: { ...config, timeoutMs: scanTimeoutMs },
-      payload,
-      headers,
-      errorLabel: "AI scan",
-    });
+    // Без try/catch первая же 503/504 роняла весь scan, не перебирая остальные
+    // попытки. Внешнего ретрая здесь нет — вызов интерактивный, не через BullMQ.
+    let response;
+    try {
+      response = await postOpenRouterPayload({
+        config: { ...config, timeoutMs: scanTimeoutMs },
+        payload,
+        headers: {
+          ...baseHeaders,
+          "X-Idempotency-Key": buildIdempotencyKey({
+            fileId,
+            documentType: normalizedDocumentType,
+            prompt: attempt.prompt,
+            imageDataUrl,
+            variant: `scan:${attempt.label}`,
+          }),
+        },
+        errorLabel: "AI scan",
+      });
+    } catch (error) {
+      lastProviderError = error;
+      console.warn("[ocr] scan request failed", {
+        documentType: normalizedDocumentType,
+        model: attempt.model,
+        attempt: attempt.label,
+        message: error?.message || "Ошибка AI scan провайдера",
+        upstreamStatus: error?.upstreamStatus || null,
+        providerErrorCode: error?.providerErrorCode || null,
+        retryAfterMs: error?.retryAfterMs || null,
+        proxyRequestId: error?.proxyRequestId || null,
+      });
+
+      if (error?.isProxyBackpressure || !error?.isTransientProviderFailure) {
+        throw error;
+      }
+
+      continue;
+    }
 
     const content = extractResponseContent(response.data);
     const parsedJson = parseStructuredJson(content) || {};
@@ -2151,7 +2303,7 @@ export const detectDocumentScan = async ({
 
     lastResult = {
       provider: config.provider,
-      model: attempt.model,
+      model: resolveResponseModel(response, attempt.model),
       normalized,
       raw: {
         content,
@@ -2163,6 +2315,12 @@ export const detectDocumentScan = async ({
     if (normalized.detected && normalized.corners.length === 4) {
       return lastResult;
     }
+  }
+
+  // Все попытки упали на transient-ошибках: не выдаём «документ не найден»
+  // за сбой провайдера — вызывающий код должен увидеть 503 и дать ретрай.
+  if (!lastResult && lastProviderError) {
+    throw lastProviderError;
   }
 
   return (
