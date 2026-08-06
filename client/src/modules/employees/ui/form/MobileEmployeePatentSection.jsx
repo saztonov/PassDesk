@@ -22,12 +22,15 @@ export const buildMobileEmployeePatentSection = ({
   onDocumentUploadComplete,
   profileCode,
   profilesConfig,
+  hasResidencePermit,
 }) => {
   if (!requiresPatent) {
     return null;
   }
 
-  const uploads = getUploadsForDocumentProfile(profileCode, profilesConfig);
+  const uploads = getUploadsForDocumentProfile(profileCode, profilesConfig, {
+    hasResidencePermit,
+  });
   const uploadsByType = new Map(
     uploads.map((upload) => [upload.documentType, upload]),
   );

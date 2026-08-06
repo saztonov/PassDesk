@@ -27,6 +27,7 @@ const FIELD_LABELS = {
   email: "Email",
   firstName: "Имя",
   gender: "Пол",
+  hasResidencePermit: "ВНЖ",
   insurancePolicyDate: "Дата полиса",
   insurancePolicyNumber: "Полис",
   inn: "ИНН",

@@ -31,6 +31,7 @@ export const useEmployeeFormModalTabs = ({
   handleFullNameChange,
   handleInnBlur,
   requiresPatent,
+  hasResidencePermit = false,
   checkingCitizenship,
   passportType,
   setPassportType,
@@ -144,6 +145,7 @@ export const useEmployeeFormModalTabs = ({
             onUploadComplete={onDocumentUploaded}
             ensureEmployeeId={ensureEmployeeId}
             documentProfilesConfig={documentProfilesConfig}
+            hasResidencePermit={hasResidencePermit}
           />
         ),
       });
@@ -199,6 +201,7 @@ export const useEmployeeFormModalTabs = ({
     passportType,
     positions,
     requiresPatent,
+    hasResidencePermit,
     setPassportType,
     setTransferModalVisible,
     tabsValidation,

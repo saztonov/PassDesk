@@ -1,10 +1,8 @@
 import { useCallback, useMemo } from "react";
 import { EMPLOYEE_FIELDS } from "../../shared/config/employeeFields";
+import { doesEmployeeRequirePatent } from "@/modules/employees/lib/patentRequirement";
 
 const ALL_FIELD_KEYS = EMPLOYEE_FIELDS.map((f) => f.key);
-
-const doesCitizenshipRequirePatent = (citizenship) =>
-  citizenship?.requiresPatent !== false && citizenship?.isEaeu !== true;
 
 const getRequiredFieldsByTab = (
   getFieldProps,
@@ -47,8 +45,12 @@ const useEmployeeTabsValidation = ({
   getFieldProps,
   passportType,
   selectedCitizenship,
+  hasResidencePermit,
 }) => {
-  const requiresPatent = doesCitizenshipRequirePatent(selectedCitizenship);
+  const requiresPatent = doesEmployeeRequirePatent({
+    citizenship: selectedCitizenship,
+    hasResidencePermit,
+  });
 
   const requiredFieldsByTab = useMemo(
     () => getRequiredFieldsByTab(getFieldProps, requiresPatent, passportType),
@@ -61,8 +63,10 @@ const useEmployeeTabsValidation = ({
       const validation = {};
 
       const currentCitizenship = citizenshipOverride || selectedCitizenship;
-      const currentRequiresPatent =
-        doesCitizenshipRequirePatent(currentCitizenship);
+      const currentRequiresPatent = doesEmployeeRequirePatent({
+        citizenship: currentCitizenship,
+        hasResidencePermit: values.hasResidencePermit ?? hasResidencePermit,
+      });
       const currentPassportType = values.passportType || passportType;
 
       const currentRequiredFieldsByTab = getRequiredFieldsByTab(
@@ -91,7 +95,7 @@ const useEmployeeTabsValidation = ({
 
       return validation;
     },
-    [form, getFieldProps, passportType, selectedCitizenship],
+    [form, getFieldProps, passportType, selectedCitizenship, hasResidencePermit],
   );
 
   return { requiredFieldsByTab, computeValidation, requiresPatent };

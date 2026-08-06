@@ -18,6 +18,7 @@ const EmployeeFilesTab = ({
   ocrProcessingMap,
   ensureEmployeeId,
   documentProfilesConfig,
+  hasResidencePermit = false,
   viewerMode,
   columnsCount,
   showInfoBanner,
@@ -64,6 +65,7 @@ const EmployeeFilesTab = ({
       ocrProcessingMap={ocrProcessingMap}
       profileCode={profileCode}
       profilesConfig={documentProfilesConfig}
+      hasResidencePermit={hasResidencePermit}
       viewerMode={viewerMode}
       columnsCount={columnsCount}
       showInfoBanner={showInfoBanner}

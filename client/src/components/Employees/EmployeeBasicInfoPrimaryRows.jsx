@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
-import { Col, Form, Input, Row, Select } from "antd";
+import { Checkbox, Col, Form, Input, Row, Select } from "antd";
+import { doesCitizenshipRequirePatent } from "@/modules/employees/lib/patentRequirement";
 import {
   formatPhoneNumber,
   formatPassportDepartmentCode,
@@ -43,6 +44,15 @@ const EmployeeBasicInfoPrimaryRows = ({
   const firstNameProps = getFieldProps("firstName");
   const middleNameProps = getFieldProps("middleName");
   const positionProps = getFieldProps("positionId");
+
+  // ВНЖ имеет смысл только для гражданств, которым иначе нужен патент
+  const watchedCitizenshipId = Form.useWatch("citizenshipId", form);
+  const showResidencePermit =
+    !getFieldProps("hasResidencePermit").hidden &&
+    Boolean(watchedCitizenshipId) &&
+    doesCitizenshipRequirePatent(
+      citizenships.find((item) => item.id === watchedCitizenshipId),
+    );
 
   return (
     <>
@@ -188,6 +198,18 @@ const EmployeeBasicInfoPrimaryRows = ({
                   </Option>
                 ))}
               </Select>
+            </Form.Item>
+          </Col>
+        )}
+        {showResidencePermit && (
+          <Col {...getQuarterColProps(compactLayout)}>
+            <Form.Item
+              name="hasResidencePermit"
+              label=" "
+              colon={false}
+              valuePropName="checked"
+            >
+              <Checkbox>ВНЖ (патент не требуется)</Checkbox>
             </Form.Item>
           </Col>
         )}

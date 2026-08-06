@@ -12,7 +12,7 @@ import {
 import { Op } from "sequelize";
 import {
   buildLastNameHash,
-  doesCitizenshipRequirePatent,
+  doesEmployeeRequirePatent,
   formatCitizenshipDisplayName,
   inferCitizenshipRequiresPatent,
   normalizeCitizenshipLookupValue,
@@ -499,7 +499,10 @@ export const validateEmployeeForImport = async (employeeData, _rowIndex) => {
     if (!citizenship) {
       errors.push(`Гражданство "${employeeData.citizenship}" не найдено`);
     } else if (
-      doesCitizenshipRequirePatent(citizenship) &&
+      doesEmployeeRequirePatent({
+        citizenship,
+        hasResidencePermit: employeeData.hasResidencePermit,
+      }) &&
       !shouldSkipPatentValidation(employeeData)
     ) {
       // Проверяем КИГ если требуется патент
@@ -687,7 +690,10 @@ export const validateEmployeeForImportOptimized = async (
     if (!citizenship) {
       errors.push(`Гражданство "${employeeData.citizenship}" не найдено`);
     } else if (
-      doesCitizenshipRequirePatent(citizenship) &&
+      doesEmployeeRequirePatent({
+        citizenship,
+        hasResidencePermit: employeeData.hasResidencePermit,
+      }) &&
       !shouldSkipPatentValidation(employeeData)
     ) {
       // Проверяем КИГ если требуется патент

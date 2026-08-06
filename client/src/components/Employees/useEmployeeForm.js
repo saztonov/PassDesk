@@ -30,14 +30,15 @@ import {
   normalizeDigitsOnly,
   stripStatusFlags,
 } from "./employeeFormModelUtils";
+import {
+  doesCitizenshipRequirePatent,
+  doesEmployeeRequirePatent,
+} from "@/modules/employees/lib/patentRequirement";
 
 const TEMP_HIDDEN_FIELDS = new Set([
   "gender",
   "email",
 ]);
-
-const doesCitizenshipRequirePatent = (citizenship) =>
-  citizenship?.requiresPatent !== false && citizenship?.isEaeu !== true;
 
 /**
  * Хук для управления формой сотрудника
@@ -48,6 +49,7 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
   const { message } = App.useApp();
   const [form] = Form.useForm();
   const watchedCitizenshipId = Form.useWatch("citizenshipId", form);
+  const watchedHasResidencePermit = Form.useWatch("hasResidencePermit", form);
   const { user } = useAuthStore();
 
   // Получаем справочники из глобального кэша
@@ -75,8 +77,15 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
   const canSelectCounterparty =
     user?.role === "admin" || user?.role === "manager";
 
-  // Определяем, требуется ли патент для выбранного гражданства
-  const requiresPatent = doesCitizenshipRequirePatent(selectedCitizenship);
+  // Определяем, требуется ли патент: по гражданству и с учётом ВНЖ
+  const requiresPatent = doesEmployeeRequirePatent({
+    citizenship: selectedCitizenship,
+    hasResidencePermit: watchedHasResidencePermit,
+  });
+  // Чекбокс ВНЖ показываем только там, где гражданство иначе требует патент
+  const showResidencePermitField =
+    Boolean(watchedCitizenshipId) &&
+    doesCitizenshipRequirePatent(selectedCitizenship);
 
   // Определяем активный конфиг
   useEffect(() => {
@@ -268,7 +277,12 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
     if (citizenshipId && !form.getFieldValue("birthCountryId")) {
       form.setFieldValue("birthCountryId", citizenshipId);
     }
-  }, [checkCitizenship, form]);
+    // Для РФ/ЕАЭС чекбокс ВНЖ скрыт — не оставляем висеть проставленный флаг
+    const nextCitizenship = citizenships.find((c) => c.id === citizenshipId);
+    if (!doesCitizenshipRequirePatent(nextCitizenship)) {
+      form.setFieldValue("hasResidencePermit", false);
+    }
+  }, [checkCitizenship, citizenships, form]);
 
   // Сохранение формы
   const handleSave = async ({ draftEmployeeId = null } = {}) => {
@@ -367,6 +381,8 @@ export const useEmployeeForm = (employee, visible, onSuccess) => {
     positions,
     selectedCitizenship,
     requiresPatent,
+    hasResidencePermit: watchedHasResidencePermit === true,
+    showResidencePermitField,
     defaultCounterpartyId,
     documentProfilesConfig,
     user,

@@ -1,4 +1,4 @@
-import { Form, Input, Radio, Select, Typography } from "antd";
+import { Checkbox, Form, Input, Radio, Select, Typography } from "antd";
 import BirthPlaceModal from "@/components/Employees/BirthPlaceModal";
 import dayjs from "dayjs";
 import MaskedDateInput from "@/shared/ui/MaskedDateInput";
@@ -93,8 +93,12 @@ export const buildMobileEmployeePersonalSection = ({
   onDocumentUploadComplete,
   profileCode,
   profilesConfig,
+  hasResidencePermit,
+  showResidencePermitField,
 }) => {
-  const uploads = getUploadsForDocumentProfile(profileCode, profilesConfig);
+  const uploads = getUploadsForDocumentProfile(profileCode, profilesConfig, {
+    hasResidencePermit,
+  });
   const registrationAddressProps = getFieldProps("registrationAddress");
   const phoneProps = getFieldProps("phone");
   const uploadsByType = new Map(
@@ -242,6 +246,12 @@ export const buildMobileEmployeePersonalSection = ({
               </Option>
             ))}
           </Select>
+        </Form.Item>
+      )}
+
+      {showResidencePermitField && !getFieldProps("hasResidencePermit").hidden && (
+        <Form.Item name="hasResidencePermit" valuePropName="checked">
+          <Checkbox>ВНЖ (патент не требуется)</Checkbox>
         </Form.Item>
       )}
 

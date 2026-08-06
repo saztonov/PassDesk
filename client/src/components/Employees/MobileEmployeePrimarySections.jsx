@@ -26,6 +26,8 @@ export const buildMobilePrimarySections = ({
   handleCitizenshipChange,
   formatPhoneNumber,
   onDocumentUploaded,
+  hasResidencePermit,
+  showResidencePermitField,
 }) => {
   const sections = [];
 
@@ -63,6 +65,8 @@ export const buildMobilePrimarySections = ({
       onDocumentUploadComplete: onDocumentUploaded,
       profileCode: documentProfileCode,
       profilesConfig: documentProfilesConfig,
+      hasResidencePermit,
+      showResidencePermitField,
     }),
   );
 

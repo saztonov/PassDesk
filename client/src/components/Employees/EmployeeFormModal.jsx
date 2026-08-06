@@ -47,6 +47,7 @@ import { useEmployeeFormInputHandlers } from "@/modules/employees/model/useEmplo
 import { useEmployeeFormTabFlow } from "@/modules/employees/model/useEmployeeFormTabFlow";
 import { useEmployeeOcrHandlers } from "@/modules/employees/model/useEmployeeOcrHandlers";
 import { formatEmployeeFormPayload } from "@/modules/employees/lib/employeeFormPayload";
+import { doesCitizenshipRequirePatent } from "@/modules/employees/lib/patentRequirement";
 import OcrConflictSummaryNotice from "@/modules/employees/ui/OcrConflictSummaryNotice";
 import EmployeeAuditInfoTooltip from "@/modules/employees/ui/EmployeeAuditInfoTooltip";
 import EmployeeFilesTab from "./EmployeeFilesTab.jsx";
@@ -82,6 +83,7 @@ const EmployeeFormModal = ({
   const [form] = Form.useForm();
   const watchedCitizenshipId = Form.useWatch("citizenshipId", form);
   const watchedCounterpartyId = Form.useWatch("counterpartyId", form);
+  const watchedHasResidencePermit = Form.useWatch("hasResidencePermit", form);
   const antiAutofillIds = useMemo(() => createAntiAutofillIds(), []);
   const [citizenships, setCitizenships] = useState([]);
   const [positions, setPositions] = useState([]);
@@ -241,6 +243,7 @@ const EmployeeFormModal = ({
       getFieldProps,
       passportType,
       selectedCitizenship,
+      hasResidencePermit: watchedHasResidencePermit,
     });
   const computeValidationRef = useRef(computeValidation);
 
@@ -358,9 +361,14 @@ const EmployeeFormModal = ({
       if (citizenshipId && !form.getFieldValue("birthCountryId")) {
         form.setFieldValue("birthCountryId", citizenshipId);
       }
+      // Для РФ/ЕАЭС чекбокс ВНЖ скрыт — не оставляем висеть проставленный флаг
+      const nextCitizenship = citizenships.find((c) => c.id === citizenshipId);
+      if (!doesCitizenshipRequirePatent(nextCitizenship)) {
+        form.setFieldValue("hasResidencePermit", false);
+      }
       // Валидация запустится автоматически через handleFieldsChange
     },
-    [form, updateSelectedCitizenship],
+    [citizenships, form, updateSelectedCitizenship],
   );
 
   const { allTabsValid, handleNext } = useEmployeeFormTabFlow({
@@ -568,6 +576,7 @@ const EmployeeFormModal = ({
     handleFullNameChange,
     handleInnBlur,
     requiresPatent,
+    hasResidencePermit: watchedHasResidencePermit === true,
     checkingCitizenship,
     passportType,
     setPassportType,
@@ -918,6 +927,7 @@ const EmployeeFormModal = ({
                   ocrProcessingMap={ocrProcessingMap}
                   ensureEmployeeId={ensureEmployeeId}
                   documentProfilesConfig={settings?.employeeDocumentProfiles || null}
+                  hasResidencePermit={watchedHasResidencePermit === true}
                   viewerMode="inline"
                   columnsCount={1}
                   showInfoBanner={false}

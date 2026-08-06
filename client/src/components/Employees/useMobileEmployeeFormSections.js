@@ -38,6 +38,8 @@ export const useMobileEmployeeFormSections = ({
   loadingCounterparties,
   availableCounterparties,
   onDocumentUploaded,
+  hasResidencePermit,
+  showResidencePermitField,
 }) => {
   return useMemo(() => {
     const canSelectCounterparty =
@@ -69,6 +71,8 @@ export const useMobileEmployeeFormSections = ({
         handleCitizenshipChange,
         formatPhoneNumber,
         onDocumentUploaded,
+        hasResidencePermit,
+        showResidencePermitField,
       }),
     ];
 
@@ -93,6 +97,7 @@ export const useMobileEmployeeFormSections = ({
         availableCounterparties,
         onDocumentUploaded,
         canSelectCounterparty,
+        hasResidencePermit,
       }),
     );
 
@@ -132,6 +137,8 @@ export const useMobileEmployeeFormSections = ({
     loadingReferences,
     noAutoFillProps,
     requiresPatent,
+    hasResidencePermit,
+    showResidencePermitField,
     user,
   ]);
 };

@@ -17,6 +17,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useReferencesStore } from "@/store/referencesStore";
 import EmployeeChangeHistoryTab from "@/modules/employees/ui/EmployeeChangeHistoryTab";
 import { useEmployeeFormFieldConfig } from "./useEmployeeFormFieldConfig";
+import { doesEmployeeRequirePatent } from "@/modules/employees/lib/patentRequirement";
 import EmployeeFilesTab from "./EmployeeFilesTab.jsx";
 import {
   formatPhone,
@@ -29,9 +30,6 @@ import {
 const DATE_FORMAT = "DD.MM.YYYY";
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
-
-const doesCitizenshipRequirePatent = (citizenship) =>
-  citizenship?.requiresPatent !== false && citizenship?.isEaeu !== true;
 
 const formatDateValue = (value) =>
   value ? dayjs(value).format(DATE_FORMAT) : "-";
@@ -140,7 +138,7 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
 
   if (!employee) return null;
 
-  const requiresPatent = doesCitizenshipRequirePatent(employee.citizenship);
+  const requiresPatent = doesEmployeeRequirePatent(employee);
   const showSideBySideHistory = Boolean(employee?.id && screens.xl);
   const primaryDescriptionsColumns = showSideBySideHistory ? 2 : 3;
   const primaryFullSpan = showSideBySideHistory ? 2 : 3;
@@ -190,6 +188,11 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
         {!getFieldProps("citizenshipId").hidden && (
           <Descriptions.Item label="Гражданство" span={1}>
             {employee.citizenship?.name || "-"}
+          </Descriptions.Item>
+        )}
+        {employee.hasResidencePermit === true && (
+          <Descriptions.Item label="ВНЖ" span={1}>
+            Есть (патент не требуется)
           </Descriptions.Item>
         )}
         {!getFieldProps("birthDate").hidden && (
@@ -404,6 +407,7 @@ const EmployeeViewModal = ({ visible, employee, onCancel, onEdit }) => {
           selectedCitizenship={employee.citizenship || null}
           userCounterpartyId={user?.counterpartyId || null}
           documentProfilesConfig={settings?.employeeDocumentProfiles || null}
+          hasResidencePermit={employee.hasResidencePermit === true}
           readonly
           columnsCount={2}
           showInfoBanner={false}

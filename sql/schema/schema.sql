@@ -1112,6 +1112,7 @@ CREATE TABLE public.employees (
     bank_bik character varying(9),
     passport_department_code character varying(7),
     planned_exit_date date,
+    has_residence_permit boolean DEFAULT false NOT NULL,
     CONSTRAINT check_gender_values CHECK (((gender)::text = ANY (ARRAY[('male'::character varying)::text, ('female'::character varying)::text])))
 );
 
@@ -1352,6 +1353,13 @@ COMMENT ON COLUMN public.employees.passport_department_code IS 'Код подр�
 --
 
 COMMENT ON COLUMN public.employees.planned_exit_date IS 'Планируемая дата выхода сотрудника';
+
+
+--
+-- Name: COLUMN employees.has_residence_permit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.employees.has_residence_permit IS 'Есть вид на жительство (ВНЖ) — патент не требуется';
 
 
 --

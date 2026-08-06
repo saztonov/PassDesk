@@ -69,6 +69,7 @@ const createEmployeeValidation = [
   body("bankAccountNumber").optional().trim(),
   body("bankBik").optional().trim(),
   body("plannedExitDate").optional().trim(),
+  body("hasResidencePermit").optional().isBoolean().toBoolean(),
 ];
 
 // Для обновления черновика - мягкая валидация
@@ -93,6 +94,7 @@ const updateEmployeeDraftValidation = [
   body("blankNumber").optional().trim(),
   body("plannedExitDate").optional().trim(),
   body("notes").optional().trim(),
+  body("hasResidencePermit").optional().isBoolean().toBoolean(),
 ];
 
 // Для полного сохранения - строгая валидация
@@ -106,6 +108,7 @@ const updateEmployeeValidation = [
   body("bankAccountNumber").optional().trim(),
   body("bankBik").optional().trim(),
   body("plannedExitDate").optional().trim(),
+  body("hasResidencePermit").optional().isBoolean().toBoolean(),
 ];
 
 // Более мягкая валидация для профиля пользователя
@@ -129,6 +132,7 @@ const updateMyProfileValidation = [
   body("blankNumber").optional().trim(),
   body("plannedExitDate").optional().trim(),
   body("notes").optional().trim(),
+  body("hasResidencePermit").optional().isBoolean().toBoolean(),
 ];
 
 const idParamValidation = [

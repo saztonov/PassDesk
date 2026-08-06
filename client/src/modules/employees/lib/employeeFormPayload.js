@@ -17,7 +17,11 @@ const DATE_FIELDS = new Set([
 ]);
 
 const UUID_FIELDS = new Set(["positionId", "citizenshipId", "birthCountryId"]);
-const BOOLEAN_FIELDS = new Set(["isFired", "isInactive"]);
+const BOOLEAN_FIELDS = new Set([
+  "isFired",
+  "isInactive",
+  "hasResidencePermit",
+]);
 
 export const formatEmployeeFormPayload = (
   values = {},

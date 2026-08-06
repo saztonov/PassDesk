@@ -35,8 +35,11 @@ export const buildMobileEmployeeDocumentsSection = ({
   profileCode,
   profilesConfig,
   patentFields,
+  hasResidencePermit,
 }) => {
-  const uploads = getUploadsForDocumentProfile(profileCode, profilesConfig);
+  const uploads = getUploadsForDocumentProfile(profileCode, profilesConfig, {
+    hasResidencePermit,
+  });
   const { documentUploads, consentUploads, postConsentUploads } = splitUploadsByConsent(uploads);
   const uploadsByType = new Map(
     uploads.map((upload) => [upload.documentType, upload]),

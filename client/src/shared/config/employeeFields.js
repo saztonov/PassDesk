@@ -10,6 +10,7 @@ export const EMPLOYEE_FIELDS = [
   { key: 'middleName', label: 'Отчество', group: 'personal', defaultRequired: false, defaultVisible: true },
   { key: 'positionId', label: 'Должность', group: 'personal', defaultRequired: false, defaultVisible: true },
   { key: 'citizenshipId', label: 'Гражданство', group: 'personal', defaultRequired: true, defaultVisible: true },
+  { key: 'hasResidencePermit', label: 'ВНЖ (вид на жительство)', group: 'personal', defaultRequired: false, defaultVisible: true },
   { key: 'birthDate', label: 'Дата рождения', group: 'personal', defaultRequired: true, defaultVisible: true },
   { key: 'birthCountryId', label: 'Страна рождения', group: 'personal', defaultRequired: false, defaultVisible: true },
   { key: 'birthRegion', label: 'Область рождения', group: 'personal', defaultRequired: false, defaultVisible: true },

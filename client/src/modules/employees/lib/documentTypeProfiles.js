@@ -1,4 +1,5 @@
 import { resolvePreferredEmployeeCounterpartyMapping } from "@/modules/employees/lib/employeeCounterpartyMapping";
+import { RESIDENCE_PERMIT_EXCLUDED_DOCUMENT_CODES } from "@/modules/employees/lib/patentRequirement";
 
 const PROFILE_CODES = {
   EXTERNAL: "external",
@@ -348,20 +349,33 @@ export const normalizeDocumentProfilesConfig = ({
   }, {});
 };
 
+// Сотруднику с ВНЖ патент и КИГ не нужны — убираем их сканы из профиля.
+// Фильтр обязан идти последним: ensureRequiredByProfile принудительно
+// возвращает "kig" в профиль мигрантов и затёр бы более ранний отбор.
+const excludeResidencePermitCodes = (codes = [], hasResidencePermit = false) => {
+  if (!hasResidencePermit) {
+    return codes;
+  }
+  const excluded = new Set(RESIDENCE_PERMIT_EXCLUDED_DOCUMENT_CODES);
+  return codes.filter((code) => !excluded.has(code));
+};
+
 export const getDocumentTypeCodesForProfile = (
   profileCode,
   profilesConfig = null,
   availableDocumentTypeCodes = null,
+  { hasResidencePermit = false } = {},
 ) => {
   const profiles = normalizeDocumentProfilesConfig({
     profilesConfig,
     availableDocumentTypeCodes,
   });
 
-  return (
+  return excludeResidencePermitCodes(
     profiles[profileCode] ||
-    profiles[PROFILE_CODES.EXTERNAL] ||
-    DEFAULT_DOCUMENT_PROFILES[PROFILE_CODES.EXTERNAL]
+      profiles[PROFILE_CODES.EXTERNAL] ||
+      DEFAULT_DOCUMENT_PROFILES[PROFILE_CODES.EXTERNAL],
+    hasResidencePermit,
   );
 };
 
@@ -369,6 +383,7 @@ export const applyDocumentTypeProfile = ({
   documentTypes = [],
   profileCode = PROFILE_CODES.EXTERNAL,
   profilesConfig = null,
+  hasResidencePermit = false,
 }) => {
   const availableCodes = (Array.isArray(documentTypes) ? documentTypes : [])
     .map((item) => String(item?.value || "").trim())
@@ -377,6 +392,7 @@ export const applyDocumentTypeProfile = ({
     profileCode,
     profilesConfig,
     availableCodes,
+    { hasResidencePermit },
   );
   const availableMap = new Map(
     (Array.isArray(documentTypes) ? documentTypes : []).map((item) => [

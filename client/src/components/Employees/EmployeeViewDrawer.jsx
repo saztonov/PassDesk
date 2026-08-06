@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useEmployeeForm } from "./useEmployeeForm";
 import { canManageEmployeeStatuses } from "@/shared/lib/accessControl";
 import EmployeeChangeHistoryTab from "@/modules/employees/ui/EmployeeChangeHistoryTab";
+import { doesEmployeeRequirePatent } from "@/modules/employees/lib/patentRequirement";
 import {
   buildEmployeeViewDrawerFormData,
   buildEmployeeViewDrawerItems,
@@ -18,12 +19,11 @@ const EmployeeViewDrawer = ({ visible, employee, onClose, onEdit }) => {
   const [form] = Form.useForm();
   const [activeKeys, setActiveKeys] = useState(["personal", "documents"]);
 
-  const {
-    citizenships,
-    requiresPatent,
-    user,
-    getFieldProps,
-  } = useEmployeeForm(employee, false);
+  const { citizenships, user, getFieldProps } = useEmployeeForm(employee, false);
+
+  // Считаем по самому сотруднику: внутренняя форма useEmployeeForm не связана
+  // с формой дровера, поэтому её requiresPatent здесь всегда был бы true.
+  const requiresPatent = doesEmployeeRequirePatent(employee);
 
   useEffect(() => {
     const formData = buildEmployeeViewDrawerFormData(employee);

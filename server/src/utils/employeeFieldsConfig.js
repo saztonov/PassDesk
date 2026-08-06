@@ -3,6 +3,8 @@
  * Соответствует клиентской конфигурации в client/src/shared/config/employeeFields.js
  */
 
+import { doesEmployeeRequirePatent } from './patentRequirement.js';
+
 // Все возможные поля формы сотрудника
 export const EMPLOYEE_FIELDS = [
   // Личные данные
@@ -13,6 +15,7 @@ export const EMPLOYEE_FIELDS = [
   { key: 'middleName', defaultRequired: false, defaultVisible: true },
   { key: 'positionId', defaultRequired: false, defaultVisible: true },
   { key: 'citizenshipId', defaultRequired: true, defaultVisible: true },
+  { key: 'hasResidencePermit', defaultRequired: false, defaultVisible: true },
   { key: 'birthDate', defaultRequired: true, defaultVisible: true },
   { key: 'birthCountryId', defaultRequired: false, defaultVisible: true },
   { key: 'birthRegion', defaultRequired: false, defaultVisible: true },
@@ -71,9 +74,6 @@ const TEMP_HIDDEN_FIELDS = new Set([
 // Поля, которые временно не должны влиять на статус заполненности.
 const FORCED_OPTIONAL_FIELDS = new Set(["positionId"]);
 
-const doesCitizenshipRequirePatent = (citizenship) =>
-  citizenship?.requiresPatent !== false && citizenship?.isEaeu !== true;
-
 /**
  * Проверить, заполнены ли все обязательные поля сотрудника согласно конфигурации
  * @param {Object} employee - объект сотрудника
@@ -83,7 +83,7 @@ const doesCitizenshipRequirePatent = (citizenship) =>
  */
 export const isEmployeeCardComplete = (employee, formConfig = DEFAULT_FORM_CONFIG, debug = false) => {
   // Определяем условия для специальных полей
-  const requiresPatent = doesCitizenshipRequirePatent(employee.citizenship);
+  const requiresPatent = doesEmployeeRequirePatent(employee);
   const isForeignPassport = employee.passportType === 'foreign';
 
   const missingFields = [];
@@ -157,7 +157,7 @@ export const isEmployeeCardComplete = (employee, formConfig = DEFAULT_FORM_CONFI
  */
 export const getMissingRequiredFields = (employee, formConfig = DEFAULT_FORM_CONFIG) => {
   const missing = [];
-  const requiresPatent = doesCitizenshipRequirePatent(employee.citizenship);
+  const requiresPatent = doesEmployeeRequirePatent(employee);
   const isForeignPassport = employee.passportType === 'foreign';
 
   for (const fieldKey in formConfig) {

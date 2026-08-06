@@ -97,6 +97,7 @@ const EMPLOYEE_UPDATE_ALLOWED_FIELDS = new Set([
   "passportType",
   "passportExpiryDate",
   "kigEndDate",
+  "hasResidencePermit",
   "registrationAddress",
   "patentNumber",
   "patentIssueDate",
@@ -119,6 +120,9 @@ const ensureEmployeeRoleAllowed = (userRole) => {
   }
 };
 
+// employees.has_residence_permit — NOT NULL, поэтому пустое значение это false, а не null.
+const normalizeHasResidencePermit = (value) => value === true || value === "true";
+
 const filterEmployeeMutableFields = (
   payload = {},
   { normalizeEmptyString = false } = {},
@@ -127,6 +131,11 @@ const filterEmployeeMutableFields = (
 
   Object.entries(payload).forEach(([key, value]) => {
     if (!EMPLOYEE_UPDATE_ALLOWED_FIELDS.has(key)) {
+      return;
+    }
+
+    if (key === "hasResidencePermit") {
+      sanitized[key] = normalizeHasResidencePermit(value);
       return;
     }
 
@@ -1172,6 +1181,7 @@ const buildInnLookupEmployeePayload = (employee) => {
           name: source.position.name,
         }
       : null,
+    hasResidencePermit: source.hasResidencePermit === true,
     citizenship: source.citizenship
       ? {
           id: source.citizenship.id,
@@ -2484,6 +2494,9 @@ export const createEmployee = async (req, res, next) => {
 
     const employeeData = {
       ...applyEmployeeSensitiveFieldEncryption(cleanEmployeeData),
+      hasResidencePermit: normalizeHasResidencePermit(
+        cleanEmployeeData.hasResidencePermit,
+      ),
       createdBy: req.user.id,
     };
 
@@ -2746,7 +2759,9 @@ export const updateEmployee = async (req, res, next) => {
       const value = updateData[key];
 
       // Преобразуем пустые строки в null
-      if (value === "" || value === undefined) {
+      if (key === "hasResidencePermit") {
+        cleanedData[key] = normalizeHasResidencePermit(value);
+      } else if (value === "" || value === undefined) {
         cleanedData[key] = null;
       } else if (key === "passportDepartmentCode") {
         cleanedData[key] = normalizePassportDepartmentCode(value);
@@ -5435,6 +5450,7 @@ export const updateMyProfile = async (req, res, next) => {
       "patentNumber",
       "patentIssueDate",
       "blankNumber",
+      "hasResidencePermit",
       "email",
       "phone",
       "notes",
@@ -5449,6 +5465,9 @@ export const updateMyProfile = async (req, res, next) => {
       filteredData[field] = updateData[field] === "" ? null : updateData[field];
       if (field === "passportDepartmentCode") {
         filteredData[field] = normalizePassportDepartmentCode(updateData[field]);
+      }
+      if (field === "hasResidencePermit") {
+        filteredData[field] = normalizeHasResidencePermit(updateData[field]);
       }
     });
 

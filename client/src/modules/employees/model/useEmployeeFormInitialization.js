@@ -181,6 +181,7 @@ export const useEmployeeFormInitialization = ({
         }
 
         form.resetFields();
+        form.setFieldsValue({ hasResidencePermit: false });
         if (userCounterpartyId) {
           form.setFieldsValue({ counterpartyId: userCounterpartyId });
         }

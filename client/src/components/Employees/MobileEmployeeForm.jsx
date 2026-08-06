@@ -68,6 +68,8 @@ const MobileEmployeeForm = ({
     citizenships,
     selectedCitizenship,
     requiresPatent,
+    hasResidencePermit,
+    showResidencePermitField,
     defaultCounterpartyId,
     documentProfilesConfig,
     user,
@@ -247,6 +249,8 @@ const MobileEmployeeForm = ({
     loadingCounterparties,
     availableCounterparties,
     onDocumentUploaded: handleUploadedFileForOcr,
+    hasResidencePermit,
+    showResidencePermitField,
   });
 
   const handleCancelWithCleanup = () => {

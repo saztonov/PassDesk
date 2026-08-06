@@ -52,10 +52,13 @@ export const createDateInputRules = (rules = []) => [
 export const getUploadsForDocumentProfile = (
   profileCode,
   profilesConfig = null,
+  { hasResidencePermit = false } = {},
 ) => {
   const profileCodes = getDocumentTypeCodesForProfile(
     profileCode,
     profilesConfig,
+    null,
+    { hasResidencePermit },
   );
 
   return profileCodes.map((documentType) => ({

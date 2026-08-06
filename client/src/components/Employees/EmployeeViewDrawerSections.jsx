@@ -1,4 +1,4 @@
-import { Form, Input, Select, Typography } from "antd";
+import { Checkbox, Form, Input, Select, Typography } from "antd";
 import dayjs from "dayjs";
 import EmployeeDocumentUpload from "./EmployeeDocumentUpload";
 import { formatPassportDepartmentCode } from "@/modules/employees/lib/employeeFormFormatters";
@@ -17,6 +17,7 @@ export const buildEmployeeViewDrawerFormData = (employee) => {
     firstName: employee.firstName,
     middleName: employee.middleName,
     citizenshipId: employee.citizenshipId,
+    hasResidencePermit: employee.hasResidencePermit === true,
     birthDate: employee.birthDate
       ? dayjs(employee.birthDate).format(DATE_FORMAT)
       : null,
@@ -172,6 +173,12 @@ export const buildEmployeeViewDrawerItems = ({
                   </Select.Option>
                 ))}
               </Select>
+            </Form.Item>
+          )}
+
+          {employee?.hasResidencePermit === true && (
+            <Form.Item name="hasResidencePermit" valuePropName="checked">
+              <Checkbox disabled>ВНЖ (патент не требуется)</Checkbox>
             </Form.Item>
           )}
 

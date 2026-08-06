@@ -22,6 +22,7 @@ export const buildMobileDocumentSections = ({
   availableCounterparties,
   onDocumentUploaded,
   canSelectCounterparty = false,
+  hasResidencePermit,
 }) => {
   const showCounterpartySection = canSelectCounterparty;
   const sections = [];
@@ -38,6 +39,7 @@ export const buildMobileDocumentSections = ({
     onDocumentUploadComplete: onDocumentUploaded,
     profileCode: documentProfileCode,
     profilesConfig: documentProfilesConfig,
+    hasResidencePermit,
   });
 
   const documentsSection = buildMobileEmployeeDocumentsSection({
@@ -54,6 +56,7 @@ export const buildMobileDocumentSections = ({
     ensureEmployeeId,
     onDocumentUploadComplete: onDocumentUploaded,
     patentFields: patentSection?.children || null,
+    hasResidencePermit,
   });
 
   sections.push(documentsSection);

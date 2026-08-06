@@ -15,6 +15,7 @@ import {
   ENCRYPTED_EMPLOYEE_FIELDS,
   hashForSearch,
 } from "../services/encryptionService.js";
+import { RESIDENCE_PERMIT_EXCLUDED_DOCUMENT_CODES } from "../utils/patentRequirement.js";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 50;
@@ -404,6 +405,8 @@ const buildDocumentCte = async ({ user, filters }) => {
     documentProfiles[PROFILE_CODES.DEFAULT_EAEU];
   replacements.profileDefaultMigrantDocTypes =
     documentProfiles[PROFILE_CODES.DEFAULT_MIGRANT];
+  replacements.residencePermitExcludedDocTypes =
+    RESIDENCE_PERMIT_EXCLUDED_DOCUMENT_CODES;
 
   const hasDefaultCounterparty = Boolean(defaultCounterpartyId);
   if (hasDefaultCounterparty) {
@@ -480,6 +483,13 @@ const buildDocumentCte = async ({ user, filters }) => {
       ELSE NULL
     END`;
 
+  // Сотруднику с ВНЖ патент и КИГ не нужны — их сканы не показываем в реестре
+  const residencePermitExclusionSql = `
+    NOT (
+      fe.has_residence_permit = TRUE
+      AND dt.code IN (:residencePermitExcludedDocTypes)
+    )`;
+
   const profileConditionSql = hasDefaultCounterparty
     ? `(
         CASE
@@ -488,8 +498,12 @@ const buildDocumentCte = async ({ user, filters }) => {
           WHEN fe.is_eaeu_citizenship = TRUE THEN dt.code IN (:profileDefaultEaeuDocTypes)
           ELSE dt.code IN (:profileDefaultMigrantDocTypes)
         END
+        AND ${residencePermitExclusionSql}
       )`
-    : "dt.code IN (:profileExternalDocTypes)";
+    : `(
+        dt.code IN (:profileExternalDocTypes)
+        AND ${residencePermitExclusionSql}
+      )`;
 
   const cte = `
     WITH filtered_employees AS (
@@ -510,6 +524,7 @@ const buildDocumentCte = async ({ user, filters }) => {
         e.patent_number_key_version,
         e.patent_issue_date,
         e.blank_number,
+        e.has_residence_permit,
         c.id AS counterparty_id,
         c.name AS counterparty_name,
         CASE

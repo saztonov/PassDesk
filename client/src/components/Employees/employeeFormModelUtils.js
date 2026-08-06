@@ -126,6 +126,7 @@ export const buildEmployeeInitialFormData = ({
     birthCity: employee.birthCity || null,
     isFired,
     isInactive,
+    hasResidencePermit: employee.hasResidencePermit === true,
     inn: employee.inn ? formatInn(employee.inn) : null,
     snils: employee.snils ? formatSnils(employee.snils) : null,
     phone: employee.phone ? formatPhoneNumber(employee.phone) : null,

@@ -317,6 +317,13 @@ Employee.init(
       field: "kig_end_date",
       comment: "Дата окончания КИГ",
     },
+    hasResidencePermit: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: "has_residence_permit",
+      comment: "Есть ВНЖ (патент не требуется)",
+    },
     registrationAddress: {
       type: DataTypes.TEXT,
       allowNull: true,

@@ -4,6 +4,11 @@ import {
   isFieldEncryptionEnabled,
 } from "../services/encryptionService.js";
 
+export {
+  doesCitizenshipRequirePatent,
+  doesEmployeeRequirePatent,
+} from "./patentRequirement.js";
+
 const CITIZENSHIP_LOOKUP_ALIASES = {
   россия: "российская федерация",
   рф: "российская федерация",
@@ -45,9 +50,6 @@ export const inferCitizenshipRequiresPatent = (citizenshipName) =>
     CITIZENSHIP_LOOKUP_ALIASES[normalizeCitizenshipLookupValue(citizenshipName)] ||
       normalizeCitizenshipLookupValue(citizenshipName),
   );
-
-export const doesCitizenshipRequirePatent = (citizenship) =>
-  citizenship?.requiresPatent !== false && citizenship?.isEaeu !== true;
 
 export const shouldSkipPatentValidation = (employeeData) =>
   employeeData?.isClosedBrigade === true ||

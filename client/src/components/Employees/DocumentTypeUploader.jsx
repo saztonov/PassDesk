@@ -35,6 +35,7 @@ const DocumentTypeUploader = ({
   readonly = false,
   profileCode,
   profilesConfig,
+  hasResidencePermit = false,
   viewerMode = "modal",
   columnsCount = 3,
   showInfoBanner = true,
@@ -95,8 +96,9 @@ const DocumentTypeUploader = ({
         documentTypes,
         profileCode,
         profilesConfig,
+        hasResidencePermit,
       }),
-    [documentTypes, profileCode, profilesConfig],
+    [documentTypes, profileCode, profilesConfig, hasResidencePermit],
   );
 
   const resolveEmployeeId = useCallback(async () => {
